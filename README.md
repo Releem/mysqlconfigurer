@@ -3,7 +3,8 @@
 **Attention. Service is in alfa version and mysql.conf file you should use for your own risk.**
 
 ## Description
-MySQL AIOps tool for automatic config generation based on MySQLtuner recommendations
+AIOps tool for generation performance optimized configuration of the MySQL server / Percona server / MariaDB server
+based on the MySQLTuner report and online service. 
 
 ## Technical details
 This is simple Bash script which

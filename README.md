@@ -17,6 +17,10 @@ This is simple Bash script which
 ```bash
 wget https://github.com/initlabopen/mysqlconfigurer/blob/master/mysqlconfigurer.sh
 ```
+of 
+```bash
+curl -o mysqlconfigurer.sh  https://github.com/initlabopen/mysqlconfigurer/blob/master/mysqlconfigurer.sh
+```
 2. Run mysqlconfigurer.sh
 ```bash
 /bin/bash mysqlconfigurer.sh

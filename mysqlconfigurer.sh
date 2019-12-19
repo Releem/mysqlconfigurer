@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Variables
-MYSQLCONFIGURER_PATH="/tmp/.mysqlconfigurer"
+MYSQLCONFIGURER_PATH='/tmp/.mysqlconfigurer'
 MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH'/mysqltuner.pl'
 MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH'/mysqltunerreport.json'
 MYSQLCONFIGURER_CONFIGFILE=$MYSQLCONFIGURER_PATH'/z_aiops_mysql.conf'

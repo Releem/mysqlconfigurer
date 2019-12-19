@@ -4,7 +4,7 @@
 MYSQLCONFIGURER_PATH="/tmp/.mysqlconfigurer"
 MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH'/mysqltuner.pl'
 MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH'/mysqltunerreport.json'
-MYSQLCONFIGURER_CONFIGFILE=$MYSQLCONFIGURER_PATH'/mysql.conf'
+MYSQLCONFIGURER_CONFIGFILE=$MYSQLCONFIGURER_PATH'/z_aiops_mysql.conf'
 
 command -v curl >/dev/null 2>&1 || { echo >&2 "Curl is not installed. Please install Curl. Aborting."; exit 1; }
 command -v perl >/dev/null 2>&1 || { echo >&2 "Perl is not installed. Please install Perl. Aborting."; exit 1; }

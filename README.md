@@ -1,4 +1,7 @@
 # MySQL configurer
+====
+
+[![Build Status - Master](https://travis-ci.com/initlabopen/mysqlconfigurer.svg?branch=master)](https://travis-ci.com/initlabopen/mysqlconfigurer)
 
 **Attention. Service is in alfa version and mysql.conf file you should use for your own risk.**
 

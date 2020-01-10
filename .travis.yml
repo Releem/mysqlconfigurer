@@ -1,0 +1,12 @@
+dist: bionic
+services:
+  - mysql
+before_script:
+  - apt-get install curl libjson-perl
+addons:
+    apt:
+      update: true
+script:
+  - /bin/bash ./mysqlconfigurer.sh
+  - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
+  - cat /tmp/.mysqlconfigurer/z_aiops_mysql.conf

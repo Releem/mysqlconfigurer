@@ -1,10 +1,20 @@
 # MySQL configurer
+====
+
+[![Build Status - Master](https://travis-ci.com/initlabopen/mysqlconfigurer.svg?branch=master)](https://travis-ci.com/initlabopen/mysqlconfigurer)
 
 **Attention. Service is in alfa version and mysql.conf file you should use for your own risk.**
 
 ## Description
 AIOps tool for generation performance optimized configuration of the MySQL server / Percona server / MariaDB server
 based on the MySQLTuner report and online service. 
+
+## Requirements
+*** MINIMAL REQUIREMENTS ***
+Perl 5.6 or later (with perl-doc package)
+Perl module JSON
+Unix/Linux based operating system (tested on Linux, BSD variants, and Solaris variants)
+Unrestricted read access to the MySQL server (OS root access recommended for MySQL < 5.1)
 
 ## Technical details
 This is simple Bash script which
@@ -42,6 +52,31 @@ total 264
 cp /tmp/.mysqlconfigurer/z_aiops_mysql.conf  /etc/mysql/conf.d/
 service mysql restart
 ```
+
+Example of the config file /tmp/.mysqlconfigurer/z_aiops_mysql.conf:
+```
+[mysqld]
+query_cache_type = 1 ### Previous value : OFF
+query_cache_size = 128M ### Previous value : 1048576
+query_cache_limit = 16M ### Previous value : 1048576
+thread_cache_size = 128 ### Previous value : 9
+key_buffer_size = 196M ### Previous value : 8388608
+sort_buffer_size = 24M ### Previous value : 262144
+bulk_insert_buffer_size = 2M ### Previous value : 8388608
+myisam_sort_buffer_size = 24M ### Previous value : 8388608
+innodb_buffer_pool_instances = 1 ### Previous value : 1
+innodb_buffer_pool_size = 18022 ### Previous value : 134217728
+max_heap_table_size = 256M ### Previous value : 16777216
+tmp_table_size = 256M ### Previous value : 16777216
+join_buffer_size = 8M ### Previous value : 262144
+max_connections = 400 ### Previous value : 151
+interactive_timeout = 1200 ### Previous value : 28800
+wait_timeout = 1200 ### Previous value : 28800
+table_open_cache = 65536 ### Previous value : 2000
+innodb_flush_log_at_trx_commit = 2 ### Previous value : 1
+innodb_log_file_size = 4505 ### Previous value : 50331648
+```
+
 
 ## Contribute
 

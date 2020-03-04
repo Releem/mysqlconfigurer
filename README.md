@@ -37,20 +37,20 @@ curl -o mysqlconfigurer.sh  https://raw.githubusercontent.com/initlabopen/mysqlc
 ```bash
 root@mysqlconfigurer# ls -l /tmp/.mysqlconfigurer/
 total 264
--rw-r--r-- 1 root root    479 Dec 19 06:03 z_aiops_mysql.conf
+-rw-r--r-- 1 root root    479 Dec 19 06:03 z_aiops_mysql.cnf
 -rw-r--r-- 1 root root 226002 Dec 18 16:44 mysqltuner.pl
 -rw-r--r-- 1 root root  33410 Dec 18 16:44 mysqltunerreport.json
 ```
 - **mysqltunerreport.json** - the MySQLTuner report file in the JSON format
-- **z_aiops_mysql.conf** - recommended MySQL config file downloaded from api.server-support.com
+- **z_aiops_mysql.cnf** - recommended MySQL config file downloaded from api.server-support.com
 
 4. If you want to use this mysql.conf file you could copy it in the /etc/mysql/conf.d/ directory and restart MySQL server
 ```bash
-cp /tmp/.mysqlconfigurer/z_aiops_mysql.conf  /etc/mysql/conf.d/
+cp /tmp/.mysqlconfigurer/z_aiops_mysql.cnf  /etc/mysql/conf.d/
 service mysql restart
 ```
 
-Example of the config file /tmp/.mysqlconfigurer/z_aiops_mysql.conf:
+Example of the config file /tmp/.mysqlconfigurer/z_aiops_mysql.cnf:
 ```
 [mysqld]
 query_cache_type = 1 ### Previous value : OFF

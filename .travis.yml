@@ -9,4 +9,4 @@ addons:
 script:
   - sudo /bin/bash ./mysqlconfigurer.sh
   - sudo cat /tmp/.mysqlconfigurer/mysqltunerreport.json
-  - sudo cat /tmp/.mysqlconfigurer/z_aiops_mysql.conf
+  - sudo cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf

@@ -3,22 +3,42 @@
 [![Build Status - Master](https://travis-ci.com/initlabopen/mysqlconfigurer.svg?branch=master)](https://travis-ci.com/initlabopen/mysqlconfigurer)
 
 ## Description
-AIOps tool for generation performance optimized configuration of the MySQL server / Percona server / MariaDB server
-based on the MySQLTuner report and online service. 
+**MySQL Configurer** is a script and online service to assist you prepare performance optimized configuration of your MySQL server based on the MySQLTuner report (MySQL status and system information). The service analyzes the MySQLTuner report, MySQL status and system information of your server and provides settings recommendations in the form of a MySQL configuration file.
+
+## Features
+- Fully automated MySQL performance optimized configuration creation. 
+- **MySQL configurer** recommended configuration deliver a [30% boost](#Tests) to MySQL performance compare to the default configuration.
+- **MySQL Configurer** supports 19 parameters of MySQL/Percona/MariaDB server.
+- With **MySQL Configurer** you could prepare configuration file for your MySQL server just in [60 seconds](https://youtu.be/QluJpSl6dGk).
+- You could use **MySQL Configurer** for getting the recommended values for your server and insert in your configuration.
+
+## Warning
+**Always** test recommended configuration on staging environments, and **always** keep in mind that improvements in one area can **negatively** affect MySQL in other areas.
+
+It's also important to wait at least a day of uptime to get accurate results.
 
 ## Requirements
+
 *** MINIMAL REQUIREMENTS ***
-Perl 5.6 or later (with perl-doc package)
-Perl module JSON
-Unix/Linux based operating system (tested on Linux, BSD variants, and Solaris variants)
-Unrestricted read access to the MySQL server (OS root access recommended for MySQL < 5.1)
+- Perl 5.6 or later (with perl-doc package)
+- Perl module JSON
+- Unix/Linux based operating system (tested on Linux, BSD variants, and Solaris variants)
+- Unrestricted read access to the MySQL server (OS root access recommended for MySQL < 5.1)
 
 ## Technical details
-This is simple Bash script which
-1. download last version of the MySQLTuner
-2. run MySQLTuner with options "--json --verbose --notbstat"
-3. upload MySQLTuner report in the JSON to AIOps online service https://api.servers-support.com/v1/mysql
-4. download recommended MySQL config file
+**MySQL Configurer** is a Bash script which
+1. downloads last version of the MySQLTuner
+2. runs MySQLTuner with options "--json --verbose --notbstat"
+3. uploads MySQLTuner report in the JSON to AIOps online service https://api.servers-support.com/v1/mysql
+4. downloads recommended MySQL config file
+
+## Tests
+We tested the results with Sysbench on a virtual server running Debian 9 (2 CPU, 2GB Ram) the table contained 10 million entries.
+Two configurations were tested, the MySQL default configuration and the configuration recommended by the **MySQLConfigurer** service. The tests were two-step: read (test1) only and read/write (test2).
+
+Recommended configuration delivered a 30% boost to MySQL performance compared to the default configuration. Follow this link to see test results:
+https://docs.google.com/spreadsheets/d/1J9FDgBGbvNA356d74WKYBaEzSwK7H-wgjHEQgYh8CMI/edit?usp=sharing
+
 
 ## Usage
 1. Download mysqlconfigurer.sh
@@ -50,7 +70,7 @@ cp /tmp/.mysqlconfigurer/z_aiops_mysql.cnf  /etc/mysql/conf.d/
 service mysql restart
 ```
 
-Example of the config file /tmp/.mysqlconfigurer/z_aiops_mysql.cnf:
+Example of the recommended configuration file /tmp/.mysqlconfigurer/z_aiops_mysql.cnf:
 ```
 [mysqld]
 query_cache_type = 1 ### Previous value : OFF
@@ -73,7 +93,6 @@ table_open_cache = 65536 ### Previous value : 2000
 innodb_flush_log_at_trx_commit = 2 ### Previous value : 1
 innodb_log_file_size = 4505 ### Previous value : 50331648
 ```
-
 
 ## Contribute
 

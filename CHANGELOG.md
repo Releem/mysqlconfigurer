@@ -2,6 +2,10 @@ MySQL Configure releases
 ---
 Information about releases of the MySQLConfigurer script and online service.
 
+MySQL Configurer 0.2.2, 2020-04-25
+- Improve documentation. Added supported MySQL versions. Closes #22
+- Imrove stability. Response message for incompatible report. Closes #10
+
 MySQL Configurer 0.2.1, 2020-04-11
 - Fixed rename file z_aiops_mysql.conf -> z_aiops_mysql.cnf. Issue #14 was closed
 - Added rounding of variables. Issue #17 was closed.

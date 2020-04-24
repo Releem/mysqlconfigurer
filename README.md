@@ -17,7 +17,10 @@
 
 It's also important to wait at least a day of uptime to get accurate results.
 
-## Requirements
+## Compatibility
+- MySQL 5.7
+- MySQL 5.6
+- MySQL 5.5
 
 *** MINIMAL REQUIREMENTS ***
 - Perl 5.6 or later (with perl-doc package)

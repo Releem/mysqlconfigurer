@@ -53,7 +53,7 @@ https://docs.google.com/spreadsheets/d/1J9FDgBGbvNA356d74WKYBaEzSwK7H-wgjHEQgYh8
 	* `yum install -y wget curl net-tools perl-JSON`
 	
 	c. Other OS
-	`Requires installation of similar packages on your OS`
+	* `Requires installation of similar packages on your OS`
 2. Download mysqlconfigurer.sh
     ```bash
     wget https://raw.githubusercontent.com/initlabopen/mysqlconfigurer/master/mysqlconfigurer.sh

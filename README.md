@@ -45,10 +45,13 @@ https://docs.google.com/spreadsheets/d/1J9FDgBGbvNA356d74WKYBaEzSwK7H-wgjHEQgYh8
 
 ## Usage
 1. Install dependencies
+
 	a. Debian/Ubuntu
 	* `apt-get install -y wget curl net-tools libjson-perl`
+	
 	b. Centos/RedHat
 	* `yum install -y wget curl net-tools perl-JSON`
+	
 	c. Other OS
 	`Requires installation of similar packages on your OS`
 2. Download mysqlconfigurer.sh

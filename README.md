@@ -44,7 +44,17 @@ https://docs.google.com/spreadsheets/d/1J9FDgBGbvNA356d74WKYBaEzSwK7H-wgjHEQgYh8
 
 
 ## Usage
-1. Download mysqlconfigurer.sh
+1. Install dependencies
+
+	a. Debian/Ubuntu
+	* `apt-get install -y wget curl net-tools libjson-perl`
+	
+	b. Centos/RedHat
+	* `yum install -y wget curl net-tools perl-JSON`
+	
+	c. Other OS
+	* `Requires installation of similar packages on your OS`
+2. Download mysqlconfigurer.sh
     ```bash
     wget https://raw.githubusercontent.com/initlabopen/mysqlconfigurer/master/mysqlconfigurer.sh
     ```
@@ -52,11 +62,11 @@ https://docs.google.com/spreadsheets/d/1J9FDgBGbvNA356d74WKYBaEzSwK7H-wgjHEQgYh8
     ```bash
     curl -o mysqlconfigurer.sh  https://raw.githubusercontent.com/initlabopen/mysqlconfigurer/master/mysqlconfigurer.sh
     ```
-2. Run mysqlconfigurer.sh
+3. Run mysqlconfigurer.sh
     ```bash
     /bin/bash mysqlconfigurer.sh
     ```
-3. In the /tmp/.mysqlconfigurer folder you could see
+4. In the /tmp/.mysqlconfigurer folder you could see
     ```bash
     root@mysqlconfigurer# ls -l /tmp/.mysqlconfigurer/
     total 264
@@ -67,7 +77,7 @@ https://docs.google.com/spreadsheets/d/1J9FDgBGbvNA356d74WKYBaEzSwK7H-wgjHEQgYh8
     - **mysqltunerreport.json** - the MySQLTuner report file in the JSON format
     - **z_aiops_mysql.cnf** - recommended MySQL config file downloaded from api.server-support.com
 
-4. Perform the following steps to safely apply recommended configuration:
+5. Perform the following steps to safely apply recommended configuration:
     
     **WARNING!** **In case of change 'innodb_log_file_size' only in MySQL 5.6.7 or earlier** set parameter 'innodb_fast_shutdown' to 1 ([Official documentation](https://dev.mysql.com/doc/refman/5.6/en/innodb-redo-log.html)), stop MySQL server, copy old log files into a safe place and delete it from log directory, copy recommended configuration and start MySQL server: 
     ```bash

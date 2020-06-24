@@ -21,6 +21,9 @@ It's also important to wait at least a day of uptime to get accurate results.
 - MySQL 5.7
 - MySQL 5.6
 - MySQL 5.5
+- MariaDB 10.1
+- MariaDB 10.2
+- MariaDB 10.3
 
 *** MINIMAL REQUIREMENTS ***
 - Perl 5.6 or later (with perl-doc package)

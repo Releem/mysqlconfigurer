@@ -1,6 +1,16 @@
-MySQL Configure releases
+MySQL Configurer releases
 ---
 Information about releases of the MySQLConfigurer script and online service.
+
+MySQL Configurer 0.3.0, 2020-06-24
+- Tested compatibility with MySQL 5.5, MySQL 5.6, MySQL 5.7, MariaDB 10.1, MariaDB 10.2, MariaDB 10.3.
+- Added calculation of the 'key_buffer_size' variable for improve performance of the MyIsam storage engine.
+- Added calculation of the 'innodb_buffer_pool_chunk_size' variable for MySQL 5.7.5 and later, MariaDB 10.2.2 and later.
+- Added calculation of the 'max_connections' variable based on 'Max_used_connections' MySQL status variable.
+- Improve calculation of the 'innodb_log_file_size' variable using 'innodb_log_files_in_group' variable.
+- Improve documentation with install dependencies step for Debian/Ubuntu and Centos/Redhat.
+- Fix documentation. Update example of the recommended configuration file. Closes #35
+- Fix documentation. How to safely apply the configuration file. Closes #36
 
 MySQL Configurer 0.2.2, 2020-04-25
 - Improve documentation. Added supported MySQL versions. Closes #22

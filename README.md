@@ -80,24 +80,7 @@ https://docs.google.com/spreadsheets/d/1J9FDgBGbvNA356d74WKYBaEzSwK7H-wgjHEQgYh8
     - **mysqltunerreport.json** - the MySQLTuner report file in the JSON format
     - **z_aiops_mysql.cnf** - recommended MySQL config file downloaded from api.server-support.com
 
-5. Perform the following steps to safely apply recommended configuration:
-    
-    **WARNING!** **In case of change 'innodb_log_file_size' only in MySQL 5.6.7 or earlier** set parameter 'innodb_fast_shutdown' to 1 ([Official documentation](https://dev.mysql.com/doc/refman/5.6/en/innodb-redo-log.html)), stop MySQL server, copy old log files into a safe place and delete it from log directory, copy recommended configuration and start MySQL server: 
-    ```bash
-        mysql -e"SET GLOBAL innodb_fast_shutdown = 1"
-        service mysql stop
-        cp /tmp/.mysqlconfigurer/z_aiops_mysql.cnf  /etc/mysql/conf.d/
-        mv /var/lib/mysql/ib_logfile[01] /tmp
-        service mysql start
-    ```
-    In other cases stop MySQL server, copy recommended configuration file and start MySQL server: 
-    ```bash
-        service mysql stop
-        cp /tmp/.mysqlconfigurer/z_aiops_mysql.cnf  /etc/mysql/conf.d/
-        service mysql start
-    ```
-
-6. Set open_files_limit in MySQL
+5. Set open_files_limit in MySQL
 open_files_limit should be no less than `table_open_cache * 2`
 Find out if any other .conf files are being used with MySQL that overrides the values for open limits:
 Run `systemctl status mysqld/mysql/mariadb` command and it will show something like this
@@ -106,7 +89,7 @@ Drop-In:
 /etc/systemd/system/(mysqld/mysql/mariadb).service.d
 └─limits.conf
 ```
-This means there is `/etc/systemd/system/(mysqld/mysql/mariadb).service.d/limts.conf` which is loaded with MySQL Server.
+This means there is `/etc/systemd/system/(mysqld/mysql/mariadb).service.d/limits.conf` which is loaded with MySQL Server.
 If this file does not exist, you must create.
 `mysqld/mysql/mariadb` is selected depending on the name of the running service name on the server, which is also defined in the output of the command `systemctl status mysqld/mysql/mariadb`
 Edit the file and add the following
@@ -128,6 +111,24 @@ You should see the following:
 +------------------+--------+
 1 row in set (0.00 sec)
 ```
+
+6. Perform the following steps to safely apply recommended configuration:
+    
+    **WARNING!** **In case of change 'innodb_log_file_size' only in MySQL 5.6.7 or earlier** set parameter 'innodb_fast_shutdown' to 1 ([Official documentation](https://dev.mysql.com/doc/refman/5.6/en/innodb-redo-log.html)), stop MySQL server, copy old log files into a safe place and delete it from log directory, copy recommended configuration and start MySQL server: 
+    ```bash
+        mysql -e"SET GLOBAL innodb_fast_shutdown = 1"
+        service mysql stop
+        cp /tmp/.mysqlconfigurer/z_aiops_mysql.cnf  /etc/mysql/conf.d/
+        mv /var/lib/mysql/ib_logfile[01] /tmp
+        service mysql start
+    ```
+    In other cases stop MySQL server, copy recommended configuration file and start MySQL server: 
+    ```bash
+        service mysql stop
+        cp /tmp/.mysqlconfigurer/z_aiops_mysql.cnf  /etc/mysql/conf.d/
+        service mysql start
+    ```
+
 
 Example of the recommended configuration file /tmp/.mysqlconfigurer/z_aiops_mysql.cnf:
 ```

@@ -97,6 +97,37 @@ https://docs.google.com/spreadsheets/d/1J9FDgBGbvNA356d74WKYBaEzSwK7H-wgjHEQgYh8
         service mysql start
     ```
 
+6. Set open_files_limit in MySQL
+open_files_limit should be no less than `table_open_cache * 2`
+Find out if any other .conf files are being used with MySQL that overrides the values for open limits:
+Run `systemctl status mysqld/mysql/mariadb` command and it will show something like this
+```
+Drop-In:
+/etc/systemd/system/(mysqld/mysql/mariadb).service.d
+└─limits.conf
+```
+This means there is `/etc/systemd/system/(mysqld/mysql/mariadb).service.d/limts.conf` which is loaded with MySQL Server.
+If this file does not exist, you must create.
+`mysqld/mysql/mariadb` is selected depending on the name of the running service name on the server, which is also defined in the output of the command `systemctl status mysqld/mysql/mariadb`
+Edit the file and add the following
+```
+[Service]
+LimitNOFILE=(table_open_cache * 2)
+```
+Run the following command to apply the changes.
+`systemctl daemon-reload && /scripts/restartsrv_mysql`
+Reboot your mysql server.
+After the successful reboot of the server, we will again run below SQL Queries.
+`SHOW VARIABLES LIKE 'open_files_limit';`
+You should see the following:
+```
++------------------+--------+
+| Variable_name    | Value  |
++------------------+--------+
+| open_files_limit | 102400 |
++------------------+--------+
+1 row in set (0.00 sec)
+```
 
 Example of the recommended configuration file /tmp/.mysqlconfigurer/z_aiops_mysql.cnf:
 ```

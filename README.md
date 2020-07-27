@@ -101,7 +101,7 @@ https://docs.google.com/spreadsheets/d/1J9FDgBGbvNA356d74WKYBaEzSwK7H-wgjHEQgYh8
     - **`open_files_limit` should be no less than `[table_open_cache] * 2`.**
 
     5.3. Run the following command to apply the changes.
-        `systemctl daemon-reload && /scripts/restartsrv_mysql`
+        `systemctl daemon-reload`
 
     5.4. Reboot your mysql server.
     

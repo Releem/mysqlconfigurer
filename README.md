@@ -80,37 +80,47 @@ https://docs.google.com/spreadsheets/d/1J9FDgBGbvNA356d74WKYBaEzSwK7H-wgjHEQgYh8
     - **mysqltunerreport.json** - the MySQLTuner report file in the JSON format
     - **z_aiops_mysql.cnf** - recommended MySQL config file downloaded from api.server-support.com
 
-5. Set open_files_limit in MySQL
-open_files_limit should be no less than `table_open_cache * 2`
-Find out if any other .conf files are being used with MySQL that overrides the values for open limits:
-Run `systemctl status mysqld/mysql/mariadb` command and it will show something like this
-```
-Drop-In:
-/etc/systemd/system/(mysqld/mysql/mariadb).service.d
-└─limits.conf
-```
-This means there is `/etc/systemd/system/(mysqld/mysql/mariadb).service.d/limits.conf` which is loaded with MySQL Server.
-If this file does not exist, you must create.
-`mysqld/mysql/mariadb` is selected depending on the name of the running service name on the server, which is also defined in the output of the command `systemctl status mysqld/mysql/mariadb`
-Edit the file and add the following
-```
-[Service]
-LimitNOFILE=(table_open_cache * 2)
-```
-Run the following command to apply the changes.
-`systemctl daemon-reload && /scripts/restartsrv_mysql`
-Reboot your mysql server.
-After the successful reboot of the server, we will again run below SQL Queries.
-`SHOW VARIABLES LIKE 'open_files_limit';`
-You should see the following:
-```
-+------------------+--------+
-| Variable_name    | Value  |
-+------------------+--------+
-| open_files_limit | 102400 |
-+------------------+--------+
-1 row in set (0.00 sec)
-```
+5. **Only if you need to increase `open_files_limit` variable.** Perform the folowing steps to safely setup `open_files_limit` in MySQL
+
+    5.1. Find out if any other .conf files are being used with MySQL that overrides the values for open limits. Run `systemctl status mysqld/mysql/mariadb` command and it will show something like this
+    ```
+        Drop-In:
+            /etc/systemd/system/(mysqld/mysql/mariadb).service.d
+            └─limits.conf
+    ```
+        
+    This means there is `/etc/systemd/system/(mysqld/mysql/mariadb).service.d/limits.conf` file which is loaded with MySQL Server. If this file does not exist, you should create create it.
+    
+    `mysqld/mysql/mariadb` is selected depending on the name of the running service name on the server, which is also defined in the output of the command `systemctl status mysqld/mysql/mariadb`
+
+    5.2. Edit the file and add the following and change `[table_open_cache]` to your value
+    ```
+        [Service]
+        LimitNOFILE=([table_open_cache] * 2)
+    ```
+    - **`open_files_limit` should be no less than `[table_open_cache] * 2`.**
+
+    5.3. Run the following command to apply the changes.
+        `systemctl daemon-reload && /scripts/restartsrv_mysql`
+
+    5.4. Reboot your mysql server.
+    
+    5.5. After the successful reboot of the server, we will again run below SQL Queries.
+
+    ```
+        SHOW VARIABLES LIKE 'open_files_limit';
+    ```
+        
+    You should see the following:
+        
+    ```
+        +------------------+--------+
+        | Variable_name    | Value  |
+        +------------------+--------+
+        | open_files_limit | 102400 |
+        +------------------+--------+
+        1 row in set (0.00 sec)
+    ```
 
 6. Perform the following steps to safely apply recommended configuration:
     

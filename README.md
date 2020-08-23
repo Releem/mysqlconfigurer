@@ -53,7 +53,7 @@ https://docs.google.com/spreadsheets/d/1J9FDgBGbvNA356d74WKYBaEzSwK7H-wgjHEQgYh8
 	* `apt-get install -y wget curl net-tools libjson-perl`
 	
 	b. Centos/RedHat
-	* `yum install -y wget curl net-tools perl-JSON`
+	* `yum install -y wget curl net-tools perl-JSON perl-Data-Dumper`
 	
 	c. Other OS
 	* `Requires installation of similar packages on your OS`

@@ -2,6 +2,10 @@ MySQL Configurer releases
 ---
 Information about releases of the MySQLConfigurer script and online service.
 
+MySQL Configurer 0.3.1, 2020-07-08
+- Added calculation of the 'table_open_cache' variable. 
+- Added calculation of the 'table_definition_cache' variable. Closes #18
+
 MySQL Configurer 0.3.0, 2020-06-24
 - Tested compatibility with MySQL 5.5, MySQL 5.6, MySQL 5.7, MariaDB 10.1, MariaDB 10.2, MariaDB 10.3.
 - Added calculation of the 'key_buffer_size' variable for improve performance of the MyIsam storage engine.

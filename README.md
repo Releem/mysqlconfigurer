@@ -17,13 +17,28 @@
 
 It's also important to wait at least a day of uptime to get accurate results.
 
+## Security
+**Always** store credentials only in `~/.my.cnf` to prevent sending passwords to our service.
+In other cases MySQLTuner stores passwords manualy entered while running script in "MySQL Client" section of the MySQLTuner report.
+
+To use .my.cnf file create file `~/.my.cnf` with folowing content:
+```
+[client]
+user=root
+password=[your password]
+```
+
+
 ## Compatibility
+- MySQL 8.0
 - MySQL 5.7
 - MySQL 5.6
 - MySQL 5.5
 - MariaDB 10.1
 - MariaDB 10.2
 - MariaDB 10.3
+- MariaDB 10.4
+- MariaDB 10.5
 
 *** MINIMAL REQUIREMENTS ***
 - Perl 5.6 or later (with perl-doc package)
@@ -138,7 +153,7 @@ https://docs.google.com/spreadsheets/d/1J9FDgBGbvNA356d74WKYBaEzSwK7H-wgjHEQgYh8
         cp /tmp/.mysqlconfigurer/z_aiops_mysql.cnf  /etc/mysql/conf.d/
         service mysql start
     ```
-
+    * The path to `/etc/mysql/conf.d` folder can vary according to Linux distro.
 
 Example of the recommended configuration file /tmp/.mysqlconfigurer/z_aiops_mysql.cnf:
 ```

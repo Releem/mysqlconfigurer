@@ -2,6 +2,14 @@ MySQL Configurer releases
 ---
 Information about releases of the MySQLConfigurer script and online service.
 
+MySQL Configurer 0.3.2, 2020-08-24
+- Added MySQL 8 support. Closes #39 
+- Fixed calculation of the 'key_buffer_size' variable for MySQL 8.0.
+- Tested compatibility with MySQL 5.5, MySQL 5.6, MySQL 5.7, MySQL 8.0, MariaDB 10.1, MariaDB 10.2, MariaDB 10.3, MariaDB 10.4, MariaDB 10.5.
+- Improved documentation with Security section.
+- Improved documentation with information about setting open_files_limit.
+- Improved documentation with installation perl-Data-Dumper module on Centos.
+
 MySQL Configurer 0.3.1, 2020-07-08
 - Added calculation of the 'table_open_cache' variable. 
 - Added calculation of the 'table_definition_cache' variable. Closes #18

@@ -23,7 +23,7 @@ fi
 curl -s -o $MYSQLTUNER_FILENAME -L http://mysqltuner.pl/ 
 
 # Run MySQLTuner for creating report in the JSON format
-if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --outputfile="$MYSQLTUNER_REPORT" > /dev/null; then 
+if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --outputfile="$MYSQLTUNER_REPORT" --defaults-file ~/.my.cnf > /dev/null; then 
 
     # Post MySQLTuner report in the AIOps service. The answer is the configuration file for MySQL
     curl -s -d @$MYSQLTUNER_REPORT -H "Content-Type: application/json" -X POST https://api.servers-support.com/v1/mysql -o "$MYSQLCONFIGURER_CONFIGFILE"

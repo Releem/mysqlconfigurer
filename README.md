@@ -1,6 +1,6 @@
 # MySQL configurer
 
-[![Build Status - Master](https://travis-ci.com/initlabopen/mysqlconfigurer.svg?branch=master)](https://travis-ci.com/initlabopen/mysqlconfigurer)
+[![Build Status - Master](https://travis-ci.com/releem/mysqlconfigurer.svg?branch=master)](https://travis-ci.com/releem/mysqlconfigurer)
 
 ## Description
 **MySQL Configurer** is a script and online service to assist you prepare performance optimized configuration of your MySQL server based on the MySQLTuner report (MySQL status and system information). The service analyzes the MySQLTuner report, MySQL status and system information of your server and provides settings recommendations in the form of a MySQL configuration file.

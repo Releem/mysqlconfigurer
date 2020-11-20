@@ -29,7 +29,6 @@ user=root
 password=[your password]
 ```
 
-
 ## Compatibility
 - MySQL 8.0
 - MySQL 5.7
@@ -75,16 +74,17 @@ https://docs.google.com/spreadsheets/d/1J9FDgBGbvNA356d74WKYBaEzSwK7H-wgjHEQgYh8
 	* `Requires installation of similar packages on your OS`
 2. Download mysqlconfigurer.sh
     ```bash
-    wget https://raw.githubusercontent.com/releem/mysqlconfigurer/master/mysqlconfigurer.sh
+    wget https://releem.s3.amazonaws.com/mysqlconfigurer.sh
     ```
     or
     ```bash
-    curl -o mysqlconfigurer.sh  https://raw.githubusercontent.com/releem/mysqlconfigurer/master/mysqlconfigurer.sh
+    curl -o mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer.sh
     ```
 3. Run mysqlconfigurer.sh
     ```bash
-    /bin/bash mysqlconfigurer.sh
+    /bin/bash mysqlconfigurer.sh -k [RELEEM_API_KEY]
     ```
+    - **RELEEM_API_KEY** - To get your Releem API Key please sign up at https://app.releem.com/
 4. In the /tmp/.mysqlconfigurer folder you could see
     ```bash
     root@mysqlconfigurer# ls -l /tmp/.mysqlconfigurer/

@@ -5,10 +5,10 @@ MYSQLCONFIGURER_PATH="/tmp/.mysqlconfigurer/"
 MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH"mysqltuner.pl"
 MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 MYSQLCONFIGURER_CONFIGFILE=$MYSQLCONFIGURER_PATH"z_aiops_mysql.cnf"
-setMYSQL_MEMORY_LIMIT=0
+MYSQL_MEMORY_LIMIT=0
 
 # Parse parameters
-while getopts k:m option
+while getopts "k:m:" option
 do
 case "${option}"
 in
@@ -19,7 +19,7 @@ done
 
 # Check RELEEM_API_KEY is not empty
 if [ -z "$RELEEM_API_KEY" ]; then
-    echo >&2 "RELEEM_API_KEY is empty please sign up at https://app.releem.com/ to get your API key. Aborting."
+    echo >&2 "RELEEM_API_KEY is empty please sign up at https://app.releem.com/ to get your Releem API key. Aborting."
     exit 1;
 fi
 

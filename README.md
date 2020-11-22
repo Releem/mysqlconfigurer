@@ -65,8 +65,9 @@ Recommended configuration delivered a 30% boost to MySQL performance compared to
 https://docs.google.com/spreadsheets/d/1J9FDgBGbvNA356d74WKYBaEzSwK7H-wgjHEQgYh8CMI/edit?usp=sharing
 
 ## Options
--k [Releem API KEY] - used for authorization to Releem platform. To get your Releem API Key please sign up on https://app.releem.com/ 
--m [MYSQL_MEMORY_LIMIT] - set maximum memory limit for MySQL. Used when there are installed different applications on the server.
+**-k [Releem API KEY]** - used for authorization to Releem platform. To get your Releem API Key please sign up on https://app.releem.com/ 
+
+**-m [MYSQL_MEMORY_LIMIT]** - set maximum memory limit for MySQL. Used when there are installed different applications on the server.
 
 ## Usage
 1. Install dependencies

@@ -7,7 +7,6 @@ addons:
     apt:
       update: true
 script:
-  - sudo /bin/bash ./mysqlconfigurer.sh
   - sudo /bin/bash ./mysqlconfigurer.sh -k $TRAVIS_RELEEM_API_KEY
   - sudo cat /tmp/.mysqlconfigurer/mysqltunerreport.json
   - sudo cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf

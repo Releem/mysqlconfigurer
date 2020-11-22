@@ -1,16 +1,21 @@
-# MySQL configurer
+# Releem MySQLConfigurer
 
 [![Build Status - Master](https://travis-ci.com/releem/mysqlconfigurer.svg?branch=master)](https://travis-ci.com/releem/mysqlconfigurer)
 
 ## Description
-**MySQL Configurer** is a script and online service to assist you prepare performance optimized configuration of your MySQL server based on the MySQLTuner report (MySQL status and system information). The service analyzes the MySQLTuner report, MySQL status and system information of your server and provides settings recommendations in the form of a MySQL configuration file.
+**MySQLConfigurer** is a script that will assist you prepare performance optimized configuration of your MySQL server based on the MySQLTuner report (MySQL status and system information). 
+
+**Releem** is an online service for automatic optimization MySQL configuration to improve performance and reduce costs. Releem analyzes the MySQLTuner report, MySQL status and system information of your server and provides settings recommendations in the form of a MySQL configuration file.
+
+## Support
+Join the Releem Community on [Slack](https://mysqlcommunity.slack.com/archives/C01FFDYTWTW) and [Telegram](https://t.me/releemhq). 
 
 ## Features
 - Fully automated MySQL performance optimized configuration creation. 
-- **MySQL configurer** recommended configuration deliver a [30% boost](#Tests) to MySQL performance compare to the default configuration.
-- **MySQL Configurer** supports 19 parameters of MySQL/Percona/MariaDB server.
-- With **MySQL Configurer** you could prepare configuration file for your MySQL server just in [60 seconds](https://youtu.be/QluJpSl6dGk).
-- You could use **MySQL Configurer** for getting the recommended values for your server and insert in your configuration.
+- **MySQLConfigurer** recommended configuration deliver a [30% boost](#Tests) to MySQL performance compare to the default configuration.
+- **MySQLConfigurer** supports 19 parameters of MySQL/Percona/MariaDB server.
+- With **MySQLConfigurer** you could prepare configuration file for your MySQL server just in [60 seconds](https://youtu.be/QluJpSl6dGk).
+- You could use **MySQLConfigurer** for getting the recommended values for your server and insert in your configuration.
 
 ## Warning
 **Always** test recommended configuration on staging environments, and **always** keep in mind that improvements in one area can **negatively** affect MySQL in other areas.
@@ -27,7 +32,6 @@ To use .my.cnf file create file `~/.my.cnf` with folowing content:
 user=root
 password=[your password]
 ```
-
 
 ## Compatibility
 - MySQL 8.0
@@ -47,19 +51,22 @@ password=[your password]
 - Unrestricted read access to the MySQL server (OS root access recommended for MySQL < 5.1)
 
 ## Technical details
-**MySQL Configurer** is a Bash script which
+**MySQLConfigurer** is a Bash script which
 1. downloads last version of the MySQLTuner
 2. runs MySQLTuner with options "--json --verbose --notbstat"
-3. uploads MySQLTuner report in the JSON to AIOps online service https://api.servers-support.com/v1/mysql
+3. uploads MySQLTuner report in the JSON to Releem online service https://api.servers-support.com/v1/mysql
 4. downloads recommended MySQL config file
 
 ## Tests
 We tested the results with Sysbench on a virtual server running Debian 9 (2 CPU, 2GB Ram) the table contained 10 million entries.
-Two configurations were tested, the MySQL default configuration and the configuration recommended by the **MySQLConfigurer** service. The tests were two-step: read (test1) only and read/write (test2).
+Two configurations were tested, the MySQL default configuration and the configuration recommended by the **Releem** service. The tests were two-step: read (test1) only and read/write (test2).
 
 Recommended configuration delivered a 30% boost to MySQL performance compared to the default configuration. Follow this link to see test results:
 https://docs.google.com/spreadsheets/d/1J9FDgBGbvNA356d74WKYBaEzSwK7H-wgjHEQgYh8CMI/edit?usp=sharing
 
+## Options
+-k [Releem API KEY] - used for authorization to Releem platform. To get your Releem API Key please sign up on https://app.releem.com/ 
+-m [MYSQL_MEMORY_LIMIT] - set maximum memory limit for MySQL. Used when there are installed different applications on the server.
 
 ## Usage
 1. Install dependencies
@@ -74,16 +81,17 @@ https://docs.google.com/spreadsheets/d/1J9FDgBGbvNA356d74WKYBaEzSwK7H-wgjHEQgYh8
 	* `Requires installation of similar packages on your OS`
 2. Download mysqlconfigurer.sh
     ```bash
-    wget https://raw.githubusercontent.com/initlabopen/mysqlconfigurer/master/mysqlconfigurer.sh
+    wget https://releem.s3.amazonaws.com/mysqlconfigurer.sh
     ```
     or
     ```bash
-    curl -o mysqlconfigurer.sh  https://raw.githubusercontent.com/initlabopen/mysqlconfigurer/master/mysqlconfigurer.sh
+    curl -o mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer.sh
     ```
 3. Run mysqlconfigurer.sh
     ```bash
-    /bin/bash mysqlconfigurer.sh
+    /bin/bash mysqlconfigurer.sh -k [RELEEM_API_KEY]
     ```
+    - **RELEEM_API_KEY** - To get your Releem API Key please sign up on https://app.releem.com/
 4. In the /tmp/.mysqlconfigurer folder you could see
     ```bash
     root@mysqlconfigurer# ls -l /tmp/.mysqlconfigurer/
@@ -185,4 +193,4 @@ You can help this project by reporting problems, suggestions or contributing to 
 
 ### Report a problem or suggestion
 
-Go to our [issue tracker](https://github.com/initlabopen/mysqlconfigurer/issues) and check if your problem/suggestion is already reported. If not, create a new issue with a descriptive title and detail your suggestion or steps to reproduce the problem.
+Go to our [issue tracker](https://github.com/releem/mysqlconfigurer/issues) and check if your problem/suggestion is already reported. If not, create a new issue with a descriptive title and detail your suggestion or steps to reproduce the problem.

@@ -2,6 +2,13 @@ MySQL Configurer releases
 ---
 Information about releases of the MySQLConfigurer script and online service.
 
+Releem MySQLConfigurer 0.4.0, 2020-11-21
+- Improved documentation
+- Added option -m to set memory limit for MySQL in MBs. Closes #42.
+- Fixed downloading MySQLTuner every launch. Closes #46.
+- Added option -k - Releem API Key authorization.
+- Created Releem Community groups on Slack and Telegram.
+
 MySQL Configurer 0.3.2, 2020-08-24
 - Added MySQL 8 support. Closes #39 
 - Fixed calculation of the 'key_buffer_size' variable for MySQL 8.0.

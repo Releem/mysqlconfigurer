@@ -19,7 +19,7 @@ done
 
 # Check RELEEM_API_KEY is not empty
 if [ -z "$RELEEM_API_KEY" ]; then
-    echo >&2 "RELEEM_API_KEY is empty please sign up at https://app.releem.com/ to get your Releem API key. Aborting."
+    echo >&2 "RELEEM_API_KEY is empty please sign up at https://releem.com/appsignup to get your Releem API key. Aborting."
     exit 1;
 fi
 

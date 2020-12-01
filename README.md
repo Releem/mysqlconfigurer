@@ -2,10 +2,13 @@
 
 [![Build Status - Master](https://travis-ci.com/releem/mysqlconfigurer.svg?branch=master)](https://travis-ci.com/releem/mysqlconfigurer)
 
+
 ## Description
 **MySQLConfigurer** is a script that will assist you prepare performance optimized configuration of your MySQL server based on the MySQLTuner report (MySQL status and system information). 
 
 **Releem** is an online service for automatic optimization MySQL configuration to improve performance and reduce costs. Releem analyzes the MySQLTuner report, MySQL status and system information of your server and provides settings recommendations in the form of a MySQL configuration file.
+
+To get your Releem API Key please [sign up](https://releem.com/?utm_source=github&utm_medium=link&utm_campaign=signup#rec221377760).
 
 ## Support
 Join the Releem Community on [Slack](https://mysqlcommunity.slack.com/archives/C01FFDYTWTW) and [Telegram](https://t.me/releemhq). 
@@ -61,11 +64,10 @@ password=[your password]
 We tested the results with Sysbench on a virtual server running Debian 9 (2 CPU, 2GB Ram) the table contained 10 million entries.
 Two configurations were tested, the MySQL default configuration and the configuration recommended by the **Releem** service. The tests were two-step: read (test1) only and read/write (test2).
 
-Recommended configuration delivered a 30% boost to MySQL performance compared to the default configuration. Follow this link to see test results:
-https://docs.google.com/spreadsheets/d/1J9FDgBGbvNA356d74WKYBaEzSwK7H-wgjHEQgYh8CMI/edit?usp=sharing
+Recommended configuration delivered a 30% boost to MySQL performance compared to the default configuration. Follow this [link](https://releem.com/blog/how-to-improve-performance-mysql57-default-configuration) to see test results.
 
 ## Options
-**-k [Releem API KEY]** - used for authorization to Releem platform. To get your Releem API Key please sign up on https://app.releem.com/ 
+**-k [Releem API KEY]** - used for authorization to Releem platform. To get your Releem API Key please [sign up](https://releem.com/?utm_source=github&utm_medium=link&utm_campaign=signup#rec221377760).
 
 **-m [MYSQL_MEMORY_LIMIT]** - set maximum memory limit for MySQL. Used when there are installed different applications on the server.
 
@@ -92,7 +94,7 @@ https://docs.google.com/spreadsheets/d/1J9FDgBGbvNA356d74WKYBaEzSwK7H-wgjHEQgYh8
     ```bash
     /bin/bash mysqlconfigurer.sh -k [RELEEM_API_KEY]
     ```
-    - **RELEEM_API_KEY** - To get your Releem API Key please sign up on https://app.releem.com/
+    - **RELEEM_API_KEY** - To get your Releem API Key please [sign up](https://releem.com/?utm_source=github&utm_medium=link&utm_campaign=signup#rec221377760).
 4. In the /tmp/.mysqlconfigurer folder you could see
     ```bash
     root@mysqlconfigurer# ls -l /tmp/.mysqlconfigurer/

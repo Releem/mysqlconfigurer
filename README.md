@@ -14,11 +14,11 @@ To get your Releem API Key please [sign up](https://releem.com/?utm_source=githu
 Join the Releem Community on [Slack](https://mysqlcommunity.slack.com/archives/C01FFDYTWTW) and [Telegram](https://t.me/releemhq). 
 
 ## Features
-- Fully automated MySQL performance optimized configuration creation. 
+- Fully automated MySQL performance configuration tuning. 
 - **MySQLConfigurer** recommended configuration deliver a [30% boost](#Tests) to MySQL performance compare to the default configuration.
-- **MySQLConfigurer** supports 19 parameters of MySQL/Percona/MariaDB server.
-- With **MySQLConfigurer** you could prepare configuration file for your MySQL server just in [60 seconds](https://youtu.be/QluJpSl6dGk).
-- You could use **MySQLConfigurer** for getting the recommended values for your server and insert in your configuration.
+- **MySQLConfigurer** supports 25 parameters of MySQL/Percona/MariaDB server.
+- Using **MySQLConfigurer** you can prepare configuration file for your MySQL server just in [60 seconds](https://youtu.be/QluJpSl6dGk).
+- You could use **MySQLConfigurer** to getting the recommended values for your server and insert in your configuration.
 
 ## Warning
 **Always** test recommended configuration on staging environments, and **always** keep in mind that improvements in one area can **negatively** affect MySQL in other areas.
@@ -67,48 +67,31 @@ Two configurations were tested, the MySQL default configuration and the configur
 Recommended configuration delivered a 30% boost to MySQL performance compared to the default configuration. Follow this [link](https://releem.com/blog/how-to-improve-performance-mysql57-default-configuration) to see test results.
 
 ## Options
-**-k [Releem API KEY]** - used for authorization to Releem platform. To get your Releem API Key please [sign up](https://releem.com/?utm_source=github&utm_medium=link&utm_campaign=signup#rec221377760).
+**-k [Releem API KEY]** - API Key to Releem platform. To get your Releem API Key please [sign up](https://releem.com/?utm_source=github&utm_medium=link&utm_campaign=signup#rec221377760).
 
 **-m [MYSQL_MEMORY_LIMIT]** - set maximum memory limit for MySQL. Used when there are installed different applications on the server.
 
+## Installation
+
+One step installation to /opt/releem
+```
+    RELEEM_API_KEY=[YOUR_RELEEM_API_KEY] bash -c "$(curl -L https://releem.s3.amazonaws.com/install.sh)"
+```
+
 ## Usage
-1. Install dependencies
 
-	a. Debian/Ubuntu
-	* `apt-get install -y wget curl net-tools libjson-perl`
-	
-	b. Centos/RedHat
-	* `yum install -y wget curl net-tools perl-JSON perl-Data-Dumper`
-	
-	c. Other OS
-	* `Requires installation of similar packages on your OS`
-2. Download mysqlconfigurer.sh
+1. To run mysqlconfigurer.sh execute folowing command
     ```bash
-    wget https://releem.s3.amazonaws.com/mysqlconfigurer.sh
+    /bin/bash /opt/releem/mysqlconfigurer.sh -k [RELEEM_API_KEY]
     ```
-    or
-    ```bash
-    curl -o mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer.sh
-    ```
-3. Run mysqlconfigurer.sh
-    ```bash
-    /bin/bash mysqlconfigurer.sh -k [RELEEM_API_KEY]
-    ```
+    - Use -m [MYSQL_MEMORY_LIMIT] - to set maximum memory limit for MySQL. Used when there are different applications installed on the server.
     - **RELEEM_API_KEY** - To get your Releem API Key please [sign up](https://releem.com/?utm_source=github&utm_medium=link&utm_campaign=signup#rec221377760).
-4. In the /tmp/.mysqlconfigurer folder you could see
-    ```bash
-    root@mysqlconfigurer# ls -l /tmp/.mysqlconfigurer/
-    total 264
-    -rw-r--r-- 1 root root    479 Dec 19 06:03 z_aiops_mysql.cnf
-    -rw-r--r-- 1 root root 226002 Dec 18 16:44 mysqltuner.pl
-    -rw-r--r-- 1 root root  33410 Dec 18 16:44 mysqltunerreport.json
-    ```
-    - **mysqltunerreport.json** - the MySQLTuner report file in the JSON format
-    - **z_aiops_mysql.cnf** - recommended MySQL config file downloaded from api.server-support.com
 
-5. **Only if you need to increase `open_files_limit` variable.** Perform the folowing steps to safely setup `open_files_limit` in MySQL
+2. Recommended MySQL configuration file is /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
 
-    5.1. Find out if any other .conf files are being used with MySQL that overrides the values for open limits. Run `systemctl status mysqld/mysql/mariadb` command and it will show something like this
+3. **Only if you need to increase `open_files_limit` variable.** Perform the folowing steps to safely setup `open_files_limit` in MySQL
+
+    3.1. Find out if any other .conf files are being used with MySQL that overrides the values for open limits. Run `systemctl status mysqld/mysql/mariadb` command and it will show something like this
     ```
         Drop-In:
             /etc/systemd/system/(mysqld/mysql/mariadb).service.d
@@ -119,19 +102,19 @@ Recommended configuration delivered a 30% boost to MySQL performance compared to
     
     `mysqld/mysql/mariadb` is selected depending on the name of the running service name on the server, which is also defined in the output of the command `systemctl status mysqld/mysql/mariadb`
 
-    5.2. Edit the file and add the following and change `[table_open_cache]` to your value
+    3.2. Edit the file and add the following and change `[table_open_cache]` to your value
     ```
         [Service]
         LimitNOFILE=([table_open_cache] * 2)
     ```
     - **`open_files_limit` should be no less than `[table_open_cache] * 2`.**
 
-    5.3. Run the following command to apply the changes.
+    3.3. Run the following command to apply the changes.
         `systemctl daemon-reload`
 
-    5.4. Reboot your mysql server.
+    3.4. Reboot your mysql server.
     
-    5.5. After the successful reboot of the server, we will again run below SQL Queries.
+    3.5. After the successful reboot of the server, we will again run below SQL Queries.
 
     ```
         SHOW VARIABLES LIKE 'open_files_limit';
@@ -148,7 +131,7 @@ Recommended configuration delivered a 30% boost to MySQL performance compared to
         1 row in set (0.00 sec)
     ```
 
-6. Perform the following steps to safely apply recommended configuration:
+4. Perform the following steps to safely apply recommended configuration:
     
     **WARNING!** **In case of change 'innodb_log_file_size' only in MySQL 5.6.7 or earlier** set parameter 'innodb_fast_shutdown' to 1 ([Official documentation](https://dev.mysql.com/doc/refman/5.6/en/innodb-redo-log.html)), stop MySQL server, copy old log files into a safe place and delete it from log directory, copy recommended configuration and start MySQL server: 
     ```bash
@@ -169,25 +152,31 @@ Recommended configuration delivered a 30% boost to MySQL performance compared to
 Example of the recommended configuration file /tmp/.mysqlconfigurer/z_aiops_mysql.cnf:
 ```
 [mysqld]
-query_cache_type = 1 ### Previous value : OFF
-query_cache_size = 128M ### Previous value : 16777216
-query_cache_limit = 16M ### Previous value : 1048576
+query_cache_type = 1 ### Previous value : ON
+query_cache_size = 128M ### Previous value : 134217728
+query_cache_limit = 16M ### Previous value : 16777216
 thread_cache_size = 8 ### Previous value : 8
-key_buffer_size = 196M ### Previous value : 268435456
-sort_buffer_size = 24M ### Previous value : 1048576
-bulk_insert_buffer_size = 2M ### Previous value : 8388608
-myisam_sort_buffer_size = 24M ### Previous value : 67108864
-innodb_buffer_pool_instances = 3 ### Previous value : 1
-innodb_buffer_pool_size = 3019898880 ### Previous value : 1073741824
-max_heap_table_size = 256M ### Previous value : 16777216
-tmp_table_size = 256M ### Previous value : 16777216
-join_buffer_size = 8M ### Previous value : 262144
+key_buffer_size = 205520896 ### Previous value : 205520896
+max_allowed_packet = 1073741824 ### Previous value : 67108864
+sort_buffer_size = 16777216 ### Previous value : 25165824
+read_rnd_buffer_size = 4194304 ### Previous value : 4194304
+bulk_insert_buffer_size = 8M ### Previous value : 2097152
+myisam_sort_buffer_size = 8388608 ### Previous value : 25165824
+innodb_buffer_pool_instances = 2 ### Previous value : 3
+innodb_buffer_pool_size = 3019898880 ### Previous value : 3019898880
+max_heap_table_size = 256M ### Previous value : 268435456
+tmp_table_size = 256M ### Previous value : 268435456
+join_buffer_size = 8M ### Previous value : 8388608
 max_connections = 151 ### Previous value : 151
-interactive_timeout = 1200 ### Previous value : 28800
-wait_timeout = 1200 ### Previous value : 28800
-table_open_cache = 65536 ### Previous value : 4096
+table_open_cache = 3072 ### Previous value : 3072
+table_definition_cache = 1920 ### Previous value : 1920
 innodb_flush_log_at_trx_commit = 2 ### Previous value : 2
-innodb_log_file_size = 805306368 ### Previous value : 67108864
+innodb_log_file_size = 377487360 ### Previous value : 805306368
+innodb_write_io_threads = 4 ### Previous value : 4
+innodb_read_io_threads = 4 ### Previous value : 4
+innodb_file_per_table = 1 ### Previous value : ON
+innodb_flush_method = O_DIRECT ### Previous value :
+innodb_thread_concurrency = 0 ### Previous value : 0
 ```
 
 ## Contribute

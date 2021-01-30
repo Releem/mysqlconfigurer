@@ -85,9 +85,9 @@ One step installation to /opt/releem
     /bin/bash /opt/releem/mysqlconfigurer.sh -k [RELEEM_API_KEY]
     ```
     - Use -m [MYSQL_MEMORY_LIMIT] - to set maximum memory limit for MySQL. Used when there are different applications installed on the server.
+    - **RELEEM_API_KEY** - To get your Releem API Key please [sign up](https://releem.com/?utm_source=github&utm_medium=link&utm_campaign=signup#rec221377760).
 
 2. Recommended MySQL configuration file is /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
-    - **RELEEM_API_KEY** - To get your Releem API Key please [sign up](https://releem.com/?utm_source=github&utm_medium=link&utm_campaign=signup#rec221377760).
 
 3. **Only if you need to increase `open_files_limit` variable.** Perform the folowing steps to safely setup `open_files_limit` in MySQL
 

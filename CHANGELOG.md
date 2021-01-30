@@ -1,6 +1,19 @@
 MySQL Configurer releases
 ---
-Information about releases of the MySQLConfigurer script and online service.
+Information about releases of the Releem MySQLConfigurer.
+
+Releem MySQLConfigurer 0.5.0, 2021-01-30
+- Added simple one step installation process. Closes #23.
+- Improved documentation.
+- Improved and published tests description at [releem.com](https://releem.com/blog/how-to-improve-performance-mysql57-default-configuration). Closes #31.
+- Fixed problem with timeout variables. Closes #29.
+- Added calculation of the 'max_allowed_packet' variable.
+- Added calculation of the 'read_rnd_buffer_size' variable.
+- Improved calcualtion of the 'sort_buffer_size' variable.
+- Improved calculation of the 'innodb_buffer_pool_size' variable.
+- Improved calculation of the 'key_buffer_size' variable.
+- Improved calculation of the 'innodb_buffer_pool_instances' variable. Closes #37.
+
 
 Releem MySQLConfigurer 0.4.0, 2020-11-21
 - Improved documentation

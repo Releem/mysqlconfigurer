@@ -1,3 +1,4 @@
 .devcontainer/*
 test-project/test.sh
 .DS_Store
+releem-install.log

@@ -17,6 +17,8 @@ m) MYSQL_MEMORY_LIMIT=${OPTARG};;
 esac
 done
 
+echo -e "\033[34m\n* Checking the environment...\033[0m"
+
 # Check RELEEM_API_KEY is not empty
 if [ -z "$RELEEM_API_KEY" ]; then
     echo >&2 "RELEEM_API_KEY is empty please sign up at https://releem.com/appsignup to get your Releem API key. Aborting."
@@ -39,21 +41,21 @@ fi
 # Check if MySQLTuner already downloaded and download if it doesn't exist
 if [ ! -f "$MYSQLTUNER_FILENAME" ]; then
     # Download latest version of the MySQLTuner
-    curl -s -o $MYSQLTUNER_FILENAME -L http://mysqltuner.pl/
+    curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/master/mysqltuner.pl 
 fi
 
 echo -e "\033[34m\n* Collecting metrics...\033[0m"
 
-# Run MySQLTuner for creating report in the JSON format
+# Collect MySQL metrics
 if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --forcemem=$MYSQL_MEMORY_LIMIT --outputfile="$MYSQLTUNER_REPORT" --defaults-file ~/.my.cnf > /dev/null; then
 
     echo -e "\033[34m\n* Analyzing metrics...\033[0m"
 
-    # Post MySQLTuner report in the AIOps service. The answer is the configuration file for MySQL
+    # Send metrics to Releem Platform. The answer is the configuration file for MySQL
     curl -s -d @$MYSQLTUNER_REPORT -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.servers-support.com/v1/mysql -o "$MYSQLCONFIGURER_CONFIGFILE"
 
 
-    # show recommended configuration and exit
+    # Show recommended configuration and exit
     msg="    \
     \n\n\n#---------------Releem MySQLConfigurer------------- \
     \n#--------Performance optimized MySQL configuration--------\n   \

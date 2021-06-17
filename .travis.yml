@@ -1,8 +1,5 @@
 os: linux
 dist: focal
-language: perl
-perl:
-  - "5.24"
 
 services:
   - docker
@@ -22,8 +19,9 @@ env:
 addons:
     apt:
       update: true
+
 before_script:
-  - sudo apt-get install curl libjson-perl
+  - sudo apt install curl libjson-perl
   - mysql --version
   - mysqladmin --version
   - docker run -it --name=mysqltestinstance -d -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -p 3306:3306 ${DB}

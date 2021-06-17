@@ -40,9 +40,11 @@ before_script:
   - cd ..
  
 script:
-   - /bin/bash ./mysqlconfigurer.sh -k $TRAVIS_RELEEM_API_KEY
+  - /bin/bash ./mysqlconfigurer.sh -k $TRAVIS_RELEEM_API_KEY
+  - sudo cat /tmp/.mysqlconfigurer/mysqltunerreport.json
+  - sudo cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
 
 after_script:
-   - docker stop mysqltestinstance
-   - echo "Standard Output: $(cat /tmp/.mysqlconfigurer/mysqltunerreport.json)"
-   - echo "Standard Error : $(cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf)"
+  - docker stop mysqltestinstance
+  - echo "Standard Output: $(cat /tmp/.mysqlconfigurer/mysqltunerreport.json)"
+  - echo "Standard Error : $(cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf)"

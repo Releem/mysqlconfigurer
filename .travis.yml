@@ -40,7 +40,7 @@ before_script:
   - cd ..
  
 script:
-   - /bin/bash ./mysqlconfigurer.sh $TRAVIS_RELEEM_API_KEY
+   - /bin/bash ./mysqlconfigurer.sh -k $TRAVIS_RELEEM_API_KEY
 
 after_script:
    - docker stop mysqltestinstance

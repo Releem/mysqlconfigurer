@@ -1,6 +1,16 @@
-MySQL Configurer releases
+Releem MySQLConfigurer releases
 ---
 Information about releases of the Releem MySQLConfigurer.
+
+Releem MySQLConfigurer 0.6.0, 2021-06-17
+- Added MySQL Performance Score metric.
+- Added runtime information. Closes #62
+- Added Display Recommended Configuration.
+- Improved documentation Installation, Usage and Tests.
+- Improved calcualtion of the 'myisam_sort_buffer_size' variable.
+- Improved calculation of the 'read_rnd_buffer_size' variable.
+- Improved calculation of the 'sort_buffer_size' variable.
+- Removed usage of "mysqltuner.pl" domain.
 
 Releem MySQLConfigurer 0.5.0, 2021-01-30
 - Added simple one step installation process. Closes #23.
@@ -13,7 +23,6 @@ Releem MySQLConfigurer 0.5.0, 2021-01-30
 - Improved calculation of the 'innodb_buffer_pool_size' variable.
 - Improved calculation of the 'key_buffer_size' variable.
 - Improved calculation of the 'innodb_buffer_pool_instances' variable. Closes #37.
-
 
 Releem MySQLConfigurer 0.4.0, 2020-11-21
 - Improved documentation

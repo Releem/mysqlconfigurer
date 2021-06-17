@@ -1,5 +1,8 @@
 os: linux
 dist: bionic
+language: perl
+perl:
+  - "5.24"
 
 services:
   - docker
@@ -16,8 +19,11 @@ env:
   - DB=percona:5.6
   - DB=percona:5.7
   - DB=percona:8.0
-
+addons:
+    apt:
+      update: true
 before_script:
+  - sudo apt-get install curl libjson-perl
   - mysql --version
   - mysqladmin --version
   - docker run -it --name=mysqltestinstance -d -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -p 3306:3306 ${DB}
@@ -34,8 +40,7 @@ before_script:
     fi
   - "cat employees.sql | grep -v 'storage_engine' | mysql"
   - cd ..
-  - RELEEM_API_KEY=$TRAVIS_RELEEM_API_KEY bash ./install.sh
-
+ 
 script:
   - /bin/bash ./mysqlconfigurer.sh $TRAVIS_RELEEM_API_KEY
 

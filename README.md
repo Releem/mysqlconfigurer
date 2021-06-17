@@ -15,10 +15,11 @@ Join the Releem Community on [Slack](https://mysqlcommunity.slack.com/archives/C
 
 ## Features
 - Fully automated MySQL performance configuration tuning. 
+- Supports all MySQL/MariaDB versions.
 - **MySQLConfigurer** recommended configuration deliver a [30% boost](#Tests) to MySQL performance compare to the default configuration.
 - **MySQLConfigurer** supports 25 parameters of MySQL/Percona/MariaDB server.
-- Using **MySQLConfigurer** you can prepare configuration file for your MySQL server just in [60 seconds](https://youtu.be/QluJpSl6dGk).
-- You could use **MySQLConfigurer** to getting the recommended values for your server and insert in your configuration.
+- Using **MySQLConfigurer** you can tune configuration of MySQL server just in [60 seconds](https://youtu.be/7gixIYTpuPU).
+- You could use **MySQLConfigurer** to get the recommended values for your server and insert in your configuration.
 
 ## Warning
 **Always** test recommended configuration on staging environments, and **always** keep in mind that improvements in one area can **negatively** affect MySQL in other areas.
@@ -28,13 +29,6 @@ It's also important to wait at least a day of uptime to get accurate results.
 ## Security
 **Always** store credentials only in `~/.my.cnf` to prevent sending passwords to our service.
 In other cases MySQLTuner stores passwords manualy entered while running script in "MySQL Client" section of the MySQLTuner report.
-
-To use .my.cnf file create file `~/.my.cnf` with folowing content:
-```
-[client]
-user=root
-password=[your password]
-```
 
 ## Compatibility
 - MySQL 8.0
@@ -64,7 +58,11 @@ password=[your password]
 We tested the results with Sysbench on a virtual server running Debian 9 (2 CPU, 2GB Ram) the table contained 10 million entries.
 Two configurations were tested, the MySQL default configuration and the configuration recommended by the **Releem** service. The tests were two-step: read (test1) only and read/write (test2).
 
-Recommended configuration delivered a 30% boost to MySQL performance compared to the default configuration. Follow this [link](https://releem.com/blog/how-to-improve-performance-mysql57-default-configuration) to see test results.
+Recommended configuration delivered a 30% boost to MySQL performance compared to the default configuration. 
+
+Follow this links to see results:
+[MySQL 5.7 Benchmark](https://releem.com/blog/how-to-improve-performance-mysql57-default-configuration)
+[MySQL 8 Benchmark](https://releem.com/blog/tpost/9kdjxj8ve1-mysql-8-performance-benchmark)
 
 ## Options
 **-k [Releem API KEY]** - API Key to Releem platform. To get your Releem API Key please [sign up](https://releem.com/?utm_source=github&utm_medium=link&utm_campaign=signup#rec221377760).
@@ -73,25 +71,62 @@ Recommended configuration delivered a 30% boost to MySQL performance compared to
 
 ## Installation
 
-One step installation to /opt/releem
-```
+1. One step installation to /opt/releem
+    ```
     RELEEM_API_KEY=[YOUR_RELEEM_API_KEY] bash -c "$(curl -L https://releem.s3.amazonaws.com/install.sh)"
-```
-
-## Usage
-
-1. To run mysqlconfigurer.sh execute folowing command
+    ```
+2. Create ~/.my.cnf file with the following content:
+    ```
+    [client]
+    user=root
+    password=[your password]
+    ```
+3. Run Releem Agent manually to send first metrics from your server:
     ```bash
     /bin/bash /opt/releem/mysqlconfigurer.sh -k [RELEEM_API_KEY]
     ```
-    - Use -m [MYSQL_MEMORY_LIMIT] - to set maximum memory limit for MySQL. Used when there are different applications installed on the server.
+    - Use -m [MYSQL_MEMORY_LIMIT] - to set maximum memory limit for MySQL. Used in case you are using MySQL in Docker or it isn't dedicated server for MySQL.
     - **RELEEM_API_KEY** - To get your Releem API Key please [sign up](https://releem.com/?utm_source=github&utm_medium=link&utm_campaign=signup#rec221377760).
+4. Add command from step 3 in the crontab to get better recommendations. For example:
+    ```
+    10 */12 * * * /bin/bash /opt/releem/mysqlconfigurer.sh -k [RELEEM_API_KEY]
+    ```
 
-2. Recommended MySQL configuration file is /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
+## When should I apply the Recommended Configuration?
 
-3. **Only if you need to increase `open_files_limit` variable.** Perform the folowing steps to safely setup `open_files_limit` in MySQL
+Releem recommends the best performance optimized MySQL configuration at this time.
+You can apply Recommended Configuration in case of MySQL Performance Score of your server goes down. 
 
-    3.1. Find out if any other .conf files are being used with MySQL that overrides the values for open limits. Run `systemctl status mysqld/mysql/mariadb` command and it will show something like this
+## How to apply the Recommended configuration
+
+Releem Agent automatically stores Recommended Configuration at /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
+
+Perform the following steps to safely apply recommended configuration:
+
+1. Copy the Recommended Configuration to MySQL configuration folder:
+    ```
+        cp /tmp/.mysqlconfigurer/z_aiops_mysql.cnf  /etc/mysql/conf.d/
+    ```
+    * The path to `/etc/mysql/conf.d` folder can vary according to Linux distro.
+    * In CentOS instead /etc/mysql/conf.d you should use /etc/my.cnf.d/ folder.
+
+2. Restart MySQL to apply the Recommended configuration:
+    ```
+        service mysqld restart
+    ```
+    **WARNING!** **In case of change 'innodb_log_file_size' only in MySQL 5.6.7 or earlier** set parameter 'innodb_fast_shutdown' to 1 ([Official documentation](https://dev.mysql.com/doc/refman/5.6/en/innodb-redo-log.html)), stop MySQL server, copy old log files into a safe place and delete it from log directory, copy recommended configuration and start MySQL server: 
+    ```bash
+        mysql -e"SET GLOBAL innodb_fast_shutdown = 1"
+        service mysql stop
+        mv /var/lib/mysql/ib_logfile[01] /tmp
+        service mysql start
+    ```
+
+## How to increase `open_files_limit`
+
+Perform the folowing steps to safely setup `open_files_limit` in MySQL
+
+1. Find out if any other .conf files are being used with MySQL that overrides the values for open limits. Run `systemctl status mysqld/mysql/mariadb` command and it will show something like this
     ```
         Drop-In:
             /etc/systemd/system/(mysqld/mysql/mariadb).service.d
@@ -102,19 +137,19 @@ One step installation to /opt/releem
     
     `mysqld/mysql/mariadb` is selected depending on the name of the running service name on the server, which is also defined in the output of the command `systemctl status mysqld/mysql/mariadb`
 
-    3.2. Edit the file and add the following and change `[table_open_cache]` to your value
+2. Edit the file and add the following and change `[table_open_cache]` to your value
     ```
         [Service]
         LimitNOFILE=([table_open_cache] * 2)
     ```
     - **`open_files_limit` should be no less than `[table_open_cache] * 2`.**
 
-    3.3. Run the following command to apply the changes.
+3. Run the following command to apply the changes.
         `systemctl daemon-reload`
 
-    3.4. Reboot your mysql server.
+4. Reboot your mysql server.
     
-    3.5. After the successful reboot of the server, we will again run below SQL Queries.
+5. After the successful reboot of the server, we will again run below SQL Queries.
 
     ```
         SHOW VARIABLES LIKE 'open_files_limit';
@@ -131,23 +166,8 @@ One step installation to /opt/releem
         1 row in set (0.00 sec)
     ```
 
-4. Perform the following steps to safely apply recommended configuration:
-    
-    **WARNING!** **In case of change 'innodb_log_file_size' only in MySQL 5.6.7 or earlier** set parameter 'innodb_fast_shutdown' to 1 ([Official documentation](https://dev.mysql.com/doc/refman/5.6/en/innodb-redo-log.html)), stop MySQL server, copy old log files into a safe place and delete it from log directory, copy recommended configuration and start MySQL server: 
-    ```bash
-        mysql -e"SET GLOBAL innodb_fast_shutdown = 1"
-        service mysql stop
-        cp /tmp/.mysqlconfigurer/z_aiops_mysql.cnf  /etc/mysql/conf.d/
-        mv /var/lib/mysql/ib_logfile[01] /tmp
-        service mysql start
-    ```
-    In other cases stop MySQL server, copy recommended configuration file and start MySQL server: 
-    ```bash
-        service mysql stop
-        cp /tmp/.mysqlconfigurer/z_aiops_mysql.cnf  /etc/mysql/conf.d/
-        service mysql start
-    ```
-    * The path to `/etc/mysql/conf.d` folder can vary according to Linux distro.
+
+## Example of Recommended MySQL Configuration
 
 Example of the recommended configuration file /tmp/.mysqlconfigurer/z_aiops_mysql.cnf:
 ```

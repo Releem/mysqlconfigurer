@@ -1,45 +1,12 @@
-os: linux
-dist: focal
-
+dist: bionic
 services:
-  - docker
-
-env:
-  - DB=mariadb:5.5
-  - DB=mariadb:10.2
-  - DB=mariadb:10.3
-  - DB=mariadb:10.4
-  - DB=mariadb:10.5
-  - DB=mysql:5.5
-  - DB=mysql:5.7
-  - DB=mysql:8.0
-  - DB=percona:5.6
-  - DB=percona:5.7
-  - DB=percona:8.0
-
+  - mysql
 before_script:
-  - mysql --version
-  - mysqladmin --version
-  - docker run -it --name=mysqltestinstance -d -e MYSQL_ALLOW_EMPTY_PASSWORD=yes -p 3306:3306 ${DB}
-  - echo -e "[client]\nuser=root\npassword=\"\"\nhost=127.0.0.1" > ~/.my.cnf
-  - chmod 600 ~/.my.cnf
-  - git clone https://github.com/datacharmer/test_db.git
-  - cd test_db
-  - count=10
-  - while ! mysql -e 'select version()' && [ $count -gt 0 ]; do echo $count seconds to go; sleep 1; count=$(( $count - 1 )); done
-  - if [[ $DB =~ .*:8.0 ]] ; then
-      for file in public_key.pem ca.pem server-cert.pem client-key.pem client-cert.pem ; do
-        docker cp mysqltestinstance:/var/lib/mysql/$file "${HOME}" ;
-      done ;
-    fi
-  - "cat employees.sql | grep -v 'storage_engine' | mysql"
-  - cd ..
-  - RELEEM_API_KEY=$TRAVIS_RELEEM_API_KEY bash ./install.sh
-
+  - sudo apt-get install curl libjson-perl
+addons:
+    apt:
+      update: true
 script:
-  - /bin/bash ./mysqlconfigurer.sh $TRAVIS_RELEEM_API_KEY
-
-after_script:
-  - docker stop mysqltestinstance
-  - echo "Standard Output: $(cat /tmp/.mysqlconfigurer/mysqltunerreport.json)"
-  - echo "Standard Error : $(cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf)"
+  - sudo /bin/bash ./mysqlconfigurer.sh -k $TRAVIS_RELEEM_API_KEY
+  - sudo cat /tmp/.mysqlconfigurer/mysqltunerreport.json
+  - sudo cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf

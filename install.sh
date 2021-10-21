@@ -1,8 +1,9 @@
 #!/bin/bash
+# install.sh - Version 0.7.0
 # (C) Releem, Inc 2020
 # All rights reserved
 
-# Releem installation script: install and set up the mysqlconfigurer on supported Linux distributions
+# Releem installation script: install and set up the Releem Agent on supported Linux distributions
 # using the package manager.
 
 set -e
@@ -36,12 +37,7 @@ solve your problem.\n\033[0m\n"
 trap on_error ERR
 
 function releem_set_cron() {
-    crontab -l > releem.cron
-    #echo new cron into cron file
-    echo $RELEEM_CRON >> releem.cron
-    #install new cron file
-    crontab releem.cron
-    rm releem.cron    
+    (crontab -l 2>/dev/null; echo "$RELEEM_CRON") | crontab -
 }
 
 apikey=
@@ -109,15 +105,15 @@ if [ ! -e $CONF ]; then
     $sudo_cmd mkdir $WORKDIR/conf
 fi
 
-printf "\033[31mDownloading Releem Agent...\033[0m\n"
+printf "\033[34m\n* Downloading Releem Agent...\033[0m\n"
 curl -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer.sh
 
-printf "\033[31mChecking ~/.my.cnf...\033[0m\n"
+printf "\033[34m\n* Checking ~/.my.cnf...\033[0m\n"
 if [ ! -e ~/.my.cnf ]; then
-    printf "\033[31mPlease create ~/.my.cnf file with the following content:\033[0m\n"
+    printf "\033[34m\n* Please create ~/.my.cnf file with the following content:\033[0m\n"
     echo -e "\t\t[client]"
     echo -e "\t\tuser=root"
-    echo -e "\t\tpassword=[your password]"
+    echo -e "\t\tpassword=[your MySQL root password]"
     read -p "Are you ready to proceed? (Y/N) " -n 1 -r
     echo    # move to a new line
     if [[ $REPLY =~ ^[Nn]$ ]]
@@ -135,7 +131,7 @@ if [ -n "$RELEEM_MYSQL_MEMORY_LIMIT" ]; then
     fi
 else
     echo
-    printf "\033[31mIn case you are using MySQL in Docker or it isn't dedicated server for MySQL.\033[0m\n"
+    printf "\033[34m\n* In case you are using MySQL in Docker or it isn't dedicated server for MySQL.\033[0m\n"
     read -p "Should we limit MySQL memory? (Y/N) " -n 1 -r
     echo    # move to a new line
     if [[ $REPLY =~ ^[Yy]$ ]]
@@ -162,15 +158,16 @@ fi
 # Secure the configuration file
 $sudo_cmd chmod 640 $CONF
 
-
-# First run of Releem Agent to check MySQL Performance Score
-printf "\033[31mExecuting Releem Agent for first time...\033[0m\n"
-$sudo_cmd $RELEEM_COMMAND
+if [ -z "$RELEEM_AGENT_DISABLE" ]; then
+    # First run of Releem Agent to check MySQL Performance Score
+    printf "\033[34m\n* Executing Releem Agent for first time...\033[0m\n"
+    $sudo_cmd $RELEEM_COMMAND
+fi
 
 RELEEM_CRON="10 */12 * * * PATH=/bin:/usb/bin:/usr/sbin $RELEEM_COMMAND"
 
 if [ -z "$RELEEM_CRON_ENABLE" ]; then
-    echo -e "\t\tPlease add the following string in crontab to get recommendations:"
+    printf "\033[34m\n* Please add the following string in crontab to get recommendations:"
     echo -e "\t\t$RELEEM_CRON"
     read -p "Can we do it automatically? (Y/N) " -n 1 -r
     echo    # move to a new line
@@ -185,9 +182,9 @@ fi
 
 echo
 echo
-echo -e "\t\tTo run Releem Agent manually please use the following command:"
+echo -e "To run Releem Agent manually please use the following command:"
 echo -e "\t\t$RELEEM_COMMAND"
 echo
-echo -e "\t\tTo check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics"
+echo -e "To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics"
 echo
 

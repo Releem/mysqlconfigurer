@@ -1,8 +1,9 @@
 #!/bin/bash
+# install.sh - Version 0.7.0
 # (C) Releem, Inc 2020
 # All rights reserved
 
-# Releem installation script: install and set up the mysqlconfigurer on supported Linux distributions
+# Releem installation script: install and set up the Releem Agent on supported Linux distributions
 # using the package manager.
 
 set -e
@@ -34,6 +35,10 @@ with the contents of releem-install.log and we'll do our very best to help you
 solve your problem.\n\033[0m\n"
 }
 trap on_error ERR
+
+function releem_set_cron() {
+    (crontab -l 2>/dev/null; echo "$RELEEM_CRON") | crontab -
+}
 
 apikey=
 if [ -n "$RELEEM_API_KEY" ]; then
@@ -72,6 +77,7 @@ fi
 # Install the necessary package sources
 if [ "$OS" = "RedHat" ]; then
     echo -e "\033[34m\n* Installing dependencies...\n\033[0m"
+    MYSQL_CNF_DIR="/etc/my.cnf"
 
     if [ -x "/usr/bin/dnf" ]; then
         package_manager='dnf'
@@ -82,7 +88,7 @@ if [ "$OS" = "RedHat" ]; then
     $sudo_cmd $package_manager -y install net-tools perl-JSON perl-Data-Dumper perl-Getopt-Long
 
 elif [ "$OS" = "Debian" ]; then
-
+    MYSQL_CNF="/etc/mysql/my.cnf"
     printf "\033[34m\n* Installing dependences...\n\033[0m\n"
 
     $sudo_cmd apt-get update 
@@ -93,18 +99,92 @@ else
     exit;
 fi
 
-# Set the configuration
-  if [ ! -e $CONF ]; then
+# Create work directory
+if [ ! -e $CONF ]; then
     $sudo_cmd mkdir $WORKDIR
-  fi
-  if [ "$apikey" ]; then
-    printf "\033[34m\n* Adding your API key to the Agent configuration: $CONF\n\033[0m\n"
-    $sudo_cmd echo "export apikey=$apikey" > $CONF
-  fi
+    $sudo_cmd mkdir $WORKDIR/conf
+fi
+
+printf "\033[34m\n* Downloading Releem Agent...\033[0m\n"
+curl -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer.sh
+
+printf "\033[34m\n* Checking ~/.my.cnf...\033[0m\n"
+if [ ! -e ~/.my.cnf ]; then
+    printf "\033[34m\n* Please create ~/.my.cnf file with the following content:\033[0m\n"
+    echo -e "\t\t[client]"
+    echo -e "\t\tuser=root"
+    echo -e "\t\tpassword=[your MySQL root password]"
+    read -p "Are you ready to proceed? (Y/N) " -n 1 -r
+    echo    # move to a new line
+    if [[ $REPLY =~ ^[Nn]$ ]]
+    then
+        exit 1
+    fi
+fi
+
+RELEEM_COMMAND="/bin/bash $WORKDIR/mysqlconfigurer.sh -k $apikey"
+
+if [ -n "$RELEEM_MYSQL_MEMORY_LIMIT" ]; then
+
+    if [ "$RELEEM_MYSQL_MEMORY_LIMIT" -gt 0 ]; then
+        MYSQL_LIMIT=$RELEEM_MYSQL_MEMORY_LIMIT
+    fi
+else
+    echo
+    printf "\033[34m\n* In case you are using MySQL in Docker or it isn't dedicated server for MySQL.\033[0m\n"
+    read -p "Should we limit MySQL memory? (Y/N) " -n 1 -r
+    echo    # move to a new line
+    if [[ $REPLY =~ ^[Yy]$ ]]
+    then
+        read -p "Please set MySQL Memory Limit (megabytes):" -r
+        echo    # move to a new line
+        MYSQL_LIMIT=$REPLY
+    fi
+fi
+
+# Create configuration file
+printf "\033[34m\n* Adding API key to the Releem Agent configuration: $CONF\n\033[0m\n"
+$sudo_cmd echo "export apikey=$apikey" > $CONF
+printf "\033[34m\n* Adding MySQL Configuration Directory $WORKDIR/conf to Releem Agent configuration: $CONF\n\033[0m\n"
+$sudo_cmd echo "export mysql_cnf_dir=$WORKDIR/conf" >> $CONF
+
+if [ -n "$MYSQL_LIMIT" ]; then
+    RELEEM_COMMAND="/bin/bash $WORKDIR/mysqlconfigurer.sh -k $apikey -m $MYSQL_LIMIT"
+    
+    printf "\033[34m\n* Adding Memory Limit to the Releem Agent configuration: $CONF\n\033[0m\n"
+    $sudo_cmd echo "export memory_limit=$MYSQL_LIMIT" >> $CONF
+fi
 
 # Secure the configuration file
 $sudo_cmd chmod 640 $CONF
 
-printf "\033[31mDownloading Releem MySQLConfigurer...\033[0m\n"
-curl -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer.sh
+if [ -z "$RELEEM_AGENT_DISABLE" ]; then
+    # First run of Releem Agent to check MySQL Performance Score
+    printf "\033[34m\n* Executing Releem Agent for first time...\033[0m\n"
+    $sudo_cmd $RELEEM_COMMAND
+fi
+
+RELEEM_CRON="10 */12 * * * PATH=/bin:/usb/bin:/usr/sbin $RELEEM_COMMAND"
+
+if [ -z "$RELEEM_CRON_ENABLE" ]; then
+    printf "\033[34m\n* Please add the following string in crontab to get recommendations:"
+    echo -e "\t\t$RELEEM_CRON"
+    read -p "Can we do it automatically? (Y/N) " -n 1 -r
+    echo    # move to a new line
+
+    if [[ $REPLY =~ ^[Yy]$ ]] 
+    then
+        releem_set_cron
+    fi
+elif [ "$RELEEM_CRON_ENABLE" -gt 0 ]; then
+    releem_set_cron
+fi
+
+echo
+echo
+echo -e "To run Releem Agent manually please use the following command:"
+echo -e "\t\t$RELEEM_COMMAND"
+echo
+echo -e "To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics"
+echo
 

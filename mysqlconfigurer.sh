@@ -1,4 +1,7 @@
 #!/bin/bash
+# install.sh - Version 0.7.0
+# (C) Releem, Inc 2020
+# All rights reserved
 
 # Variables
 MYSQLCONFIGURER_PATH="/tmp/.mysqlconfigurer/"
@@ -49,27 +52,31 @@ echo -e "\033[34m\n* Collecting metrics...\033[0m"
 # Collect MySQL metrics
 if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --forcemem=$MYSQL_MEMORY_LIMIT --outputfile="$MYSQLTUNER_REPORT" --defaults-file ~/.my.cnf > /dev/null; then
 
-    echo -e "\033[34m\n* Analyzing metrics...\033[0m"
+    echo -e "\033[34m\n* Sending metrics to Releem Cloud Platform...\033[0m"
 
     # Send metrics to Releem Platform. The answer is the configuration file for MySQL
     curl -s -d @$MYSQLTUNER_REPORT -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.servers-support.com/v1/mysql -o "$MYSQLCONFIGURER_CONFIGFILE"
 
+    echo -e "\033[34m\n* Downloading recommended MySQL configuration from Releem Cloud Platform...\033[0m"
 
     # Show recommended configuration and exit
-    msg="    \
-    \n\n\n#---------------Releem MySQLConfigurer------------- \
-    \n#--------Performance optimized MySQL configuration--------\n   \
-    \n%s\n \
-    \n#----------------------------------------------------------\n\n"
-    printf "${msg}" "$(</tmp/.mysqlconfigurer/z_aiops_mysql.cnf)"
+    msg="\n\n\n#---------------Releem Agent Report-------------\n\n"
+    printf "${msg}"
+
+    echo -e "1. Recommended MySQL configuration downloaded to /tmp/.mysqlconfigurer/z_aiops_mysql.cnf"
+    echo
+    echo -e "2. To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics"
+    echo
+    echo -e "3. To apply the recommended configuration please read documentation https://app.releem.com/dashboard"
+    
     exit
 else
 
     # If error then show report and exit
     errormsg="    \
-    \n\n\n\n--------Releem MySQLTuner completed with error--------\n   \
+    \n\n\n\n--------Releem Agent completed with error--------\n   \
     \nCheck /tmp/.mysqlconfigurer/mysqltunerreport.json for details \n \
-    \n--------Please fix the error and run again--------\n"
+    \n--------Please fix the error and run Releem Agent again--------\n"
     printf "${errormsg}" >&2
     exit 1
 fi

@@ -2,6 +2,15 @@ Releem MySQLConfigurer releases
 ---
 Information about releases of the Releem MySQLConfigurer.
 
+Releem MySQLConfigurer 0.7.0, 2021-11-16
+- Added Display timezone on server page. Closes #72
+- Added [Documentation](https://releem.com/docs/getstarted). 
+- Added Automated Installation of Releem Agent
+- Fixed Cache values too high. Closes #73
+- Fixed Error when no Innodb tables only MyISAM. Closes #76
+- Fixed The values on the left and right are not in the same terminology. Closes #74
+- Removed Removed MySQLTuner Recommendations 
+
 Releem MySQLConfigurer 0.6.0, 2021-06-17
 - Added MySQL Performance Score metric.
 - Added runtime information. Closes #62

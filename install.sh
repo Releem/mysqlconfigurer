@@ -1,6 +1,6 @@
 #!/bin/bash
 # install.sh - Version 0.9.0
-# (C) Releem, Inc 2020
+# (C) Releem, Inc 2022
 # All rights reserved
 
 # Releem installation script: install and set up the Releem Agent on supported Linux distributions
@@ -41,7 +41,7 @@ function releem_set_cron() {
 }
 
 function releem_update() {
-    printf "\033[34m\n* Downloading Latest version of Releem Agent...\033[0m\n"
+    printf "\033[34m\n* Downloading latest version of Releem Agent...\033[0m\n"
     curl -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer.sh
 
     echo

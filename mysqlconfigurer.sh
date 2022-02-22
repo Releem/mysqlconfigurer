@@ -1,6 +1,6 @@
 #!/bin/bash
 # install.sh - Version 0.9.0
-# (C) Releem, Inc 2020
+# (C) Releem, Inc 2022
 # All rights reserved
 
 # Variables

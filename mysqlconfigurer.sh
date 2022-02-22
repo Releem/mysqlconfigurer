@@ -1,14 +1,22 @@
 #!/bin/bash
-# install.sh - Version 0.7.0
+# install.sh - Version 0.9.0
 # (C) Releem, Inc 2020
 # All rights reserved
 
 # Variables
 MYSQLCONFIGURER_PATH="/tmp/.mysqlconfigurer/"
+RELEEM_CONF_FILE="/opt/releem/releem.conf"
 MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH"mysqltuner.pl"
 MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 MYSQLCONFIGURER_CONFIGFILE=$MYSQLCONFIGURER_PATH"z_aiops_mysql.cnf"
 MYSQL_MEMORY_LIMIT=0
+
+if test -f $RELEEM_CONF_FILE ; then
+  . $RELEEM_CONF_FILE
+
+  RELEEM_API_KEY=$apikey
+  MYSQL_MEMORY_LIMIT=$memory_limit
+fi
 
 # Parse parameters
 while getopts "k:m:" option

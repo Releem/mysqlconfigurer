@@ -40,6 +40,20 @@ function releem_set_cron() {
     (crontab -l 2>/dev/null; echo "$RELEEM_CRON") | crontab -
 }
 
+function releem_update() {
+    printf "\033[34m\n* Downloading Latest version of Releem Agent...\033[0m\n"
+    curl -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer.sh
+
+    echo
+    echo
+    echo -e "Releem Agent updated successfully."
+    echo
+    echo -e "To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics"
+    echo
+
+    exit 0
+}
+
 apikey=
 if [ -n "$RELEEM_API_KEY" ]; then
     apikey=$RELEEM_API_KEY
@@ -49,6 +63,22 @@ if [ ! "$apikey" ]; then
     printf "\033[31mReleem API key is not available in RELEEM_API_KEY environment variable. Please sigh up at https://releem.com\033[0m\n"
     exit 1;
 fi
+
+# Root user detection
+if [ "$(echo "$UID")" = "0" ]; then
+    sudo_cmd=''
+else
+    sudo_cmd='sudo'
+fi
+
+# Parse parameters
+while getopts "update:" option
+do
+case "${option}"
+in
+update) releem_update;;
+esac
+done
 
 # OS/Distro Detection
 # Try lsb_release, fallback with /etc/issue then uname command
@@ -65,13 +95,6 @@ elif [ -f /etc/system-release ] || [ "$DISTRIBUTION" == "Amazon" ]; then
 # Arista is based off of Fedora14/18 but do not have /etc/redhat-release
 elif [ -f /etc/Eos-release ] || [ "$DISTRIBUTION" == "Arista" ]; then
     OS="RedHat"
-fi
-
-# Root user detection
-if [ "$(echo "$UID")" = "0" ]; then
-    sudo_cmd=''
-else
-    sudo_cmd='sudo'
 fi
 
 # Install the necessary package sources

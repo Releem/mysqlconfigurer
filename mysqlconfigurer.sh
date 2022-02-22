@@ -12,10 +12,12 @@ MYSQLCONFIGURER_CONFIGFILE=$MYSQLCONFIGURER_PATH"z_aiops_mysql.cnf"
 MYSQL_MEMORY_LIMIT=0
 
 if test -f $RELEEM_CONF_FILE ; then
-  . $RELEEM_CONF_FILE
+    . $RELEEM_CONF_FILE
 
-  RELEEM_API_KEY=$apikey
-  MYSQL_MEMORY_LIMIT=$memory_limit
+    RELEEM_API_KEY=$apikey
+    if [ ! -z $memory_limit ]; then
+        MYSQL_MEMORY_LIMIT=$memory_limit
+    fi
 fi
 
 # Parse parameters

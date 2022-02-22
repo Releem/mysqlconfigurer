@@ -167,15 +167,15 @@ fi
 
 # Create configuration file
 printf "\033[34m\n* Adding API key to the Releem Agent configuration: $CONF\n\033[0m\n"
-$sudo_cmd echo "export apikey=$apikey" > $CONF
+$sudo_cmd echo "apikey=$apikey" > $CONF
 printf "\033[34m\n* Adding MySQL Configuration Directory $WORKDIR/conf to Releem Agent configuration: $CONF\n\033[0m\n"
-$sudo_cmd echo "export mysql_cnf_dir=$WORKDIR/conf" >> $CONF
+$sudo_cmd echo "mysql_cnf_dir=$WORKDIR/conf" >> $CONF
 
 if [ -n "$MYSQL_LIMIT" ]; then
     RELEEM_COMMAND="/bin/bash $WORKDIR/mysqlconfigurer.sh -k $apikey -m $MYSQL_LIMIT"
 
     printf "\033[34m\n* Adding Memory Limit to the Releem Agent configuration: $CONF\n\033[0m\n"
-    $sudo_cmd echo "export memory_limit=$MYSQL_LIMIT" >> $CONF
+    $sudo_cmd echo "memory_limit=$MYSQL_LIMIT" >> $CONF
 fi
 
 # Secure the configuration file

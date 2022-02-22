@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 0.7.0
+# install.sh - Version 0.9.0
 # (C) Releem, Inc 2020
 # All rights reserved
 
@@ -7,7 +7,7 @@
 # using the package manager.
 
 set -e
-install_script_version=1.0.0
+install_script_version=0.9.0
 logfile="releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -72,11 +72,11 @@ else
 fi
 
 # Parse parameters
-while getopts "update:" option
+while getopts "u" option
 do
 case "${option}"
 in
-update) releem_update;;
+u) releem_update;;
 esac
 done
 
@@ -114,7 +114,7 @@ elif [ "$OS" = "Debian" ]; then
     MYSQL_CNF="/etc/mysql/my.cnf"
     printf "\033[34m\n* Installing dependences...\n\033[0m\n"
 
-    $sudo_cmd apt-get update 
+    $sudo_cmd apt-get update
     $sudo_cmd apt-get install -y --force-yes curl net-tools libjson-perl
 
 else
@@ -173,7 +173,7 @@ $sudo_cmd echo "export mysql_cnf_dir=$WORKDIR/conf" >> $CONF
 
 if [ -n "$MYSQL_LIMIT" ]; then
     RELEEM_COMMAND="/bin/bash $WORKDIR/mysqlconfigurer.sh -k $apikey -m $MYSQL_LIMIT"
-    
+
     printf "\033[34m\n* Adding Memory Limit to the Releem Agent configuration: $CONF\n\033[0m\n"
     $sudo_cmd echo "export memory_limit=$MYSQL_LIMIT" >> $CONF
 fi
@@ -195,7 +195,7 @@ if [ -z "$RELEEM_CRON_ENABLE" ]; then
     read -p "Can we do it automatically? (Y/N) " -n 1 -r
     echo    # move to a new line
 
-    if [[ $REPLY =~ ^[Yy]$ ]] 
+    if [[ $REPLY =~ ^[Yy]$ ]]
     then
         releem_set_cron
     fi

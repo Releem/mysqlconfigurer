@@ -164,7 +164,7 @@ if [ -z "$RELEEM_AGENT_DISABLE" ]; then
     $sudo_cmd $RELEEM_COMMAND
 fi
 
-RELEEM_CRON="10 */12 * * * PATH=/bin:/usb/bin:/usr/sbin $RELEEM_COMMAND"
+RELEEM_CRON="10 */12 * * * PATH=/bin:/sbin:/usr/bin:/usr/sbin $RELEEM_COMMAND"
 
 if [ -z "$RELEEM_CRON_ENABLE" ]; then
     printf "\033[34m\n* Please add the following string in crontab to get recommendations:"

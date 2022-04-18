@@ -190,8 +190,8 @@ fi
 RELEEM_CRON="10 */12 * * * PATH=/bin:/sbin:/usr/bin:/usr/sbin $RELEEM_COMMAND"
 
 if [ -z "$RELEEM_CRON_ENABLE" ]; then
-    printf "\033[34m\n* Please add the following string in crontab to get recommendations:"
-    echo -e "\t\t$RELEEM_CRON"
+    printf "\033[34m* Please add the following string in crontab to get recommendations:\033[0m\n"
+    printf "\033[32m$RELEEM_CRON\033[0m\n\n"
     read -p "Can we do it automatically? (Y/N) " -n 1 -r
     echo    # move to a new line
 
@@ -203,11 +203,10 @@ elif [ "$RELEEM_CRON_ENABLE" -gt 0 ]; then
     releem_set_cron
 fi
 
-echo
-echo
-echo -e "To run Releem Agent manually please use the following command:"
-echo -e "\t\t$RELEEM_COMMAND"
-echo
-echo -e "To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics"
-echo
+printf "\033[34m\n\033[0m"
+printf "\033[34m* To run Releem Agent manually please use the following command:\033[0m\n"
+printf "\033[32m$RELEEM_COMMAND\033[0m\n\n"
+printf "\033[34m* To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics\033[0m"
+printf "\033[34m\n\033[0m"
+
 

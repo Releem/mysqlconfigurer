@@ -2,6 +2,23 @@ Releem MySQLConfigurer releases
 ---
 Information about releases of the Releem MySQLConfigurer.
 
+Releem MySQLConfigurer 0.9.0, 2022-03-30
+- Added checks of the database server version
+- Added configuration file releem.conf
+- Added -u option to update Releem Agent
+- Added list of variable changes. Closes #75
+- Improved calculation of max_heap_table_size
+- Improved calculation of tmp_table_size 
+- Fixed MySQLTuner version
+- Fixed metrics collection
+
+
+Releem MySQLConfigurer 0.8.0, 2022-01-12
+- Added support of MariaDB 10.6. Closes #82
+- Added Automated subscriptions and credit card payments
+- Added hostnames to servers list. Closes #77
+- Improved documentation
+
 Releem MySQLConfigurer 0.7.0, 2021-11-16
 - Added Display timezone on server page. Closes #72
 - Added [Documentation](https://releem.com/docs/getstarted). 

@@ -10,6 +10,7 @@ env:
   - DB=mariadb:10.3
   - DB=mariadb:10.4
   - DB=mariadb:10.5
+  - DB=mariadb:10.6
   - DB=mysql:5.5
   - DB=mysql:5.7
   - DB=mysql:8.0

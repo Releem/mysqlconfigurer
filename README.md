@@ -40,6 +40,7 @@ In other cases MySQLTuner stores passwords manualy entered while running script 
 - MariaDB 10.3
 - MariaDB 10.4
 - MariaDB 10.5
+- MariaDB 10.6
 
 *** MINIMAL REQUIREMENTS ***
 - Perl 5.6 or later (with perl-doc package)

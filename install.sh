@@ -12,7 +12,7 @@ logfile="releem-install.log"
 
 WORKDIR="/opt/releem"
 CONF="$WORKDIR/releem.conf"
-
+MYSQL_CONF_DIR="/etc/mysql/releem.conf.d"
 # Read configuration
 
 
@@ -37,7 +37,7 @@ solve your problem.\n\033[0m\n"
 trap on_error ERR
 
 function releem_set_cron() {
-    (crontab -l 2>/dev/null | grep -v "$WORKDIR/mysqlconfigurer.sh" ; echo "$RELEEM_CRON") | crontab -
+    (crontab -l 2>/dev/null | grep -v "$WORKDIR/mysqlconfigurer.sh" || true ; echo "$RELEEM_CRON") | crontab -
 }
 
 function releem_update() {
@@ -53,6 +53,7 @@ function releem_update() {
 
     exit 0
 }
+
 
 apikey=
 if [ -n "$RELEEM_API_KEY" ]; then
@@ -100,7 +101,6 @@ fi
 # Install the necessary package sources
 if [ "$OS" = "RedHat" ]; then
     echo -e "\033[34m\n* Installing dependencies...\n\033[0m"
-    MYSQL_CNF_DIR="/etc/my.cnf"
 
     if [ -x "/usr/bin/dnf" ]; then
         package_manager='dnf'
@@ -111,7 +111,6 @@ if [ "$OS" = "RedHat" ]; then
     $sudo_cmd $package_manager -y install net-tools perl-JSON perl-Data-Dumper perl-Getopt-Long
 
 elif [ "$OS" = "Debian" ]; then
-    MYSQL_CNF="/etc/mysql/my.cnf"
     printf "\033[34m\n* Installing dependences...\n\033[0m\n"
 
     $sudo_cmd apt-get update
@@ -122,21 +121,76 @@ else
     exit;
 fi
 
+$sudo_cmd rm -rf $WORKDIR
 # Create work directory
 if [ ! -e $CONF ]; then
-    $sudo_cmd mkdir $WORKDIR
-    $sudo_cmd mkdir $WORKDIR/conf
+    $sudo_cmd mkdir -p $WORKDIR
+    $sudo_cmd mkdir -p $WORKDIR/conf
 fi
 
 printf "\033[34m\n* Downloading Releem Agent...\033[0m\n"
 curl -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer.sh
 
+printf "\033[34m\n* Checking my.cnf...\033[0m\n"
+
+if [[ -n $RELEEM_MYSQL_MY_CNF_PATH ]];
+then
+	MYSQL_MY_CNF_PATH=$RELEEM_MYSQL_MY_CNF_PATH
+else
+	if [ -f "/etc/my.cnf" ]; then
+		MYSQL_MY_CNF_PATH="/etc/my.cnf"
+	elif [ -f "/etc/mysql/my.cnf" ]; then
+		MYSQL_MY_CNF_PATH="/etc/mysql/my.cnf"
+	else
+		read -p "File my.cnf not found in default path. Please set exist path for my.cnf: " -r
+		echo    # move to a new line
+		MYSQL_MY_CNF_PATH=$REPLY
+	fi
+fi
+
+
+if [ ! -f "$MYSQL_MY_CNF_PATH" ]; then
+	printf "\033[31m\n* File $MYSQL_MY_CNF_PATH not found. Automatic configuration application is disabled. Please, reinstall the releem agent.\033[0m\n"
+else
+	FLAG_APPLY_CHANGE=0
+	if [[ -z $RELEEM_MYSQL_MY_CNF_PATH ]];
+	then
+	    	read -p "Confirm that the file my.cnf is located on the path $MYSQL_MY_CNF_PATH? (Y/N) " -n 1 -r
+	    	echo    # move to a new line
+	    	if [[ $REPLY =~ ^[Yy]$ ]]
+	    	then
+			FLAG_APPLY_CHANGE=1
+		else
+			FLAG_APPLY_CHANGE=0
+			printf "\033[31m\n* Confirmation not received. Automatic configuration application is disabled. Please, reinstall the releem agent.\033[0m\n"
+		fi
+	else
+		FLAG_APPLY_CHANGE=1
+	fi
+	if [ $FLAG_APPLY_CHANGE -eq 1 ];
+	then
+		printf "\033[34m\n* Adding Mysql config dir to the Releem Agent configuration: $CONF\n\033[0m"
+		$sudo_cmd echo "mysql_cnf_dir=$MYSQL_CONF_DIR" >> $CONF
+
+		printf "\033[34m\n* Adding directive includedir to the Mysql configuration: $MYSQL_MY_CNF_PATH\n\033[0m\n"
+		$sudo_cmd mkdir -p $MYSQL_CONF_DIR
+#		Исключить дублирование
+                if [ `grep -cE "!includedir $MYSQL_CONF_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ];
+		then
+		    	echo "!includedir $MYSQL_CONF_DIR" >> $MYSQL_MY_CNF_PATH
+		fi
+	fi
+fi
+
+
 printf "\033[34m\n* Checking ~/.my.cnf...\033[0m\n"
 if [ ! -e ~/.my.cnf ]; then
     printf "\033[34m\n* Please create ~/.my.cnf file with the following content:\033[0m\n"
-    echo -e "\t\t[client]"
-    echo -e "\t\tuser=root"
-    echo -e "\t\tpassword=[your MySQL root password]"
+    echo -e ""
+    echo -e "[client]"
+    echo -e "user=root"
+    echo -e "password=[your MySQL root password]"
+    echo -e ""    
     read -p "Are you ready to proceed? (Y/N) " -n 1 -r
     echo    # move to a new line
     if [[ $REPLY =~ ^[Nn]$ ]]
@@ -167,9 +221,9 @@ fi
 
 # Create configuration file
 printf "\033[34m\n* Adding API key to the Releem Agent configuration: $CONF\n\033[0m\n"
-$sudo_cmd echo "apikey=$apikey" > $CONF
+$sudo_cmd echo "apikey=$apikey" >> $CONF
 printf "\033[34m\n* Adding MySQL Configuration Directory $WORKDIR/conf to Releem Agent configuration: $CONF\n\033[0m\n"
-$sudo_cmd echo "mysql_cnf_dir=$WORKDIR/conf" >> $CONF
+$sudo_cmd echo "releem_cnf_dir=$WORKDIR/conf" >> $CONF
 
 if [ -n "$MYSQL_LIMIT" ]; then
     RELEEM_COMMAND="/bin/bash $WORKDIR/mysqlconfigurer.sh -k $apikey -m $MYSQL_LIMIT"
@@ -208,5 +262,3 @@ printf "\033[34m* To run Releem Agent manually please use the following command:
 printf "\033[32m$RELEEM_COMMAND\033[0m\n\n"
 printf "\033[34m* To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics\033[0m"
 printf "\033[34m\n\033[0m"
-
-

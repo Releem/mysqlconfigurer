@@ -1,6 +1,14 @@
-Releem Agent releases
+Releem releases
 ---
 Information about releases of the Releem Agent.
+
+Releem 0.9.2, 2022-05-31
+- Added manual selection of innodb_flush_log_at_trx_commit in Releem Customer Portal for every server.
+- Added innodb_log_buffer_size calculaction.
+- Added optimizer_search_depth calculaction.
+- Improved innodb_log_file_size variable. Closes #3
+- Improved Documentation.
+- Fixed Metrics Collection Issue.
 
 Releem Agent 0.9.1, 2022-04-30
 - Added display of Memory Limit in Releem Customer Portal

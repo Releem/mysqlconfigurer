@@ -1,6 +1,12 @@
-Releem MySQLConfigurer releases
+Releem Agent releases
 ---
-Information about releases of the Releem MySQLConfigurer.
+Information about releases of the Releem Agent.
+
+Releem Agent 0.9.1, 2022-04-30
+- Added display of Memory Limit in Releem Customer Portal
+- Improved MySQL Performance Score
+- Fixed duplicated servers in Releem Customer Portal
+- Removed servers where Releem Agent is not active.
 
 Releem MySQLConfigurer 0.9.0, 2022-03-30
 - Added checks of the database server version
@@ -11,7 +17,6 @@ Releem MySQLConfigurer 0.9.0, 2022-03-30
 - Improved calculation of tmp_table_size 
 - Fixed MySQLTuner version
 - Fixed metrics collection
-
 
 Releem MySQLConfigurer 0.8.0, 2022-01-12
 - Added support of MariaDB 10.6. Closes #82

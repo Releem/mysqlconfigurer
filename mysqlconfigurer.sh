@@ -54,7 +54,7 @@ fi
 # Check if MySQLTuner already downloaded and download if it doesn't exist
 if [ ! -f "$MYSQLTUNER_FILENAME" ]; then
     # Download latest version of the MySQLTuner
-    curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/1.8.3/mysqltuner.pl 
+    curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/v1.9.9/mysqltuner.pl 
 fi
 
 echo -e "\033[34m\n* Collecting metrics...\033[0m"

@@ -14,78 +14,74 @@ MYSQL_MEMORY_LIMIT=0
 function releem_apply_config() {
     printf "\033[34m\n* Applying config of Releem Agent...\033[0m\n"
     if [ ! -f $MYSQLCONFIGURER_CONFIGFILE ]; then
-        echo "run collection metrics"
-        exit 0;
+        printf "\033[34m\nNot found mysql config file.\033[0m"
+        printf "\033[34m* To run Releem Agent manually please use the following command:\033[0m\n"
+        printf "\033[32m bash /opt/releem/mysqlconfigurer.sh \033[0m\n\n"
+        printf "\033[34m\n\033[0m"
+        exit 1;
+    fi
+    if [ -z "$RELEEM_CONFIG_DIR" ]; then
+        printf "\033[34m\nNot found releem config file.\033[0m"
+        printf "\033[34m* Try reinstalled Releem Agent and please settings path to my.cnf \033[0m\n"
+        printf "\033[32m bash /opt/releem/mysqlconfigurer.sh \033[0m\n\n"
+        printf "\033[34m\n\033[0m"
+        exit 1;
+    fi
+    echo "Copy $MYSQLCONFIGURER_CONFIGFILE to catalog $RELEEM_CONFIG_DIR/ "
+    cp $MYSQLCONFIGURER_CONFIGFILE $RELEEM_CONFIG_DIR/
+    echo "Test config"
+
+    # Root user detection
+    if [ "$(echo "$UID")" = "0" ]; then
+        sudo_cmd=''
+    else
+        sudo_cmd='sudo'
     fi
 
-    cp $MYSQLCONFIGURER_CONFIGFILE $mysql_cnf_dir
-    mysqladmin ping
-# Root user detection
-if [ "$(echo "$UID")" = "0" ]; then
-    sudo_cmd=''
-else
-    sudo_cmd='sudo'
-fi
+    service_cmd=$(which systemctl)
 
-service_cmd=$(which service)
-
-if [ -n $service_cmd ];then
-	# Check if MySQL is running
-	$sudo_cmd service mysql status > /dev/null 2>&1
-	# Restart the MySQL service if it's not running.
-	if [ $? == 0 ]; then
-	    echo -e "MySQL Service is running already. Nothing to do here.\n"
-            service_name_cmd="$service_cmd mysql restart"
-
-	fi
-
-        $sudo_cmd service mysqld status > /dev/null 2>&1
-        # Restart the MySQL service if it's not running.
-        if [ $? == 0 ]; then
-            echo -e "MySQL Service is running already. Nothing to do here.\n"
-            service_name_cmd="$service_cmd mysqld restart"
-
-        fi
-
-        $sudo_cmd service mariadb status > /dev/null 2>&1
-        # Restart the MySQL service if it's not running.
-        if [ $? == 0 ]; then
-            echo -e "MySQL Service is running already. Nothing to do here.\n"
-            service_name_cmd="$service_cmd mariadb restart"
-        fi
-else
+    if [ -n "$service_cmd" ];then
         # Check if MySQL is running
-        $sudo_cmd /etc/init.d/mysql status > /dev/null 2>&1
-        # Restart the MySQL service if it's not running.
-        if [ $? == 0 ]; then
-            echo -e "MySQL Service is running already. Nothing to do here.\n"
-            service_name_cmd="/etc/init.d/mysql restart"
+        if $sudo_cmd $service_cmd is-active --quiet mysql; then
+            echo -e "mysql Service is running already. Nothing to do here.\n"
+            service_name_cmd="$sudo_cmd $service_cmd restart mysql"
+        elif $sudo_cmd $service_cmd is-active --quiet mysqld; then
+            echo -e "mysqld Service is running already. Nothing to do here.\n"
+            service_name_cmd="$sudo_cmd $service_cmd restart mysqld"
+        elif $sudo_cmd $service_cmd is-active --quiet mariadb; then
+            echo -e "mariadb Service is running already. Nothing to do here.\n"
+            service_name_cmd="$sudo_cmd $service_cmd restart mariadb"
         fi
-
+    else
         # Check if MySQL is running
-        $sudo_cmd /etc/init.d/mysqld status > /dev/null 2>&1
-        # Restart the MySQL service if it's not running.
-        if [ $? == 0 ]; then
-            echo -e "MySQL Service is running already. Nothing to do here.\n"
-            service_name_cmd="/etc/init.d/mysqld restart"
-
+        if [ -f /etc/init.d/mysql ]; then
+            echo -e "mysql init is running already. Nothing to do here.\n"
+            service_name_cmd="$sudo_cmd /etc/init.d/mysql restart"
+        elif [ -f /etc/init.d/mysqld ]; then
+            echo -e "mysqld init is running already. Nothing to do here.\n"
+            service_name_cmd="$sudo_cmd /etc/init.d/mysqld restart"
+        elif [ -f /etc/init.d/mariadb ]; then
+            echo -e "mariadb init is running already. Nothing to do here.\n"
+            service_name_cmd="$sudo_cmd /etc/init.d/mariadb restart"
         fi
-
-        # Check if MySQL is running
-        $sudo_cmd /etc/init.d/mariadb status > /dev/null 2>&1
-        # Restart the MySQL service if it's not running.
-        if [ $? == 0 ]; then
-            echo -e "MySQL Service is running already. Nothing to do here.\n"
-            service_name_cmd="/etc/init.d/mariadb restart"
-        fi
-fi
+    fi
     echo "$service_name_cmd"
-    sleep 10
+
+    read -p "Confirm restarted mysql service? (Y/N) " -n 1 -r
+    echo    # move to a new line
+
+    if [[ $REPLY =~ ^[Yy]$ ]]
+    then
+        echo "Restarting..."
+        eval "$service_name_cmd"
+    fi
+
+    sleep 2
     if [[ $(mysqladmin ping) == "mysqld is alive" ]];
     then
         echo "Mysql server start after 10 seconds"
     else
-	echo "Mysql server not start after 10 seconds. Check mysql error log."
+        echo "Mysql server not start after 10 seconds. Check mysql error log."
     fi
     exit 0
 }
@@ -98,6 +94,9 @@ if test -f $RELEEM_CONF_FILE ; then
     if [ ! -z $memory_limit ]; then
         MYSQL_MEMORY_LIMIT=$memory_limit
     fi
+    if [ ! -z $mysql_cnf_dir ]; then
+        RELEEM_CONFIG_DIR=$mysql_cnf_dir
+    fi
 fi
 
 # Parse parameters
@@ -107,7 +106,7 @@ case "${option}"
 in
 k) RELEEM_API_KEY=${OPTARG};;
 m) MYSQL_MEMORY_LIMIT=${OPTARG};;
-a) releem_apply_config;;
+a) RELEEM_APPLY_CONFIG=1;;
 esac
 done
 
@@ -135,7 +134,7 @@ fi
 # Check if MySQLTuner already downloaded and download if it doesn't exist
 if [ ! -f "$MYSQLTUNER_FILENAME" ]; then
     # Download latest version of the MySQLTuner
-    curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/v1.9.9/mysqltuner.pl 
+    curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/v1.9.9/mysqltuner.pl
 fi
 
 echo -e "\033[34m\n* Collecting metrics...\033[0m"
@@ -158,8 +157,12 @@ if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --forcemem=$MYSQL_MEMOR
     echo
     echo -e "2. To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics"
     echo
-    echo -e "3. To apply the recommended configuration please read documentation https://app.releem.com/dashboard"
-    
+    if [ "$RELEEM_APPLY_CONFIG" = "1" ]; then
+        releem_apply_config
+    else
+        echo -e "3. To apply the recommended configuration please read documentation https://app.releem.com/dashboard"
+    fi
+
     exit
 else
 

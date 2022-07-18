@@ -1,10 +1,25 @@
-Releem Agent releases
+Releem releases
 ---
 Information about releases of the Releem Agent.
 
+Releem 0.9.3, 2022-06-30
+- Added thread_pool_size calculation.
+- Improved performance of metrics page.
+- Improved [MySQL Performance Score](https://releem.com/docs/mysql-performance-score?utm_source=github&utm_medium=social&utm_campaign=changelog&utm_content=md).
+- Fixed [innodb_buffer_pool_size](https://releem.com/docs/mysql-performance-tuning/innodb_buffer_pool_size?utm_source=github&utm_medium=social&utm_campaign=changelog&utm_content=md) calculation.
+- Fixed height of Recommended Configuration block.
+
+Releem 0.9.2, 2022-05-31
+- Added manual selection of [innodb_flush_log_at_trx_commit](https://releem.com/docs/mysql-performance-tuning/innodb_flush_log_at_trx_commit?utm_source=github&utm_medium=social&utm_campaign=changelog&utm_content=md) in Releem Customer Portal for every server.
+- Added innodb_log_buffer_size calculaction.
+- Added optimizer_search_depth calculaction.
+- Improved [innodb_log_file_size](https://releem.com/docs/mysql-performance-tuning/innodb_log_file_size?utm_source=github&utm_medium=social&utm_campaign=changelog&utm_content=md) variable. Closes #3
+- Improved [Documentation](https://releem.com/docs/getstarted).
+- Fixed Metrics Collection Issue.
+
 Releem Agent 0.9.1, 2022-04-30
 - Added display of Memory Limit in Releem Customer Portal
-- Improved MySQL Performance Score
+- Improved [MySQL Performance Score](https://releem.com/docs/mysql-performance-score?utm_source=github&utm_medium=social&utm_campaign=changelog&utm_content=md)
 - Fixed duplicated servers in Releem Customer Portal
 - Removed servers where Releem Agent is not active.
 
@@ -13,8 +28,8 @@ Releem MySQLConfigurer 0.9.0, 2022-03-30
 - Added configuration file releem.conf
 - Added -u option to update Releem Agent
 - Added list of variable changes. Closes #75
-- Improved calculation of max_heap_table_size
-- Improved calculation of tmp_table_size 
+- Improved calculation of [max_heap_table_size](https://releem.com/docs/mysql-performance-tuning/max_heap_table_size?utm_source=github&utm_medium=social&utm_campaign=changelog&utm_content=md)
+- Improved calculation of [tmp_table_size](https://releem.com/docs/mysql-performance-tuning/tmp_table_size?utm_source=github&utm_medium=social&utm_campaign=changelog&utm_content=md) 
 - Fixed MySQLTuner version
 - Fixed metrics collection
 
@@ -34,7 +49,7 @@ Releem MySQLConfigurer 0.7.0, 2021-11-16
 - Removed Removed MySQLTuner Recommendations 
 
 Releem MySQLConfigurer 0.6.0, 2021-06-17
-- Added MySQL Performance Score metric.
+- Added [MySQL Performance Score](https://releem.com/docs/mysql-performance-score?utm_source=github&utm_medium=social&utm_campaign=changelog&utm_content=md) metric.
 - Added runtime information. Closes #62
 - Added Display Recommended Configuration.
 - Improved documentation Installation, Usage and Tests.
@@ -48,10 +63,10 @@ Releem MySQLConfigurer 0.5.0, 2021-01-30
 - Improved documentation.
 - Improved and published tests description at [releem.com](https://releem.com/blog/how-to-improve-performance-mysql57-default-configuration). Closes #31.
 - Fixed problem with timeout variables. Closes #29.
-- Added calculation of the 'max_allowed_packet' variable.
+- Added calculation of the '[max_allowed_packet](https://releem.com/docs/mysql-performance-tuning/max_allowed_packet?utm_source=github&utm_medium=social&utm_campaign=changelog&utm_content=md)' variable.
 - Added calculation of the 'read_rnd_buffer_size' variable.
 - Improved calcualtion of the 'sort_buffer_size' variable.
-- Improved calculation of the 'innodb_buffer_pool_size' variable.
+- Improved calculation of the '[innodb_buffer_pool_size](https://releem.com/docs/mysql-performance-tuning/innodb_buffer_pool_size?utm_source=github&utm_medium=social&utm_campaign=changelog&utm_content=md)' variable.
 - Improved calculation of the 'key_buffer_size' variable.
 - Improved calculation of the 'innodb_buffer_pool_instances' variable. Closes #37.
 

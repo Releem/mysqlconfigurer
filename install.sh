@@ -37,7 +37,7 @@ solve your problem.\n\033[0m\n"
 trap on_error ERR
 
 function releem_set_cron() {
-    (crontab -l 2>/dev/null | grep -v "$WORKDIR/mysqlconfigurer.sh" || true ; echo "$RELEEM_CRON") | crontab -
+    (crontab -l 2>/dev/null | grep -v "$WORKDIR/mysqlconfigurer.sh" || true; echo "$RELEEM_CRON") | crontab -
 }
 
 function releem_update() {

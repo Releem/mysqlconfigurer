@@ -11,6 +11,30 @@ MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 MYSQLCONFIGURER_CONFIGFILE=$MYSQLCONFIGURER_PATH"z_aiops_mysql.cnf"
 MYSQL_MEMORY_LIMIT=0
 
+function wait_restart() {
+  sleep 1
+  flag=0
+  spin[0]="-"
+  spin[1]="\\"
+  spin[2]="|"
+  spin[3]="/"
+#  echo -n "Waiting for restarted mysql ${spin[0]}"
+  printf "\033[34m\n* Waiting for mysql service to start 120 seconds ${spin[0]}"
+
+  while !(mysqladmin ping > /dev/null 2>&1)
+  do
+    flag=$(($flag + 1))
+    if [ $flag == 120 ]; then
+#        echo "$flag break"
+        break
+    fi
+    i=`expr $flag % 4`
+    #echo -ne "\b${spin[$i]}"
+    printf "\b${spin[$i]}"
+    sleep 1
+  done
+  printf "\033[0m\n"
+}
 function releem_apply_config() {
     printf "\033[34m\n* Applying config of Releem Agent...\033[0m\n"
     if [ ! -f $MYSQLCONFIGURER_CONFIGFILE ]; then
@@ -30,7 +54,7 @@ function releem_apply_config() {
     printf "\033[34m\n* Copy file $MYSQLCONFIGURER_CONFIGFILE to directory $RELEEM_CONFIG_DIR/...\033[0m\n"
     yes | cp -fr $MYSQLCONFIGURER_CONFIGFILE $RELEEM_CONFIG_DIR/
 
-    echo "Test config"
+    echo "----Test config-------"
 
     # Root user detection
     if [ "$(echo "$UID")" = "0" ]; then
@@ -39,16 +63,16 @@ function releem_apply_config() {
         sudo_cmd='sudo'
     fi
 
-    service_cmd=$(which systemctl)
+    systemctl_cmd=$(which systemctl)
 
-    if [ -n "$service_cmd" ];then
+    if [ -n "$systemctl_cmd" ];then
         # Check if MySQL is running
-        if $sudo_cmd $service_cmd is-active --quiet mysql; then
-            service_name_cmd="$sudo_cmd $service_cmd restart mysql"
-        elif $sudo_cmd $service_cmd is-active --quiet mysqld; then
-            service_name_cmd="$sudo_cmd $service_cmd restart mysqld"
-        elif $sudo_cmd $service_cmd is-active --quiet mariadb; then
-            service_name_cmd="$sudo_cmd $service_cmd restart mariadb"
+        if $sudo_cmd $systemctl_cmd status mysql >/dev/null 2>&1; then
+            service_name_cmd="$sudo_cmd $systemctl_cmd restart mysql"
+        elif $sudo_cmd $systemctl_cmd status mysqld >/dev/null 2>&1; then
+            service_name_cmd="$sudo_cmd $systemctl_cmd restart mysqld"
+        elif $sudo_cmd $systemctl_cmd status mariadb >/dev/null 2>&1; then
+            service_name_cmd="$sudo_cmd $systemctl_cmd restart mariadb"
         fi
     else
         # Check if MySQL is running
@@ -62,29 +86,33 @@ function releem_apply_config() {
     fi
     read -p "Confirm restarted mysql service? (Y/N) " -n 1 -r
     echo    # move to a new line
-    if [[ $REPLY =~ ^[Yy]$ ]]
+    if [[ ! $REPLY =~ ^[Yy]$ ]]
     then
-        printf "\033[34m\n* Restarting with command '$service_name_cmd'...\033[0m\n"
-        eval "$service_name_cmd"
+        printf "\033[34m\n* No confirmation received to restart service. Releem config not applied.\033[0m\n"
+        return 1
     fi
-    printf "\033[34m\n* Waiting for mysql service to start 10 seconds...\033[0m\n"
 
-    sleep 10
-    if [[ $(mysqladmin ping) == "mysqld is alive" ]];
+    printf "\033[34m\n* Restarting with command '$service_name_cmd'...\033[0m\n"
+    eval "$service_name_cmd" &
+    wait_restart
+
+
+
+    if [[ $(mysqladmin ping 2>/dev/null) == "mysqld is alive" ]];
     then
         printf "\033[32m\n* Mysql service started successfully!\033[0m\n"
     else
         printf "\033[31m\n* Mysql service started failed! Check mysql error log! \033[0m\n"
-        printf "\033[31m\n* Rollback of applying the config!\n Delete config \033[0m\n"
+        printf "\033[31m\n* Rollback of applying the config!\n* Delete config \033[0m\n"
         rm -rf $RELEEM_CONFIG_DIR/*
         printf "\033[31m\n* Restarting with command '$service_name_cmd'...\033[0m\n"
-        eval "$service_name_cmd"
-        sleep 10
-        if [[ $(mysqladmin ping) == "mysqld is alive" ]];
+        eval "$service_name_cmd" &
+        wait_restart
+        if [[ $(mysqladmin ping 2>/dev/null) == "mysqld is alive" ]];
         then
             printf "\033[32m\n* Mysql service started successfully!\033[0m\n"
         else
-            printf "\033[31m\n* Mysql service started failed! Check mysql error log! \033[0m\n"
+            printf "\033[31m\n* Rollback started Mysql service failed! Check mysql error log! \033[0m\n"
         fi
     fi
     exit 0

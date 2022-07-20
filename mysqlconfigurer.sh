@@ -65,7 +65,7 @@ function releem_apply_config() {
     if [[ $REPLY =~ ^[Yy]$ ]]
     then
         printf "\033[34m\n* Restarting with command '$service_name_cmd'...\033[0m\n"
-        #eval "$service_name_cmd"
+        eval "$service_name_cmd"
     fi
     printf "\033[34m\n* Waiting for mysql service to start 10 seconds...\033[0m\n"
 
@@ -78,7 +78,7 @@ function releem_apply_config() {
         printf "\033[31m\n* Rollback of applying the config!\n Delete config \033[0m\n"
         rm -rf $RELEEM_CONFIG_DIR/*
         printf "\033[31m\n* Restarting with command '$service_name_cmd'...\033[0m\n"
-        #eval "$service_name_cmd"
+        eval "$service_name_cmd"
         sleep 10
         if [[ $(mysqladmin ping) == "mysqld is alive" ]];
         then

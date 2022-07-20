@@ -73,6 +73,9 @@ function releem_apply_config() {
             service_name_cmd="$sudo_cmd $systemctl_cmd restart mysqld"
         elif $sudo_cmd $systemctl_cmd status mariadb >/dev/null 2>&1; then
             service_name_cmd="$sudo_cmd $systemctl_cmd restart mariadb"
+        else
+            printf "\033[31m\n* Failed to determine service to restart. \033[0m\n"        
+            return 1
         fi
     else
         # Check if MySQL is running
@@ -82,6 +85,9 @@ function releem_apply_config() {
             service_name_cmd="$sudo_cmd /etc/init.d/mysqld restart"
         elif [ -f /etc/init.d/mariadb ]; then
             service_name_cmd="$sudo_cmd /etc/init.d/mariadb restart"
+        else
+            printf "\033[31m\n* Failed to determine service to restart. \033[0m\n"
+            return 1
         fi
     fi
     read -p "Confirm restarted mysql service? (Y/N) " -n 1 -r

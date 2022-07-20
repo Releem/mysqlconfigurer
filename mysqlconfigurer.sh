@@ -27,8 +27,9 @@ function releem_apply_config() {
         printf "\033[34m\n\033[0m"
         exit 1;
     fi
-    echo "Copy $MYSQLCONFIGURER_CONFIGFILE to catalog $RELEEM_CONFIG_DIR/ "
-    cp $MYSQLCONFIGURER_CONFIGFILE $RELEEM_CONFIG_DIR/
+    printf "\033[34m\n* Copy file $MYSQLCONFIGURER_CONFIGFILE to directory $RELEEM_CONFIG_DIR/...\033[0m\n"
+    yes | cp -fr $MYSQLCONFIGURER_CONFIGFILE $RELEEM_CONFIG_DIR/
+
     echo "Test config"
 
     # Root user detection
@@ -43,45 +44,48 @@ function releem_apply_config() {
     if [ -n "$service_cmd" ];then
         # Check if MySQL is running
         if $sudo_cmd $service_cmd is-active --quiet mysql; then
-            echo -e "mysql Service is running already. Nothing to do here.\n"
             service_name_cmd="$sudo_cmd $service_cmd restart mysql"
         elif $sudo_cmd $service_cmd is-active --quiet mysqld; then
-            echo -e "mysqld Service is running already. Nothing to do here.\n"
             service_name_cmd="$sudo_cmd $service_cmd restart mysqld"
         elif $sudo_cmd $service_cmd is-active --quiet mariadb; then
-            echo -e "mariadb Service is running already. Nothing to do here.\n"
             service_name_cmd="$sudo_cmd $service_cmd restart mariadb"
         fi
     else
         # Check if MySQL is running
         if [ -f /etc/init.d/mysql ]; then
-            echo -e "mysql init is running already. Nothing to do here.\n"
             service_name_cmd="$sudo_cmd /etc/init.d/mysql restart"
         elif [ -f /etc/init.d/mysqld ]; then
-            echo -e "mysqld init is running already. Nothing to do here.\n"
             service_name_cmd="$sudo_cmd /etc/init.d/mysqld restart"
         elif [ -f /etc/init.d/mariadb ]; then
-            echo -e "mariadb init is running already. Nothing to do here.\n"
             service_name_cmd="$sudo_cmd /etc/init.d/mariadb restart"
         fi
     fi
-    echo "$service_name_cmd"
-
     read -p "Confirm restarted mysql service? (Y/N) " -n 1 -r
     echo    # move to a new line
-
     if [[ $REPLY =~ ^[Yy]$ ]]
     then
-        echo "Restarting..."
-        eval "$service_name_cmd"
+        printf "\033[34m\n* Restarting with command '$service_name_cmd'...\033[0m\n"
+        #eval "$service_name_cmd"
     fi
+    printf "\033[34m\n* Waiting for mysql service to start 10 seconds...\033[0m\n"
 
-    sleep 2
+    sleep 10
     if [[ $(mysqladmin ping) == "mysqld is alive" ]];
     then
-        echo "Mysql server start after 10 seconds"
+        printf "\033[32m\n* Mysql service started successfully!\033[0m\n"
     else
-        echo "Mysql server not start after 10 seconds. Check mysql error log."
+        printf "\033[31m\n* Mysql service started failed! Check mysql error log! \033[0m\n"
+        printf "\033[31m\n* Rollback of applying the config!\n Delete config \033[0m\n"
+        rm -rf $RELEEM_CONFIG_DIR/*
+        printf "\033[31m\n* Restarting with command '$service_name_cmd'...\033[0m\n"
+        #eval "$service_name_cmd"
+        sleep 10
+        if [[ $(mysqladmin ping) == "mysqld is alive" ]];
+        then
+            printf "\033[32m\n* Mysql service started successfully!\033[0m\n"
+        else
+            printf "\033[31m\n* Mysql service started failed! Check mysql error log! \033[0m\n"
+        fi
     fi
     exit 0
 }
@@ -106,7 +110,7 @@ case "${option}"
 in
 k) RELEEM_API_KEY=${OPTARG};;
 m) MYSQL_MEMORY_LIMIT=${OPTARG};;
-a) RELEEM_APPLY_CONFIG=1;;
+a) releem_apply_config;;  ###RELEEM_APPLY_CONFIG=1;;
 esac
 done
 

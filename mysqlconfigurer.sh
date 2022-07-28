@@ -46,8 +46,18 @@ function releem_rollback_config() {
         printf "\033[34m\n* The command to restart the MySQL service was not found. Try to reinstall Releem Agent.\033[0m"
         exit 1;
     fi
+
+    read -p "Please confirm roll back MySQL configuration? (Y/N) " -n 1 -r
+    echo    # move to a new line
+    if [[ ! $REPLY =~ ^[Yy]$ ]]
+    then
+        printf "\033[34m\n* A confirmation to restart the service has not been received. Releem recommended configuration has not been applied.\033[0m\n"
+        exit 1
+    fi
     printf "\033[31m\n* Deleting a configuration file... \033[0m\n"
     rm -rf $RELEEM_MYSQL_CONFIG_DIR/*
+    echo "----Test config-------"
+
     printf "\033[31m\n* Restarting with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
     eval "$RELEEM_MYSQL_RESTART_SERVICE" &
     wait_restart
@@ -81,7 +91,7 @@ function releem_apply_config() {
 
     echo "----Test config-------"
 
-    read -p "Please confirm restart mysql service? (Y/N) " -n 1 -r
+    read -p "Please confirm restart MySQL service? (Y/N) " -n 1 -r
     echo    # move to a new line
     if [[ ! $REPLY =~ ^[Yy]$ ]]
     then

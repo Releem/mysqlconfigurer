@@ -131,7 +131,7 @@ fi
 printf "\033[34m\n* Downloading Releem Agent...\033[0m\n"
 curl -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer.sh
 
-printf "\033[34m\n* Configuring the application of the recommended Releem configuration...\033[0m\n"
+printf "\033[34m\n* Configure the application to use the Releem recommended configuration...\033[0m\n"
 
 systemctl_cmd=$(which systemctl)
 
@@ -160,7 +160,8 @@ else
         return 1
     fi
 fi
-$sudo_cmd echo "mysql_restart_service=$service_name_cmd" >> $CONF
+printf "\033[34m\n* Adding MySQL restart command to the Releem Agent configuration: $CONF\n\033[0m"
+$sudo_cmd echo "mysql_restart_service=\"$service_name_cmd\"" >> $CONF
 
 if [[ -n $RELEEM_MYSQL_MY_CNF_PATH ]];
 then

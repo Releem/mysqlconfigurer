@@ -35,91 +35,73 @@ function wait_restart() {
   done
   printf "\033[0m\n"
 }
+function releem_rollback_config() {
+    printf "\033[31m\n* Rolling back MySQL configuration!\033[0m\n"
+    if [ -z "$RELEEM_MYSQL_CONFIG_DIR" ]; then
+        printf "\033[34m\n* MySQL configuration directory is not found.\033[0m"
+        printf "\033[34m\n* Try to reinstall Releem Agent, and please set the my.cnf location.\033[0m"
+        exit 1;
+    fi
+    if [ -z "$RELEEM_MYSQL_RESTART_SERVICE" ]; then
+        printf "\033[34m\n* The command to restart the MySQL service was not found. Try to reinstall Releem Agent.\033[0m"
+        exit 1;
+    fi
+    printf "\033[31m\n* Deleting a configuration file... \033[0m\n"
+    rm -rf $RELEEM_MYSQL_CONFIG_DIR/*
+    printf "\033[31m\n* Restarting with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
+    eval "$RELEEM_MYSQL_RESTART_SERVICE" &
+    wait_restart
+    if [[ $(mysqladmin ping 2>/dev/null) == "mysqld is alive" ]];
+    then
+        printf "\033[32m\n* MySQL service started successfully!\033[0m\n"
+    else
+        printf "\033[31m\n* Failed to roll back MySQL configuration! Check mysql error log! \033[0m\n"
+    fi
+}
+
 function releem_apply_config() {
-    printf "\033[34m\n* Applying config of Releem Agent...\033[0m\n"
+    printf "\033[34m\n* Applying recommended MySQL configuration...\033[0m\n"
     if [ ! -f $MYSQLCONFIGURER_CONFIGFILE ]; then
-        printf "\033[34m\nNot found mysql config file.\033[0m"
-        printf "\033[34m* To run Releem Agent manually please use the following command:\033[0m\n"
-        printf "\033[32m bash /opt/releem/mysqlconfigurer.sh \033[0m\n\n"
-        printf "\033[34m\n\033[0m"
+        printf "\033[34m\n* Recommended MySQL configuration is not found.\033[0m"
+        printf "\033[34m\n* Please apply recommended configuration later or run Releem Agent manually:\033[0m"
+        printf "\033[32m\n bash /opt/releem/mysqlconfigurer.sh \033[0m\n\n"
         exit 1;
     fi
-    if [ -z "$RELEEM_CONFIG_DIR" ]; then
-        printf "\033[34m\nNot found releem config file.\033[0m"
-        printf "\033[34m* Try reinstalled Releem Agent and please settings path to my.cnf \033[0m\n"
-        printf "\033[32m bash /opt/releem/mysqlconfigurer.sh \033[0m\n\n"
-        printf "\033[34m\n\033[0m"
+    if [ -z "$RELEEM_MYSQL_CONFIG_DIR" ]; then
+        printf "\033[34m\n* MySQL configuration directory is not found.\033[0m"
+        printf "\033[34m\n* Try to reinstall Releem Agent, and please set the my.cnf location.\033[0m"
         exit 1;
     fi
-    printf "\033[34m\n* Copy file $MYSQLCONFIGURER_CONFIGFILE to directory $RELEEM_CONFIG_DIR/...\033[0m\n"
-    yes | cp -fr $MYSQLCONFIGURER_CONFIGFILE $RELEEM_CONFIG_DIR/
+    if [ -z "$RELEEM_MYSQL_RESTART_SERVICE" ]; then
+        printf "\033[34m\n* The command to restart the MySQL service was not found. Try to reinstall Releem Agent.\033[0m"
+        exit 1;
+    fi
+    printf "\033[34m\n* Copy file $MYSQLCONFIGURER_CONFIGFILE to directory $RELEEM_MYSQL_CONFIG_DIR/...\033[0m\n"
+    yes | cp -fr $MYSQLCONFIGURER_CONFIGFILE $RELEEM_MYSQL_CONFIG_DIR/
 
     echo "----Test config-------"
 
-    # Root user detection
-    if [ "$(echo "$UID")" = "0" ]; then
-        sudo_cmd=''
-    else
-        sudo_cmd='sudo'
-    fi
-
-    systemctl_cmd=$(which systemctl)
-
-    if [ -n "$systemctl_cmd" ];then
-        # Check if MySQL is running
-        if $sudo_cmd $systemctl_cmd status mysql >/dev/null 2>&1; then
-            service_name_cmd="$sudo_cmd $systemctl_cmd restart mysql"
-        elif $sudo_cmd $systemctl_cmd status mysqld >/dev/null 2>&1; then
-            service_name_cmd="$sudo_cmd $systemctl_cmd restart mysqld"
-        elif $sudo_cmd $systemctl_cmd status mariadb >/dev/null 2>&1; then
-            service_name_cmd="$sudo_cmd $systemctl_cmd restart mariadb"
-        else
-            printf "\033[31m\n* Failed to determine service to restart. \033[0m\n"
-            return 1
-        fi
-    else
-        # Check if MySQL is running
-        if [ -f /etc/init.d/mysql ]; then
-            service_name_cmd="$sudo_cmd /etc/init.d/mysql restart"
-        elif [ -f /etc/init.d/mysqld ]; then
-            service_name_cmd="$sudo_cmd /etc/init.d/mysqld restart"
-        elif [ -f /etc/init.d/mariadb ]; then
-            service_name_cmd="$sudo_cmd /etc/init.d/mariadb restart"
-        else
-            printf "\033[31m\n* Failed to determine service to restart. \033[0m\n"
-            return 1
-        fi
-    fi
-    read -p "Confirm restarted mysql service? (Y/N) " -n 1 -r
+    read -p "Please confirm restart mysql service? (Y/N) " -n 1 -r
     echo    # move to a new line
     if [[ ! $REPLY =~ ^[Yy]$ ]]
     then
-        printf "\033[34m\n* No confirmation received to restart service. Releem config not applied.\033[0m\n"
+        printf "\033[34m\n* A confirmation to restart the service has not been received. Releem recommended configuration has not been applied.\033[0m\n"
         return 1
     fi
 
-    printf "\033[34m\n* Restarting with command '$service_name_cmd'...\033[0m\n"
-    eval "$service_name_cmd" &
+    printf "\033[34m\n* Restarting with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
+    eval "$RELEEM_MYSQL_RESTART_SERVICE" &
     wait_restart
 
 
 
     if [[ $(mysqladmin ping 2>/dev/null) == "mysqld is alive" ]];
     then
-        printf "\033[32m\n* Mysql service started successfully!\033[0m\n"
+        printf "\033[32m\n* MySQL service started successfully!\033[0m\n"
     else
-        printf "\033[31m\n* Mysql service started failed! Check mysql error log! \033[0m\n"
-        printf "\033[31m\n* Rollback of applying the config!\n* Delete config \033[0m\n"
-        rm -rf $RELEEM_CONFIG_DIR/*
-        printf "\033[31m\n* Restarting with command '$service_name_cmd'...\033[0m\n"
-        eval "$service_name_cmd" &
-        wait_restart
-        if [[ $(mysqladmin ping 2>/dev/null) == "mysqld is alive" ]];
-        then
-            printf "\033[32m\n* Mysql service started successfully!\033[0m\n"
-        else
-            printf "\033[31m\n* Rollback started Mysql service failed! Check mysql error log! \033[0m\n"
-        fi
+        printf "\033[31m\n* MySQL service doesn't start! Check the MySQL error log! \033[0m\n"
+        printf "\033[31m\n* Try to roll back the configuration application using the command: \033[0m\n"
+        printf "\033[32m\n bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
     fi
     exit 0
 }
@@ -133,18 +115,22 @@ if test -f $RELEEM_CONF_FILE ; then
         MYSQL_MEMORY_LIMIT=$memory_limit
     fi
     if [ ! -z $mysql_cnf_dir ]; then
-        RELEEM_CONFIG_DIR=$mysql_cnf_dir
+        RELEEM_MYSQL_CONFIG_DIR=$mysql_cnf_dir
+    fi
+    if [ ! -z $mysql_restart_service ]; then
+        RELEEM_MYSQL_RESTART_SERVICE=$mysql_restart_service
     fi
 fi
 
 # Parse parameters
-while getopts "k:m:a" option
+while getopts "k:m:ar" option
 do
 case "${option}"
 in
 k) RELEEM_API_KEY=${OPTARG};;
 m) MYSQL_MEMORY_LIMIT=${OPTARG};;
 a) releem_apply_config;;  ###RELEEM_APPLY_CONFIG=1;;
+r) releem_rollback_config;;
 esac
 done
 
@@ -172,7 +158,7 @@ fi
 # Check if MySQLTuner already downloaded and download if it doesn't exist
 if [ ! -f "$MYSQLTUNER_FILENAME" ]; then
     # Download latest version of the MySQLTuner
-    curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/v1.9.9/mysqltuner.pl
+    curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/07cfdafaa7dee483fd715c88048b4fa19f3f3df3/mysqltuner.pl
 fi
 
 echo -e "\033[34m\n* Collecting metrics...\033[0m"
@@ -195,15 +181,9 @@ if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --forcemem=$MYSQL_MEMOR
     echo
     echo -e "2. To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics"
     echo
-    if [ "$RELEEM_APPLY_CONFIG" = "1" ]; then
-        releem_apply_config
-    else
-        echo -e "3. To apply the recommended configuration please read documentation https://app.releem.com/dashboard"
-    fi
-
+    echo -e "3. To apply the recommended configuration please read documentation https://app.releem.com/dashboard"
     exit
 else
-
     # If error then show report and exit
     errormsg="    \
     \n\n\n\n--------Releem Agent completed with error--------\n   \

@@ -86,7 +86,7 @@ function releem_apply_config() {
     if [[ ! $REPLY =~ ^[Yy]$ ]]
     then
         printf "\033[34m\n* A confirmation to restart the service has not been received. Releem recommended configuration has not been applied.\033[0m\n"
-        return 1
+        exit 1
     fi
 
     printf "\033[34m\n* Restarting with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
@@ -117,7 +117,7 @@ if test -f $RELEEM_CONF_FILE ; then
     if [ ! -z $mysql_cnf_dir ]; then
         RELEEM_MYSQL_CONFIG_DIR=$mysql_cnf_dir
     fi
-    if [ ! -z $mysql_restart_service ]; then
+    if [ ! -z "$mysql_restart_service" ]; then
         RELEEM_MYSQL_RESTART_SERVICE=$mysql_restart_service
     fi
 fi

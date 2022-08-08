@@ -47,13 +47,25 @@ function releem_rollback_config() {
         exit 1;
     fi
 
-    read -p "Please confirm roll back MySQL configuration? (Y/N) " -n 1 -r
-    echo    # move to a new line
-    if [[ ! $REPLY =~ ^[Yy]$ ]]
-    then
-        printf "\033[34m\n* A confirmation to restart the service has not been received. Releem recommended configuration has not been applied.\033[0m\n"
-        exit 1
+
+
+
+    FLAG_RESTART_SERVICE=1
+    if [ -z "$RELEEM_RESTART_SERVICE" ]; then
+    	read -p "Please confirm roll back MySQL configuration? (Y/N) " -n 1 -r
+	echo    # move to a new line
+	if [[ ! $REPLY =~ ^[Yy]$ ]]
+	then
+	    printf "\033[34m\n* A confirmation to restart the service has not been received. Releem recommended configuration has not been applied.\033[0m\n"
+	    FLAG_RESTART_SERVICE=0
+        fi
+    elif [ "$RELEEM_RESTART_SERVICE" -eq 0 ]; then
+        FLAG_RESTART_SERVICE=0
     fi
+    if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
+        exit 1
+    fi        
+
     printf "\033[31m\n* Deleting a configuration file... \033[0m\n"
     rm -rf $RELEEM_MYSQL_CONFIG_DIR/*
     echo "----Test config-------"

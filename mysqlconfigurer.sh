@@ -103,13 +103,22 @@ function releem_apply_config() {
 
     echo "----Test config-------"
 
-    read -p "Please confirm restart MySQL service? (Y/N) " -n 1 -r
-    echo    # move to a new line
-    if [[ ! $REPLY =~ ^[Yy]$ ]]
-    then
-        printf "\033[34m\n* A confirmation to restart the service has not been received. Releem recommended configuration has not been applied.\033[0m\n"
-        exit 1
+    FLAG_RESTART_SERVICE=1
+    if [ -z "$RELEEM_RESTART_SERVICE" ]; then
+    	read -p "Please confirm roll back MySQL configuration? (Y/N) " -n 1 -r
+	echo    # move to a new line
+	if [[ ! $REPLY =~ ^[Yy]$ ]]
+	then
+	    printf "\033[34m\n* A confirmation to restart the service has not been received. Releem recommended configuration has not been applied.\033[0m\n"
+	    FLAG_RESTART_SERVICE=0
+        fi
+    elif [ "$RELEEM_RESTART_SERVICE" -eq 0 ]; then
+        FLAG_RESTART_SERVICE=0
     fi
+    if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
+        exit 1
+    fi        
+
 
     printf "\033[34m\n* Restarting with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
     eval "$RELEEM_MYSQL_RESTART_SERVICE" &

@@ -47,9 +47,6 @@ function releem_rollback_config() {
         exit 1;
     fi
 
-
-
-
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
     	read -p "Please confirm roll back MySQL configuration? (Y/N) " -n 1 -r
@@ -101,7 +98,6 @@ function releem_apply_config() {
     printf "\033[34m\n* Copy file $MYSQLCONFIGURER_CONFIGFILE to directory $RELEEM_MYSQL_CONFIG_DIR/...\033[0m\n"
     yes | cp -fr $MYSQLCONFIGURER_CONFIGFILE $RELEEM_MYSQL_CONFIG_DIR/
 
-    echo "----Test config-------"
 
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
@@ -119,11 +115,10 @@ function releem_apply_config() {
         exit 1
     fi        
 
-
+    echo "----Test config-------"
     printf "\033[34m\n* Restarting with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
     eval "$RELEEM_MYSQL_RESTART_SERVICE" &
     wait_restart
-
 
 
     if [[ $(mysqladmin ping 2>/dev/null) == "mysqld is alive" ]];

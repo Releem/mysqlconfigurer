@@ -145,7 +145,6 @@ if [ -n "$systemctl_cmd" ];then
         service_name_cmd="$sudo_cmd $systemctl_cmd restart mariadb"
     else
         printf "\033[31m\n* Fail to determine service to restart. \033[0m\n"
-        return 1
     fi
 else
     # Check if MySQL is running
@@ -157,12 +156,13 @@ else
         service_name_cmd="$sudo_cmd /etc/init.d/mariadb restart"
     else
         printf "\033[31m\n* Fail to determine service to restart. \033[0m\n"
-        return 1
     fi
 fi
-printf "\033[34m\n* Adding MySQL restart command to the Releem Agent configuration: $CONF\n\033[0m"
-$sudo_cmd echo "mysql_restart_service=\"$service_name_cmd\"" >> $CONF
-
+if [[ -n $service_name_cmd ]];
+then
+   printf "\033[34m\n* Adding MySQL restart command to the Releem Agent configuration: $CONF\n\033[0m"
+   $sudo_cmd echo "mysql_restart_service=\"$service_name_cmd\"" >> $CONF
+fi
 if [[ -n $RELEEM_MYSQL_MY_CNF_PATH ]];
 then
 	MYSQL_MY_CNF_PATH=$RELEEM_MYSQL_MY_CNF_PATH

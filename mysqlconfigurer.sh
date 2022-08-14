@@ -49,19 +49,19 @@ function releem_rollback_config() {
 
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
-    	read -p "Please confirm roll back MySQL configuration? (Y/N) " -n 1 -r
-	echo    # move to a new line
-	if [[ ! $REPLY =~ ^[Yy]$ ]]
-	then
-	    printf "\033[34m\n* A confirmation to restart the service has not been received. Releem recommended configuration has not been applied.\033[0m\n"
-	    FLAG_RESTART_SERVICE=0
-        fi
-    elif [ "$RELEEM_RESTART_SERVICE" -eq 0 ]; then
+    	read -p "Please confirm restart MySQL service? (Y/N) " -n 1 -r
+      echo    # move to a new line
+      if [[ ! $REPLY =~ ^[Yy]$ ]]
+      then
+        printf "\033[34m\n* A confirmation to restart the service has not been received. Releem recommended configuration has not been roll back.\033[0m\n"
         FLAG_RESTART_SERVICE=0
+      fi
+    elif [ "$RELEEM_RESTART_SERVICE" -eq 0 ]; then
+      FLAG_RESTART_SERVICE=0
     fi
     if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
         exit 1
-    fi        
+    fi
 
     printf "\033[31m\n* Deleting a configuration file... \033[0m\n"
     rm -rf $RELEEM_MYSQL_CONFIG_DIR/*
@@ -74,8 +74,9 @@ function releem_rollback_config() {
     then
         printf "\033[32m\n* MySQL service started successfully!\033[0m\n"
     else
-        printf "\033[31m\n* Failed to roll back MySQL configuration! Check mysql error log! \033[0m\n"
+        printf "\033[31m\n* MySQL service failed to start in 120 seconds! Check mysql error log! \033[0m\n"
     fi
+    exit 0
 }
 
 function releem_apply_config() {
@@ -101,31 +102,30 @@ function releem_apply_config() {
 
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
-    	read -p "Please confirm roll back MySQL configuration? (Y/N) " -n 1 -r
-	echo    # move to a new line
-	if [[ ! $REPLY =~ ^[Yy]$ ]]
-	then
-	    printf "\033[34m\n* A confirmation to restart the service has not been received. Releem recommended configuration has not been applied.\033[0m\n"
-	    FLAG_RESTART_SERVICE=0
-        fi
+      read -p "Please confirm restart MySQL service? (Y/N) " -n 1 -r
+      echo    # move to a new line
+      if [[ ! $REPLY =~ ^[Yy]$ ]]
+      then
+          printf "\033[34m\n* A confirmation to restart the service has not been received. Releem recommended configuration has not been applied.\033[0m\n"
+          FLAG_RESTART_SERVICE=0
+      fi
     elif [ "$RELEEM_RESTART_SERVICE" -eq 0 ]; then
         FLAG_RESTART_SERVICE=0
     fi
     if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
         exit 1
-    fi        
+    fi
 
-    echo "----Test config-------"
+    echo "-------Test config-------"
     printf "\033[34m\n* Restarting with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
     eval "$RELEEM_MYSQL_RESTART_SERVICE" &
     wait_restart
-
 
     if [[ $(mysqladmin ping 2>/dev/null) == "mysqld is alive" ]];
     then
         printf "\033[32m\n* MySQL service started successfully!\033[0m\n"
     else
-        printf "\033[31m\n* MySQL service doesn't start! Check the MySQL error log! \033[0m\n"
+        printf "\033[31m\n* MySQL service failed to start in 120 seconds! Check the MySQL error log! \033[0m\n"
         printf "\033[31m\n* Try to roll back the configuration application using the command: \033[0m\n"
         printf "\033[32m\n bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
     fi
@@ -155,7 +155,7 @@ case "${option}"
 in
 k) RELEEM_API_KEY=${OPTARG};;
 m) MYSQL_MEMORY_LIMIT=${OPTARG};;
-a) releem_apply_config;;  ###RELEEM_APPLY_CONFIG=1;;
+a) releem_apply_config;;
 r) releem_rollback_config;;
 esac
 done

@@ -144,7 +144,7 @@ if [ -n "$systemctl_cmd" ];then
     elif $sudo_cmd $systemctl_cmd status mariadb >/dev/null 2>&1; then
         service_name_cmd="$sudo_cmd $systemctl_cmd restart mariadb"
     else
-        printf "\033[31m\n* Fail to determine service to restart. \033[0m\n"
+        printf "\033[31m\n* Failed to determine service to restart. The automatic applying configuration will not work. \n\033[0m"
     fi
 else
     # Check if MySQL is running
@@ -155,14 +155,14 @@ else
     elif [ -f /etc/init.d/mariadb ]; then
         service_name_cmd="$sudo_cmd /etc/init.d/mariadb restart"
     else
-        printf "\033[31m\n* Fail to determine service to restart. \033[0m\n"
+        printf "\033[31m\n* Failed to determine service to restart. The automatic applying configuration will not work. \n\033[0m"
     fi
 fi
-if [[ -n $service_name_cmd ]];
-then
-   printf "\033[34m\n* Adding MySQL restart command to the Releem Agent configuration: $CONF\n\033[0m"
-   $sudo_cmd echo "mysql_restart_service=\"$service_name_cmd\"" >> $CONF
+if [ -n "$service_name_cmd" ]; then
+    printf "\033[34m\n* Adding MySQL restart command to the Releem Agent configuration: $CONF\n\033[0m"
+    $sudo_cmd echo "mysql_restart_service=\"$service_name_cmd\"" >> $CONF
 fi
+
 if [[ -n $RELEEM_MYSQL_MY_CNF_PATH ]];
 then
 	MYSQL_MY_CNF_PATH=$RELEEM_MYSQL_MY_CNF_PATH
@@ -180,36 +180,39 @@ fi
 
 
 if [ ! -f "$MYSQL_MY_CNF_PATH" ]; then
-	printf "\033[31m\n* File $MYSQL_MY_CNF_PATH not found. The automatic applying configuration is disabled. Please, reinstall the Releem Agent.\033[0m\n"
+	printf "\033[31m* File $MYSQL_MY_CNF_PATH not found. The automatic applying configuration is disabled. Please, reinstall the Releem Agent.\033[0m\n"
 else
-	FLAG_APPLY_CHANGE=0
-	if [[ -z $RELEEM_MYSQL_MY_CNF_PATH ]];
-	then
-	    	read -p "Please confirm MySQL configuration location $MYSQL_MY_CNF_PATH? (Y/N) " -n 1 -r
-	    	echo    # move to a new line
-	    	if [[ $REPLY =~ ^[Yy]$ ]]
-	    	then
-			FLAG_APPLY_CHANGE=1
-		else
-			FLAG_APPLY_CHANGE=0
-			printf "\033[31m\n* A confirmation has not been received. The automatic applying configuration is disabled. Please, reinstall the Releem Agent.\033[0m\n"
-		fi
-	else
-		FLAG_APPLY_CHANGE=1
-	fi
-	if [ $FLAG_APPLY_CHANGE -eq 1 ];
-	then
-		printf "\033[34m\n* Adding MySQL configuration path to the Releem Agent configuration: $CONF\n\033[0m"
+	# FLAG_APPLY_CHANGE=0
+	# if [[ -z $RELEEM_MYSQL_MY_CNF_PATH ]];
+	# then
+	#     	read -p "Please confirm MySQL configuration location $MYSQL_MY_CNF_PATH? (Y/N) " -n 1 -r
+	#     	echo    # move to a new line
+	#     	if [[ $REPLY =~ ^[Yy]$ ]]
+	#     	then
+	# 		       FLAG_APPLY_CHANGE=1
+	# 	    else
+	# 		       FLAG_APPLY_CHANGE=0
+	# 		       printf "\033[31m\n* A confirmation has not been received. The automatic applying configuration is disabled. Please, reinstall the Releem Agent.\033[0m\n"
+	# 	    fi
+	# else
+	# 	    FLAG_APPLY_CHANGE=1
+	# fi
+	# if [ $FLAG_APPLY_CHANGE -eq 1 ];
+	# then
+
+    printf "\033[34m\n* The $MYSQL_MY_CNF_PATH file is used for automatic Releem settings. \n\033[0m"
+
+		printf "\033[34m\n* Adding MySQL configuration path to the Releem Agent configuration $CONF.\n\033[0m"
 		$sudo_cmd echo "mysql_cnf_dir=$MYSQL_CONF_DIR" >> $CONF
 
-		printf "\033[34m\n* Adding directive includedir to the MySQL configuration: $MYSQL_MY_CNF_PATH\n\033[0m\n"
+		printf "\033[34m\n* Adding directive includedir to the MySQL configuration $MYSQL_MY_CNF_PATH.\n\033[0m"
 		$sudo_cmd mkdir -p $MYSQL_CONF_DIR
-#		Исключить дублирование
-                if [ `grep -cE "!includedir $MYSQL_CONF_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ];
-		then
-		    	echo "!includedir $MYSQL_CONF_DIR" >> $MYSQL_MY_CNF_PATH
-		fi
-	fi
+        #Исключить дублирование
+        if [ `grep -cE "!includedir $MYSQL_CONF_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ];
+		    then
+		        echo "!includedir $MYSQL_CONF_DIR" >> $MYSQL_MY_CNF_PATH
+		    fi
+	# fi
 fi
 
 

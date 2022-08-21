@@ -63,7 +63,7 @@ fi
 echo -e "\033[34m\n* Collecting metrics...\033[0m"
 
 # Collect MySQL metrics
-if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --forcemem=$MYSQL_MEMORY_LIMIT --outputfile="$MYSQLTUNER_REPORT" --defaults-file ~/.my.cnf > /dev/null; then
+if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --nocolstat --noidxstat --nopfstat --forcemem=$MYSQL_MEMORY_LIMIT --outputfile="$MYSQLTUNER_REPORT" --defaults-file ~/.my.cnf > /dev/null; then
 
     echo -e "\033[34m\n* Sending metrics to Releem Cloud Platform...\033[0m"
 

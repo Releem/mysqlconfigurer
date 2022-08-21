@@ -42,7 +42,7 @@ function releem_set_cron() {
 
 function releem_update() {
     printf "\033[34m\n* Downloading latest version of Releem Agent...\033[0m\n"
-    curl -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer.sh
+    curl -s -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer.sh
 
     echo
     echo
@@ -208,5 +208,3 @@ printf "\033[34m* To run Releem Agent manually please use the following command:
 printf "\033[32m$RELEEM_COMMAND\033[0m\n\n"
 printf "\033[34m* To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics\033[0m"
 printf "\033[34m\n\033[0m"
-
-

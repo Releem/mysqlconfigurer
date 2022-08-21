@@ -35,8 +35,35 @@ function wait_restart() {
   done
   printf "\033[0m\n"
 }
+
+function check_mysql_version() {
+
+    if [ ! -f $MYSQLTUNER_REPORT ]; then
+        printf "\033[34m\n* Please try again later or run Releem Agent manually:\033[0m"
+        printf "\033[32m\n bash /opt/releem/mysqlconfigurer.sh \033[0m\n\n"
+        exit 1;
+    fi
+    mysql_version=$(grep -o '"Version":"[^"]*' $MYSQLTUNER_REPORT  | grep -o '[^"]*$')
+    if [ -z $mysql_version ]; then
+        printf "\033[34m\n* Please try again later or run Releem Agent manually:\033[0m"
+        printf "\033[32m\n bash /opt/releem/mysqlconfigurer.sh \033[0m\n\n"
+        exit 1;
+    fi
+    requiredver="5.6.8"
+    if [ "$(printf '%s\n' "$mysql_version" "$requiredver" | sort -V | head -n1)" = "$requiredver" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+
 function releem_rollback_config() {
     printf "\033[31m\n* Rolling back MySQL configuration!\033[0m\n"
+    if ! check_mysql_version; then
+        printf "\033[31m\n* MySQL version is lower than 5.6.7. Check the documentation https://github.com/Releem/mysqlconfigurer#how-to-apply-the-recommended-configuration for applying the configuration. \033[0m\n"
+        exit 1
+    fi
     if [ -z "$RELEEM_MYSQL_CONFIG_DIR" ]; then
         printf "\033[34m\n* MySQL configuration directory is not found.\033[0m"
         printf "\033[34m\n* Try to reinstall Releem Agent, and please set the my.cnf location.\033[0m"
@@ -86,6 +113,10 @@ function releem_apply_config() {
         printf "\033[34m\n* Please apply recommended configuration later or run Releem Agent manually:\033[0m"
         printf "\033[32m\n bash /opt/releem/mysqlconfigurer.sh \033[0m\n\n"
         exit 1;
+    fi
+    if ! check_mysql_version; then
+        printf "\033[31m\n* MySQL version is lower than 5.6.7. Check the documentation https://github.com/Releem/mysqlconfigurer#how-to-apply-the-recommended-configuration for applying the configuration. \033[0m\n"
+        exit 1
     fi
     if [ -z "$RELEEM_MYSQL_CONFIG_DIR" ]; then
         printf "\033[34m\n* MySQL configuration directory is not found.\033[0m"

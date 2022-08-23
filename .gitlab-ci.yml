@@ -1,0 +1,456 @@
+image: ubuntu:20.04
+
+stages:
+  - testing
+
+test_preprod_mysql55:
+  stage: testing
+  services:
+  - name: mysql:5.5
+    alias: mysql55
+  variables:
+      MYSQL_ROOT_PASSWORD: mysql
+  before_script:
+    - apt-get update
+    - apt-get -y install iputils-ping git curl mysql-client wget curl net-tools libjson-perl
+    - mkdir -p /opt/releem
+  script:
+    - echo "[client]" > ~/.my.cnf
+    - echo "user=root" >> ~/.my.cnf
+    - echo "password=$MYSQL_ROOT_PASSWORD" >> ~/.my.cnf
+    - echo "host=mysql55" >> ~/.my.cnf
+    - cat ~/.my.cnf
+    #Creating test db
+    - git clone https://github.com/datacharmer/test_db.git
+    - cd test_db
+    - mysql < employees.sql
+    #Execute MySQLConfigurer
+    - cd ..
+    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
+    - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
+
+  when: manual
+
+
+test_preprod_mysql56:
+  stage: testing
+  services:
+  - name: mysql:5.6
+    alias: mysql56
+  variables:
+      MYSQL_ROOT_PASSWORD: mysql
+  before_script:
+    - apt-get update
+    - mkdir -p /opt/releem
+    - apt-get -y install iputils-ping git curl mysql-client wget curl net-tools libjson-perl
+  script:
+    - echo "[client]" > ~/.my.cnf
+    - echo "user=root" >> ~/.my.cnf
+    - echo "password=$MYSQL_ROOT_PASSWORD" >> ~/.my.cnf
+    - echo "host=mysql56" >> ~/.my.cnf
+    - cat ~/.my.cnf
+    #Creating test db
+    - git clone https://github.com/datacharmer/test_db.git
+    - cd test_db
+    - mysql < employees.sql
+    #Execute MySQLConfigurer
+    - cd ..
+    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
+    - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
+
+  when: manual
+
+
+test_preprod_mysql57:
+  stage: testing
+  services:
+  - name: mysql:5.7
+    alias: mysql57
+  variables:
+      MYSQL_ROOT_PASSWORD: mysql
+  before_script:
+    - apt-get update
+    - apt-get -y install iputils-ping git curl mariadb-client wget curl net-tools libjson-perl
+    - mkdir -p /opt/releem
+  script:
+    - echo "[client]" > ~/.my.cnf
+    - echo "user=root" >> ~/.my.cnf
+    - echo "password=$MYSQL_ROOT_PASSWORD" >> ~/.my.cnf
+    - echo "host=mysql57" >> ~/.my.cnf
+    - cat ~/.my.cnf
+    #Creating test db
+    - git clone https://github.com/datacharmer/test_db.git
+    - cd test_db
+    - mysql < employees.sql
+    #Execute MySQLConfigurer
+    - cd ..
+    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
+    - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
+
+  when: manual
+
+
+test_preprod_mysql80:
+  stage: testing
+  services:
+  - name: mysql:8.0
+    command: ["--default-authentication-plugin=mysql_native_password"]
+    alias: mysql80
+  variables:
+      MYSQL_ROOT_PASSWORD: mysql
+  before_script:
+    - apt-get update
+    - apt-get -y install iputils-ping git curl mariadb-client wget curl net-tools libjson-perl
+    - mkdir -p /opt/releem
+  script:
+    - echo "[client]" > ~/.my.cnf
+    - echo "user=root" >> ~/.my.cnf
+    - echo "password=$MYSQL_ROOT_PASSWORD" >> ~/.my.cnf
+    - echo "host=mysql80" >> ~/.my.cnf
+    - cat ~/.my.cnf
+    #Creating test db
+    - git clone https://github.com/datacharmer/test_db.git
+    - cd test_db
+    - mysql < employees.sql
+    #Execute MySQLConfigurer
+    - cd ..
+    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
+    - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
+
+  when: manual
+
+
+test_preprod_percona55:
+  stage: testing
+  services:
+  - name: percona:5.5
+    alias: percona55
+  variables:
+      MYSQL_ROOT_PASSWORD: mysql
+  before_script:
+    - apt-get update
+    - apt-get -y install iputils-ping git curl mysql-client wget curl net-tools libjson-perl
+    - mkdir -p /opt/releem
+  script:
+    - echo "[client]" > ~/.my.cnf
+    - echo "user=root" >> ~/.my.cnf
+    - echo "password=$MYSQL_ROOT_PASSWORD" >> ~/.my.cnf
+    - echo "host=percona55" >> ~/.my.cnf
+    - cat ~/.my.cnf
+    #Creating test db
+    - git clone https://github.com/datacharmer/test_db.git
+    - cd test_db
+    - mysql < employees.sql
+    #Execute MySQLConfigurer
+    - cd ..
+    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
+    - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
+
+  when: manual
+
+
+test_preprod_percona56:
+  stage: testing
+  services:
+  - name: percona:5.6
+    alias: percona56
+  variables:
+      MYSQL_ROOT_PASSWORD: mysql
+  before_script:
+    - apt-get update
+    - apt-get -y install iputils-ping git curl mysql-client wget curl net-tools libjson-perl
+    - mkdir -p /opt/releem
+  script:
+    - echo "[client]" > ~/.my.cnf
+    - echo "user=root" >> ~/.my.cnf
+    - echo "password=$MYSQL_ROOT_PASSWORD" >> ~/.my.cnf
+    - echo "host=percona56" >> ~/.my.cnf
+    - cat ~/.my.cnf
+    #Creating test db
+    - git clone https://github.com/datacharmer/test_db.git
+    - cd test_db
+    - mysql < employees.sql
+    #Execute MySQLConfigurer
+    - cd ..
+    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
+    - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
+
+  when: manual
+
+
+test_preprod_percona57:
+  stage: testing
+  services:
+  - name: percona:5.7
+    alias: percona57
+  variables:
+      MYSQL_ROOT_PASSWORD: mysql
+  before_script:
+    - apt-get update
+    - apt-get -y install iputils-ping git curl mysql-client wget curl net-tools libjson-perl
+    - mkdir -p /opt/releem
+  script:
+    - echo "[client]" > ~/.my.cnf
+    - echo "user=root" >> ~/.my.cnf
+    - echo "password=$MYSQL_ROOT_PASSWORD" >> ~/.my.cnf
+    - echo "host=percona57" >> ~/.my.cnf
+    - cat ~/.my.cnf
+    #Creating test db
+    - git clone https://github.com/datacharmer/test_db.git
+    - cd test_db
+    - mysql < employees.sql
+    #Execute MySQLConfigurer
+    - cd ..
+    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
+    - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
+
+  when: manual
+
+
+
+test_preprod_percona80:
+  stage: testing
+  services:
+  - name: percona:8.0
+    command: ["--default-authentication-plugin=mysql_native_password"]
+    alias: percona80
+  variables:
+      MYSQL_ROOT_PASSWORD: mysql
+  before_script:
+    - apt-get update
+    - apt-get -y install iputils-ping git curl mysql-client wget curl net-tools libjson-perl
+    - mkdir -p /opt/releem
+  script:
+    - echo "[client]" > ~/.my.cnf
+    - echo "user=root" >> ~/.my.cnf
+    - echo "password=$MYSQL_ROOT_PASSWORD" >> ~/.my.cnf
+    - echo "host=percona80" >> ~/.my.cnf
+    - cat ~/.my.cnf
+    #Creating test db
+    - git clone https://github.com/datacharmer/test_db.git
+    - cd test_db
+    - mysql < employees.sql
+    #Execute MySQLConfigurer
+    - cd ..
+    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
+    - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
+
+  when: manual
+
+
+test_preprod_maria101:
+  stage: testing
+  services:
+  - name: mariadb:10.1
+    alias: maria101
+  variables:
+      MYSQL_ROOT_PASSWORD: mysql
+  before_script:
+    - apt-get update
+    - apt-get -y install iputils-ping git curl mysql-client wget curl net-tools libjson-perl
+    - mkdir -p /opt/releem
+  script:
+    - echo "[client]" > ~/.my.cnf
+    - echo "user=root" >> ~/.my.cnf
+    - echo "password=$MYSQL_ROOT_PASSWORD" >> ~/.my.cnf
+    - echo "host=maria101" >> ~/.my.cnf
+    - cat ~/.my.cnf
+    #Creating test db
+    - git clone https://github.com/datacharmer/test_db.git
+    - cd test_db
+    - mysql < employees.sql
+    #Execute MySQLConfigurer
+    - cd ..
+    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
+    - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
+
+  when: manual
+
+
+test_preprod_maria102:
+  stage: testing
+  services:
+  - name: mariadb:10.2
+    alias: maria102
+  variables:
+      MYSQL_ROOT_PASSWORD: mysql
+  before_script:
+    - apt-get update
+    - apt-get -y install iputils-ping git curl mysql-client wget curl net-tools libjson-perl
+    - mkdir -p /opt/releem
+  script:
+    - echo "[client]" > ~/.my.cnf
+    - echo "user=root" >> ~/.my.cnf
+    - echo "password=$MYSQL_ROOT_PASSWORD" >> ~/.my.cnf
+    - echo "host=maria102" >> ~/.my.cnf
+    - cat ~/.my.cnf
+    #Creating test db
+    - git clone https://github.com/datacharmer/test_db.git
+    - cd test_db
+    - mysql < employees.sql
+    #Execute MySQLConfigurer
+    - cd ..
+    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
+    - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
+
+  when: manual
+
+
+test_preprod_maria103:
+  stage: testing
+  services:
+  - name: mariadb:10.3
+    alias: maria103
+  variables:
+      MYSQL_ROOT_PASSWORD: mysql
+  before_script:
+    - apt-get update
+    - apt-get -y install iputils-ping git curl mysql-client wget curl net-tools libjson-perl
+    - mkdir -p /opt/releem
+  script:
+    - echo "[client]" > ~/.my.cnf
+    - echo "user=root" >> ~/.my.cnf
+    - echo "password=$MYSQL_ROOT_PASSWORD" >> ~/.my.cnf
+    - echo "host=maria103" >> ~/.my.cnf
+    - cat ~/.my.cnf
+    #Creating test db
+    - git clone https://github.com/datacharmer/test_db.git
+    - cd test_db
+    - mysql < employees.sql
+    #Execute MySQLConfigurer
+    - cd ..
+    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
+    - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
+
+  when: manual
+
+
+test_preprod_maria104:
+  stage: testing
+  services:
+  - name: mariadb:10.4
+    alias: maria104
+  variables:
+      MYSQL_ROOT_PASSWORD: mysql
+  before_script:
+    - apt-get update
+    - apt-get -y install iputils-ping git curl mariadb-client wget curl net-tools libjson-perl
+    - mkdir -p /opt/releem
+  script:
+    - echo "[client]" > ~/.my.cnf
+    - echo "user=root" >> ~/.my.cnf
+    - echo "password=$MYSQL_ROOT_PASSWORD" >> ~/.my.cnf
+    - echo "host=maria104" >> ~/.my.cnf
+    - cat ~/.my.cnf
+    #Creating test db
+    - git clone https://github.com/datacharmer/test_db.git
+    - cd test_db
+    - mysql < employees.sql
+    #Execute MySQLConfigurer
+    - cd ..
+    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
+    - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
+
+  when: manual
+
+
+test_preprod_maria105:
+  stage: testing
+  services:
+  - name: mariadb:10.5
+    alias: maria105
+  variables:
+      MYSQL_ROOT_PASSWORD: mysql
+  before_script:
+    - apt-get update
+    - apt-get -y install iputils-ping git curl mariadb-client wget curl net-tools libjson-perl
+    - mkdir -p /opt/releem
+  script:
+    - echo "[client]" > ~/.my.cnf
+    - echo "user=root" >> ~/.my.cnf
+    - echo "password=$MYSQL_ROOT_PASSWORD" >> ~/.my.cnf
+    - echo "host=maria105" >> ~/.my.cnf
+    - cat ~/.my.cnf
+    #Creating test db
+    - git clone https://github.com/datacharmer/test_db.git
+    - cd test_db
+    - mysql < employees.sql
+    #Execute MySQLConfigurer
+    - cd ..
+    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
+    - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
+
+  when: manual
+
+
+test_preprod_maria106:
+  stage: testing
+  services:
+  - name: mariadb:10.6
+    alias: maria106
+  variables:
+      MYSQL_ROOT_PASSWORD: mysql
+  before_script:
+    - apt-get update
+    - apt-get -y install iputils-ping git curl mysql-client wget curl net-tools libjson-perl
+    - mkdir -p /opt/releem
+  script:
+    - echo "[client]" > ~/.my.cnf
+    - echo "user=root" >> ~/.my.cnf
+    - echo "password=$MYSQL_ROOT_PASSWORD" >> ~/.my.cnf
+    - echo "host=maria106" >> ~/.my.cnf
+    - cat ~/.my.cnf
+    #Creating test db
+    - git clone https://github.com/datacharmer/test_db.git
+    - cd test_db
+    - mysql < employees.sql
+    #Execute MySQLConfigurer
+    - cd ..
+    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
+    - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
+
+  when: manual
+
+
+test_preprod_maria107:
+  stage: testing
+  services:
+  - name: mariadb:10.7
+    alias: maria107
+  variables:
+      MYSQL_ROOT_PASSWORD: mysql
+  before_script:
+    - apt-get update
+    - apt-get -y install iputils-ping git curl mysql-client wget curl net-tools libjson-perl
+    - mkdir -p /opt/releem
+  script:
+    - echo "[client]" > ~/.my.cnf
+    - echo "user=root" >> ~/.my.cnf
+    - echo "password=$MYSQL_ROOT_PASSWORD" >> ~/.my.cnf
+    - echo "host=maria107" >> ~/.my.cnf
+    - cat ~/.my.cnf
+    #Creating test db
+    - git clone https://github.com/datacharmer/test_db.git
+    - cd test_db
+    - mysql < employees.sql
+    #Execute MySQLConfigurer
+    - cd ..
+    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
+    - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
+
+  when: manual

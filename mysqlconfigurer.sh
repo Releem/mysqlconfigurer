@@ -92,7 +92,7 @@ function releem_rollback_config() {
 
     printf "\033[31m\n* Deleting a configuration file... \033[0m\n"
     rm -rf $RELEEM_MYSQL_CONFIG_DIR/*
-    echo "----Test config-------"
+    #echo "----Test config-------"
 
     printf "\033[31m\n* Restarting with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
     eval "$RELEEM_MYSQL_RESTART_SERVICE" &
@@ -147,7 +147,7 @@ function releem_apply_config() {
         exit 1
     fi
 
-    echo "-------Test config-------"
+    #echo "-------Test config-------"
     printf "\033[34m\n* Restarting with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
     eval "$RELEEM_MYSQL_RESTART_SERVICE" &
     wait_restart
@@ -215,7 +215,7 @@ fi
 # Check if MySQLTuner already downloaded and download if it doesn't exist
 if [ ! -f "$MYSQLTUNER_FILENAME" ]; then
     # Download latest version of the MySQLTuner
-    curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/07cfdafaa7dee483fd715c88048b4fa19f3f3df3/mysqltuner.pl
+    curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/8cd40947ea1e3c30a9f00c21fbb371c14333727d/mysqltuner.pl
 fi
 
 echo -e "\033[34m\n* Collecting metrics...\033[0m"

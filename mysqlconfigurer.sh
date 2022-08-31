@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 0.9.0
+# mysqlconfigurer.sh - Version 0.9.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -10,6 +10,9 @@ MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH"mysqltuner.pl"
 MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 MYSQLCONFIGURER_CONFIGFILE=$MYSQLCONFIGURER_PATH"z_aiops_mysql.cnf"
 MYSQL_MEMORY_LIMIT=0
+VERSION="0.9.1"
+RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
+
 
 function wait_restart() {
   sleep 1
@@ -221,7 +224,7 @@ fi
 echo -e "\033[34m\n* Collecting metrics...\033[0m"
 
 # Collect MySQL metrics
-if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --forcemem=$MYSQL_MEMORY_LIMIT --outputfile="$MYSQLTUNER_REPORT" --defaults-file ~/.my.cnf > /dev/null; then
+if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --nocolstat --noidxstat --nopfstat --forcemem=$MYSQL_MEMORY_LIMIT --outputfile="$MYSQLTUNER_REPORT" --defaults-file ~/.my.cnf > /dev/null; then
 
     echo -e "\033[34m\n* Sending metrics to Releem Cloud Platform...\033[0m"
 
@@ -239,7 +242,6 @@ if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --forcemem=$MYSQL_MEMOR
     echo -e "2. To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics"
     echo
     echo -e "3. To apply the recommended configuration please read documentation https://app.releem.com/dashboard"
-    exit
 else
     # If error then show report and exit
     errormsg="    \
@@ -247,5 +249,11 @@ else
     \nCheck /tmp/.mysqlconfigurer/mysqltunerreport.json for details \n \
     \n--------Please fix the error and run Releem Agent again--------\n"
     printf "${errormsg}" >&2
-    exit 1
+fi
+NEW_VER=$(curl  -s -L https://releem.s3.amazonaws.com/current_version_agent)
+if [ "$VERSION" \< "$NEW_VER" ]
+then
+    printf "\033[34m\n* Updating script \e[31;1m%s\e[0m -> \e[32;1m%s\e[0m\n" "$VERSION" "$NEW_VER"
+    curl -s -L https://releem.s3.amazonaws.com/install.sh > "$RELEEM_INSTALL_PATH"
+    RELEEM_API_KEY=$RELEEM_API_KEY exec bash "$RELEEM_INSTALL_PATH" -u
 fi

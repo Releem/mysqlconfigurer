@@ -2,6 +2,14 @@ Releem releases
 ---
 Information about releases of the Releem Agent.
 
+Releem 0.9.4, 2022-07-31
+- Added FreeBSD support. Closes #95
+- Added innodb_redo_log_capacity calculation
+- Added query_cache_min_res_unit calculation
+- Improved calculation thread_cache_size. Closes #91
+- Fixed Error is:'int' object has no attribute 'strip'
+- Fixed Error KeyError: 'Virtual Machine'
+
 Releem 0.9.3, 2022-06-30
 - Added thread_pool_size calculation.
 - Improved performance of metrics page.

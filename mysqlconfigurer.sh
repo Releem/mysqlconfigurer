@@ -14,6 +14,159 @@ VERSION="0.9.1"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 
 
+function wait_restart() {
+  sleep 1
+  flag=0
+  spin[0]="-"
+  spin[1]="\\"
+  spin[2]="|"
+  spin[3]="/"
+#  echo -n "Waiting for restarted mysql ${spin[0]}"
+  printf "\033[34m\n* Waiting for mysql service to start 120 seconds ${spin[0]}"
+
+  while !(mysqladmin ping > /dev/null 2>&1)
+  do
+    flag=$(($flag + 1))
+    if [ $flag == 120 ]; then
+#        echo "$flag break"
+        break
+    fi
+    i=`expr $flag % 4`
+    #echo -ne "\b${spin[$i]}"
+    printf "\b${spin[$i]}"
+    sleep 1
+  done
+  printf "\033[0m\n"
+}
+
+function check_mysql_version() {
+
+    if [ ! -f $MYSQLTUNER_REPORT ]; then
+        printf "\033[34m\n* Please try again later or run Releem Agent manually:\033[0m"
+        printf "\033[32m\n bash /opt/releem/mysqlconfigurer.sh \033[0m\n\n"
+        exit 1;
+    fi
+    mysql_version=$(grep -o '"Version":"[^"]*' $MYSQLTUNER_REPORT  | grep -o '[^"]*$')
+    if [ -z $mysql_version ]; then
+        printf "\033[34m\n* Please try again later or run Releem Agent manually:\033[0m"
+        printf "\033[32m\n bash /opt/releem/mysqlconfigurer.sh \033[0m\n\n"
+        exit 1;
+    fi
+    requiredver="5.6.8"
+    if [ "$(printf '%s\n' "$mysql_version" "$requiredver" | sort -V | head -n1)" = "$requiredver" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+
+function releem_rollback_config() {
+    printf "\033[31m\n* Rolling back MySQL configuration!\033[0m\n"
+    if ! check_mysql_version; then
+        printf "\033[31m\n* MySQL version is lower than 5.6.7. Check the documentation https://github.com/Releem/mysqlconfigurer#how-to-apply-the-recommended-configuration for applying the configuration. \033[0m\n"
+        exit 1
+    fi
+    if [ -z "$RELEEM_MYSQL_CONFIG_DIR" ]; then
+        printf "\033[34m\n* MySQL configuration directory is not found.\033[0m"
+        printf "\033[34m\n* Try to reinstall Releem Agent, and please set the my.cnf location.\033[0m"
+        exit 1;
+    fi
+    if [ -z "$RELEEM_MYSQL_RESTART_SERVICE" ]; then
+        printf "\033[34m\n* The command to restart the MySQL service was not found. Try to reinstall Releem Agent.\033[0m"
+        exit 1;
+    fi
+
+    FLAG_RESTART_SERVICE=1
+    if [ -z "$RELEEM_RESTART_SERVICE" ]; then
+    	read -p "Please confirm restart MySQL service? (Y/N) " -n 1 -r
+      echo    # move to a new line
+      if [[ ! $REPLY =~ ^[Yy]$ ]]
+      then
+        printf "\033[34m\n* A confirmation to restart the service has not been received. Releem recommended configuration has not been roll back.\033[0m\n"
+        FLAG_RESTART_SERVICE=0
+      fi
+    elif [ "$RELEEM_RESTART_SERVICE" -eq 0 ]; then
+      FLAG_RESTART_SERVICE=0
+    fi
+    if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
+        exit 1
+    fi
+
+    printf "\033[31m\n* Deleting a configuration file... \033[0m\n"
+    rm -rf $RELEEM_MYSQL_CONFIG_DIR/*
+    #echo "----Test config-------"
+
+    printf "\033[31m\n* Restarting with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
+    eval "$RELEEM_MYSQL_RESTART_SERVICE" &
+    wait_restart
+    if [[ $(mysqladmin ping 2>/dev/null) == "mysqld is alive" ]];
+    then
+        printf "\033[32m\n* MySQL service started successfully!\033[0m\n"
+    else
+        printf "\033[31m\n* MySQL service failed to start in 120 seconds! Check mysql error log! \033[0m\n"
+    fi
+    exit 0
+}
+
+function releem_apply_config() {
+    printf "\033[34m\n* Applying recommended MySQL configuration...\033[0m\n"
+    if [ ! -f $MYSQLCONFIGURER_CONFIGFILE ]; then
+        printf "\033[34m\n* Recommended MySQL configuration is not found.\033[0m"
+        printf "\033[34m\n* Please apply recommended configuration later or run Releem Agent manually:\033[0m"
+        printf "\033[32m\n bash /opt/releem/mysqlconfigurer.sh \033[0m\n\n"
+        exit 1;
+    fi
+    if ! check_mysql_version; then
+        printf "\033[31m\n* MySQL version is lower than 5.6.7. Check the documentation https://github.com/Releem/mysqlconfigurer#how-to-apply-the-recommended-configuration for applying the configuration. \033[0m\n"
+        exit 1
+    fi
+    if [ -z "$RELEEM_MYSQL_CONFIG_DIR" ]; then
+        printf "\033[34m\n* MySQL configuration directory is not found.\033[0m"
+        printf "\033[34m\n* Try to reinstall Releem Agent, and please set the my.cnf location.\033[0m"
+        exit 1;
+    fi
+    if [ -z "$RELEEM_MYSQL_RESTART_SERVICE" ]; then
+        printf "\033[34m\n* The command to restart the MySQL service was not found. Try to reinstall Releem Agent.\033[0m"
+        exit 1;
+    fi
+    printf "\033[34m\n* Copy file $MYSQLCONFIGURER_CONFIGFILE to directory $RELEEM_MYSQL_CONFIG_DIR/...\033[0m\n"
+    yes | cp -fr $MYSQLCONFIGURER_CONFIGFILE $RELEEM_MYSQL_CONFIG_DIR/
+
+
+    FLAG_RESTART_SERVICE=1
+    if [ -z "$RELEEM_RESTART_SERVICE" ]; then
+      read -p "Please confirm restart MySQL service? (Y/N) " -n 1 -r
+      echo    # move to a new line
+      if [[ ! $REPLY =~ ^[Yy]$ ]]
+      then
+          printf "\033[34m\n* A confirmation to restart the service has not been received. Releem recommended configuration has not been applied.\033[0m\n"
+          FLAG_RESTART_SERVICE=0
+      fi
+    elif [ "$RELEEM_RESTART_SERVICE" -eq 0 ]; then
+        FLAG_RESTART_SERVICE=0
+    fi
+    if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
+        exit 1
+    fi
+
+    #echo "-------Test config-------"
+    printf "\033[34m\n* Restarting with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
+    eval "$RELEEM_MYSQL_RESTART_SERVICE" &
+    wait_restart
+
+    if [[ $(mysqladmin ping 2>/dev/null) == "mysqld is alive" ]];
+    then
+        printf "\033[32m\n* MySQL service started successfully!\033[0m\n"
+    else
+        printf "\033[31m\n* MySQL service failed to start in 120 seconds! Check the MySQL error log! \033[0m\n"
+        printf "\033[31m\n* Try to roll back the configuration application using the command: \033[0m\n"
+        printf "\033[32m\n bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
+    fi
+    exit 0
+}
+
+
 if test -f $RELEEM_CONF_FILE ; then
     . $RELEEM_CONF_FILE
 
@@ -21,15 +174,23 @@ if test -f $RELEEM_CONF_FILE ; then
     if [ ! -z $memory_limit ]; then
         MYSQL_MEMORY_LIMIT=$memory_limit
     fi
+    if [ ! -z $mysql_cnf_dir ]; then
+        RELEEM_MYSQL_CONFIG_DIR=$mysql_cnf_dir
+    fi
+    if [ ! -z "$mysql_restart_service" ]; then
+        RELEEM_MYSQL_RESTART_SERVICE=$mysql_restart_service
+    fi
 fi
 
 # Parse parameters
-while getopts "k:m:" option
+while getopts "k:m:ar" option
 do
 case "${option}"
 in
 k) RELEEM_API_KEY=${OPTARG};;
 m) MYSQL_MEMORY_LIMIT=${OPTARG};;
+a) releem_apply_config;;
+r) releem_rollback_config;;
 esac
 done
 
@@ -57,7 +218,7 @@ fi
 # Check if MySQLTuner already downloaded and download if it doesn't exist
 if [ ! -f "$MYSQLTUNER_FILENAME" ]; then
     # Download latest version of the MySQLTuner
-    curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/v1.9.9/mysqltuner.pl
+    curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/8cd40947ea1e3c30a9f00c21fbb371c14333727d/mysqltuner.pl
 fi
 
 echo -e "\033[34m\n* Collecting metrics...\033[0m"
@@ -82,7 +243,6 @@ if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --nocolstat --noidxstat
     echo
     echo -e "3. To apply the recommended configuration please read documentation https://app.releem.com/dashboard"
 else
-
     # If error then show report and exit
     errormsg="    \
     \n\n\n\n--------Releem Agent completed with error--------\n   \

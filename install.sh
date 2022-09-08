@@ -133,7 +133,7 @@ curl -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigu
 
 printf "\033[34m\n* Configure the application to use the Releem recommended configuration...\033[0m\n"
 
-systemctl_cmd=$(which systemctl)
+systemctl_cmd=$(which systemctl || true)
 
 if [ -n "$systemctl_cmd" ];then
     # Check if MySQL is running

@@ -167,10 +167,130 @@ function releem_apply_config() {
 }
 
 
+function releem_runnig_cron() {
+  if [ ! -f $MYSQLCONFIGURER_CONFIGFILE ];
+  then
+    get_config
+  else
+    SDIFF=$((`date +%s` - `stat --format="%Y" ${MYSQLCONFIGURER_CONFIGFILE}`))
+    echo $SDIFF
+    if [ $SDIFF -gt 39600 ];
+    then
+      get_config
+    fi
+  fi
+  send_metrics
+}
+
+function send_metrics() {
+  check_env
+  ##### PARAMETERS #####
+  CACHE_TTL="55"
+  CACHE_FILE="/tmp/releem.mysql.status.`echo $MYSQLCONFIGURER_CONFIGFILE | md5sum | cut -d" " -f1`.cache"
+  EXEC_TIMEOUT="1"
+  NOW_TIME=`date '+%s'`
+  ##### RUN #####
+  # Collect MySQL metrics
+  echo -e "\033[34m\n* Collecting metrics...\033[0m"
+
+  if [ -s "${CACHE_FILE}" ]; then
+    CACHE_TIME=`stat -c"%Y" "${CACHE_FILE}"`
+  else
+    CACHE_TIME=0
+  fi
+  DELTA_TIME=$((${NOW_TIME} - ${CACHE_TIME}))
+  echo $DELTA_TIME
+  #
+  if [ ${DELTA_TIME} -lt ${EXEC_TIMEOUT} ]; then
+    sleep $((${EXEC_TIMEOUT} - ${DELTA_TIME}))
+  elif [ ${DELTA_TIME} -gt ${CACHE_TTL} ]; then
+    echo "" >> "${CACHE_FILE}" # !!!
+    DATACACHE=`mysql -sNe "show global status;"`
+    echo "${DATACACHE}" > "${CACHE_FILE}" # !!!
+    chmod 640 "${CACHE_FILE}"
+  fi
+
+  QUESTIONS=`cat ${CACHE_FILE} | grep -w 'Questions' | awk '{print $2}'`
+  TIMESTAMP=`stat -c"%Y" "${CACHE_FILE}"`
+
+  JSON_STRING='{"Timestamp":"'${TIMESTAMP}'", "ReleemMetrics": {"Questions": "'${QUESTIONS}'"}}'
+  echo $JSON_STRING
+  echo -e "\033[34m\n* Sending metrics to Releem Cloud Platform...\033[0m"
+  # Send metrics to Releem Platform. The answer is the configuration file for MySQL
+  curl -s -d "$JSON_STRING" -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.dev.releem.com/v1/mysql
+  exit 0
+}
+
+function check_env() {
+  echo -e "\033[34m\n* Checking the environment...\033[0m"
+  # Check RELEEM_API_KEY is not empty
+  if [ -z "$RELEEM_API_KEY" ]; then
+      echo >&2 "RELEEM_API_KEY is empty please sign up at https://releem.com/appsignup to get your Releem API key. Aborting."
+      exit 1;
+  fi
+  command -v curl >/dev/null 2>&1 || { echo >&2 "Curl is not installed. Please install Curl. Aborting."; exit 1; }
+
+}
+
+function get_config() {
+  check_env
+
+  command -v perl >/dev/null 2>&1 || { echo >&2 "Perl is not installed. Please install Perl. Aborting."; exit 1; }
+  perl -e "use JSON;" >/dev/null 2>&1 || { echo >&2 "Perl module JSON is not installed. Please install Perl module JSON. Aborting."; exit 1; }
+
+  # Check if the tmp folder exists
+  if [ -d "$MYSQLCONFIGURER_PATH" ]; then
+      # Clear tmp directory
+      rm $MYSQLCONFIGURER_PATH/*
+  else
+      # Create tmp directory
+      mkdir $MYSQLCONFIGURER_PATH
+  fi
+
+  # Check if MySQLTuner already downloaded and download if it doesn't exist
+  if [ ! -f "$MYSQLTUNER_FILENAME" ]; then
+      # Download latest version of the MySQLTuner
+      curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/8cd40947ea1e3c30a9f00c21fbb371c14333727d/mysqltuner.pl
+  fi
+
+  echo -e "\033[34m\n* Collecting metrics...\033[0m"
+
+  # Collect MySQL metrics
+  if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --nocolstat --noidxstat --nopfstat --forcemem=$MYSQL_MEMORY_LIMIT --outputfile="$MYSQLTUNER_REPORT" --defaults-file ~/.my.cnf > /dev/null; then
+
+      echo -e "\033[34m\n* Sending metrics to Releem Cloud Platform...\033[0m"
+
+      # Send metrics to Releem Platform. The answer is the configuration file for MySQL
+      curl -s -d @$MYSQLTUNER_REPORT -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.dev.releem.com/v1/mysql -o "$MYSQLCONFIGURER_CONFIGFILE"
+
+      echo -e "\033[34m\n* Downloading recommended MySQL configuration from Releem Cloud Platform...\033[0m"
+
+      # Show recommended configuration and exit
+      msg="\n\n\n#---------------Releem Agent Report-------------\n\n"
+      printf "${msg}"
+
+      echo -e "1. Recommended MySQL configuration downloaded to /tmp/.mysqlconfigurer/z_aiops_mysql.cnf"
+      echo
+      echo -e "2. To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics"
+      echo
+      echo -e "3. To apply the recommended configuration please read documentation https://app.releem.com/dashboard"
+  else
+      # If error then show report and exit
+      errormsg="    \
+      \n\n\n\n--------Releem Agent completed with error--------\n   \
+      \nCheck /tmp/.mysqlconfigurer/mysqltunerreport.json for details \n \
+      \n--------Please fix the error and run Releem Agent again--------\n"
+      printf "${errormsg}" >&2
+  fi
+
+}
+
 if test -f $RELEEM_CONF_FILE ; then
     . $RELEEM_CONF_FILE
 
-    RELEEM_API_KEY=$apikey
+    if [ ! -z $apikey ]; then
+        RELEEM_API_KEY=$apikey
+    fi
     if [ ! -z $memory_limit ]; then
         MYSQL_MEMORY_LIMIT=$memory_limit
     fi
@@ -183,7 +303,7 @@ if test -f $RELEEM_CONF_FILE ; then
 fi
 
 # Parse parameters
-while getopts "k:m:ar" option
+while getopts "k:m:arc" option
 do
 case "${option}"
 in
@@ -191,65 +311,15 @@ k) RELEEM_API_KEY=${OPTARG};;
 m) MYSQL_MEMORY_LIMIT=${OPTARG};;
 a) releem_apply_config;;
 r) releem_rollback_config;;
+c) releem_runnig_cron;;
 esac
 done
 
-echo -e "\033[34m\n* Checking the environment...\033[0m"
 
-# Check RELEEM_API_KEY is not empty
-if [ -z "$RELEEM_API_KEY" ]; then
-    echo >&2 "RELEEM_API_KEY is empty please sign up at https://releem.com/appsignup to get your Releem API key. Aborting."
-    exit 1;
-fi
 
-command -v curl >/dev/null 2>&1 || { echo >&2 "Curl is not installed. Please install Curl. Aborting."; exit 1; }
-command -v perl >/dev/null 2>&1 || { echo >&2 "Perl is not installed. Please install Perl. Aborting."; exit 1; }
-perl -e "use JSON;" >/dev/null 2>&1 || { echo >&2 "Perl module JSON is not installed. Please install Perl module JSON. Aborting."; exit 1; }
+get_config
 
-# Check if the tmp folder exists
-if [ -d "$MYSQLCONFIGURER_PATH" ]; then
-    # Clear tmp directory
-    rm $MYSQLCONFIGURER_PATH/*
-else
-    # Create tmp directory
-    mkdir $MYSQLCONFIGURER_PATH
-fi
 
-# Check if MySQLTuner already downloaded and download if it doesn't exist
-if [ ! -f "$MYSQLTUNER_FILENAME" ]; then
-    # Download latest version of the MySQLTuner
-    curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/8cd40947ea1e3c30a9f00c21fbb371c14333727d/mysqltuner.pl
-fi
-
-echo -e "\033[34m\n* Collecting metrics...\033[0m"
-
-# Collect MySQL metrics
-if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --nocolstat --noidxstat --nopfstat --forcemem=$MYSQL_MEMORY_LIMIT --outputfile="$MYSQLTUNER_REPORT" --defaults-file ~/.my.cnf > /dev/null; then
-
-    echo -e "\033[34m\n* Sending metrics to Releem Cloud Platform...\033[0m"
-
-    # Send metrics to Releem Platform. The answer is the configuration file for MySQL
-    curl -s -d @$MYSQLTUNER_REPORT -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v1/mysql -o "$MYSQLCONFIGURER_CONFIGFILE"
-
-    echo -e "\033[34m\n* Downloading recommended MySQL configuration from Releem Cloud Platform...\033[0m"
-
-    # Show recommended configuration and exit
-    msg="\n\n\n#---------------Releem Agent Report-------------\n\n"
-    printf "${msg}"
-
-    echo -e "1. Recommended MySQL configuration downloaded to /tmp/.mysqlconfigurer/z_aiops_mysql.cnf"
-    echo
-    echo -e "2. To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics"
-    echo
-    echo -e "3. To apply the recommended configuration please read documentation https://app.releem.com/dashboard"
-else
-    # If error then show report and exit
-    errormsg="    \
-    \n\n\n\n--------Releem Agent completed with error--------\n   \
-    \nCheck /tmp/.mysqlconfigurer/mysqltunerreport.json for details \n \
-    \n--------Please fix the error and run Releem Agent again--------\n"
-    printf "${errormsg}" >&2
-fi
 NEW_VER=$(curl  -s -L https://releem.s3.amazonaws.com/current_version_agent)
 if [ "$VERSION" \< "$NEW_VER" ]
 then

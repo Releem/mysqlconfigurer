@@ -232,7 +232,7 @@ if [ ! -e ~/.my.cnf ]; then
     fi
 fi
 
-RELEEM_COMMAND="/bin/bash $WORKDIR/mysqlconfigurer.sh -k $apikey"
+RELEEM_COMMAND="/bin/bash $WORKDIR/mysqlconfigurer.sh -k $apikey -c"
 
 if [ -n "$RELEEM_MYSQL_MEMORY_LIMIT" ]; then
 
@@ -259,8 +259,6 @@ printf "\033[34m\n* Adding MySQL Configuration Directory $WORKDIR/conf to Releem
 $sudo_cmd echo "releem_cnf_dir=$WORKDIR/conf" >> $CONF
 
 if [ -n "$MYSQL_LIMIT" ]; then
-    RELEEM_COMMAND="/bin/bash $WORKDIR/mysqlconfigurer.sh -k $apikey -m $MYSQL_LIMIT"
-
     printf "\033[34m\n* Adding Memory Limit to the Releem Agent configuration: $CONF\n\033[0m\n"
     $sudo_cmd echo "memory_limit=$MYSQL_LIMIT" >> $CONF
 fi
@@ -274,7 +272,7 @@ if [ -z "$RELEEM_AGENT_DISABLE" ]; then
     $sudo_cmd $RELEEM_COMMAND
 fi
 
-RELEEM_CRON="10 */12 * * * PATH=/bin:/sbin:/usr/bin:/usr/sbin $RELEEM_COMMAND"
+RELEEM_CRON="* * * * * PATH=/bin:/sbin:/usr/bin:/usr/sbin $RELEEM_COMMAND"
 
 if [ -z "$RELEEM_CRON_ENABLE" ]; then
     printf "\033[34m* Please add the following string in crontab to get recommendations:\033[0m\n"

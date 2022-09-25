@@ -2,6 +2,12 @@ Releem releases
 ---
 Information about releases of the Releem Agent.
 
+Releem 0.9.5, 2022-08-31
+- Added Apply recommended MySQL configuration and rollback to previous configuration. Closes #63
+- Added Automatic update.
+- Added innodb_page_cleaners and innodb_purge_threads calculations.
+- Improved performance of Releem Agent minimize workload an run on servers with hundreds databases. Closes #30
+
 Releem 0.9.4, 2022-07-31
 - Added FreeBSD support. Closes #95
 - Added innodb_redo_log_capacity calculation
@@ -94,15 +100,15 @@ MySQL Configurer 0.3.2, 2020-08-24
 - Improved documentation with installation perl-Data-Dumper module on Centos.
 
 MySQL Configurer 0.3.1, 2020-07-08
-- Added calculation of the 'table_open_cache' variable. 
+- Added calculation of the '[table_open_cache](https://releem.com/docs/mysql-performance-tuning/table_open_cache)' variable. 
 - Added calculation of the 'table_definition_cache' variable. Closes #18
 
 MySQL Configurer 0.3.0, 2020-06-24
 - Tested compatibility with MySQL 5.5, MySQL 5.6, MySQL 5.7, MariaDB 10.1, MariaDB 10.2, MariaDB 10.3.
-- Added calculation of the 'key_buffer_size' variable for improve performance of the MyIsam storage engine.
-- Added calculation of the 'innodb_buffer_pool_chunk_size' variable for MySQL 5.7.5 and later, MariaDB 10.2.2 and later.
-- Added calculation of the 'max_connections' variable based on 'Max_used_connections' MySQL status variable.
-- Improve calculation of the 'innodb_log_file_size' variable using 'innodb_log_files_in_group' variable.
+- Added calculation of the '[key_buffer_size](https://releem.com/docs/mysql-performance-tuning/key_buffer_size)' variable for improve performance of the MyIsam storage engine.
+- Added calculation of the '[innodb_buffer_pool_chunk_size](https://releem.com/docs/mysql-performance-tuning/innodb_buffer_pool_chunk_size)' variable for MySQL 5.7.5 and later, MariaDB 10.2.2 and later.
+- Added calculation of the '[max_connections](https://releem.com/docs/mysql-performance-tuning/max_connections)' variable based on 'Max_used_connections' MySQL status variable.
+- Improve calculation of the '[innodb_log_file_size](https://releem.com/docs/mysql-performance-tuning/innodb_log_file_size)' variable using 'innodb_log_files_in_group' variable.
 - Improve documentation with install dependencies step for Debian/Ubuntu and Centos/Redhat.
 - Fix documentation. Update example of the recommended configuration file. Closes #35
 - Fix documentation. How to safely apply the configuration file. Closes #36
@@ -114,8 +120,8 @@ MySQL Configurer 0.2.2, 2020-04-25
 MySQL Configurer 0.2.1, 2020-04-11
 - Fixed rename file z_aiops_mysql.conf -> z_aiops_mysql.cnf. Issue #14 was closed
 - Added rounding of variables. Issue #17 was closed.
-- Added calculation max_connections. Issue #16 was closed.
-- Added calculation thread_cache_size. Issue #15 was closed.
+- Added calculation '[max_connections](https://releem.com/docs/mysql-performance-tuning/max_connections?utm_source=github&utm_medium=social&utm_campaign=changelog&utm_content=md)'. Issue #16 was closed.
+- Added calculation '[thread_cache_size](https://releem.com/docs/mysql-performance-tuning/thread_cache_size?utm_source=github&utm_medium=social&utm_campaign=changelog&utm_content=md)'. Issue #15 was closed.
 - Improve documentation. Issue #13 was closed.
 
 MySQL Configurer 0.1.2, 2020-01-15

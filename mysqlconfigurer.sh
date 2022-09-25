@@ -168,18 +168,14 @@ function releem_apply_config() {
 
 
 function releem_runnig_cron() {
-  if [ ! -f $MYSQLCONFIGURER_CONFIGFILE ];
+  HOUR=$(date +%I)
+  MINUTE=$(date +%M)
+  send_metrics
+  if [ "${HOUR}" == "12" ] && [ "${MINUTE}" == "55" ];
   then
     get_config
-  else
-    SDIFF=$((`date +%s` - `stat --format="%Y" ${MYSQLCONFIGURER_CONFIGFILE}`))
-    echo $SDIFF
-    if [ $SDIFF -gt 39600 ];
-    then
-      get_config
-    fi
   fi
-  send_metrics
+  exit 0
 }
 
 function send_metrics() {
@@ -218,7 +214,6 @@ function send_metrics() {
   echo -e "\033[34m\n* Sending metrics to Releem Cloud Platform...\033[0m"
   # Send metrics to Releem Platform. The answer is the configuration file for MySQL
   curl -s -d "$JSON_STRING" -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.dev.releem.com/v1/mysql
-  exit 0
 }
 
 function check_env() {

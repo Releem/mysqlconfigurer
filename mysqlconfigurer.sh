@@ -1,5 +1,5 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 0.9.2
+# mysqlconfigurer.sh - Version 0.9.3
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -10,7 +10,7 @@ MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH"mysqltuner.pl"
 MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 MYSQLCONFIGURER_CONFIGFILE=$MYSQLCONFIGURER_PATH"z_aiops_mysql.cnf"
 MYSQL_MEMORY_LIMIT=0
-VERSION="0.9.2"
+VERSION="0.9.3"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 
 
@@ -218,7 +218,7 @@ fi
 # Check if MySQLTuner already downloaded and download if it doesn't exist
 if [ ! -f "$MYSQLTUNER_FILENAME" ]; then
     # Download latest version of the MySQLTuner
-    curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/8cd40947ea1e3c30a9f00c21fbb371c14333727d/mysqltuner.pl
+    curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/fdd42e76857532002b8037cafddec3e38983dde8/mysqltuner.pl
 fi
 
 echo -e "\033[34m\n* Collecting metrics...\033[0m"

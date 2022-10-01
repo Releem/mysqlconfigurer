@@ -232,7 +232,7 @@ if [ ! -e ~/.my.cnf ]; then
     fi
 fi
 
-RELEEM_COMMAND="/bin/bash $WORKDIR/mysqlconfigurer.sh -k $apikey"
+RELEEM_COMMAND="/bin/bash $WORKDIR/mysqlconfigurer.sh"
 
 if [ -n "$RELEEM_MYSQL_MEMORY_LIMIT" ]; then
 

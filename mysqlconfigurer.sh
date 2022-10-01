@@ -1,5 +1,5 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 0.9.3
+# mysqlconfigurer.sh - Version 0.9.4
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -10,7 +10,7 @@ MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH"mysqltuner.pl"
 MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 MYSQLCONFIGURER_CONFIGFILE=$MYSQLCONFIGURER_PATH"z_aiops_mysql.cnf"
 MYSQL_MEMORY_LIMIT=0
-VERSION="0.9.3"
+VERSION="0.9.4"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 
 
@@ -171,7 +171,7 @@ function releem_runnig_cron() {
   HOUR=$(date +%I)
   MINUTE=$(date +%M)
   send_metrics
-  if [ "${HOUR}" == "12" ] && [ "${MINUTE}" == "55" ];
+  if [ "${HOUR}" == "12" ] && [ "${MINUTE}" == "10" ];
   then
     get_config
   fi
@@ -267,7 +267,7 @@ function get_config() {
       curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/fdd42e76857532002b8037cafddec3e38983dde8/mysqltuner.pl
   fi
 
-  echo -e "\033[34m\n* Collecting metrics...\033[0m"
+  echo -e "\033[34m\n* Collecting metrics to recommend a config...\033[0m"
 
   # Collect MySQL metrics
   if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --nocolstat --noidxstat --nopfstat --forcemem=$MYSQL_MEMORY_LIMIT --outputfile="$MYSQLTUNER_REPORT" --defaults-file ~/.my.cnf > /dev/null; then

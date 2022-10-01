@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 0.9.3
+# install.sh - Version 0.9.4
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -7,7 +7,7 @@
 # using the package manager.
 
 set -e
-install_script_version=0.9.3
+install_script_version=0.9.4
 logfile="releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -232,7 +232,7 @@ if [ ! -e ~/.my.cnf ]; then
     fi
 fi
 
-RELEEM_COMMAND="/bin/bash $WORKDIR/mysqlconfigurer.sh -k $apikey -c"
+RELEEM_COMMAND="/bin/bash $WORKDIR/mysqlconfigurer.sh -k $apikey"
 
 if [ -n "$RELEEM_MYSQL_MEMORY_LIMIT" ]; then
 
@@ -272,7 +272,7 @@ if [ -z "$RELEEM_AGENT_DISABLE" ]; then
     $sudo_cmd $RELEEM_COMMAND
 fi
 
-RELEEM_CRON="* * * * * PATH=/bin:/sbin:/usr/bin:/usr/sbin $RELEEM_COMMAND"
+RELEEM_CRON="* * * * * PATH=/bin:/sbin:/usr/bin:/usr/sbin $RELEEM_COMMAND -c"
 
 if [ -z "$RELEEM_CRON_ENABLE" ]; then
     printf "\033[34m* Please add the following string in crontab to get recommendations:\033[0m\n"

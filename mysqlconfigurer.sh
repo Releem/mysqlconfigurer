@@ -232,7 +232,7 @@ function send_metrics() {
   echo $JSON_STRING
   echo -e "\033[34m\n* Sending metrics to Releem Cloud Platform...\033[0m"
   # Send metrics to Releem Platform. The answer is the configuration file for MySQL
-  curl -s -d "$JSON_STRING" -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.dev.releem.com/v1/mysql
+  curl -s -d "$JSON_STRING" -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v1/mysql
 }
 
 function check_env() {
@@ -275,7 +275,7 @@ function get_config() {
       echo -e "\033[34m\n* Sending metrics to Releem Cloud Platform...\033[0m"
 
       # Send metrics to Releem Platform. The answer is the configuration file for MySQL
-      curl -s -d @$MYSQLTUNER_REPORT -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.dev.releem.com/v1/mysql -o "$MYSQLCONFIGURER_CONFIGFILE"
+      curl -s -d @$MYSQLTUNER_REPORT -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v1/mysql -o "$MYSQLCONFIGURER_CONFIGFILE"
 
       echo -e "\033[34m\n* Downloading recommended MySQL configuration from Releem Cloud Platform...\033[0m"
 

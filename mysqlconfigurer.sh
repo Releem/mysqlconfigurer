@@ -182,15 +182,16 @@ function send_metrics() {
   check_env
   ##### PARAMETERS #####
   CACHE_TTL="55"
-  CACHE_FILE="/tmp/releem.mysql.status.`echo $MYSQLCONFIGURER_CONFIGFILE | md5sum | cut -d" " -f1`.cache"
+  CACHE_FILE_STATUS="/tmp/releem.mysql.status.`echo $MYSQLCONFIGURER_CONFIGFILE | md5sum | cut -d" " -f1`.cache"
+  CACHE_FILE_VARIABLES="/tmp/releem.mysql.variables.`echo $MYSQLCONFIGURER_CONFIGFILE | md5sum | cut -d" " -f1`.cache"
   EXEC_TIMEOUT="1"
   NOW_TIME=`date '+%s'`
   ##### RUN #####
   # Collect MySQL metrics
   echo -e "\033[34m\n* Collecting metrics...\033[0m"
 
-  if [ -s "${CACHE_FILE}" ]; then
-    CACHE_TIME=`stat -c"%Y" "${CACHE_FILE}"`
+  if [ -s "${CACHE_FILE_STATUS}" ]; then
+    CACHE_TIME=`stat -c"%Y" "${CACHE_FILE_STATUS}"`
   else
     CACHE_TIME=0
   fi
@@ -200,16 +201,34 @@ function send_metrics() {
   if [ ${DELTA_TIME} -lt ${EXEC_TIMEOUT} ]; then
     sleep $((${EXEC_TIMEOUT} - ${DELTA_TIME}))
   elif [ ${DELTA_TIME} -gt ${CACHE_TTL} ]; then
-    echo "" >> "${CACHE_FILE}" # !!!
+    echo "" >> "${CACHE_FILE_STATUS}" # !!!
     DATACACHE=`mysql -sNe "show global status;"`
-    echo "${DATACACHE}" > "${CACHE_FILE}" # !!!
-    chmod 640 "${CACHE_FILE}"
+    echo "${DATACACHE}" > "${CACHE_FILE_STATUS}" # !!!
+    chmod 640 "${CACHE_FILE_STATUS}"
   fi
 
-  QUESTIONS=`cat ${CACHE_FILE} | grep -w 'Questions' | awk '{print $2}'`
-  TIMESTAMP=`stat -c"%Y" "${CACHE_FILE}"`
+  if [ -s "${CACHE_FILE_VARIABLES}" ]; then
+    CACHE_TIME=`stat -c"%Y" "${CACHE_FILE_VARIABLES}"`
+  else
+    CACHE_TIME=0
+  fi
+  DELTA_TIME=$((${NOW_TIME} - ${CACHE_TIME}))
+  echo $DELTA_TIME
+  #
+  if [ ${DELTA_TIME} -lt ${EXEC_TIMEOUT} ]; then
+    sleep $((${EXEC_TIMEOUT} - ${DELTA_TIME}))
+  elif [ ${DELTA_TIME} -gt ${CACHE_TTL} ]; then
+    echo "" >> "${CACHE_FILE_VARIABLES}" # !!!
+    DATACACHE=`mysql -sNe "show global variables;"`
+    echo "${DATACACHE}" > "${CACHE_FILE_VARIABLES}" # !!!
+    chmod 640 "${CACHE_FILE_VARIABLES}"
+  fi
 
-  JSON_STRING='{"Timestamp":"'${TIMESTAMP}'", "ReleemMetrics": {"Questions": "'${QUESTIONS}'"}}'
+  QUESTIONS=`cat ${CACHE_FILE_STATUS} | grep -w 'Questions' | awk '{print $2}'`
+  TIMESTAMP=`stat -c"%Y" "${CACHE_FILE_STATUS}"`
+  HOSTNAME=`cat ${CACHE_FILE_VARIABLES} | grep -w 'hostname' | awk '{print $2}'`
+
+  JSON_STRING='{"Hostname": "'${HOSTNAME}'", "Timestamp":"'${TIMESTAMP}'", "ReleemMetrics": {"Questions": "'${QUESTIONS}'"}}'
   echo $JSON_STRING
   echo -e "\033[34m\n* Sending metrics to Releem Cloud Platform...\033[0m"
   # Send metrics to Releem Platform. The answer is the configuration file for MySQL

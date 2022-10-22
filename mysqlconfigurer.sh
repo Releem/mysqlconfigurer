@@ -1,5 +1,5 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 0.9.4
+# mysqlconfigurer.sh - Version 0.9.5
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -10,7 +10,7 @@ MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH"mysqltuner.pl"
 MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 MYSQLCONFIGURER_CONFIGFILE=$MYSQLCONFIGURER_PATH"z_aiops_mysql.cnf"
 MYSQL_MEMORY_LIMIT=0
-VERSION="0.9.4"
+VERSION="0.9.5"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 
 
@@ -179,6 +179,7 @@ function releem_runnig_cron() {
 }
 
 function send_metrics() {
+  #echo -e "\033[34m\n* Checking the environment...\033[0m"
   check_env
   ##### PARAMETERS #####
   CACHE_TTL="55"
@@ -188,7 +189,7 @@ function send_metrics() {
   NOW_TIME=`date '+%s'`
   ##### RUN #####
   # Collect MySQL metrics
-  echo -e "\033[34m\n* Collecting metrics...\033[0m"
+  #echo -e "\033[34m\n* Collecting metrics...\033[0m"
 
   if [ -s "${CACHE_FILE_STATUS}" ]; then
     CACHE_TIME=`stat -c"%Y" "${CACHE_FILE_STATUS}"`
@@ -196,7 +197,6 @@ function send_metrics() {
     CACHE_TIME=0
   fi
   DELTA_TIME=$((${NOW_TIME} - ${CACHE_TIME}))
-  echo $DELTA_TIME
   #
   if [ ${DELTA_TIME} -lt ${EXEC_TIMEOUT} ]; then
     sleep $((${EXEC_TIMEOUT} - ${DELTA_TIME}))
@@ -213,7 +213,6 @@ function send_metrics() {
     CACHE_TIME=0
   fi
   DELTA_TIME=$((${NOW_TIME} - ${CACHE_TIME}))
-  echo $DELTA_TIME
   #
   if [ ${DELTA_TIME} -lt ${EXEC_TIMEOUT} ]; then
     sleep $((${EXEC_TIMEOUT} - ${DELTA_TIME}))
@@ -229,14 +228,12 @@ function send_metrics() {
   HOSTNAME=`cat ${CACHE_FILE_VARIABLES} | grep -w 'hostname' | awk '{print $2}'`
 
   JSON_STRING='{"Hostname": "'${HOSTNAME}'", "Timestamp":"'${TIMESTAMP}'", "ReleemMetrics": {"Questions": "'${QUESTIONS}'"}}'
-  echo $JSON_STRING
-  echo -e "\033[34m\n* Sending metrics to Releem Cloud Platform...\033[0m"
+  #echo -e "\033[34m\n* Sending metrics to Releem Cloud Platform...\033[0m"
   # Send metrics to Releem Platform. The answer is the configuration file for MySQL
   curl -s -d "$JSON_STRING" -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v1/mysql
 }
 
 function check_env() {
-  echo -e "\033[34m\n* Checking the environment...\033[0m"
   # Check RELEEM_API_KEY is not empty
   if [ -z "$RELEEM_API_KEY" ]; then
       echo >&2 "RELEEM_API_KEY is empty please sign up at https://releem.com/appsignup to get your Releem API key. Aborting."
@@ -247,6 +244,7 @@ function check_env() {
 }
 
 function get_config() {
+  echo -e "\033[34m\n* Checking the environment...\033[0m"
   check_env
 
   command -v perl >/dev/null 2>&1 || { echo >&2 "Perl is not installed. Please install Perl. Aborting."; exit 1; }

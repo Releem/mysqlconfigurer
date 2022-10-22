@@ -217,7 +217,7 @@ fi
 
 
 printf "\033[34m\n* Checking /root/.my.cnf...\033[0m\n"
-if sudo [ ! -e /root/.my.cnf ]; then
+if $sudo_cmd [ ! -e /root/.my.cnf ]; then
     printf "\033[34m\n* Please create /root/.my.cnf file with the following content:\033[0m\n"
     echo -e ""
     echo -e "[client]"

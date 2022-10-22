@@ -1,5 +1,5 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 0.9.5
+# mysqlconfigurer.sh - Version 0.9.6
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -10,10 +10,19 @@ MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH"mysqltuner.pl"
 MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 MYSQLCONFIGURER_CONFIGFILE=$MYSQLCONFIGURER_PATH"z_aiops_mysql.cnf"
 MYSQL_MEMORY_LIMIT=0
-VERSION="0.9.5"
+VERSION="0.9.6"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 
+function update_agent() {
+  NEW_VER=$(curl  -s -L https://releem.s3.amazonaws.com/current_version_agent)
+  if [ "$VERSION" \< "$NEW_VER" ]
+  then
+      printf "\033[34m\n* Updating script \e[31;1m%s\e[0m -> \e[32;1m%s\e[0m\n" "$VERSION" "$NEW_VER"
+      curl -s -L https://releem.s3.amazonaws.com/install.sh > "$RELEEM_INSTALL_PATH"
+      RELEEM_API_KEY=$RELEEM_API_KEY exec bash "$RELEEM_INSTALL_PATH" -u
+  fi
 
+}
 function wait_restart() {
   sleep 1
   flag=0
@@ -174,6 +183,7 @@ function releem_runnig_cron() {
   if [ "${HOUR}" == "12" ] && [ "${MINUTE}" == "10" ];
   then
     get_config
+    update_agent
   fi
   exit 0
 }
@@ -327,15 +337,6 @@ c) releem_runnig_cron;;
 esac
 done
 
-
-
 get_config
+update_agent
 
-
-NEW_VER=$(curl  -s -L https://releem.s3.amazonaws.com/current_version_agent)
-if [ "$VERSION" \< "$NEW_VER" ]
-then
-    printf "\033[34m\n* Updating script \e[31;1m%s\e[0m -> \e[32;1m%s\e[0m\n" "$VERSION" "$NEW_VER"
-    curl -s -L https://releem.s3.amazonaws.com/install.sh > "$RELEEM_INSTALL_PATH"
-    RELEEM_API_KEY=$RELEEM_API_KEY exec bash "$RELEEM_INSTALL_PATH" -u
-fi

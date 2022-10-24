@@ -37,12 +37,12 @@ solve your problem.\n\033[0m\n"
 trap on_error ERR
 
 function releem_set_cron() {
-    (crontab -l 2>/dev/null | grep -v "$WORKDIR/mysqlconfigurer.sh" || true; echo "$RELEEM_CRON") | crontab -
+    ($sudo_cmd crontab -l 2>/dev/null | grep -v "$WORKDIR/mysqlconfigurer.sh" || true; echo "$RELEEM_CRON") | $sudo_cmd crontab -
 }
 
 function releem_update() {
     printf "\033[34m\n* Downloading latest version of Releem Agent...\033[0m\n"
-    curl -s -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer.sh
+    $sudo_cmd curl -s -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer.sh
 
     echo
     echo
@@ -129,7 +129,7 @@ if [ ! -e $CONF ]; then
 fi
 
 printf "\033[34m\n* Downloading Releem Agent...\033[0m\n"
-curl -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer.sh
+$sudo_cmd curl -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer.sh
 
 printf "\033[34m\n* Configure the application to use the Releem recommended configuration...\033[0m\n"
 
@@ -160,7 +160,7 @@ else
 fi
 if [ -n "$service_name_cmd" ]; then
     printf "\033[34m\n* Adding MySQL restart command to the Releem Agent configuration: $CONF\n\033[0m"
-    $sudo_cmd echo "mysql_restart_service=\"$service_name_cmd\"" >> $CONF
+    echo "mysql_restart_service=\"$service_name_cmd\"" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 
 if [[ -n $RELEEM_MYSQL_MY_CNF_PATH ]];
@@ -202,23 +202,23 @@ else
 
     printf "\033[34m\n* The $MYSQL_MY_CNF_PATH file is used for automatic Releem settings. \n\033[0m"
 
-		printf "\033[34m\n* Adding MySQL configuration path to the Releem Agent configuration $CONF.\n\033[0m"
-		$sudo_cmd echo "mysql_cnf_dir=$MYSQL_CONF_DIR" >> $CONF
+		printf "\033[34m\n* Adding MySQL configuration directory to the Releem Agent configuration $CONF.\n\033[0m"
+		echo "mysql_cnf_dir=$MYSQL_CONF_DIR" | $sudo_cmd tee -a $CONF >/dev/null
 
 		printf "\033[34m\n* Adding directive includedir to the MySQL configuration $MYSQL_MY_CNF_PATH.\n\033[0m"
 		$sudo_cmd mkdir -p $MYSQL_CONF_DIR
         #Исключить дублирование
         if [ `grep -cE "!includedir $MYSQL_CONF_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ];
 		    then
-		        echo "!includedir $MYSQL_CONF_DIR" >> $MYSQL_MY_CNF_PATH
+		        echo "!includedir $MYSQL_CONF_DIR" | $sudo_cmd tee -a $MYSQL_MY_CNF_PATH >/dev/null
 		    fi
 	# fi
 fi
 
 
-printf "\033[34m\n* Checking ~/.my.cnf...\033[0m\n"
-if [ ! -e ~/.my.cnf ]; then
-    printf "\033[34m\n* Please create ~/.my.cnf file with the following content:\033[0m\n"
+printf "\033[34m\n* Checking /root/.my.cnf...\033[0m\n"
+if $sudo_cmd [ ! -e /root/.my.cnf ]; then
+    printf "\033[34m\n* Please create /root/.my.cnf file with the following content:\033[0m\n"
     echo -e ""
     echo -e "[client]"
     echo -e "user=root"
@@ -254,13 +254,13 @@ fi
 
 # Create configuration file
 printf "\033[34m\n* Adding API key to the Releem Agent configuration: $CONF\n\033[0m\n"
-$sudo_cmd echo "apikey=$apikey" >> $CONF
-printf "\033[34m\n* Adding MySQL Configuration Directory $WORKDIR/conf to Releem Agent configuration: $CONF\n\033[0m\n"
-$sudo_cmd echo "releem_cnf_dir=$WORKDIR/conf" >> $CONF
+echo "apikey=$apikey" | $sudo_cmd tee -a  $CONF >/dev/null
+printf "\033[34m\n* Adding Releem Configuration Directory $WORKDIR/conf to Releem Agent configuration: $CONF\n\033[0m\n"
+echo "releem_cnf_dir=$WORKDIR/conf" | $sudo_cmd tee -a $CONF >/dev/null
 
 if [ -n "$MYSQL_LIMIT" ]; then
     printf "\033[34m\n* Adding Memory Limit to the Releem Agent configuration: $CONF\n\033[0m\n"
-    $sudo_cmd echo "memory_limit=$MYSQL_LIMIT" >> $CONF
+    echo "memory_limit=$MYSQL_LIMIT" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 
 # Secure the configuration file

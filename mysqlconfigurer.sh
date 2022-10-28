@@ -166,10 +166,13 @@ function releem_apply_config() {
 
     if [[ $(mysqladmin ping 2>/dev/null) == "mysqld is alive" ]];
     then
-        printf "\033[32m\n* MySQL service started successfully!\033[0m\n"
+        printf "\033[32m\n MySQL service started successfully!\033[0m\n"
+        printf "\033[32m\n Recommended configuration applied successfully!\033[0m\n"
+        printf "\n MySQL Performance Score and recommended configuration in Releem Customer Portal will update after 12 hours.\n"
+
     else
-        printf "\033[31m\n* MySQL service failed to start in 120 seconds! Check the MySQL error log! \033[0m\n"
-        printf "\033[31m\n* Try to roll back the configuration application using the command: \033[0m\n"
+        printf "\033[31m\n MySQL service failed to start in 120 seconds! Check the MySQL error log! \033[0m\n"
+        printf "\033[31m\n Try to roll back the configuration application using the command: \033[0m\n"
         printf "\033[32m\n bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
     fi
     exit 0

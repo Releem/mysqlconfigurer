@@ -1,5 +1,5 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 0.9.6
+# mysqlconfigurer.sh - Version 0.9.7
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -10,7 +10,7 @@ MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH"mysqltuner.pl"
 MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 MYSQLCONFIGURER_CONFIGFILE=$MYSQLCONFIGURER_PATH"z_aiops_mysql.cnf"
 MYSQL_MEMORY_LIMIT=0
-VERSION="0.9.6"
+VERSION="0.9.7"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 
 function update_agent() {
@@ -166,10 +166,13 @@ function releem_apply_config() {
 
     if [[ $(mysqladmin ping 2>/dev/null) == "mysqld is alive" ]];
     then
-        printf "\033[32m\n* MySQL service started successfully!\033[0m\n"
+        printf "\033[32m\n MySQL service started successfully!\033[0m\n"
+        printf "\033[32m\n Recommended configuration applied successfully!\033[0m\n"
+        printf "\n MySQL Performance Score and recommended configuration in Releem Customer Portal will update after 12 hours.\n"
+
     else
-        printf "\033[31m\n* MySQL service failed to start in 120 seconds! Check the MySQL error log! \033[0m\n"
-        printf "\033[31m\n* Try to roll back the configuration application using the command: \033[0m\n"
+        printf "\033[31m\n MySQL service failed to start in 120 seconds! Check the MySQL error log! \033[0m\n"
+        printf "\033[31m\n Try to roll back the configuration application using the command: \033[0m\n"
         printf "\033[32m\n bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
     fi
     exit 0

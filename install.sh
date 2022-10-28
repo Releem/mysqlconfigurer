@@ -31,8 +31,9 @@ function on_error() {
 It looks like you hit an issue when trying to install the Releem.
 
 If you're still having problems, please send an email to support@releem.com
-with the contents of releem-install.log and we'll do our very best to help you
+with the contents of $logfile and we'll do our very best to help you
 solve your problem.\n\033[0m\n"
+curl -s -d @$logfile -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v1/saving_log
 }
 trap on_error ERR
 
@@ -293,3 +294,4 @@ printf "\033[34m* To run Releem Agent manually please use the following command:
 printf "\033[32m$RELEEM_COMMAND\033[0m\n\n"
 printf "\033[34m* To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics\033[0m"
 printf "\033[34m\n\033[0m"
+curl -s -d @$logfile -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v1/saving_log

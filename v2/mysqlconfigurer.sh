@@ -22,8 +22,8 @@ function update_agent() {
       curl -s -L https://releem.s3.amazonaws.com/v2/install.sh > "$RELEEM_INSTALL_PATH"      
       RELEEM_API_KEY=$RELEEM_API_KEY exec bash "$RELEEM_INSTALL_PATH" -u
   fi
-
 }
+
 function wait_restart() {
   sleep 1
   flag=0
@@ -337,7 +337,7 @@ function get_config() {
       echo -e "\033[34m\n * Sending metrics to Releem Cloud Platform...\033[0m"
 
       # Send metrics to Releem Platform. The answer is the configuration file for MySQL
-      curl -s -d @$MYSQLTUNER_REPORT -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.dev.releem.com/v1/mysql -o "$MYSQLCONFIGURER_CONFIGFILE"
+      curl -s -d @$MYSQLTUNER_REPORT -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v1/mysql -o "$MYSQLCONFIGURER_CONFIGFILE"
 
       echo -e "\033[34m\n * Downloading recommended MySQL configuration from Releem Cloud Platform...\033[0m"
 

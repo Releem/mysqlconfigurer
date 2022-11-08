@@ -43,18 +43,17 @@ solve your problem.\n\033[0m\n"
 trap on_error ERR
 trap on_exit EXIT
 
-# function releem_set_cron() {
-#     ($sudo_cmd crontab -l 2>/dev/null | grep -v "$WORKDIR/mysqlconfigurer.sh" || true; echo "$RELEEM_CRON") | $sudo_cmd crontab -
-# }
-
-function releem_pop_cron() {
-    ($sudo_cmd crontab -l 2>/dev/null | grep -v "$WORKDIR/mysqlconfigurer.sh" || true) | $sudo_cmd crontab -
+function releem_set_cron() {
+    ($sudo_cmd crontab -l 2>/dev/null | grep -v "$WORKDIR/mysqlconfigurer.sh" || true; echo "$RELEEM_CRON") | $sudo_cmd crontab -
 }
 
 function releem_update() {
     printf "\033[34m\n * Downloading latest version of Releem Agent...\033[0m\n"
-    $sudo_cmd curl -s -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer_v2.sh  2>/dev/null
-    $sudo_cmd chmod 755 $WORKDIR/mysqlconfigurer.sh 
+    $sudo_cmd $WORKDIR/releem-agent  stop || true
+    $sudo_cmd curl -s -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh  2>/dev/null
+    $sudo_cmd curl -s -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent 2>/dev/null
+    $sudo_cmd chmod 755 $WORKDIR/mysqlconfigurer.sh   $WORKDIR/releem-agent
+    $sudo_cmd $WORKDIR/releem-agent  start
 
     echo
     echo
@@ -141,8 +140,8 @@ if [ ! -e $CONF ]; then
 fi
 
 printf "\033[34m\n * Downloading Releem Agent...\033[0m\n"
-$sudo_cmd curl -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer_v2.sh  2>/dev/null
-$sudo_cmd curl -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/releem-agent 2>/dev/null
+$sudo_cmd curl -s -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh  2>/dev/null
+$sudo_cmd curl -s -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent 2>/dev/null
 
 
 $sudo_cmd chmod 755 $WORKDIR/mysqlconfigurer.sh $WORKDIR/releem-agent
@@ -335,24 +334,20 @@ $sudo_cmd chmod 640 $CONF
 # Enable perfomance schema
 $sudo_cmd $RELEEM_COMMAND -p
 
-# printf "\033[34m\n * Configure crontab...\033[0m\n"
-# RELEEM_CRON="00 */12 * * * PATH=/bin:/sbin:/usr/bin:/usr/sbin $RELEEM_COMMAND"
-# if [ -z "$RELEEM_CRON_ENABLE" ]; then
-#     printf "\033[34m Please add the following string in crontab to get recommendations:\033[0m\n"
-#     printf "\033[32m$RELEEM_CRON\033[0m\n\n"
-#     read -p "Can we do it automatically? (Y/N) " -n 1 -r
-#     echo    # move to a new line
-
-#     if [[ $REPLY =~ ^[Yy]$ ]]
-#     then
-#         releem_set_cron
-#     fi
-# elif [ "$RELEEM_CRON_ENABLE" -gt 0 ]; then
-#     releem_set_cron
-# fi
-
-printf "\033[34m\n * Disable crontab...\033[0m\n"
-releem_pop_cron
+printf "\033[34m\n * Configure crontab...\033[0m\n"
+RELEEM_CRON="00 */12 * * * PATH=/bin:/sbin:/usr/bin:/usr/sbin $RELEEM_COMMAND"
+if [ -z "$RELEEM_CRON_ENABLE" ]; then
+    printf "\033[34m Please add the following string in crontab to get recommendations:\033[0m\n"
+    printf "\033[32m$RELEEM_CRON\033[0m\n\n"
+    read -p "Can we do it automatically? (Y/N) " -n 1 -r
+    echo    # move to a new line
+    if [[ $REPLY =~ ^[Yy]$ ]]
+    then
+        releem_set_cron
+    fi
+elif [ "$RELEEM_CRON_ENABLE" -gt 0 ]; then
+    releem_set_cron
+fi
 
 if [ -z "$RELEEM_AGENT_DISABLE" ]; then
     # First run of Releem Agent to check MySQL Performance Score

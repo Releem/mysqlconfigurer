@@ -1,5 +1,5 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 0.9.7
+# mysqlconfigurer.sh - Version 0.9.8
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -11,11 +11,11 @@ MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH"mysqltuner.pl"
 MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
 MYSQL_MEMORY_LIMIT=0
-VERSION="0.9.7"
+VERSION="0.9.8"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 
 function update_agent() {
-  NEW_VER=$(curl  -s -L https://releem.s3.amazonaws.com/current_version_agent)
+  NEW_VER=$(curl  -s -L https://releem.s3.amazonaws.com/v2/current_version_agent)
   if [ "$VERSION" \< "$NEW_VER" ]
   then
       printf "\033[37m\n * Updating script \e[31;1m%s\e[0m -> \e[32;1m%s\e[0m\n" "$VERSION" "$NEW_VER"
@@ -386,7 +386,7 @@ fi
 
 
 # Parse parameters
-while getopts "k:m:arcp" option
+while getopts "k:m:arcpu" option
 do
 case "${option}"
 in
@@ -396,6 +396,7 @@ a) releem_apply_config;;
 r) releem_rollback_config;;
 c) releem_runnig_cron;;
 p) releem_ps_mysql;;
+u) update_agent; exit 0;;
 esac
 done
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 0.9.8
+# install.sh - Version 0.9.9
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -7,7 +7,7 @@
 # using the package manager.
 
 set -e
-install_script_version=0.9.8
+install_script_version=0.9.9
 logfile="releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -54,11 +54,11 @@ function releem_update() {
     $sudo_cmd curl -s -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent 2>/dev/null
     $sudo_cmd chmod 755 $WORKDIR/mysqlconfigurer.sh   $WORKDIR/releem-agent
     $sudo_cmd $WORKDIR/releem-agent  start
-    
+
     printf "\033[37m\n * Configure crontab...\033[0m\n"
     RELEEM_CRON="00 00 * * * PATH=/bin:/sbin:/usr/bin:/usr/sbin $RELEEM_COMMAND -u"
     releem_set_cron
-    
+
     echo
     echo
     echo -e "Releem Agent updated successfully."
@@ -257,11 +257,11 @@ if [ "$FLAG_SUCCESS" == "1" ]; then
         printf "\033[32m\n Connect to mysql successfully with user \`${RELEEM_MYSQL_LOGIN}\`\033[0m\n"
         MYSQL_LOGIN=$RELEEM_MYSQL_LOGIN
         MYSQL_PASSWORD=$RELEEM_MYSQL_PASSWORD
-    else        
+    else
         printf "\033[31m\n Connect to mysql failed with user \`${RELEEM_MYSQL_LOGIN}\` with error:\033[0m\n"
         mysqladmin --host=127.0.0.1 --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping
         printf "\033[31m\n Check that the user and password is correct, the execution of the command \`mysqladmin --host=127.0.0.1 --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping\` and reinstall the agent. \033[0m\n"
-        exit 1            
+        exit 1
     fi
 fi
 
@@ -380,11 +380,11 @@ else
     echo $releem_agent_start
     printf "\033[31m\n Restart Releem Agent failed\033[0m\n"
 fi
-# $sudo_cmd $WORKDIR/releem-agent  status 
-# if [ $? -eq 0 ]; then   
+# $sudo_cmd $WORKDIR/releem-agent  status
+# if [ $? -eq 0 ]; then
 #     echo "Status successfull"
 # else
-#     echo "remove failes"    
+#     echo "remove failes"
 # fi
 trap on_error ERR
 set -e

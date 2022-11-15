@@ -1,5 +1,5 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 0.9.8
+# mysqlconfigurer.sh - Version 0.9.9
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -11,7 +11,7 @@ MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH"mysqltuner.pl"
 MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
 MYSQL_MEMORY_LIMIT=0
-VERSION="0.9.8"
+VERSION="0.9.9"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 
 function update_agent() {
@@ -19,7 +19,7 @@ function update_agent() {
   if [ "$VERSION" \< "$NEW_VER" ]
   then
       printf "\033[37m\n * Updating script \e[31;1m%s\e[0m -> \e[32;1m%s\e[0m\n" "$VERSION" "$NEW_VER"
-      curl -s -L https://releem.s3.amazonaws.com/v2/install.sh > "$RELEEM_INSTALL_PATH"      
+      curl -s -L https://releem.s3.amazonaws.com/v2/install.sh > "$RELEEM_INSTALL_PATH"
       RELEEM_API_KEY=$RELEEM_API_KEY exec bash "$RELEEM_INSTALL_PATH" -u
   fi
 }
@@ -120,15 +120,24 @@ function releem_rollback_config() {
 }
 
 function releem_ps_mysql() {
+    FLAG_CONFIGURE=1
     status_ps=$(mysql --host=127.0.0.1 --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'performance_schema'" 2>/dev/null | awk '{print $2}')
-    if [ "$status_ps" == "ON" ]; then
-        printf "\033[37m\n * Perfomance schema is enabled for collecting metrics.\033[0m\n"
-        exit 0
+    if [ "$status_ps" != "ON" ]; then
+        FLAG_CONFIGURE=0
     fi
 
+    status_slowlog=$(mysql --host=127.0.0.1 --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'slow_query_log'" 2>/dev/null | awk '{print $2}')
+    if [ "$status_slowlog" != "ON" ]; then
+        FLAG_CONFIGURE=0
+    fi
+    if [ "$FLAG_CONFIGURE" -eq 1 ]; then
+        printf "\033[37m\n * Performance schema is enabled for collecting metrics.\033[0m\n"
+        printf "\033[37m\n * Slow Log is enabled for collecting metrics.\033[0m\n"
+        exit 0
+    fi
     if [ -d "$RELEEM_MYSQL_CONFIG_DIR" ]; then
-        printf "\033[37m\n * Enabling perfomance schema for collecting metrics...\n\033[0m\n"
-        echo -e "### This configuration was recommended by Releem. https://releem.com\n[mysqld]\nperformance_schema = 1" > "$RELEEM_MYSQL_CONFIG_DIR/performance_schema.cnf"
+        printf "\033[37m\n * Enabling Performance schema and Slow Log for collecting metrics...\n\033[0m\n"
+        echo -e "### This configuration was recommended by Releem. https://releem.com\n[mysqld]\nperformance_schema = 1\nslow_query_log = 1" > "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf"
     else
         printf "\033[31m\n MySQL configuration directory is not found.\033[0m"
         printf "\033[31m\n Try to reinstall Releem Agent.\033[0m"
@@ -159,12 +168,12 @@ function releem_ps_mysql() {
     if [[ $(mysqladmin --host=127.0.0.1 --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null) == "mysqld is alive" ]];
     then
         printf "\033[32m\n MySQL service started successfully!\033[0m\n"
-        printf "\033[32m\n Performance schema is enabled.\033[0m\n"
+        printf "\033[32m\n Performance schema and Slow Log is enabled.\033[0m\n"
 
     else
         printf "\033[31m\n MySQL service failed to start in 120 seconds! Check the MySQL error log!\033[0m\n"
     fi
-    exit 0    
+    exit 0
 
 }
 
@@ -214,7 +223,7 @@ function releem_apply_config() {
     printf "\033[37m\n * Restarting with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
     eval "$RELEEM_MYSQL_RESTART_SERVICE" &
     wait_restart
-    
+
     if [[ $(mysqladmin --host=127.0.0.1 --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null) == "mysqld is alive" ]];
     then
         printf "\033[32m\n MySQL service started successfully!\033[0m\n"
@@ -381,7 +390,7 @@ if test -f $RELEEM_CONF_FILE ; then
     fi
     if [ ! -z "$mysql_password" ]; then
         MYSQL_PASSWORD=$mysql_password
-    fi    
+    fi
 fi
 
 
@@ -402,4 +411,3 @@ done
 
 get_config
 update_agent
-

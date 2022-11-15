@@ -42,7 +42,7 @@ function releem_set_cron() {
 }
 
 function releem_update() {
-    printf "\033[34m\n* Downloading latest version of Releem Agent...\033[0m\n"
+    printf "\033[37m\n* Downloading latest version of Releem Agent...\033[0m\n"
     $sudo_cmd curl -s -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer.sh
 
     echo
@@ -101,7 +101,7 @@ fi
 
 # Install the necessary package sources
 if [ "$OS" = "RedHat" ]; then
-    echo -e "\033[34m\n* Installing dependencies...\n\033[0m"
+    echo -e "\033[37m\n* Installing dependencies...\n\033[0m"
 
     if [ -x "/usr/bin/dnf" ]; then
         package_manager='dnf'
@@ -112,7 +112,7 @@ if [ "$OS" = "RedHat" ]; then
     $sudo_cmd $package_manager -y install net-tools perl-JSON perl-Data-Dumper perl-Getopt-Long
 
 elif [ "$OS" = "Debian" ]; then
-    printf "\033[34m\n* Installing dependences...\n\033[0m\n"
+    printf "\033[37m\n* Installing dependences...\n\033[0m\n"
 
     $sudo_cmd apt-get update
     $sudo_cmd apt-get install -y --force-yes curl net-tools libjson-perl
@@ -129,10 +129,10 @@ if [ ! -e $CONF ]; then
     $sudo_cmd mkdir -p $WORKDIR/conf
 fi
 
-printf "\033[34m\n* Downloading Releem Agent...\033[0m\n"
+printf "\033[37m\n* Downloading Releem Agent...\033[0m\n"
 $sudo_cmd curl -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/mysqlconfigurer.sh
 
-printf "\033[34m\n* Configure the application to use the Releem recommended configuration...\033[0m\n"
+printf "\033[37m\n* Configure the application to use the Releem recommended configuration...\033[0m\n"
 
 systemctl_cmd=$(which systemctl || true)
 
@@ -160,7 +160,7 @@ else
     fi
 fi
 if [ -n "$service_name_cmd" ]; then
-    printf "\033[34m\n* Adding MySQL restart command to the Releem Agent configuration: $CONF\n\033[0m"
+    printf "\033[37m\n* Adding MySQL restart command to the Releem Agent configuration: $CONF\n\033[0m"
     echo "mysql_restart_service=\"$service_name_cmd\"" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 
@@ -201,12 +201,12 @@ else
 	# if [ $FLAG_APPLY_CHANGE -eq 1 ];
 	# then
 
-    printf "\033[34m\n* The $MYSQL_MY_CNF_PATH file is used for automatic Releem settings. \n\033[0m"
+    printf "\033[37m\n* The $MYSQL_MY_CNF_PATH file is used for automatic Releem settings. \n\033[0m"
 
-		printf "\033[34m\n* Adding MySQL configuration directory to the Releem Agent configuration $CONF.\n\033[0m"
+		printf "\033[37m\n* Adding MySQL configuration directory to the Releem Agent configuration $CONF.\n\033[0m"
 		echo "mysql_cnf_dir=$MYSQL_CONF_DIR" | $sudo_cmd tee -a $CONF >/dev/null
 
-		printf "\033[34m\n* Adding directive includedir to the MySQL configuration $MYSQL_MY_CNF_PATH.\n\033[0m"
+		printf "\033[37m\n* Adding directive includedir to the MySQL configuration $MYSQL_MY_CNF_PATH.\n\033[0m"
 		$sudo_cmd mkdir -p $MYSQL_CONF_DIR
         #Исключить дублирование
         if [ `grep -cE "!includedir $MYSQL_CONF_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ];
@@ -217,9 +217,9 @@ else
 fi
 
 
-printf "\033[34m\n* Checking /root/.my.cnf...\033[0m\n"
+printf "\033[37m\n* Checking /root/.my.cnf...\033[0m\n"
 if $sudo_cmd [ ! -e /root/.my.cnf ]; then
-    printf "\033[34m\n* Please create /root/.my.cnf file with the following content:\033[0m\n"
+    printf "\033[37m\n* Please create /root/.my.cnf file with the following content:\033[0m\n"
     echo -e ""
     echo -e "[client]"
     echo -e "user=root"
@@ -242,7 +242,7 @@ if [ -n "$RELEEM_MYSQL_MEMORY_LIMIT" ]; then
     fi
 else
     echo
-    printf "\033[34m\n* In case you are using MySQL in Docker or it isn't dedicated server for MySQL.\033[0m\n"
+    printf "\033[37m\n* In case you are using MySQL in Docker or it isn't dedicated server for MySQL.\033[0m\n"
     read -p "Should we limit MySQL memory? (Y/N) " -n 1 -r
     echo    # move to a new line
     if [[ $REPLY =~ ^[Yy]$ ]]
@@ -254,13 +254,13 @@ else
 fi
 
 # Create configuration file
-printf "\033[34m\n* Adding API key to the Releem Agent configuration: $CONF\n\033[0m\n"
+printf "\033[37m\n* Adding API key to the Releem Agent configuration: $CONF\n\033[0m\n"
 echo "apikey=$apikey" | $sudo_cmd tee -a  $CONF >/dev/null
-printf "\033[34m\n* Adding Releem Configuration Directory $WORKDIR/conf to Releem Agent configuration: $CONF\n\033[0m\n"
+printf "\033[37m\n* Adding Releem Configuration Directory $WORKDIR/conf to Releem Agent configuration: $CONF\n\033[0m\n"
 echo "releem_cnf_dir=$WORKDIR/conf" | $sudo_cmd tee -a $CONF >/dev/null
 
 if [ -n "$MYSQL_LIMIT" ]; then
-    printf "\033[34m\n* Adding Memory Limit to the Releem Agent configuration: $CONF\n\033[0m\n"
+    printf "\033[37m\n* Adding Memory Limit to the Releem Agent configuration: $CONF\n\033[0m\n"
     echo "memory_limit=$MYSQL_LIMIT" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 
@@ -269,14 +269,14 @@ $sudo_cmd chmod 640 $CONF
 
 if [ -z "$RELEEM_AGENT_DISABLE" ]; then
     # First run of Releem Agent to check MySQL Performance Score
-    printf "\033[34m\n* Executing Releem Agent for first time...\033[0m\n"
+    printf "\033[37m\n* Executing Releem Agent for first time...\033[0m\n"
     $sudo_cmd $RELEEM_COMMAND
 fi
 
 RELEEM_CRON="* * * * * PATH=/bin:/sbin:/usr/bin:/usr/sbin $RELEEM_COMMAND -c"
 
 if [ -z "$RELEEM_CRON_ENABLE" ]; then
-    printf "\033[34m* Please add the following string in crontab to get recommendations:\033[0m\n"
+    printf "\033[37m* Please add the following string in crontab to get recommendations:\033[0m\n"
     printf "\033[32m$RELEEM_CRON\033[0m\n\n"
     read -p "Can we do it automatically? (Y/N) " -n 1 -r
     echo    # move to a new line
@@ -289,9 +289,9 @@ elif [ "$RELEEM_CRON_ENABLE" -gt 0 ]; then
     releem_set_cron
 fi
 
-printf "\033[34m\n\033[0m"
-printf "\033[34m* To run Releem Agent manually please use the following command:\033[0m\n"
+printf "\033[37m\n\033[0m"
+printf "\033[37m* To run Releem Agent manually please use the following command:\033[0m\n"
 printf "\033[32m$RELEEM_COMMAND\033[0m\n\n"
-printf "\033[34m* To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics\033[0m"
-printf "\033[34m\n\033[0m"
+printf "\033[37m* To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics\033[0m"
+printf "\033[37m\n\033[0m"
 curl -s -d @$logfile -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v1/saving_log

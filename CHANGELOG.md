@@ -2,6 +2,21 @@ Releem releases
 ---
 Information about releases of the Releem Agent.
 
+Releem 0.9.7, 2022-10-31
+- Added installation logs collection.
+- Improved metrics collection using new Releem Agent implemented using Go.
+- Improved installation. Removed cron to collect metrics.
+- Redesigned front page of Releem Customer Portal.
+- Fixed run installation with sudo user.
+
+Releem 0.9.6, 2022-09-30
+- Added Queries per Second metric collection
+- Added graph QPS in Releem Customer Portal
+- Redesigned Dashboard in Releem Customer Portal
+- Added Weekly Reelem Reports
+- Improved server metrics aggregation algorithm (hostnames instead IP adresses) Closes #100
+- Fixed warning during execution. Closes #93
+
 Releem 0.9.5, 2022-08-31
 - Added Apply recommended MySQL configuration and rollback to previous configuration. Closes #63
 - Added Automatic update.

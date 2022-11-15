@@ -1,5 +1,5 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 0.9.8
+# mysqlconfigurer.sh - Version 0.9.9
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -10,7 +10,7 @@ MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH"mysqltuner.pl"
 MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 MYSQLCONFIGURER_CONFIGFILE=$MYSQLCONFIGURER_PATH"z_aiops_mysql.cnf"
 MYSQL_MEMORY_LIMIT=0
-VERSION="0.9.8"
+VERSION="0.9.9"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 
 function update_agent() {
@@ -342,4 +342,3 @@ done
 
 get_config
 update_agent
-

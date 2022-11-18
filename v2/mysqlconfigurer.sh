@@ -130,11 +130,7 @@ function releem_ps_mysql() {
     if [ "$status_slowlog" != "ON" ]; then
         FLAG_CONFIGURE=0
     fi
-    if [ "$FLAG_CONFIGURE" -eq 1 ]; then
-        printf "\033[37m\n * Performance schema is enabled for collecting metrics.\033[0m\n"
-        printf "\033[37m\n * Slow Log is enabled for collecting metrics.\033[0m\n"
-        exit 0
-    fi
+
     if [ -d "$RELEEM_MYSQL_CONFIG_DIR" ]; then
         printf "\033[37m\n * Enabling Performance schema and Slow Log for collecting metrics...\n\033[0m\n"
         echo -e "### This configuration was recommended by Releem. https://releem.com\n[mysqld]\nperformance_schema = 1\nslow_query_log = 1" > "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf"
@@ -142,6 +138,11 @@ function releem_ps_mysql() {
         printf "\033[31m\n MySQL configuration directory is not found.\033[0m"
         printf "\033[31m\n Try to reinstall Releem Agent.\033[0m"
         exit 1;
+    fi
+    if [ "$FLAG_CONFIGURE" -eq 1 ]; then
+        printf "\033[37m\n * Performance schema  and SlowLog is enabled for collecting metrics.\033[0m\n"
+        printf "\033[37m\n * Slow Log is enabled for collecting metrics.\033[0m\n"
+        exit 0
     fi
     printf "\033[37m To apply changes to the mysql configuration, you need to restart the service\n\033[0m\n"
     FLAG_RESTART_SERVICE=1

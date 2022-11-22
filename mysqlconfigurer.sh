@@ -276,6 +276,7 @@ function get_config() {
   if [ ! -f "$MYSQLTUNER_FILENAME" ]; then
       # Download latest version of the MySQLTuner
       curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/fdd42e76857532002b8037cafddec3e38983dde8/mysqltuner.pl
+      chmod +x $MYSQLTUNER_FILENAME
   fi
 
   echo -e "\033[37m\n* Collecting metrics to recommend a config...\033[0m"

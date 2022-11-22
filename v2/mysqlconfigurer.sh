@@ -1,5 +1,5 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 1.0.0
+# mysqlconfigurer.sh - Version 1.0.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -11,7 +11,7 @@ MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH"mysqltuner.pl"
 MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
 MYSQL_MEMORY_LIMIT=0
-VERSION="1.0.0"
+VERSION="1.0.1"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 
 function update_agent() {
@@ -337,6 +337,7 @@ function get_config() {
   if [ ! -f "$MYSQLTUNER_FILENAME" ]; then
       # Download latest version of the MySQLTuner
       curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/fdd42e76857532002b8037cafddec3e38983dde8/mysqltuner.pl
+      chmod +x $MYSQLTUNER_FILENAME
   fi
 
   echo -e "\033[37m\n * Collecting metrics to recommend a config...\033[0m"
@@ -398,17 +399,15 @@ fi
 # Parse parameters
 while getopts "k:m:arcpu" option
 do
-case "${option}"
-in
-k) RELEEM_API_KEY=${OPTARG};;
-m) MYSQL_MEMORY_LIMIT=${OPTARG};;
-a) releem_apply_config;;
-r) releem_rollback_config;;
-c) releem_runnig_cron;;
-p) releem_ps_mysql;;
-u) update_agent; exit 0;;
-esac
+  case "${option}" in
+    k) RELEEM_API_KEY=${OPTARG};;
+    m) MYSQL_MEMORY_LIMIT=${OPTARG};;
+    a) releem_apply_config;;
+    r) releem_rollback_config;;
+    c) releem_runnig_cron;;
+    p) releem_ps_mysql;;
+    u) update_agent; exit 0;;
+  esac
 done
 
 get_config
-update_agent

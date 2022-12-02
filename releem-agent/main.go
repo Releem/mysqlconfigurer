@@ -35,14 +35,11 @@ type Service struct {
 }
 
 // Manage by daemon commands or run the daemon
-func (service *Service) Manage(logger logging.Logger) (string, error) {
-
+func (service *Service) Manage(logger logging.Logger, configFile string, command []string) (string, error) {
 	usage := "Usage: myservice install | remove | start | stop | status"
-
-	// if received any kind of command, do it
-	if len(os.Args) > 1 {
-		command := os.Args[1]
-		switch command {
+	logger.Println(command,len(command))
+	if len(command) >= 1 {
+		switch command[0] {
 		case "install":
 			return service.Install()
 		case "remove":
@@ -57,14 +54,13 @@ func (service *Service) Manage(logger logging.Logger) (string, error) {
 			return usage, nil
 		}
 	}
-	logger.Println("Starting releem-agent of version is", ReleemAgentVersion)
 
-	// Do something, call your goroutines, etc
-	configFile := flag.String("config", "/opt/releem/releem.conf", "Releem config")
-	configuration, err := config.LoadConfig(*configFile, logger)
+	logger.Println("Starting releem-agent of version is", ReleemAgentVersion)
+	configuration, err := config.LoadConfig(configFile, logger)
 	if err != nil {
 		logger.PrintError("Config load failed", err)
 	}
+	time.Sleep(10* time.Second)
 
 	db, err := sql.Open("mysql", configuration.MysqlUser + ":" + configuration.MysqlPassword + "@tcp(" + configuration.MysqlHost + ":" + configuration.MysqlPort + ")/mysql")
 	if err != nil {
@@ -87,25 +83,89 @@ func (service *Service) Manage(logger logging.Logger) (string, error) {
 		m.NewMysqlVariablesMetricsGatherer(nil, db, configuration),
 		m.NewMysqlLatencyMetricsGatherer(nil, db, configuration)}
 
-	m.RunWorker(gatherers, repeaters, nil, configuration, *configFile, ReleemAgentVersion)
+	m.RunWorker(gatherers, repeaters, nil, configuration, configFile, ReleemAgentVersion)
 
 	// never happen, but need to complete code
 	return usage, nil
 }
 
+func isFlagPassed(name string) bool {
+    found := false
+    flag.Visit(func(f *flag.Flag) {
+        if f.Name == name {
+            found = true
+        }
+    })
+    return found
+}
+
 func main() {
 	logger = logging.NewSimpleLogger("Main")
-	srv, err := daemon.New(name, description, daemon.SystemDaemon, dependencies...)
-	if err != nil {
-		logger.PrintError("Error: ", err)
-		os.Exit(1)
-	}
 
-	service := &Service{srv}
-	status, err := service.Manage(logger)
-	if err != nil {
-		logger.Println(status, "\nError: ", err)
-		os.Exit(1)
+	daemonMode := flag.Bool("d", false, "Run agent as daemon")
+	configFile := flag.String("config", "/opt/releem/releem.conf", "Releem config")
+	flag.Parse()
+	command := flag.Args()
+
+	logger.Println(*configFile,len(*configFile))
+
+	if *daemonMode {
+		var cmd *exec.Cmd
+		var updater = &selfupdate.Updater{
+			CurrentVersion: ReleemAgentVersion,
+			ApiURL:         "http://updates.yourdomain.com/",
+			BinURL:         "http://updates.yourdomain.com/",
+			DiffURL:        "http://updates.yourdomain.com/",
+			Dir:            "update/",
+			CmdName:        "myapp", // app name
+	  	ForceCheck: true,
+		}
+		if isFlagPassed("config") {
+			if len(command) > 0 {
+				cmd = exec.Command(os.Args[0], "--config=" + *configFile, strings.Join(command, " "))
+			} else {
+				cmd = exec.Command(os.Args[0], "--config=" + *configFile)
+			}
+		} else {
+			if len(command) > 0 {
+				cmd = exec.Command(os.Args[0], strings.Join(command, " "))
+			} else {
+				cmd = exec.Command(os.Args[0])
+			}
+		}
+
+  	cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Start(); err != nil {
+			logger.PrintError("Error: ", err)
+		}
+		timerUpdate := time.NewTimer(5 * time.Second)
+		for {
+			select {
+			case <-timerUpdate.C:
+				logger.Println("Timer update tick")
+				timerUpdate.Reset(5 * time.Second)
+				if updater != nil {
+					updater.BackgroundRun()
+					logger.Printf("Next run, I should be %v", updater.Info.Version)
+
+				}
+			}
+		}
+		//cmd.Wait()
+
+	}	else {
+		srv, err := daemon.New(name, description, daemon.SystemDaemon, dependencies...)
+		if err != nil {
+			logger.PrintError("Error: ", err)
+			os.Exit(1)
+		}
+		service := &Service{srv}
+		status, err := service.Manage(logger, *configFile, command)
+		if err != nil {
+			logger.Error(status, "\nError: ", err)
+			os.Exit(1)
+		}
+		logger.Println(status)
 	}
-	logger.Println(status)
 }

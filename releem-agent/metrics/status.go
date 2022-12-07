@@ -32,13 +32,13 @@ func NewMysqlStatusMetricsGatherer(logger logging.Logger, db *sql.DB, configurat
 
 func (status *MysqlStatusMetricsGatherer) GetMetrics() (Metric, error) {
 
-	output := make(MetricGroupValue)
+	output := make(map[string]interface{})
 
 	rows, err := status.db.Query("SHOW STATUS")
 	if err != nil {
 		status.logger.Error(err)
 		metrics := Metric{"Status": output}
-		status.logger.Debugf("collectMetrics %s", output)
+		status.logger.Debug("collectMetrics ", output)
 		return metrics, nil
 	}
 	defer rows.Close()
@@ -55,7 +55,7 @@ func (status *MysqlStatusMetricsGatherer) GetMetrics() (Metric, error) {
 	if err != nil {
 		status.logger.Error(err)
 		metrics := Metric{"Status": output}
-		status.logger.Debugf("collectMetrics %s", output)
+		status.logger.Debug("collectMetrics ", output)
 		return metrics, nil
 	}
 	defer rows.Close()
@@ -67,7 +67,7 @@ func (status *MysqlStatusMetricsGatherer) GetMetrics() (Metric, error) {
 		output[row.name] = row.value
 	}
 	metrics := Metric{"Status": output}
-	status.logger.Debugf("collectMetrics %s", output)
+	status.logger.Debug("collectMetrics ", output)
 
 	return metrics, nil
 

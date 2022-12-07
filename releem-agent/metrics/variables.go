@@ -32,13 +32,13 @@ func NewMysqlVariablesMetricsGatherer(logger logging.Logger, db *sql.DB, configu
 
 func (variables *MysqlVariablesMetricsGatherer) GetMetrics() (Metric, error) {
 
-	output := make(MetricGroupValue)
+	output := make(map[string]interface{})
 
 	rows, err := variables.db.Query("SHOW VARIABLES")
 	if err != nil {
 		variables.logger.Error(err)
 		metrics := Metric{"Variables": output}
-		variables.logger.Debugf("collectMetrics %s", output)
+		variables.logger.Debug("collectMetrics ", output)
 		return metrics, nil
 	}
 	defer rows.Close()
@@ -56,7 +56,7 @@ func (variables *MysqlVariablesMetricsGatherer) GetMetrics() (Metric, error) {
 	if err != nil {
 		variables.logger.Error(err)
 		metrics := Metric{"Variables": output}
-		variables.logger.Debugf("collectMetrics %s", output)
+		variables.logger.Debug("collectMetrics ", output)
 		return metrics, nil
 	}
 	defer rows.Close()
@@ -69,7 +69,7 @@ func (variables *MysqlVariablesMetricsGatherer) GetMetrics() (Metric, error) {
 		output[row.name] = row.value
 	}
 	metrics := Metric{"Variables": output}
-	variables.logger.Debugf("collectMetrics %s", output)
+	variables.logger.Debug("collectMetrics ", output)
 
 	return metrics, nil
 

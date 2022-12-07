@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"os"
-	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -20,8 +19,8 @@ func makeTerminateChannel() <-chan os.Signal {
 	return ch
 }
 
-func RunWorker(gatherers []MetricsGatherer, repeaters []MetricsRepeater, logger logging.Logger,
-	configuration *config.Config, configFile string, ReleemAgentVersion string) {
+func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeater, logger logging.Logger,
+	configuration *config.Config, configFile string) {
 
 	if logger == nil {
 		if configuration.Debug {
@@ -61,23 +60,36 @@ func RunWorker(gatherers []MetricsGatherer, repeaters []MetricsRepeater, logger 
 				logger.Debug("LOADED NEW CONFIG", "APIKEY", configuration.GetApiKey())
 			}
 		case <-GenerateTimer.C:
-			logger.Println("Generating the recommended configuration")
-			cmd := exec.Command("/bin/bash", "/opt/releem/mysqlconfigurer.sh")
-			cmd.Env = os.Environ()
-			cmd.Env = append(cmd.Env, "PATH=/bin:/sbin:/usr/bin:/usr/sbin")
-			stdout, err := cmd.Output()
-			if err != nil {
-				logger.PrintError("Config generation with error", err)
-			}
-			logger.Debug(string(stdout))
+			logger.Debug("Timer collect metrics tick")
+			metrics := collectMetrics(gatherers, logger)
+			processConfigurations(metrics, repeaters, configuration, logger)
+
+			// logger.Println("Generating the recommended configuration")
+			// cmd := exec.Command("/bin/bash", "/opt/releem/mysqlconfigurer.sh")
+			// cmd.Env = os.Environ()
+			// cmd.Env = append(cmd.Env, "PATH=/bin:/sbin:/usr/bin:/usr/sbin")
+			// stdout, err := cmd.Output()
+			// if err != nil {
+			// 	logger.PrintError("Config generation with error", err)
+			// }
+			// logger.Debug(string(stdout))
 			GenerateTimer.Reset(configuration.GenerateConfigSeconds * time.Second)
 		}
 	}
 }
 
-func processMetrics(metrics Metric, repeaters []MetricsRepeater,
+func processMetrics(metrics Metric, repeaters map[string][]MetricsRepeater,
 	configuration *config.Config, logger logging.Logger) {
-	for _, r := range repeaters {
+	for _, r := range repeaters["Metrics"] {
+		if err := r.ProcessMetrics(configuration, metrics); err != nil {
+			logger.PrintError("Repeater failed", err)
+		}
+	}
+}
+
+func processConfigurations(metrics Metric, repeaters map[string][]MetricsRepeater,
+	configuration *config.Config, logger logging.Logger) {
+	for _, r := range repeaters["Configurations"] {
 		if err := r.ProcessMetrics(configuration, metrics); err != nil {
 			logger.PrintError("Repeater failed", err)
 		}

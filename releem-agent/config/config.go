@@ -8,6 +8,10 @@ import (
 	"github.com/hashicorp/hcl"
 )
 
+const (
+	ReleemAgentVersion = "1.0.1"
+)
+
 type Config struct {
 	Debug                 bool          `hcl:"debug"`
 	Env                   string        `hcl:"env"`
@@ -22,6 +26,7 @@ type Config struct {
 	CommandRestartService string        `hcl:"mysql_restart_service"`
 	MysqlConfDir          string        `hcl:"mysql_cnf_dir"`
 	ReleemConfDir         string        `hcl:"releem_cnf_dir"`
+	MemoryLimit           int           `hcl:"memory_limit"`
 }
 
 func LoadConfig(filename string, logger logging.Logger) (*Config, error) {
@@ -68,4 +73,11 @@ func (config *Config) GetApiKey() string {
 }
 func (config *Config) GetEnv() string {
 	return config.Env
+}
+
+func (config *Config) GetMemoryLimit() int {
+	return config.MemoryLimit
+}
+func (config *Config) GetReleemConfDir() string {
+	return config.ReleemConfDir
 }

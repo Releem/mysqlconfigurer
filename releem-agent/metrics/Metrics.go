@@ -7,7 +7,7 @@ type MetricValue struct {
 	name  string
 	value string
 }
-type MetricGroupValue map[string]string
+type MetricGroupValue map[string]interface{}
 
 type Metric map[string]MetricGroupValue
 
@@ -21,6 +21,8 @@ type Metric map[string]MetricGroupValue
 type MetricContext interface {
 	GetApiKey() string
 	GetEnv() string
+	GetMemoryLimit() int
+	GetReleemConfDir() string
 }
 
 type MetricsGatherer interface {

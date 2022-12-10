@@ -3,6 +3,8 @@ package main
 
 import (
 	"flag"
+	"io/fs"
+	"net"
 	"os"
 
 	"github.com/Releem/daemon"
@@ -32,6 +34,14 @@ var logger logging.Logger
 // Service has embedded daemon
 type Service struct {
 	daemon.Daemon
+}
+
+func IsSocket(path string, logger logging.Logger) bool {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		logger.PrintError("Config load failed", err)
+	}
+	return fileInfo.Mode().Type() == fs.ModeSocket
 }
 
 // Manage by daemon commands or run the daemon
@@ -65,8 +75,12 @@ func (service *Service) Manage(logger logging.Logger) (string, error) {
 	if err != nil {
 		logger.PrintError("Config load failed", err)
 	}
-
-	db, err := sql.Open("mysql", configuration.MysqlUser + ":" + configuration.MysqlPassword + "@tcp(" + configuration.MysqlHost + ":" + configuration.MysqlPort + ")/mysql")
+	var db *sql.DB
+	if IsSocket(configuration.MysqlHost, logger) {
+		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@unix("+configuration.MysqlHost+")/mysql")
+	} else if addr := net.ParseIP(configuration.MysqlHost); addr != nil {
+		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@tcp("+configuration.MysqlHost+":"+configuration.MysqlPort+")/mysql")
+	}
 	if err != nil {
 		logger.PrintError("Connection opening to failed", err)
 	}

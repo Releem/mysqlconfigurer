@@ -39,7 +39,7 @@ type Service struct {
 func IsSocket(path string, logger logging.Logger) bool {
 	fileInfo, err := os.Stat(path)
 	if err != nil {
-		logger.PrintError("Config load failed", err)
+		return false
 	}
 	return fileInfo.Mode().Type() == fs.ModeSocket
 }

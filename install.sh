@@ -104,8 +104,7 @@ if [ -n "$RELEEM_MYSQL_PORT" ]; then
 else
     connection_string="${connection_string} --port=3306"
 fi
-echo "Connection string ${connection_string}"
-echo "Connection root string ${root_connection_string}"
+
 
 
 # Root user detection
@@ -288,7 +287,7 @@ if [ "$FLAG_SUCCESS" == "1" ]; then
         MYSQL_PASSWORD=$RELEEM_MYSQL_PASSWORD
     else
         printf "\033[31m\n Connect to mysql failed with user \`${RELEEM_MYSQL_LOGIN}\` with error:\033[0m\n"
-        mysqladmin ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping
+        mysqladmin ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping || true
         printf "\033[31m\n Check that the user and password is correct, the execution of the command \`mysqladmin ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping\` and reinstall the agent. \033[0m\n"
         exit 1
     fi

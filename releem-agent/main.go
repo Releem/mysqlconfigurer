@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/Releem/mysqlconfigurer/releem-agent/config"
 	m "github.com/Releem/mysqlconfigurer/releem-agent/metrics"
 	r "github.com/Releem/mysqlconfigurer/releem-agent/repeater"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -66,7 +69,7 @@ func (service *Service) Manage(logger logging.Logger) (string, error) {
 		logger.PrintError("Config load failed", err)
 	}
 
-	db, err := sql.Open("mysql", configuration.MysqlUser + ":" + configuration.MysqlPassword + "@tcp(" + configuration.MysqlHost + ":" + configuration.MysqlPort + ")/mysql")
+	db, err := sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@tcp("+configuration.MysqlHost+":"+configuration.MysqlPort+")/mysql")
 	if err != nil {
 		logger.PrintError("Connection opening to failed", err)
 	}
@@ -86,6 +89,26 @@ func (service *Service) Manage(logger logging.Logger) (string, error) {
 		m.NewMysqlStatusMetricsGatherer(nil, db, configuration),
 		m.NewMysqlVariablesMetricsGatherer(nil, db, configuration),
 		m.NewMysqlLatencyMetricsGatherer(nil, db, configuration)}
+
+	// Select how we collect instance metrics depending on InstanceType
+	switch configuration.InstanceType {
+	case "aws/rds":
+		logger.Println("InstanceType is aws/rds")
+		logger.Println("Loading AWS configuration")
+
+		awscfg, err := awsconfig.LoadDefaultConfig(context.TODO(), awsconfig.WithRegion(configuration.AwsRegion))
+		if err != nil {
+			logger.PrintError("Load AWS configuration FAILED", err)
+		} else {
+			logger.Println("AWS configuration loaded SUCCESS")
+		}
+
+		cwclient := cloudwatch.NewFromConfig(awscfg)
+
+		gatherers = append(gatherers, m.NewAWSRDSMetricsGatherer(nil, cwclient, configuration))
+	default:
+		logger.Println("InstanceType is Local")
+	}
 
 	m.RunWorker(gatherers, repeaters, nil, configuration, *configFile, ReleemAgentVersion)
 

@@ -22,6 +22,9 @@ type Config struct {
 	CommandRestartService string        `hcl:"mysql_restart_service"`
 	MysqlConfDir          string        `hcl:"mysql_cnf_dir"`
 	ReleemConfDir         string        `hcl:"releem_cnf_dir"`
+	InstanceType          string        `hcl:"instance_type"`
+	AwsRegion             string        `hcl:"aws_region"`
+	AwsRDSDB              string        `hcl:"aws_rds_db"`
 }
 
 func LoadConfig(filename string, logger logging.Logger) (*Config, error) {

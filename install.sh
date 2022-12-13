@@ -76,6 +76,37 @@ if [ ! "$apikey" ]; then
     exit 1;
 fi
 
+connection_string=""  
+root_connection_string=""
+if [ -n "$RELEEM_MYSQL_HOST" ]; then
+    if [[ $RELEEM_MYSQL_HOST =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        if [ "$RELEEM_MYSQL_HOST" == "127.0.0.1" ]; then
+            mysql_user_host="127.0.0.1"
+        else
+            mysql_user_host="%"
+        fi
+        connection_string="${connection_string} --host=${RELEEM_MYSQL_HOST}"
+    elif [ -S "$RELEEM_MYSQL_HOST" ]; then
+        mysql_user_host="localhost"
+        connection_string="${connection_string} --socket=${RELEEM_MYSQL_HOST}"
+        root_connection_string="${root_connection_string} --socket=${RELEEM_MYSQL_HOST}"
+    else
+        printf "\033[31m The variable RELEEM_MYSQL_HOST has an incorrect value. The value must be an ip address or a socket file.\033[0m\n"
+        exit 1;
+    fi
+else
+    mysql_user_host="127.0.0.1"
+    connection_string="${connection_string} --host=127.0.0.1"
+fi
+
+if [ -n "$RELEEM_MYSQL_PORT" ]; then
+    connection_string="${connection_string} --port=${RELEEM_MYSQL_PORT}"
+else
+    connection_string="${connection_string} --port=3306"
+fi
+
+
+
 # Root user detection
 if [ "$(echo "$UID")" = "0" ]; then
     sudo_cmd=''
@@ -227,36 +258,37 @@ FLAG_SUCCESS=0
 if [ -n "$RELEEM_MYSQL_PASSWORD" ] && [ -n "$RELEEM_MYSQL_LOGIN" ]; then
     FLAG_SUCCESS=1
 elif [ -n "$RELEEM_MYSQL_ROOT_PASSWORD" ]; then
-    if [[ $(mysqladmin --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping 2>/dev/null) == "mysqld is alive" ]];
+    if [[ $(mysqladmin ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping 2>/dev/null) == "mysqld is alive" ]];
     then
         # printf "\033[32m\n MySQL connect successfully!\033[0m\n"
         RELEEM_MYSQL_LOGIN="releem"
         RELEEM_MYSQL_PASSWORD=$(cat /dev/urandom | tr -cd '%*)?@#~A-Za-z0-9%*)?@#~' | head -c16 )
-        mysql --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "DROP USER '${RELEEM_MYSQL_LOGIN}'@'127.0.0.1' ;" 2>/dev/null || true
-        mysql --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "CREATE USER '${RELEEM_MYSQL_LOGIN}'@'127.0.0.1' identified by '${RELEEM_MYSQL_PASSWORD}';" 2>/dev/null
-        mysql --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT, PROCESS,EXECUTE, REPLICATION CLIENT,SHOW DATABASES,SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'127.0.0.1';" 2>/dev/null
+        mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "DROP USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' ;" 2>/dev/null || true
+        mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "CREATE USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' identified by '${RELEEM_MYSQL_PASSWORD}';" 2>/dev/null
+        mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT, PROCESS,EXECUTE, REPLICATION CLIENT,SHOW DATABASES,SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 2>/dev/null
         printf "\033[32m\n Created new user \`${RELEEM_MYSQL_LOGIN}\`\033[0m\n"
         FLAG_SUCCESS=1
     else
         printf "\033[31m\n MySQL connect failed with user root with error:\033[0m\n"
-        mysqladmin --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping
-        printf "\033[31m\n Check that the password is correct, the execution of the command \`mysqladmin --user=root --password=<root password> ping\` and reinstall the agent.\033[0m\n"
+        mysqladmin  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping || true
+        printf "\033[31m\n Check that the password is correct, the execution of the command \`mysqladmin  ${root_connection_string}  --user=root --password=<root password> ping\` and reinstall the agent.\033[0m\n"
         exit 1
     fi
 else
     printf "\033[31m\n Variable RELEEM_MYSQL_ROOT_PASSWORD not found.\n Please, reinstall the agent by setting the \"RELEEM_MYSQL_ROOT_PASSWORD\" variable\033[0m\n"
     exit 1
 fi
+
 if [ "$FLAG_SUCCESS" == "1" ]; then
-    if [[ $(mysqladmin --host=127.0.0.1 --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping 2>/dev/null) == "mysqld is alive" ]];
+    if [[ $(mysqladmin ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping 2>/dev/null) == "mysqld is alive" ]];
     then
         printf "\033[32m\n Connect to mysql successfully with user \`${RELEEM_MYSQL_LOGIN}\`\033[0m\n"
         MYSQL_LOGIN=$RELEEM_MYSQL_LOGIN
         MYSQL_PASSWORD=$RELEEM_MYSQL_PASSWORD
     else
         printf "\033[31m\n Connect to mysql failed with user \`${RELEEM_MYSQL_LOGIN}\` with error:\033[0m\n"
-        mysqladmin --host=127.0.0.1 --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping
-        printf "\033[31m\n Check that the user and password is correct, the execution of the command \`mysqladmin --host=127.0.0.1 --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping\` and reinstall the agent. \033[0m\n"
+        mysqladmin ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping || true
+        printf "\033[31m\n Check that the user and password is correct, the execution of the command \`mysqladmin ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping\` and reinstall the agent. \033[0m\n"
         exit 1
     fi
 fi
@@ -311,6 +343,14 @@ if [ -n "$MYSQL_LOGIN" ] && [ -n "$MYSQL_PASSWORD" ]; then
     printf "\033[37m - Adding user and password mysql to the Releem Agent configuration: $CONF\n\033[0m"
 	echo "mysql_user=\"$MYSQL_LOGIN\"" | $sudo_cmd tee -a $CONF >/dev/null
 	echo "mysql_password=\"$MYSQL_PASSWORD\"" | $sudo_cmd tee -a $CONF >/dev/null
+fi
+if [ -n "$RELEEM_MYSQL_HOST" ]; then
+    printf "\033[37m - Adding host mysql to the Releem Agent configuration: $CONF\n\033[0m"
+	echo "mysql_host=\"$RELEEM_MYSQL_HOST\"" | $sudo_cmd tee -a $CONF >/dev/null
+fi
+if [ -n "$RELEEM_MYSQL_PORT" ]; then
+    printf "\033[37m - Adding port mysql to the Releem Agent configuration: $CONF\n\033[0m"
+	echo "mysql_port=\"$RELEEM_MYSQL_PORT\"" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 if [ -n "$MYSQL_LIMIT" ]; then
     printf "\033[37m - Adding Memory Limit to the Releem Agent configuration: $CONF\n\033[0m"

@@ -34,7 +34,7 @@ function wait_restart() {
 #  echo -n "Waiting for restarted mysql ${spin[0]}"
   printf "\033[37m\n Waiting for mysql service to start 120 seconds ${spin[0]}"
 
-  while !(mysqladmin --host=${MYSQL_HOST} --port=${MYSQL_PORT} --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping > /dev/null 2>&1)
+  while !(mysqladmin ${connection_string} --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping > /dev/null 2>&1)
   do
     flag=$(($flag + 1))
     if [ $flag == 120 ]; then
@@ -110,7 +110,7 @@ function releem_rollback_config() {
     printf "\033[31m\n * Restarting with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
     eval "$RELEEM_MYSQL_RESTART_SERVICE" &
     wait_restart
-    if [[ $(mysqladmin  --host=${MYSQL_HOST} --port=${MYSQL_PORT}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null) == "mysqld is alive" ]];
+    if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null) == "mysqld is alive" ]];
     then
         printf "\033[32m\n * MySQL service started successfully!\033[0m\n"
     else
@@ -121,12 +121,12 @@ function releem_rollback_config() {
 
 function releem_ps_mysql() {
     FLAG_CONFIGURE=1
-    status_ps=$(mysql  --host=${MYSQL_HOST} --port=${MYSQL_PORT}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'performance_schema'" 2>/dev/null | awk '{print $2}')
+    status_ps=$(mysql  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'performance_schema'" 2>/dev/null | awk '{print $2}')
     if [ "$status_ps" != "ON" ]; then
         FLAG_CONFIGURE=0
     fi
 
-    status_slowlog=$(mysql  --host=${MYSQL_HOST} --port=${MYSQL_PORT}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'slow_query_log'" 2>/dev/null | awk '{print $2}')
+    status_slowlog=$(mysql  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'slow_query_log'" 2>/dev/null | awk '{print $2}')
     if [ "$status_slowlog" != "ON" ]; then
         FLAG_CONFIGURE=0
     fi
@@ -166,7 +166,7 @@ function releem_ps_mysql() {
     printf "\033[37m Restarting service with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
     eval "$RELEEM_MYSQL_RESTART_SERVICE" &
     wait_restart
-    if [[ $(mysqladmin  --host=${MYSQL_HOST} --port=${MYSQL_PORT}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null) == "mysqld is alive" ]];
+    if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null) == "mysqld is alive" ]];
     then
         printf "\033[32m\n MySQL service started successfully!\033[0m\n"
         printf "\033[32m\n Performance schema and Slow Log is enabled.\033[0m\n"
@@ -225,7 +225,7 @@ function releem_apply_config() {
     eval "$RELEEM_MYSQL_RESTART_SERVICE" &
     wait_restart
 
-    if [[ $(mysqladmin  --host=${MYSQL_HOST} --port=${MYSQL_PORT}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null) == "mysqld is alive" ]];
+    if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null) == "mysqld is alive" ]];
     then
         printf "\033[32m\n MySQL service started successfully!\033[0m\n"
         printf "\033[32m\n Recommended configuration applied successfully!\033[0m\n"
@@ -343,7 +343,7 @@ function get_config() {
   echo -e "\033[37m\n * Collecting metrics to recommend a config...\033[0m"
 
   # Collect MySQL metrics
-  if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --nocolstat --noidxstat --nopfstat --forcemem=$MYSQL_MEMORY_LIMIT --outputfile="$MYSQLTUNER_REPORT" --user=${MYSQL_LOGIN} --pass=${MYSQL_PASSWORD}  --host=${MYSQL_HOST} --port=${MYSQL_PORT}  > /dev/null; then
+  if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --nocolstat --noidxstat --nopfstat --forcemem=$MYSQL_MEMORY_LIMIT --outputfile="$MYSQLTUNER_REPORT" --user=${MYSQL_LOGIN} --pass=${MYSQL_PASSWORD}  ${connection_string}  > /dev/null; then
 
       echo -e "\033[37m\n * Sending metrics to Releem Cloud Platform...\033[0m"
 
@@ -371,7 +371,7 @@ function get_config() {
   fi
 
 }
-
+connection_string=""
 if test -f $RELEEM_CONF_FILE ; then
     . $RELEEM_CONF_FILE
 
@@ -394,14 +394,18 @@ if test -f $RELEEM_CONF_FILE ; then
         MYSQL_PASSWORD=$mysql_password
     fi
     if [ ! -z "$mysql_host" ]; then
-        MYSQL_HOST=$mysql_host
+        if [ -S "$mysql_host" ]; then
+            connection_string="${connection_string} --socket=$mysql_host"
+        else
+            connection_string="${connection_string} --host=$mysql_host"
+        fi
     else
-        MYSQL_HOST="127.0.0.1"
+        connection_string="${connection_string} --host=127.0.0.1"
     fi
     if [ ! -z "$mysql_port" ]; then
-        MYSQL_PORT=$mysql_port
+        connection_string="${connection_string} --port=$mysql_port"
     else
-        MYSQL_PORT="3306"
+        connection_string="${connection_string} --port=3306"        
     fi
 fi
 

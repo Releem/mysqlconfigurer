@@ -21,6 +21,37 @@ type AWSRDSMetricsGatherer struct {
 	configuration *config.Config
 }
 
+type rdsMetric struct {
+	name string
+}
+
+var rdsMetrics = []rdsMetric{
+	{name: "BinLogDiskUsage"},
+	{name: "BurstBalance"},
+	{name: "CPUUtilization"},
+	{name: "CPUCreditUsage"},
+	{name: "CPUCreditBalance"},
+	{name: "CPUSurplusCreditBalance"},
+	{name: "CPUSurplusCreditsCharged"},
+	{name: "DatabaseConnections"},
+	{name: "DiskQueueDepth"},
+	{name: "FreeableMemory"},
+	{name: "FreeStorageSpace"},
+	{name: "LVMReadIOPS"},
+	{name: "LVMWriteIOPS"},
+	{name: "NetworkReceiveThroughput"},
+	{name: "NetworkTransmitThroughput"},
+	{name: "ReadIOPS"},
+	{name: "ReadLatency"},
+	{name: "ReadThroughput"},
+	{name: "ReplicaLag"},
+	{name: "SwapUsage"},
+	{name: "WriteIOPS"},
+	{name: "WriteLatency"},
+	{name: "WriteThroughput"},
+	{name: "NumVCPUs"},
+}
+
 func NewAWSRDSMetricsGatherer(logger logging.Logger, cwclient *cloudwatch.Client, configuration *config.Config) *AWSRDSMetricsGatherer {
 
 	if logger == nil {
@@ -41,21 +72,20 @@ func NewAWSRDSMetricsGatherer(logger logging.Logger, cwclient *cloudwatch.Client
 
 func (awsrdsmetrics *AWSRDSMetricsGatherer) GetMetrics() (Metric, error) {
 
+	MetricDataQueries := []types.MetricDataQuery{}
 	output := make(MetricGroupValue)
 
 	// Prepare request to CloudWatch
-	input := &cloudwatch.GetMetricDataInput{
-		EndTime:   aws.Time(time.Unix(time.Now().Unix(), 0)),
-		StartTime: aws.Time(time.Unix(time.Now().Add(time.Duration(-2)*time.Minute).Unix(), 0)),
-		MetricDataQueries: []types.MetricDataQuery{
+	for _, metric := range rdsMetrics {
+		MetricDataQueries = append(MetricDataQueries,
 			types.MetricDataQuery{
-				Id: aws.String("q1"),
+				Id: aws.String("id" + metric.name),
 				MetricStat: &types.MetricStat{
 					Metric: &types.Metric{
 						Namespace:  aws.String("AWS/RDS"),
-						MetricName: aws.String("CPUUtilization"),
+						MetricName: aws.String(metric.name),
 						Dimensions: []types.Dimension{
-							types.Dimension{
+							{
 								Name:  aws.String("DBInstanceIdentifier"),
 								Value: aws.String(awsrdsmetrics.configuration.AwsRDSDB),
 							},
@@ -64,8 +94,13 @@ func (awsrdsmetrics *AWSRDSMetricsGatherer) GetMetrics() (Metric, error) {
 					Period: aws.Int32(60),
 					Stat:   aws.String("Average"),
 				},
-			},
-		},
+			})
+	}
+
+	input := &cloudwatch.GetMetricDataInput{
+		EndTime:           aws.Time(time.Unix(time.Now().Unix(), 0)),
+		StartTime:         aws.Time(time.Unix(time.Now().Add(time.Duration(-2)*time.Minute).Unix(), 0)),
+		MetricDataQueries: MetricDataQueries,
 	}
 
 	// Request to CloudWatch
@@ -86,11 +121,12 @@ func (awsrdsmetrics *AWSRDSMetricsGatherer) GetMetrics() (Metric, error) {
 
 	// Prepare results
 	for _, r := range result.MetricDataResults {
-		awsrdsmetrics.logger.Debugf("Metric ID ", *r.Id)
-		awsrdsmetrics.logger.Debugf("Metric Label", *r.Label)
+		awsrdsmetrics.logger.Debugf("Metric ID %s", *r.Id)
+		awsrdsmetrics.logger.Debugf("Metric Label %s", *r.Label)
 
 		if len(r.Values) > 0 {
 			output[*r.Label] = fmt.Sprintf("%f", r.Values[0])
+			awsrdsmetrics.logger.Debugf("Metric Timestamp %s", r.Timestamps[0])
 		} else {
 			awsrdsmetrics.logger.Debugf("CloudWatch.GetMetricData no Values for ", *r.Label)
 		}

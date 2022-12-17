@@ -18,6 +18,8 @@ import (
 	r "github.com/Releem/mysqlconfigurer/releem-agent/repeater"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -118,8 +120,11 @@ func (service *Service) Manage(logger logging.Logger) (string, error) {
 		}
 
 		cwclient := cloudwatch.NewFromConfig(awscfg)
+		rdsclient := rds.NewFromConfig(awscfg)
+		ec2client := ec2.NewFromConfig(awscfg)
 
 		gatherers = append(gatherers, m.NewAWSRDSMetricsGatherer(nil, cwclient, configuration))
+		gatherers = append(gatherers, m.NewAWSRDSInstanceGatherer(nil, rdsclient, ec2client, configuration))
 	default:
 		logger.Println("InstanceType is Local")
 	}

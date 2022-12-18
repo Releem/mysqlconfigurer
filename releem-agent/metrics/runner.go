@@ -51,6 +51,7 @@ func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeat
 			timer.Reset(configuration.TimePeriodSeconds * time.Second)
 			metrics := collectMetrics(gatherers, logger)
 			processMetrics(metrics, repeaters, configuration, logger)
+
 		case <-configTimer.C:
 			configTimer.Reset(configuration.ReadConfigSeconds * time.Second)
 			if newConfig, err := config.LoadConfig(configFile, logger); err != nil {
@@ -78,7 +79,7 @@ func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeat
 	}
 }
 
-func processMetrics(metrics Metric, repeaters map[string][]MetricsRepeater,
+func processMetrics(metrics Metrics, repeaters map[string][]MetricsRepeater,
 	configuration *config.Config, logger logging.Logger) {
 	for _, r := range repeaters["Metrics"] {
 		if err := r.ProcessMetrics(configuration, metrics); err != nil {
@@ -87,7 +88,7 @@ func processMetrics(metrics Metric, repeaters map[string][]MetricsRepeater,
 	}
 }
 
-func processConfigurations(metrics Metric, repeaters map[string][]MetricsRepeater,
+func processConfigurations(metrics Metrics, repeaters map[string][]MetricsRepeater,
 	configuration *config.Config, logger logging.Logger) {
 	for _, r := range repeaters["Configurations"] {
 		if err := r.ProcessMetrics(configuration, metrics); err != nil {
@@ -96,28 +97,12 @@ func processConfigurations(metrics Metric, repeaters map[string][]MetricsRepeate
 	}
 }
 
-func collectMetrics(gatherers []MetricsGatherer, logger logging.Logger) Metric {
-	metrics := make(Metric)
+func collectMetrics(gatherers []MetricsGatherer, logger logging.Logger) Metrics {
+	var metrics Metrics
 	for _, g := range gatherers {
-		m, err := g.GetMetrics()
+		err := g.GetMetrics(&metrics)
 		if err != nil {
 			logger.PrintError("Problem getting metrics from gatherer", err)
-		}
-		for k, v := range m {
-			if len(v) == 0 {
-				_, found := metrics[k]
-				if !found {
-					metrics[k] = make(MetricGroupValue)
-				}
-			} else {
-				for k1, v1 := range v {
-					_, found := metrics[k]
-					if !found {
-						metrics[k] = make(MetricGroupValue)
-					}
-					metrics[k][k1] = v1
-				}
-			}
 		}
 	}
 	return metrics

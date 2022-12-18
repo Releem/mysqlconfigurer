@@ -28,14 +28,13 @@ func NewAgentMetricsGatherer(logger logging.Logger, configuration *config.Config
 	}
 }
 
-func (Agent *AgentMetricsGatherer) GetMetrics() (Metric, error) {
+func (Agent *AgentMetricsGatherer) GetMetrics(metrics *Metrics) error {
 
 	output := make(map[string]interface{})
+	output["Version"] = config.ReleemAgentVersion
+	metrics.ReleemAgent.Info = output
 
-	output["version"] = config.ReleemAgentVersion
-
-	metrics := Metric{"ReleemAgent": output}
-	Agent.logger.Debug("collectMetrics ", output)
-	return metrics, nil
+	Agent.logger.Debug("CollectMetrics  ", output)
+	return nil
 
 }

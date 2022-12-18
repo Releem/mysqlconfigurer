@@ -18,15 +18,15 @@ type ReleemMetricsRepeater struct {
 	configuration *config.Config
 }
 
-func (repeater ReleemMetricsRepeater) ProcessMetrics(context m.MetricContext, metrics m.Metric) error {
+func (repeater ReleemMetricsRepeater) ProcessMetrics(context m.MetricContext, metrics m.Metrics) error {
 	e, _ := json.Marshal(metrics)
 	bodyReader := strings.NewReader(string(e))
 	repeater.logger.Debug("Result Send data: ", string(e))
 	var api_domain string
 	if context.GetEnv() == "dev" {
-		api_domain = "https://api.dev.releem.com/v1/metrics"
+		api_domain = "https://api.dev.releem.com/v2/metrics"
 	} else {
-		api_domain = "https://api.releem.com/v1/metrics"
+		api_domain = "https://api.releem.com/v2/metrics"
 	}
 	req, err := http.NewRequest(http.MethodPost, api_domain, bodyReader)
 	if err != nil {
@@ -42,7 +42,7 @@ func (repeater ReleemMetricsRepeater) ProcessMetrics(context m.MetricContext, me
 	if err != nil {
 		repeater.logger.Error("Request: error making http request: ", err)
 	}
-	repeater.logger.Debug("Response: status code: ", res.StatusCode)
+	repeater.logger.Debug("Response: status code: ", res)
 	return err
 }
 

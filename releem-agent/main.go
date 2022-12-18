@@ -2,13 +2,12 @@
 package main
 
 import (
+	"database/sql"
 	"flag"
 	"os"
 
 	"github.com/Releem/daemon"
 	"github.com/advantageous/go-logback/logging"
-
-	"database/sql"
 
 	"github.com/Releem/mysqlconfigurer/releem-agent/config"
 	m "github.com/Releem/mysqlconfigurer/releem-agent/metrics"
@@ -81,14 +80,14 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 	repeaters["Configurations"] = []m.MetricsRepeater{r.NewReleemConfigurationsRepeater(configuration)}
 
 	gatherers := []m.MetricsGatherer{
-		m.NewMysqlStatusMetricsGatherer(nil, db, configuration),
-		m.NewMysqlVariablesMetricsGatherer(nil, db, configuration),
-		m.NewMysqlLatencyMetricsGatherer(nil, db, configuration),
-		m.NewMysqlClientMetricsGatherer(nil, db, configuration),
-		m.NewMysqlEngineMetricsGatherer(nil, db, configuration),
+		m.NewDbConfGatherer(nil, db, configuration),
+		m.NewDbInfoGatherer(nil, db, configuration),
+		m.NewDbMetricsGatherer(nil, db, configuration),
 		m.NewOSMetricsGatherer(nil, configuration),
-		m.NewAgentMetricsGatherer(nil, configuration),
-		m.NewMysqlCalculationsMetricsGatherer(nil, db, configuration)}
+		m.NewAgentMetricsGatherer(nil, configuration)}
+
+	// gatherers := []m.MetricsGatherer{
+	// 	m.NewOSMetricsGatherer(nil, configuration)}
 
 	m.RunWorker(gatherers, repeaters, nil, configuration, configFile)
 

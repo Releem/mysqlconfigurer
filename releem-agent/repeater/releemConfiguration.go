@@ -20,15 +20,15 @@ type ReleemConfigurationsRepeater struct {
 	configuration *config.Config
 }
 
-func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricContext, metrics m.Metric) error {
+func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricContext, metrics m.Metrics) error {
 	e, _ := json.Marshal(metrics)
 	bodyReader := strings.NewReader(string(e))
 	repeater.logger.Debug("Result Send data: ", string(e))
 	var api_domain string
 	if context.GetEnv() == "dev" {
-		api_domain = "https://api.dev.releem.com/v1/mysql"
+		api_domain = "https://api.dev.releem.com/v2/mysql"
 	} else {
-		api_domain = "https://api.releem.com/v1/mysql"
+		api_domain = "https://api.releem.com/v2/mysql"
 	}
 	req, err := http.NewRequest(http.MethodPost, api_domain, bodyReader)
 	if err != nil {
@@ -52,7 +52,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricCont
 		repeater.logger.Error("WriteFile: Error write to file: ", err)
 	}
 	repeater.logger.Debug("Response: status code: ", res.StatusCode)
-	repeater.logger.Debug("Response: body: ", body_res)
+	repeater.logger.Debug("Response: body:\n", string(body_res))
 
 	return err
 }

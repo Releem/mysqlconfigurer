@@ -9,6 +9,37 @@ type MetricValue struct {
 }
 type MetricGroupValue map[string]interface{}
 
+type Metrics struct {
+	System struct {
+		Info map[string]interface{}
+		Conf struct {
+		}
+		Metrics struct {
+			DiskIO         []map[string]interface{}
+			FileSystem     []map[string]interface{}
+			PhysicalMemory map[string]interface{}
+			CPU            map[string]interface{}
+			IOPS           map[string]interface{}
+		}
+	}
+	DB struct {
+		Metrics struct {
+			Status             map[string]string
+			TotalTables        string
+			TotalMyisamIndexes string
+			Engine             map[string]map[string]string
+			Latency            string
+		}
+		Conf struct {
+			Variables map[string]string
+		}
+		Info map[string]interface{}
+	}
+	ReleemAgent struct {
+		Info map[string]interface{}
+	}
+}
+
 type Metric map[string]MetricGroupValue
 
 // type Metric interface {
@@ -26,9 +57,9 @@ type MetricContext interface {
 }
 
 type MetricsGatherer interface {
-	GetMetrics() (Metric, error)
+	GetMetrics(metrics *Metrics) error
 }
 
 type MetricsRepeater interface {
-	ProcessMetrics(context MetricContext, metrics Metric) error
+	ProcessMetrics(context MetricContext, metrics Metrics) error
 }

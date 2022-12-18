@@ -102,11 +102,7 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 		m.NewDbConfGatherer(nil, db, configuration),
 		m.NewDbInfoGatherer(nil, db, configuration),
 		m.NewDbMetricsGatherer(nil, db, configuration),
-		m.NewOSMetricsGatherer(nil, configuration),
 		m.NewAgentMetricsGatherer(nil, configuration)}
-
-	// gatherers := []m.MetricsGatherer{
-	// 	m.NewOSMetricsGatherer(nil, configuration)}
 
 	// Select how we collect instance metrics depending on InstanceType
 	switch configuration.InstanceType {
@@ -129,6 +125,8 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 		gatherers = append(gatherers, m.NewAWSRDSInstanceGatherer(nil, rdsclient, ec2client, configuration))
 	default:
 		logger.Println("InstanceType is Local")
+		gatherers = append(gatherers, m.NewOSMetricsGatherer(nil, configuration))
+
 	}
 
 	m.RunWorker(gatherers, repeaters, nil, configuration, configFile)

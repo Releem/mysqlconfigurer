@@ -38,7 +38,7 @@ func NewAWSRDSInstanceGatherer(logger logging.Logger, rdsclient *rds.Client, ec2
 	}
 }
 
-func (awsrdsinstance *AWSRDSInstanceGatherer) GetMetrics() (Metric, error) {
+func (awsrdsinstance *AWSRDSInstanceGatherer) GetMetrics(metrics *Metrics) error {
 
 	output := make(MetricGroupValue)
 
@@ -108,8 +108,8 @@ func (awsrdsinstance *AWSRDSInstanceGatherer) GetMetrics() (Metric, error) {
 
 	}
 
-	metrics := Metric{"Instance.Info": output}
-	awsrdsinstance.logger.Debugf("collectMetrics %s", output)
-	return metrics, nil
+	metrics.System.Info = output
+	awsrdsinstance.logger.Debug("collectMetrics ", metrics.System.Info)
+	return nil
 
 }

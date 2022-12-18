@@ -70,7 +70,7 @@ func NewAWSRDSMetricsGatherer(logger logging.Logger, cwclient *cloudwatch.Client
 	}
 }
 
-func (awsrdsmetrics *AWSRDSMetricsGatherer) GetMetrics() (Metric, error) {
+func (awsrdsmetrics *AWSRDSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 
 	MetricDataQueries := []types.MetricDataQuery{}
 	output := make(MetricGroupValue)
@@ -132,8 +132,8 @@ func (awsrdsmetrics *AWSRDSMetricsGatherer) GetMetrics() (Metric, error) {
 		}
 	}
 
-	metrics := Metric{"Instance.Metrics": output}
-	awsrdsmetrics.logger.Debugf("collectMetrics %s", output)
-	return metrics, nil
+	metrics.System.Metrics.CPU = output
+	awsrdsmetrics.logger.Debug("collectMetrics ", metrics.System.Metrics)
+	return nil
 
 }

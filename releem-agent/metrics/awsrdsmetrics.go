@@ -131,8 +131,8 @@ func (awsrdsmetrics *AWSRDSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 			awsrdsmetrics.logger.Debug("CloudWatch.GetMetricData no Values for ", *r.Label)
 		}
 	}
-
-	metrics.System.Metrics.CPU = output
+	// temperary
+	metrics.System.Metrics = output
 	awsrdsmetrics.logger.Debug("collectMetrics ", metrics.System.Metrics)
 	return nil
 

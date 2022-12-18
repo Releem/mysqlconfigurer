@@ -105,7 +105,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 			if err := rows.Scan(&engine_db, &engineenabled); err != nil {
 				DbMetrics.logger.Error(err)
 			}
-			output[engine_db] = map[string]interface{}{"Enabled": engineenabled}
+			output[engine_db] = MetricGroupValue{"Enabled": engineenabled}
 			//output[engine_db]["Enabled"] = engineenabled
 		}
 		rows.Close()
@@ -121,22 +121,17 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 			if err := rows.Scan(&engine_db, &size, &count, &dsize, &isize); err != nil {
 				DbMetrics.logger.Error(err)
 			}
-			// output[engine_db]["Table Number"] = count
-			// output[engine_db]["Total Size"] = size
-			// output[engine_db]["Data Size"] = dsize
-			// output[engine_db]["Index Size"] = isize
-
 			engine_elem := make(MetricGroupValue)
-			_, found := output[engine_db]
-			if found {
-				engine_elem = output[engine_db]
-			}
+			// _, found := output[engine_db]
+			// if found {
+			// 	engine_elem = output[engine_db]
+			// }
 			engine_elem["Table Number"] = count
 			engine_elem["Total Size"] = size
 			engine_elem["Data Size"] = dsize
 			engine_elem["Index Size"] = isize
 
-			output[engine_db] = engine_elem
+			output[engine_db] = MapJoin(output[engine_db], engine_elem)
 		}
 		metrics.DB.Metrics.Engine = output
 	}

@@ -76,6 +76,7 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 	if err != nil {
 		logger.PrintError("Config load failed", err)
 	}
+	// Init connection DB
 	var db *sql.DB
 	if IsSocket(configuration.MysqlHost, logger) {
 		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@unix("+configuration.MysqlHost+")/mysql")
@@ -94,10 +95,12 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 	} else {
 		logger.Println("Connect Success to DB", configuration.MysqlHost)
 	}
+	//Init repeaters
 	repeaters := make(map[string][]m.MetricsRepeater)
 	repeaters["Metrics"] = []m.MetricsRepeater{r.NewReleemMetricsRepeater(configuration)}
 	repeaters["Configurations"] = []m.MetricsRepeater{r.NewReleemConfigurationsRepeater(configuration)}
 
+	//Init gatherers
 	gatherers := []m.MetricsGatherer{
 		m.NewDbConfGatherer(nil, db, configuration),
 		m.NewDbInfoGatherer(nil, db, configuration),

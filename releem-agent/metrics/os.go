@@ -100,6 +100,7 @@ func StructToMap(valueStruct string) MetricGroupValue {
 func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 
 	info := make(MetricGroupValue)
+	metricsMap := make(MetricGroupValue)
 
 	// if out, err := exec.Command("uname").Output(); err != nil {
 	// 	return err
@@ -117,7 +118,9 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 	// OS RAM
 	VirtualMemory, _ := mem.VirtualMemory()
 	//info["VirtualMemory"] = StructToMap(VirtualMemory.String())
-	metrics.System.Metrics.PhysicalMemory = StructToMap(VirtualMemory.String())
+	metricsMap["PhysicalMemory"] = StructToMap(VirtualMemory.String())
+	info["PhysicalMemory"] = MetricGroupValue{"total": VirtualMemory.Total}
+	info["PhysicalMemory"] = MapJoin(info["PhysicalMemory"].(MetricGroupValue), MetricGroupValue{"swapTotal": VirtualMemory.SwapTotal})
 
 	//CPU Counts
 	CpuCounts, _ := cpu.Counts(true)
@@ -125,8 +128,7 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 
 	//OS host info
 	hostInfo, _ := host.Info()
-	hostInfoMap := StructToMap(hostInfo.String())
-	hostInfoMap["InstanceType"] = "local"
+	hostInfoMap := MapJoin(StructToMap(hostInfo.String()), MetricGroupValue{"instancetype": "local"})
 	info["Host"] = hostInfoMap
 
 	// IOCounters, _ := disk.IOCounters()
@@ -153,15 +155,15 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 	OS.logger.Debug("Partitions ", PartitionsArray)
 
 	// info["Usage"] = UsageArray
-	metrics.System.Metrics.FileSystem = UsageArray
+	metricsMap["FileSystem"] = UsageArray
 	OS.logger.Debug("Usage ", UsageArray)
 
-	metrics.System.Metrics.DiskIO = IOCountersArray
+	metricsMap["DiskIO"] = IOCountersArray
 	OS.logger.Debug("IOCountersArray ", IOCountersArray)
 
 	// CPU load avarage
 	Avg, _ := load.Avg()
-	metrics.System.Metrics.CPU = StructToMap(Avg.String())
+	metricsMap["CPU"] = StructToMap(Avg.String())
 	OS.logger.Debug("Avg ", Avg)
 
 	// CpuUtilisation := float64(metrics.System.Metrics.CPU["load1"].(float64) / float64(info["CPU"].(MetricGroupValue)["Counts"].(int)))
@@ -169,10 +171,10 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 	// info["Cpu"] = MetricGroupValue{"CpuUtilisation": (info["Avg"].(MetricGroupValue)["load1"].(float64) / float64(info["Cpu"].(MetricGroupValue)["Counts"].(int)))}
 
 	//Calc iops read and write as io count / uptime
-	metrics.System.Metrics.IOPS = MetricGroupValue{"IOPSRead": (float64(readCount) / info["Host"].(MetricGroupValue)["uptime"].(float64)), "IOPSWrite": (float64(writeCount) / info["Host"].(MetricGroupValue)["uptime"].(float64))}
+	metricsMap["IOPS"] = MetricGroupValue{"IOPSRead": (float64(readCount) / info["Host"].(MetricGroupValue)["uptime"].(float64)), "IOPSWrite": (float64(writeCount) / info["Host"].(MetricGroupValue)["uptime"].(float64))}
 
 	metrics.System.Info = info
-
+	metrics.System.Metrics = metricsMap
 	OS.logger.Debug("collectMetrics ", metrics.System)
 	return nil
 

@@ -103,11 +103,11 @@ func (awsrdsinstance *AWSRDSInstanceGatherer) GetMetrics(metrics *Metrics) error
 			}
 
 			metrics.Hostname = *result.DBInstances[0].DBInstanceIdentifier //output["DBInstance"] = *result.DBInstances[0].DBInstanceIdentifier
-			info["CPU"] = map[string]interface{}{"Counts": 5}              //output["vNumCores"] = "5"
-			metrics.System.Metrics.PhysicalMemory["total"] = "8196"        //  output["TotalMemory"] = "8196"
-
-			hostInfoMap := map[string]interface{}{"InstanceType": "local"}
-			info["Host"] = hostInfoMap
+			info["CPU"] = MetricGroupValue{"Counts": 5}                    //output["vNumCores"] = "5"
+			//memory on byte
+			info["PhysicalMemory"] = MetricGroupValue{"total": "8594128896"} //  output["TotalMemory"] = "8196"
+			info["PhysicalMemory"] = MapJoin(info["PhysicalMemory"].(MetricGroupValue), MetricGroupValue{"swapTotal": "1074266112"})
+			info["Host"] = MetricGroupValue{"InstanceType": "aws/rds"}
 		}
 
 	}

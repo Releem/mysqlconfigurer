@@ -40,7 +40,8 @@ func NewAWSRDSInstanceGatherer(logger logging.Logger, rdsclient *rds.Client, ec2
 
 func (awsrdsinstance *AWSRDSInstanceGatherer) GetMetrics(metrics *Metrics) error {
 
-	output := make(MetricGroupValue)
+	//output := make(MetricGroupValue)
+	info := make(MetricGroupValue)
 
 	// Prepare request to RDS
 	input := &rds.DescribeDBInstancesInput{
@@ -65,9 +66,9 @@ func (awsrdsinstance *AWSRDSInstanceGatherer) GetMetrics(metrics *Metrics) error
 		// Prepare results
 		for _, r := range result.DBInstances {
 
-			awsrdsinstance.logger.Debugf("DBInstance %s", r.DBInstanceIdentifier)
-			awsrdsinstance.logger.Debugf("DBInstanceClass %s", r.DBInstanceClass)
-			awsrdsinstance.logger.Debugf("ProcessorFeatures %v", r.ProcessorFeatures)
+			awsrdsinstance.logger.Debug("DBInstance ", r.DBInstanceIdentifier)
+			awsrdsinstance.logger.Debug("DBInstanceClass ", r.DBInstanceClass)
+			awsrdsinstance.logger.Debug("ProcessorFeatures ", r.ProcessorFeatures)
 
 			// // Prepare request to Ec2 to determine CPU count and Ram for InstanceClass
 			// ec2input := &ec2.DescribeInstanceTypesInput{
@@ -97,18 +98,18 @@ func (awsrdsinstance *AWSRDSInstanceGatherer) GetMetrics(metrics *Metrics) error
 
 			if len(r.ProcessorFeatures) > 0 {
 				for _, p := range r.ProcessorFeatures {
-					awsrdsinstance.logger.Debugf("Metric %s has a value %s", *p.Name, *p.Value)
+					awsrdsinstance.logger.Debug("Metric ", *p.Name, " has a value ", *p.Value)
 				}
 			}
 
-			output["DBInstance"] = *result.DBInstances[0].DBInstanceIdentifier
-			output["vNumCores"] = "5"
-			output["TotalMemory"] = "8196"
+			metrics.Hostname = *result.DBInstances[0].DBInstanceIdentifier //output["DBInstance"] = *result.DBInstances[0].DBInstanceIdentifier
+			info["CPU"] = map[string]interface{}{"Counts": 5}              //output["vNumCores"] = "5"
+			metrics.System.Metrics.PhysicalMemory["total"] = "8196"        //  output["TotalMemory"] = "8196"
 		}
 
 	}
 
-	metrics.System.Info = output
+	metrics.System.Info = info
 	awsrdsinstance.logger.Debug("collectMetrics ", metrics.System.Info)
 	return nil
 

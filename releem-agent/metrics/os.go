@@ -91,15 +91,15 @@ func NewOSMetricsGatherer(logger logging.Logger, configuration *config.Config) *
 // 	return 0
 // }
 
-func StructToMap(valueStruct string) map[string]interface{} {
-	var value_map map[string]interface{}
+func StructToMap(valueStruct string) MetricGroupValue {
+	var value_map MetricGroupValue
 
 	_ = json.Unmarshal([]byte(valueStruct), &value_map)
 	return value_map
 }
 func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 
-	info := make(map[string]interface{})
+	info := make(MetricGroupValue)
 
 	// if out, err := exec.Command("uname").Output(); err != nil {
 	// 	return err
@@ -113,23 +113,28 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 	// } else {
 	// 	output["Physical Memory"] = map[string]uint64{"bytes": uint64(forcemem * 1048576)}
 	// }
+
+	// OS RAM
 	VirtualMemory, _ := mem.VirtualMemory()
 	//info["VirtualMemory"] = StructToMap(VirtualMemory.String())
 	metrics.System.Metrics.PhysicalMemory = StructToMap(VirtualMemory.String())
 
+	//CPU Counts
 	CpuCounts, _ := cpu.Counts(true)
-	info["CPU"] = map[string]interface{}{"Counts": CpuCounts}
+	info["CPU"] = MetricGroupValue{"Counts": CpuCounts}
 
+	//OS host info
 	hostInfo, _ := host.Info()
-	info["hostInfo"] = StructToMap(hostInfo.String())
+	info["Host"] = StructToMap(hostInfo.String())
 
 	// IOCounters, _ := disk.IOCounters()
 	// //info["IOCounters"] = StructToMap(IOCounters.String())
 	// OS.logger.Debug("IOCounters ", IOCounters)
 
-	var UsageArray, PartitionsArray, IOCountersArray []map[string]interface{}
+	//Get partitions, for each pert get usage and io stat
+	var UsageArray, PartitionsArray, IOCountersArray []MetricGroupValue
 	var readCount, writeCount uint64
-	//:= make(map[string]interface{})
+	//:= make(MetricGroupValue)
 	Partitions, _ := disk.Partitions(false)
 	for _, part := range Partitions {
 		Usage, _ := disk.Usage(part.Mountpoint)
@@ -140,7 +145,7 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 		readCount = readCount + IOCounters[PartName].ReadCount
 		writeCount = writeCount + IOCounters[PartName].WriteCount
 		OS.logger.Debug("IOCounters ", IOCounters)
-		IOCountersArray = append(IOCountersArray, map[string]interface{}{PartName: StructToMap(IOCounters[PartName].String())})
+		IOCountersArray = append(IOCountersArray, MetricGroupValue{PartName: StructToMap(IOCounters[PartName].String())})
 	}
 	info["Partitions"] = PartitionsArray
 	OS.logger.Debug("Partitions ", PartitionsArray)
@@ -152,14 +157,17 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 	metrics.System.Metrics.DiskIO = IOCountersArray
 	OS.logger.Debug("IOCountersArray ", IOCountersArray)
 
+	// CPU load avarage
 	Avg, _ := load.Avg()
 	metrics.System.Metrics.CPU = StructToMap(Avg.String())
 	OS.logger.Debug("Avg ", Avg)
 
-	// CpuUtilisation := float64(metrics.System.Metrics.CPU["load1"].(float64) / float64(info["CPU"].(map[string]interface{})["Counts"].(int)))
+	// CpuUtilisation := float64(metrics.System.Metrics.CPU["load1"].(float64) / float64(info["CPU"].(MetricGroupValue)["Counts"].(int)))
 	// metrics.System.Metrics.CPU["CpuUtilisation"] = CpuUtilisation
-	// info["Cpu"] = map[string]interface{}{"CpuUtilisation": (info["Avg"].(map[string]interface{})["load1"].(float64) / float64(info["Cpu"].(map[string]interface{})["Counts"].(int)))}
-	metrics.System.Metrics.IOPS = map[string]interface{}{"IOPSRead": (float64(readCount) / info["hostInfo"].(map[string]interface{})["uptime"].(float64)), "IOPSWrite": (float64(writeCount) / info["hostInfo"].(map[string]interface{})["uptime"].(float64))}
+	// info["Cpu"] = MetricGroupValue{"CpuUtilisation": (info["Avg"].(MetricGroupValue)["load1"].(float64) / float64(info["Cpu"].(MetricGroupValue)["Counts"].(int)))}
+
+	//Calc iops read and write as io count / uptime
+	metrics.System.Metrics.IOPS = MetricGroupValue{"IOPSRead": (float64(readCount) / info["hostInfo"].(MetricGroupValue)["uptime"].(float64)), "IOPSWrite": (float64(writeCount) / info["hostInfo"].(MetricGroupValue)["uptime"].(float64))}
 
 	metrics.System.Info = info
 

@@ -121,14 +121,14 @@ func (awsrdsmetrics *AWSRDSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 
 	// Prepare results
 	for _, r := range result.MetricDataResults {
-		awsrdsmetrics.logger.Debugf("Metric ID %s", *r.Id)
-		awsrdsmetrics.logger.Debugf("Metric Label %s", *r.Label)
+		awsrdsmetrics.logger.Debug("Metric ID ", *r.Id)
+		awsrdsmetrics.logger.Debug("Metric Label ", *r.Label)
 
 		if len(r.Values) > 0 {
 			output[*r.Label] = fmt.Sprintf("%f", r.Values[0])
-			awsrdsmetrics.logger.Debugf("Metric Timestamp %s", r.Timestamps[0])
+			awsrdsmetrics.logger.Debug("Metric Timestamp ", r.Timestamps[0])
 		} else {
-			awsrdsmetrics.logger.Debugf("CloudWatch.GetMetricData no Values for ", *r.Label)
+			awsrdsmetrics.logger.Debug("CloudWatch.GetMetricData no Values for ", *r.Label)
 		}
 	}
 

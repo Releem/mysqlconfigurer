@@ -10,33 +10,35 @@ type MetricValue struct {
 type MetricGroupValue map[string]interface{}
 
 type Metrics struct {
-	System struct {
-		Info map[string]interface{}
+	Hostname  string
+	Timestamp uint64
+	System    struct {
+		Info MetricGroupValue
 		Conf struct {
 		}
 		Metrics struct {
-			DiskIO         []map[string]interface{}
-			FileSystem     []map[string]interface{}
-			PhysicalMemory map[string]interface{}
-			CPU            map[string]interface{}
-			IOPS           map[string]interface{}
+			DiskIO         []MetricGroupValue
+			FileSystem     []MetricGroupValue
+			PhysicalMemory MetricGroupValue
+			CPU            MetricGroupValue
+			IOPS           MetricGroupValue
 		}
 	}
 	DB struct {
 		Metrics struct {
-			Status             map[string]string
+			Status             MetricGroupValue
 			TotalTables        string
 			TotalMyisamIndexes string
-			Engine             map[string]map[string]string
+			Engine             map[string]MetricGroupValue
 			Latency            string
 		}
 		Conf struct {
-			Variables map[string]string
+			Variables MetricGroupValue
 		}
-		Info map[string]interface{}
+		Info MetricGroupValue
 	}
 	ReleemAgent struct {
-		Info map[string]interface{}
+		Info MetricGroupValue
 	}
 }
 

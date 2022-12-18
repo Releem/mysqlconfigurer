@@ -34,8 +34,8 @@ func NewDbInfoGatherer(logger logging.Logger, db *sql.DB, configuration *config.
 func (DbInfo *DbInfoGatherer) GetMetrics(metrics *Metrics) error {
 
 	var row MetricValue
-	info := make(map[string]interface{})
-
+	info := make(MetricGroupValue)
+	// Mysql version
 	err := DbInfo.db.QueryRow("select VERSION()").Scan(&row.value)
 	if err != nil {
 		DbInfo.logger.Error(err)
@@ -43,6 +43,7 @@ func (DbInfo *DbInfoGatherer) GetMetrics(metrics *Metrics) error {
 	}
 	re := regexp.MustCompile(`(.*?)\-.*`)
 	info["Version"] = re.FindStringSubmatch(row.value)[1]
+	// Mysql force memory limit
 	info["MemoryLimit"] = DbInfo.configuration.GetMemoryLimit()
 	metrics.DB.Info = info
 

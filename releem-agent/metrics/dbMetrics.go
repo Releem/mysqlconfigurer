@@ -33,7 +33,7 @@ func NewDbMetricsGatherer(logger logging.Logger, db *sql.DB, configuration *conf
 func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 	// Mysql Status
 	{
-		output := make(map[string]string)
+		output := make(MetricGroupValue)
 		var row MetricValue
 
 		rows, err := DbMetrics.db.Query("SHOW STATUS")
@@ -71,6 +71,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 		}
 		metrics.DB.Metrics.TotalTables = row.value
 	}
+	// TotalMyisamIndexes
 	{
 		var row MetricValue
 		err := DbMetrics.db.QueryRow("SELECT IFNULL(SUM(INDEX_LENGTH), 0) FROM information_schema.TABLES WHERE TABLE_SCHEMA NOT IN ('information_schema') AND ENGINE = 'MyISAM'").Scan(&row.value)
@@ -79,6 +80,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 		}
 		metrics.DB.Metrics.TotalMyisamIndexes = row.value
 	}
+	//Latency
 	{
 		var row MetricValue
 		err := DbMetrics.db.QueryRow("select `s2`.`avg_us` AS `avg_us` from ((select count(0) AS `cnt`,round(`performance_schema`.`events_statements_summary_by_digest`.`AVG_TIMER_WAIT` / 1000000,0) AS `avg_us` from `performance_schema`.`events_statements_summary_by_digest` group by round(`performance_schema`.`events_statements_summary_by_digest`.`AVG_TIMER_WAIT` / 1000000,0)) `s1` join (select count(0) AS `cnt`,round(`performance_schema`.`events_statements_summary_by_digest`.`AVG_TIMER_WAIT` / 1000000,0) AS `avg_us` from `performance_schema`.`events_statements_summary_by_digest` group by round(`performance_schema`.`events_statements_summary_by_digest`.`AVG_TIMER_WAIT` / 1000000,0)) `s2` on(`s1`.`avg_us` <= `s2`.`avg_us`)) group by `s2`.`avg_us` having ifnull(sum(`s1`.`cnt`) / nullif((select count(0) from `performance_schema`.`events_statements_summary_by_digest`),0),0) > 0.95 order by ifnull(sum(`s1`.`cnt`) / nullif((select count(0) from `performance_schema`.`events_statements_summary_by_digest`),0),0) limit 1").Scan(&row.value)
@@ -88,8 +90,9 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 			metrics.DB.Metrics.Latency = row.value
 		}
 	}
+	//Stat mysql Engine
 	{
-		output := make(map[string]map[string]string)
+		output := make(map[string]MetricGroupValue)
 		var engine_db, size, count, dsize, isize, engineenabled string
 
 		rows, err := DbMetrics.db.Query("SELECT ENGINE,SUPPORT FROM information_schema.ENGINES ORDER BY ENGINE ASC")
@@ -102,7 +105,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 			if err := rows.Scan(&engine_db, &engineenabled); err != nil {
 				DbMetrics.logger.Error(err)
 			}
-			output[engine_db] = map[string]string{"Enabled": engineenabled}
+			output[engine_db] = map[string]interface{}{"Enabled": engineenabled}
 			//output[engine_db]["Enabled"] = engineenabled
 		}
 		rows.Close()
@@ -123,7 +126,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 			// output[engine_db]["Data Size"] = dsize
 			// output[engine_db]["Index Size"] = isize
 
-			engine_elem := make(map[string]string)
+			engine_elem := make(MetricGroupValue)
 			_, found := output[engine_db]
 			if found {
 				engine_elem = output[engine_db]

@@ -32,7 +32,7 @@ func NewDbConfGatherer(logger logging.Logger, db *sql.DB, configuration *config.
 
 func (DbConf *DbConfGatherer) GetMetrics(metrics *Metrics) error {
 
-	output := make(map[string]string)
+	output := make(MetricGroupValue)
 
 	rows, err := DbConf.db.Query("SHOW VARIABLES")
 	if err != nil {

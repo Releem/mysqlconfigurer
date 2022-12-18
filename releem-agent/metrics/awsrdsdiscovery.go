@@ -105,12 +105,15 @@ func (awsrdsinstance *AWSRDSInstanceGatherer) GetMetrics(metrics *Metrics) error
 			metrics.Hostname = *result.DBInstances[0].DBInstanceIdentifier //output["DBInstance"] = *result.DBInstances[0].DBInstanceIdentifier
 			info["CPU"] = map[string]interface{}{"Counts": 5}              //output["vNumCores"] = "5"
 			metrics.System.Metrics.PhysicalMemory["total"] = "8196"        //  output["TotalMemory"] = "8196"
+
+			hostInfoMap := map[string]interface{}{"InstanceType": "local"}
+			info["Host"] = hostInfoMap
 		}
 
 	}
 
 	metrics.System.Info = info
-	awsrdsinstance.logger.Debug("collectMetrics ", metrics.System.Info)
+	awsrdsinstance.logger.Debug("collectMetrics ", metrics.System)
 	return nil
 
 }

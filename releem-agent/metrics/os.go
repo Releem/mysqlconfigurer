@@ -125,7 +125,9 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 
 	//OS host info
 	hostInfo, _ := host.Info()
-	info["Host"] = StructToMap(hostInfo.String())
+	hostInfoMap := StructToMap(hostInfo.String())
+	hostInfoMap["InstanceType"] = "local"
+	info["Host"] = hostInfoMap
 
 	// IOCounters, _ := disk.IOCounters()
 	// //info["IOCounters"] = StructToMap(IOCounters.String())
@@ -167,7 +169,7 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 	// info["Cpu"] = MetricGroupValue{"CpuUtilisation": (info["Avg"].(MetricGroupValue)["load1"].(float64) / float64(info["Cpu"].(MetricGroupValue)["Counts"].(int)))}
 
 	//Calc iops read and write as io count / uptime
-	metrics.System.Metrics.IOPS = MetricGroupValue{"IOPSRead": (float64(readCount) / info["hostInfo"].(MetricGroupValue)["uptime"].(float64)), "IOPSWrite": (float64(writeCount) / info["hostInfo"].(MetricGroupValue)["uptime"].(float64))}
+	metrics.System.Metrics.IOPS = MetricGroupValue{"IOPSRead": (float64(readCount) / info["Host"].(MetricGroupValue)["uptime"].(float64)), "IOPSWrite": (float64(writeCount) / info["Host"].(MetricGroupValue)["uptime"].(float64))}
 
 	metrics.System.Info = info
 

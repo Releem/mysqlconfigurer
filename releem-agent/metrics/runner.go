@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"os"
-	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -20,8 +19,8 @@ func makeTerminateChannel() <-chan os.Signal {
 	return ch
 }
 
-func RunWorker(gatherers []MetricsGatherer, repeaters []MetricsRepeater, logger logging.Logger,
-	configuration *config.Config, configFile string, ReleemAgentVersion string) {
+func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeater, logger logging.Logger,
+	configuration *config.Config, configFile string) {
 
 	if logger == nil {
 		if configuration.Debug {
@@ -52,6 +51,7 @@ func RunWorker(gatherers []MetricsGatherer, repeaters []MetricsRepeater, logger 
 			timer.Reset(configuration.TimePeriodSeconds * time.Second)
 			metrics := collectMetrics(gatherers, logger)
 			processMetrics(metrics, repeaters, configuration, logger)
+
 		case <-configTimer.C:
 			configTimer.Reset(configuration.ReadConfigSeconds * time.Second)
 			if newConfig, err := config.LoadConfig(configFile, logger); err != nil {
@@ -61,51 +61,48 @@ func RunWorker(gatherers []MetricsGatherer, repeaters []MetricsRepeater, logger 
 				logger.Debug("LOADED NEW CONFIG", "APIKEY", configuration.GetApiKey())
 			}
 		case <-GenerateTimer.C:
-			logger.Println("Generating the recommended configuration")
-			cmd := exec.Command("/bin/bash", "/opt/releem/mysqlconfigurer.sh")
-			cmd.Env = os.Environ()
-			cmd.Env = append(cmd.Env, "PATH=/bin:/sbin:/usr/bin:/usr/sbin")
-			stdout, err := cmd.Output()
-			if err != nil {
-				logger.PrintError("Config generation with error", err)
-			}
-			logger.Debug(string(stdout))
+			logger.Debug("Timer collect metrics tick")
+			metrics := collectMetrics(gatherers, logger)
+			processConfigurations(metrics, repeaters, configuration, logger)
+
+			// logger.Println("Generating the recommended configuration")
+			// cmd := exec.Command("/bin/bash", "/opt/releem/mysqlconfigurer.sh")
+			// cmd.Env = os.Environ()
+			// cmd.Env = append(cmd.Env, "PATH=/bin:/sbin:/usr/bin:/usr/sbin")
+			// stdout, err := cmd.Output()
+			// if err != nil {
+			// 	logger.PrintError("Config generation with error", err)
+			// }
+			// logger.Debug(string(stdout))
 			GenerateTimer.Reset(configuration.GenerateConfigSeconds * time.Second)
 		}
 	}
 }
 
-func processMetrics(metrics Metric, repeaters []MetricsRepeater,
+func processMetrics(metrics Metrics, repeaters map[string][]MetricsRepeater,
 	configuration *config.Config, logger logging.Logger) {
-	for _, r := range repeaters {
+	for _, r := range repeaters["Metrics"] {
 		if err := r.ProcessMetrics(configuration, metrics); err != nil {
 			logger.PrintError("Repeater failed", err)
 		}
 	}
 }
 
-func collectMetrics(gatherers []MetricsGatherer, logger logging.Logger) Metric {
-	metrics := make(Metric)
+func processConfigurations(metrics Metrics, repeaters map[string][]MetricsRepeater,
+	configuration *config.Config, logger logging.Logger) {
+	for _, r := range repeaters["Configurations"] {
+		if err := r.ProcessMetrics(configuration, metrics); err != nil {
+			logger.PrintError("Repeater failed", err)
+		}
+	}
+}
+
+func collectMetrics(gatherers []MetricsGatherer, logger logging.Logger) Metrics {
+	var metrics Metrics
 	for _, g := range gatherers {
-		m, err := g.GetMetrics()
+		err := g.GetMetrics(&metrics)
 		if err != nil {
 			logger.PrintError("Problem getting metrics from gatherer", err)
-		}
-		for k, v := range m {
-			if len(v) == 0 {
-				_, found := metrics[k]
-				if !found {
-					metrics[k] = make(MetricGroupValue)
-				}
-			} else {
-				for k1, v1 := range v {
-					_, found := metrics[k]
-					if !found {
-						metrics[k] = make(MetricGroupValue)
-					}
-					metrics[k][k1] = v1
-				}
-			}
 		}
 	}
 	return metrics

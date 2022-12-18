@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
 	"io/fs"
 	"net"
@@ -10,8 +11,6 @@ import (
 
 	"github.com/Releem/daemon"
 	"github.com/advantageous/go-logback/logging"
-
-	"database/sql"
 
 	"github.com/Releem/mysqlconfigurer/releem-agent/config"
 	m "github.com/Releem/mysqlconfigurer/releem-agent/metrics"
@@ -26,9 +25,8 @@ import (
 
 const (
 	// name of the service
-	name               = "releem-agent"
-	description        = "Releem Agent"
-	ReleemAgentVersion = "1.0.1"
+	name        = "releem-agent"
+	description = "Releem Agent"
 )
 
 // dependencies that are NOT required by the service, but might be used
@@ -50,14 +48,13 @@ func IsSocket(path string, logger logging.Logger) bool {
 }
 
 // Manage by daemon commands or run the daemon
-func (service *Service) Manage(logger logging.Logger) (string, error) {
+func (service *Service) Manage(logger logging.Logger, configFile string, command []string) (string, error) {
 
 	usage := "Usage: myservice install | remove | start | stop | status"
 
 	// if received any kind of command, do it
-	if len(os.Args) > 1 {
-		command := os.Args[1]
-		switch command {
+	if len(command) >= 1 {
+		switch command[0] {
 		case "install":
 			return service.Install()
 		case "remove":
@@ -72,11 +69,10 @@ func (service *Service) Manage(logger logging.Logger) (string, error) {
 			return usage, nil
 		}
 	}
-	logger.Println("Starting releem-agent of version is", ReleemAgentVersion)
 
 	// Do something, call your goroutines, etc
-	configFile := flag.String("config", "/opt/releem/releem.conf", "Releem config")
-	configuration, err := config.LoadConfig(*configFile, logger)
+	logger.Println("Starting releem-agent of version is", config.ReleemAgentVersion)
+	configuration, err := config.LoadConfig(configFile, logger)
 	if err != nil {
 		logger.PrintError("Config load failed", err)
 	}
@@ -98,13 +94,19 @@ func (service *Service) Manage(logger logging.Logger) (string, error) {
 	} else {
 		logger.Println("Connect Success to DB", configuration.MysqlHost)
 	}
-
-	repeaters := []m.MetricsRepeater{r.NewReleemMetricsRepeater(configuration)}
+	repeaters := make(map[string][]m.MetricsRepeater)
+	repeaters["Metrics"] = []m.MetricsRepeater{r.NewReleemMetricsRepeater(configuration)}
+	repeaters["Configurations"] = []m.MetricsRepeater{r.NewReleemConfigurationsRepeater(configuration)}
 
 	gatherers := []m.MetricsGatherer{
-		m.NewMysqlStatusMetricsGatherer(nil, db, configuration),
-		m.NewMysqlVariablesMetricsGatherer(nil, db, configuration),
-		m.NewMysqlLatencyMetricsGatherer(nil, db, configuration)}
+		m.NewDbConfGatherer(nil, db, configuration),
+		m.NewDbInfoGatherer(nil, db, configuration),
+		m.NewDbMetricsGatherer(nil, db, configuration),
+		m.NewOSMetricsGatherer(nil, configuration),
+		m.NewAgentMetricsGatherer(nil, configuration)}
+
+	// gatherers := []m.MetricsGatherer{
+	// 	m.NewOSMetricsGatherer(nil, configuration)}
 
 	// Select how we collect instance metrics depending on InstanceType
 	switch configuration.InstanceType {
@@ -129,7 +131,7 @@ func (service *Service) Manage(logger logging.Logger) (string, error) {
 		logger.Println("InstanceType is Local")
 	}
 
-	m.RunWorker(gatherers, repeaters, nil, configuration, *configFile, ReleemAgentVersion)
+	m.RunWorker(gatherers, repeaters, nil, configuration, configFile)
 
 	// never happen, but need to complete code
 	return usage, nil
@@ -137,14 +139,19 @@ func (service *Service) Manage(logger logging.Logger) (string, error) {
 
 func main() {
 	logger = logging.NewSimpleLogger("Main")
+
+	configFile := flag.String("config", "/opt/releem/releem.conf", "Releem config")
+	flag.Parse()
+	command := flag.Args()
+
 	srv, err := daemon.New(name, description, daemon.SystemDaemon, dependencies...)
 	if err != nil {
 		logger.PrintError("Error: ", err)
 		os.Exit(1)
 	}
-
 	service := &Service{srv}
-	status, err := service.Manage(logger)
+	status, err := service.Manage(logger, *configFile, command)
+
 	if err != nil {
 		logger.Println(status, "\nError: ", err)
 		os.Exit(1)

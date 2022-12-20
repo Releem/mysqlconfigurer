@@ -37,9 +37,7 @@ func (variables *MysqlVariablesMetricsGatherer) GetMetrics() (Metric, error) {
 	rows, err := variables.db.Query("SHOW VARIABLES")
 	if err != nil {
 		variables.logger.Error(err)
-		metrics := Metric{"Variables": output}
-		variables.logger.Debugf("collectMetrics %s", output)
-		return metrics, nil
+		return Metric{}, err
 	}
 	defer rows.Close()
 
@@ -55,9 +53,7 @@ func (variables *MysqlVariablesMetricsGatherer) GetMetrics() (Metric, error) {
 	rows, err = variables.db.Query("SHOW GLOBAL VARIABLES")
 	if err != nil {
 		variables.logger.Error(err)
-		metrics := Metric{"Variables": output}
-		variables.logger.Debugf("collectMetrics %s", output)
-		return metrics, nil
+		return Metric{}, err
 	}
 	defer rows.Close()
 

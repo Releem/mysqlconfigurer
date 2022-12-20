@@ -23,7 +23,7 @@ const (
 	// name of the service
 	name               = "releem-agent"
 	description        = "Releem Agent"
-	ReleemAgentVersion = "1.0.1"
+	ReleemAgentVersion = "1.0.2"
 )
 
 // dependencies that are NOT required by the service, but might be used
@@ -89,7 +89,6 @@ func (service *Service) Manage(logger logging.Logger) (string, error) {
 	err = db.Ping()
 	if err != nil {
 		logger.PrintError("Connection failed", err)
-		os.Exit(1)
 	} else {
 		logger.Println("Connect Success to DB", configuration.MysqlHost)
 	}

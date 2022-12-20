@@ -37,9 +37,7 @@ func (status *MysqlStatusMetricsGatherer) GetMetrics() (Metric, error) {
 	rows, err := status.db.Query("SHOW STATUS")
 	if err != nil {
 		status.logger.Error(err)
-		metrics := Metric{"Status": output}
-		status.logger.Debugf("collectMetrics %s", output)
-		return metrics, nil
+		return Metric{}, err
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -54,11 +52,8 @@ func (status *MysqlStatusMetricsGatherer) GetMetrics() (Metric, error) {
 	rows, err = status.db.Query("SHOW GLOBAL STATUS")
 	if err != nil {
 		status.logger.Error(err)
-		metrics := Metric{"Status": output}
-		status.logger.Debugf("collectMetrics %s", output)
-		return metrics, nil
+		return Metric{}, err
 	}
-	defer rows.Close()
 	for rows.Next() {
 		var row MetricValue
 		if err := rows.Scan(&row.name, &row.value); err != nil {

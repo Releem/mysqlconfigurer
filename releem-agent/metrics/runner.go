@@ -10,6 +10,8 @@ import (
 	"github.com/advantageous/go-logback/logging"
 )
 
+var Ready bool
+
 // Set up channel on which to send signal notifications.
 // We must use a buffered channel or risk missing the signal
 // if we're not ready to receive when the signal is sent.
@@ -47,6 +49,7 @@ func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeat
 			logger.Info("Exiting")
 			os.Exit(0)
 		case <-timer.C:
+			Ready = false
 			logger.Debug("Timer collect metrics tick")
 			timer.Reset(configuration.TimePeriodSeconds * time.Second)
 			metrics := collectMetrics(gatherers, logger)

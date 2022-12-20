@@ -10,20 +10,13 @@ type MetricValue struct {
 type MetricGroupValue map[string]interface{}
 
 type Metrics struct {
+	Ready     bool
 	Hostname  string
 	Timestamp uint64
 	System    struct {
-		Info MetricGroupValue
-		Conf struct {
-		}
+		Info    MetricGroupValue
+		Conf    MetricGroupValue
 		Metrics MetricGroupValue
-		// struct {
-		// 	DiskIO         []MetricGroupValue
-		// 	FileSystem     []MetricGroupValue
-		// 	PhysicalMemory MetricGroupValue
-		// 	CPU            MetricGroupValue
-		// 	IOPS           MetricGroupValue
-		// }
 	}
 	DB struct {
 		Metrics struct {

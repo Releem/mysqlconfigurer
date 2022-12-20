@@ -17,9 +17,9 @@ func NewDbConfGatherer(logger logging.Logger, db *sql.DB, configuration *config.
 
 	if logger == nil {
 		if configuration.Debug {
-			logger = logging.NewSimpleDebugLogger("Variables")
+			logger = logging.NewSimpleDebugLogger("DbConf")
 		} else {
-			logger = logging.NewSimpleLogger("Variables")
+			logger = logging.NewSimpleLogger("DbConf")
 		}
 	}
 

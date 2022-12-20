@@ -2,7 +2,6 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"flag"
 	"io/fs"
@@ -15,10 +14,6 @@ import (
 	"github.com/Releem/mysqlconfigurer/releem-agent/config"
 	m "github.com/Releem/mysqlconfigurer/releem-agent/metrics"
 	r "github.com/Releem/mysqlconfigurer/releem-agent/repeater"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"github.com/aws/aws-sdk-go-v2/service/rds"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -91,7 +86,6 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 	err = db.Ping()
 	if err != nil {
 		logger.PrintError("Connection failed", err)
-		os.Exit(1)
 	} else {
 		logger.Println("Connect Success to DB", configuration.MysqlHost)
 	}
@@ -113,19 +107,19 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 		logger.Println("InstanceType is aws/rds")
 		logger.Println("Loading AWS configuration")
 
-		awscfg, err := awsconfig.LoadDefaultConfig(context.TODO(), awsconfig.WithRegion(configuration.AwsRegion))
-		if err != nil {
-			logger.PrintError("Load AWS configuration FAILED", err)
-		} else {
-			logger.Println("AWS configuration loaded SUCCESS")
-		}
+		// awscfg, err := awsconfig.LoadDefaultConfig(context.TODO(), awsconfig.WithRegion(configuration.AwsRegion))
+		// if err != nil {
+		// 	logger.PrintError("Load AWS configuration FAILED", err)
+		// } else {
+		// 	logger.Println("AWS configuration loaded SUCCESS")
+		// }
 
-		cwclient := cloudwatch.NewFromConfig(awscfg)
-		rdsclient := rds.NewFromConfig(awscfg)
-		ec2client := ec2.NewFromConfig(awscfg)
+		// cwclient := cloudwatch.NewFromConfig(awscfg)
+		// rdsclient := rds.NewFromConfig(awscfg)
+		// ec2client := ec2.NewFromConfig(awscfg)
 
-		gatherers = append(gatherers, m.NewAWSRDSMetricsGatherer(nil, cwclient, configuration))
-		gatherers = append(gatherers, m.NewAWSRDSInstanceGatherer(nil, rdsclient, ec2client, configuration))
+		// gatherers = append(gatherers, m.NewAWSRDSMetricsGatherer(nil, cwclient, configuration))
+		// gatherers = append(gatherers, m.NewAWSRDSInstanceGatherer(nil, rdsclient, ec2client, configuration))
 	default:
 		logger.Println("InstanceType is Local")
 		gatherers = append(gatherers, m.NewOSMetricsGatherer(nil, configuration))

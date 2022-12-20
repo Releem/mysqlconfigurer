@@ -50,7 +50,9 @@ func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeat
 			logger.Debug("Timer collect metrics tick")
 			timer.Reset(configuration.TimePeriodSeconds * time.Second)
 			metrics := collectMetrics(gatherers, logger)
-			processMetrics(metrics, repeaters, configuration, logger)
+			if metrics.Ready {
+				processMetrics(metrics, repeaters, configuration, logger)
+			}
 
 		case <-configTimer.C:
 			configTimer.Reset(configuration.ReadConfigSeconds * time.Second)
@@ -63,8 +65,9 @@ func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeat
 		case <-GenerateTimer.C:
 			logger.Debug("Timer collect metrics tick")
 			metrics := collectMetrics(gatherers, logger)
-			processConfigurations(metrics, repeaters, configuration, logger)
-
+			if metrics.Ready {
+				processConfigurations(metrics, repeaters, configuration, logger)
+			}
 			// logger.Println("Generating the recommended configuration")
 			// cmd := exec.Command("/bin/bash", "/opt/releem/mysqlconfigurer.sh")
 			// cmd.Env = os.Environ()
@@ -82,7 +85,8 @@ func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeat
 func processMetrics(metrics Metrics, repeaters map[string][]MetricsRepeater,
 	configuration *config.Config, logger logging.Logger) {
 	for _, r := range repeaters["Metrics"] {
-		if err := r.ProcessMetrics(configuration, metrics); err != nil {
+		err := r.ProcessMetrics(configuration, metrics)
+		if err != nil {
 			logger.PrintError("Repeater failed", err)
 		}
 	}
@@ -91,7 +95,8 @@ func processMetrics(metrics Metrics, repeaters map[string][]MetricsRepeater,
 func processConfigurations(metrics Metrics, repeaters map[string][]MetricsRepeater,
 	configuration *config.Config, logger logging.Logger) {
 	for _, r := range repeaters["Configurations"] {
-		if err := r.ProcessMetrics(configuration, metrics); err != nil {
+		err := r.ProcessMetrics(configuration, metrics)
+		if err != nil {
 			logger.PrintError("Repeater failed", err)
 		}
 	}
@@ -102,8 +107,10 @@ func collectMetrics(gatherers []MetricsGatherer, logger logging.Logger) Metrics 
 	for _, g := range gatherers {
 		err := g.GetMetrics(&metrics)
 		if err != nil {
-			logger.PrintError("Problem getting metrics from gatherer", err)
+			logger.Error("Problem getting metrics from gatherer")
+			return Metrics{}
 		}
 	}
+	metrics.Ready = true
 	return metrics
 }

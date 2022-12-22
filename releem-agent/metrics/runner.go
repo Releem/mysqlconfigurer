@@ -23,7 +23,7 @@ func makeTerminateChannel() <-chan os.Signal {
 
 func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeater, logger logging.Logger,
 	configuration *config.Config, configFile string) {
-
+	var Ready bool
 	if logger == nil {
 		if configuration.Debug {
 			logger = logging.NewSimpleDebugLogger("Worker")
@@ -50,10 +50,9 @@ func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeat
 			os.Exit(0)
 		case <-timer.C:
 			Ready = false
-			logger.Debug("Timer collect metrics tick")
 			timer.Reset(configuration.TimePeriodSeconds * time.Second)
 			metrics := collectMetrics(gatherers, logger)
-			if metrics.Ready {
+			if Ready {
 				processMetrics(metrics, repeaters, configuration, logger)
 			}
 
@@ -66,9 +65,10 @@ func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeat
 				logger.Debug("LOADED NEW CONFIG", "APIKEY", configuration.GetApiKey())
 			}
 		case <-GenerateTimer.C:
+			Ready = false
 			logger.Debug("Timer collect metrics tick")
 			metrics := collectMetrics(gatherers, logger)
-			if metrics.Ready {
+			if Ready {
 				processConfigurations(metrics, repeaters, configuration, logger)
 			}
 			// logger.Println("Generating the recommended configuration")
@@ -114,6 +114,6 @@ func collectMetrics(gatherers []MetricsGatherer, logger logging.Logger) Metrics 
 			return Metrics{}
 		}
 	}
-	metrics.Ready = true
+	Ready = true
 	return metrics
 }

@@ -10,10 +10,7 @@ type MetricValue struct {
 type MetricGroupValue map[string]interface{}
 
 type Metrics struct {
-	Ready     bool
-	Hostname  string
-	Timestamp uint64
-	System    struct {
+	System struct {
 		Info    MetricGroupValue
 		Conf    MetricGroupValue
 		Metrics MetricGroupValue

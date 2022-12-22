@@ -32,6 +32,9 @@ func (Agent *AgentMetricsGatherer) GetMetrics(metrics *Metrics) error {
 
 	output := make(map[string]interface{})
 	output["Version"] = config.ReleemAgentVersion
+	if len(Agent.configuration.Hostname) > 0 {
+		output["Hostname"] = Agent.configuration.Hostname
+	}
 	metrics.ReleemAgent.Info = output
 
 	Agent.logger.Debug("CollectMetrics  ", output)

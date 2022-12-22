@@ -15,6 +15,7 @@ const (
 type Config struct {
 	Debug                 bool          `hcl:"debug"`
 	Env                   string        `hcl:"env"`
+	Hostname              string        `hcl:"hostname"`
 	ApiKey                string        `hcl:"apikey"`
 	TimePeriodSeconds     time.Duration `hcl:"interval_seconds"`
 	ReadConfigSeconds     time.Duration `hcl:"interval_read_config_seconds"`
@@ -68,6 +69,7 @@ func LoadConfigFromString(data string, logger logging.Logger) (*Config, error) {
 	if config.MysqlPort == "" {
 		config.MysqlPort = "3306"
 	}
+
 	return config, nil
 }
 

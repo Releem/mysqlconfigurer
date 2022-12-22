@@ -1,0 +1,47 @@
+# ApiKey string `hcl:"apikey"`
+# Defaults to 3600 seconds, api key for Releem Platform.
+apikey="${RELEEM_API_KEY}"
+
+# MemoryLimit int `hcl:"memory_limit"`
+# Defaults to 0, Mysql memory usage limit.
+memory_limit=${MEMORY_LIMIT:-0}
+
+# TimePeriodSeconds time.Duration `hcl:"interval_seconds"`
+# Defaults to 30 seconds, how often metrics are collected.
+interval_seconds=60
+
+# ReadConfigSeconds time.Duration `hcl:"interval_read_config_seconds"`
+# Defaults to 3600 seconds, how often to update the values from the config.
+interval_read_config_seconds=3600
+
+# GenerateConfigSeconds time.Duration `hcl:"interval_generate_config_seconds"`
+# Defaults to 43200 seconds, how often to generate recommend the config.
+interval_generate_config_seconds=43200
+
+# MysqlUser string`hcl:"mysql_user"`
+# Mysql user name for collection metrics.
+mysql_user="${DB_USER:-releem}"
+
+# MysqlPassword string `hcl:"mysql_password"`
+# Mysql user password for collection metrics.
+mysql_password="${DB_PASSWORD:-releem}"
+
+# MysqlHost string `hcl:"mysql_host"`
+# Mysql host for collection metrics.
+mysql_host="${DB_HOST:-127.0.0.1}"
+
+# MysqlPort string `hcl:"mysql_port"`
+# Mysql port for collection metrics.
+mysql_port="${DB_PORT:-3306}"
+
+# CommandRestartService string `hcl:"mysql_restart_service"`
+# Defaults to 3600 seconds, command to restart service mysql.
+mysql_restart_service=" /bin/systemctl restart mysql"
+
+# MysqlConfDir string `hcl:"mysql_cnf_dir"`
+# Defaults to 3600 seconds, the path to copy the recommended config.
+mysql_cnf_dir="/etc/mysql/releem.conf.d"
+
+# ReleemConfDir string `hcl:"releem_cnf_dir"`
+# Defaults to 3600 seconds, Releem Agent configuration path.
+releem_cnf_dir="/opt/releem/conf"

@@ -1,4 +1,4 @@
-# Releem
+# Releem Agent
 
 [![Build Status - Master](https://travis-ci.com/releem/mysqlconfigurer.svg?branch=master)](https://travis-ci.com/releem/mysqlconfigurer)
 
@@ -19,7 +19,7 @@
 
 The present repository contains the source code of the **Releem Agent**.
 
-[Releem](https://releem.com) is a simple MySQL monitoring tool with automatic configuration tuning to improve performance and reduce costs. Using Releem you can see general Performance metrics and it will assist you prepare performance optimized configuration tailored for your MySQL server based on Workload, MySQL metrics and Database size.
+[Releem](https://releem.com) is a simple MySQL tuning tool to improve database performance and reduce the costs of servers. Using Releem, you can see general Performance metrics, and it will assist you in preparing performance-optimized configurations tailored for your MySQL server based on Workload, MySQL metrics, and Database size.
 
 With Releem we are trying to bring top-notch experience in performance tuning and save thousands of software engineers hours.
 

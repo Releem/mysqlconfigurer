@@ -23,7 +23,6 @@ func makeTerminateChannel() <-chan os.Signal {
 
 func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeater, logger logging.Logger,
 	configuration *config.Config, configFile string) {
-	var Ready bool
 	if logger == nil {
 		if configuration.Debug {
 			logger = logging.NewSimpleDebugLogger("Worker")

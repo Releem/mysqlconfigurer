@@ -364,6 +364,10 @@ if [ -d "$MYSQL_CONF_DIR" ]; then
 	printf "\033[37m - Adding MySQL include directory to the Releem Agent configuration $CONF.\n\033[0m"
 	echo "mysql_cnf_dir=\"$MYSQL_CONF_DIR\"" | $sudo_cmd tee -a $CONF >/dev/null
 fi
+if [ -n "$RELEEM_HOSTNAME" ]; then
+    printf "\033[37m - Adding hostname to the Releem Agent configuration: $CONF\n\033[0m"
+	echo "hostname=\"$RELEEM_HOSTNAME\"" | $sudo_cmd tee -a $CONF >/dev/null
+fi
 echo "interval_seconds=60" | $sudo_cmd tee -a $CONF >/dev/null
 echo "interval_read_config_seconds=3600" | $sudo_cmd tee -a $CONF >/dev/null
 

@@ -4,7 +4,7 @@
 # All rights reserved
 
 # Variables
-MYSQLCONFIGURER_PATH="/tmp/.mysqlconfigurer/"
+MYSQLCONFIGURER_PATH="/opt/releem/conf/"
 RELEEM_CONF_FILE="/opt/releem/releem.conf"
 MYSQLCONFIGURER_FILE_NAME="z_aiops_mysql.cnf"
 MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH"mysqltuner.pl"
@@ -365,7 +365,7 @@ function get_config() {
       # If error then show report and exit
       errormsg="    \
       \n\n\n\n--------Releem Agent completed with error--------\n   \
-      \nCheck /tmp/.mysqlconfigurer/mysqltunerreport.json for details \n \
+      \nCheck $MYSQLTUNER_REPORT for details \n \
       \n--------Please fix the error and run Releem Agent again--------\n"
       printf "${errormsg}" >&2
   fi

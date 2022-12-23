@@ -36,7 +36,7 @@ function on_error() {
     printf "\033[31m$ERROR_MESSAGE
 It looks like you hit an issue when trying to install the Releem.
 
-If you're still having problems, please send an email to support@releem.com
+If you're still having problems, please send an email to hello@releem.com
 with the contents of $logfile and we'll do our very best to help you
 solve your problem.\n\033[0m\n"
 }

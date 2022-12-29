@@ -36,7 +36,7 @@ function on_error() {
     printf "\033[31m$ERROR_MESSAGE
 It looks like you hit an issue when trying to install the Releem.
 
-If you're still having problems, please send an email to support@releem.com
+If you're still having problems, please send an email to hello@releem.com
 with the contents of $logfile and we'll do our very best to help you
 solve your problem.\n\033[0m\n"
 }
@@ -150,13 +150,13 @@ if [ "$OS" = "RedHat" ]; then
         package_manager='yum'
     fi
 
-    $sudo_cmd $package_manager -y install net-tools perl-JSON perl-Data-Dumper perl-Getopt-Long
+    $sudo_cmd $package_manager -y install net-tools perl-JSON perl-Data-Dumper perl-Getopt-Long coreutils procps-ng
 
 elif [ "$OS" = "Debian" ]; then
     printf "\033[37m\n * Installing dependences...\n\033[0m\n"
 
     $sudo_cmd apt-get update
-    $sudo_cmd apt-get install -y --force-yes curl net-tools libjson-perl
+    $sudo_cmd apt-get install -y --force-yes curl net-tools libjson-perl coreutils procps
 
 else
     printf "\033[31mYour OS or distribution are not supported by this install script.\033[0m\n"
@@ -247,7 +247,7 @@ else
     #Исключить дублирование
     if [ `grep -cE "!includedir $MYSQL_CONF_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ];
 	then
-	    echo "!includedir $MYSQL_CONF_DIR" | $sudo_cmd tee -a $MYSQL_MY_CNF_PATH >/dev/null
+	    echo -e "\n!includedir $MYSQL_CONF_DIR" | $sudo_cmd tee -a $MYSQL_MY_CNF_PATH >/dev/null
 	fi
 	# fi
 fi
@@ -375,9 +375,6 @@ echo "interval_read_config_seconds=3600" | $sudo_cmd tee -a $CONF >/dev/null
 $sudo_cmd chmod 640 $CONF
 
 
-# Enable perfomance schema
-$sudo_cmd $RELEEM_COMMAND -p
-
 printf "\033[37m\n * Configure crontab...\033[0m\n"
 RELEEM_CRON="00 00 * * * PATH=/bin:/sbin:/usr/bin:/usr/sbin $RELEEM_COMMAND -u"
 if [ -z "$RELEEM_CRON_ENABLE" ]; then
@@ -399,9 +396,10 @@ if [ -z "$RELEEM_AGENT_DISABLE" ]; then
     $sudo_cmd $RELEEM_COMMAND
 fi
 
-printf "\033[37m\n * Installing and starting Releem Agent service for collection metrics..\033[0m\n"
 set +e
 trap - ERR
+$sudo_cmd timeout 3 $WORKDIR/releem-agent
+printf "\033[37m\n * Installing and starting Releem Agent service for collection metrics..\033[0m\n"
 releem_agent_remove=$($sudo_cmd $WORKDIR/releem-agent remove)
 releem_agent_install=$($sudo_cmd $WORKDIR/releem-agent install)
 if [ $? -eq 0 ]; then
@@ -428,6 +426,15 @@ fi
 # fi
 trap on_error ERR
 set -e
+sleep 3
+releem_agent_pid=$(pgrep releem-agent || true)
+if [ -z "$releem_agent_pid" ]; then
+    printf "\033[31m\n The releem-agent process was not found! Check the system log for an error.\033[0m\n"
+    on_error
+    exit 1;
+fi
+# Enable perfomance schema
+$sudo_cmd $RELEEM_COMMAND -p
 
 printf "\033[37m\n\033[0m"
 printf "\033[37m * To run Releem Agent manually please use the following command:\033[0m\n"

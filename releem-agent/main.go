@@ -47,7 +47,7 @@ func IsSocket(path string, logger logging.Logger) bool {
 }
 
 // Manage by daemon commands or run the daemon
-func (service *Service) Manage(logger logging.Logger, configFile string, command []string) (string, error) {
+func (service *Service) Manage(logger logging.Logger, configFile string, command []string, FirstRun bool) (string, error) {
 
 	usage := "Usage: myservice install | remove | start | stop | status"
 
@@ -130,7 +130,7 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 
 	}
 
-	m.RunWorker(gatherers, repeaters, nil, configuration, configFile)
+	m.RunWorker(gatherers, repeaters, nil, configuration, configFile, FirstRun)
 
 	// never happen, but need to complete code
 	return usage, nil
@@ -140,6 +140,8 @@ func main() {
 	logger = logging.NewSimpleLogger("Main")
 
 	configFile := flag.String("config", "/opt/releem/releem.conf", "Releem config")
+	FirstRun := flag.Bool("f", false, "Releem agent generate config")
+
 	flag.Parse()
 	command := flag.Args()
 
@@ -149,7 +151,7 @@ func main() {
 		os.Exit(1)
 	}
 	service := &Service{srv}
-	status, err := service.Manage(logger, *configFile, command)
+	status, err := service.Manage(logger, *configFile, command, *FirstRun)
 
 	if err != nil {
 		logger.Println(status, "\nError: ", err)

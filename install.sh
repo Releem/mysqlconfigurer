@@ -390,15 +390,14 @@ elif [ "$RELEEM_CRON_ENABLE" -gt 0 ]; then
     releem_set_cron
 fi
 
+set +e
+trap - ERR
 if [ -z "$RELEEM_AGENT_DISABLE" ]; then
     # First run of Releem Agent to check MySQL Performance Score
     printf "\033[37m\n * Executing Releem Agent for first time...\033[0m\n"
-    $sudo_cmd $RELEEM_COMMAND
+    $sudo_cmd $WORKDIR/releem-agent -f
+    $sudo_cmd timeout 3 $WORKDIR/releem-agent
 fi
-
-set +e
-trap - ERR
-$sudo_cmd timeout 3 $WORKDIR/releem-agent
 printf "\033[37m\n * Installing and starting Releem Agent service for collection metrics..\033[0m\n"
 releem_agent_remove=$($sudo_cmd $WORKDIR/releem-agent remove)
 releem_agent_install=$($sudo_cmd $WORKDIR/releem-agent install)

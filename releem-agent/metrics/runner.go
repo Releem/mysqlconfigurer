@@ -22,7 +22,8 @@ func makeTerminateChannel() <-chan os.Signal {
 }
 
 func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeater, logger logging.Logger,
-	configuration *config.Config, configFile string) {
+	configuration *config.Config, configFile string, FirstRun bool) {
+	var GenerateTimer *time.Timer
 	if logger == nil {
 		if configuration.Debug {
 			logger = logging.NewSimpleDebugLogger("Worker")
@@ -30,9 +31,13 @@ func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeat
 			logger = logging.NewSimpleLogger("Worker")
 		}
 	}
-	timer := time.NewTimer(configuration.TimePeriodSeconds * time.Second)
+	timer := time.NewTimer(0 * time.Second)
 	configTimer := time.NewTimer(configuration.ReadConfigSeconds * time.Second)
-	GenerateTimer := time.NewTimer(configuration.GenerateConfigSeconds * time.Second)
+	if FirstRun {
+		GenerateTimer = time.NewTimer(0 * time.Second)
+	} else {
+		GenerateTimer = time.NewTimer(configuration.GenerateConfigSeconds * time.Second)
+	}
 
 	// var configuration *config.Config
 	// if newConfig, err := config.LoadConfig(configFile, logger); err != nil {
@@ -63,12 +68,17 @@ func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeat
 				configuration = newConfig
 				logger.Debug("LOADED NEW CONFIG", "APIKEY", configuration.GetApiKey())
 			}
+
 		case <-GenerateTimer.C:
 			Ready = false
-			logger.Debug("Timer collect metrics tick")
+			logger.Println(" * Collecting metrics to recommend a config...")
 			metrics := collectMetrics(gatherers, logger)
 			if Ready {
 				processConfigurations(metrics, repeaters, configuration, logger)
+
+			}
+			if FirstRun {
+				os.Exit(0)
 			}
 			// logger.Println("Generating the recommended configuration")
 			// cmd := exec.Command("/bin/bash", "/opt/releem/mysqlconfigurer.sh")

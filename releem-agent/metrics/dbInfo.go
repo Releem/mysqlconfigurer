@@ -42,7 +42,12 @@ func (DbInfo *DbInfoGatherer) GetMetrics(metrics *Metrics) error {
 		return nil
 	}
 	re := regexp.MustCompile(`(.*?)\-.*`)
-	info["Version"] = re.FindStringSubmatch(row.value)[1]
+	mysql_version := re.FindStringSubmatch(row.value)
+	if len(mysql_version) > 0 {
+		info["Version"] = mysql_version[1]
+	} else {
+		info["Version"] = row.value
+	}
 	// Mysql force memory limit
 	info["MemoryLimit"] = DbInfo.configuration.GetMemoryLimit()
 	metrics.DB.Info = info

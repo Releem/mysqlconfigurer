@@ -171,7 +171,7 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 	// info["Cpu"] = MetricGroupValue{"CpuUtilisation": (info["Avg"].(MetricGroupValue)["load1"].(float64) / float64(info["Cpu"].(MetricGroupValue)["Counts"].(int)))}
 
 	//Calc iops read and write as io count / uptime
-	metricsMap["IOPS"] = MetricGroupValue{"IOPSRead": (float64(readCount) / info["Host"].(MetricGroupValue)["uptime"].(float64)), "IOPSWrite": (float64(writeCount) / info["Host"].(MetricGroupValue)["uptime"].(float64))}
+	metricsMap["IOP"] = MetricGroupValue{"IOPRead": float64(readCount), "IOPWrite": float64(writeCount)}
 
 	metrics.System.Info = info
 	metrics.System.Metrics = metricsMap

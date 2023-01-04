@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 1.0.2
+# install.sh - Version 1.0.3
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -7,7 +7,7 @@
 # using the package manager.
 
 set -e
-install_script_version=1.0.2
+install_script_version=1.0.3
 logfile="releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -54,6 +54,7 @@ function releem_update() {
     $sudo_cmd curl -s -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent 2>/dev/null
     $sudo_cmd chmod 755 $WORKDIR/mysqlconfigurer.sh   $WORKDIR/releem-agent
     $sudo_cmd $WORKDIR/releem-agent  start
+    $sudo_cmd $WORKDIR/releem-agent -f
 
     echo
     echo
@@ -364,6 +365,10 @@ if [ -d "$MYSQL_CONF_DIR" ]; then
 	printf "\033[37m - Adding MySQL include directory to the Releem Agent configuration $CONF.\n\033[0m"
 	echo "mysql_cnf_dir=\"$MYSQL_CONF_DIR\"" | $sudo_cmd tee -a $CONF >/dev/null
 fi
+if [ -n "$RELEEM_HOSTNAME" ]; then
+    printf "\033[37m - Adding hostname to the Releem Agent configuration: $CONF\n\033[0m"
+	echo "hostname=\"$RELEEM_HOSTNAME\"" | $sudo_cmd tee -a $CONF >/dev/null
+fi
 echo "interval_seconds=60" | $sudo_cmd tee -a $CONF >/dev/null
 echo "interval_read_config_seconds=3600" | $sudo_cmd tee -a $CONF >/dev/null
 
@@ -386,15 +391,14 @@ elif [ "$RELEEM_CRON_ENABLE" -gt 0 ]; then
     releem_set_cron
 fi
 
+set +e
+trap - ERR
 if [ -z "$RELEEM_AGENT_DISABLE" ]; then
     # First run of Releem Agent to check MySQL Performance Score
     printf "\033[37m\n * Executing Releem Agent for first time...\033[0m\n"
-    $sudo_cmd $RELEEM_COMMAND
+    $sudo_cmd $WORKDIR/releem-agent -f
+    $sudo_cmd timeout 3 $WORKDIR/releem-agent
 fi
-
-set +e
-trap - ERR
-$sudo_cmd timeout 3 $WORKDIR/releem-agent
 printf "\033[37m\n * Installing and starting Releem Agent service for collection metrics..\033[0m\n"
 releem_agent_remove=$($sudo_cmd $WORKDIR/releem-agent remove)
 releem_agent_install=$($sudo_cmd $WORKDIR/releem-agent install)

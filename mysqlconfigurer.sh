@@ -1,17 +1,17 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 1.0.2
+# mysqlconfigurer.sh - Version 1.0.3
 # (C) Releem, Inc 2022
 # All rights reserved
 
 # Variables
-MYSQLCONFIGURER_PATH="/tmp/.mysqlconfigurer/"
+MYSQLCONFIGURER_PATH="/opt/releem/conf/"
 RELEEM_CONF_FILE="/opt/releem/releem.conf"
 MYSQLCONFIGURER_FILE_NAME="z_aiops_mysql.cnf"
 MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH"mysqltuner.pl"
 MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
 MYSQL_MEMORY_LIMIT=0
-VERSION="1.0.2"
+VERSION="1.0.3"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 
 function update_agent() {
@@ -364,7 +364,7 @@ function get_config() {
       # If error then show report and exit
       errormsg="    \
       \n\n\n\n--------Releem Agent completed with error--------\n   \
-      \nCheck /tmp/.mysqlconfigurer/mysqltunerreport.json for details \n \
+      \nCheck $MYSQLTUNER_REPORT for details \n \
       \n--------Please fix the error and run Releem Agent again--------\n"
       printf "${errormsg}" >&2
   fi

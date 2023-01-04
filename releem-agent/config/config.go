@@ -8,9 +8,14 @@ import (
 	"github.com/hashicorp/hcl"
 )
 
+const (
+	ReleemAgentVersion = "1.0.3"
+)
+
 type Config struct {
 	Debug                 bool          `hcl:"debug"`
 	Env                   string        `hcl:"env"`
+	Hostname              string        `hcl:"hostname"`
 	ApiKey                string        `hcl:"apikey"`
 	TimePeriodSeconds     time.Duration `hcl:"interval_seconds"`
 	ReadConfigSeconds     time.Duration `hcl:"interval_read_config_seconds"`
@@ -22,6 +27,10 @@ type Config struct {
 	CommandRestartService string        `hcl:"mysql_restart_service"`
 	MysqlConfDir          string        `hcl:"mysql_cnf_dir"`
 	ReleemConfDir         string        `hcl:"releem_cnf_dir"`
+	MemoryLimit           int           `hcl:"memory_limit"`
+	InstanceType          string        `hcl:"instance_type"`
+	AwsRegion             string        `hcl:"aws_region"`
+	AwsRDSDB              string        `hcl:"aws_rds_db"`
 }
 
 func LoadConfig(filename string, logger logging.Logger) (*Config, error) {
@@ -60,6 +69,7 @@ func LoadConfigFromString(data string, logger logging.Logger) (*Config, error) {
 	if config.MysqlPort == "" {
 		config.MysqlPort = "3306"
 	}
+
 	return config, nil
 }
 
@@ -68,4 +78,11 @@ func (config *Config) GetApiKey() string {
 }
 func (config *Config) GetEnv() string {
 	return config.Env
+}
+
+func (config *Config) GetMemoryLimit() int {
+	return config.MemoryLimit
+}
+func (config *Config) GetReleemConfDir() string {
+	return config.ReleemConfDir
 }

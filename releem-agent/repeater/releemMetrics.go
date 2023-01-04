@@ -23,8 +23,11 @@ func (repeater ReleemMetricsRepeater) ProcessMetrics(context m.MetricContext, me
 	bodyReader := strings.NewReader(string(e))
 	repeater.logger.Debug("Result Send data: ", string(e))
 	var api_domain string
-	if context.GetEnv() == "dev" {
+	env := context.GetEnv()
+	if env == "dev" {
 		api_domain = "https://api.dev.releem.com/v2/metrics"
+	} else if env == "stage" {
+		api_domain = "https://api.stage.releem.com/v2/metrics"
 	} else {
 		api_domain = "https://api.releem.com/v2/metrics"
 	}

@@ -54,6 +54,7 @@ function releem_update() {
     $sudo_cmd curl -s -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent 2>/dev/null
     $sudo_cmd chmod 755 $WORKDIR/mysqlconfigurer.sh   $WORKDIR/releem-agent
     $sudo_cmd $WORKDIR/releem-agent  start
+    $sudo_cmd $WORKDIR/releem-agent -f
 
     echo
     echo

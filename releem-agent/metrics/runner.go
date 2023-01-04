@@ -31,7 +31,8 @@ func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeat
 			logger = logging.NewSimpleLogger("Worker")
 		}
 	}
-	timer := time.NewTimer(0 * time.Second)
+
+	timer := time.NewTimer(1 * time.Second)
 	configTimer := time.NewTimer(configuration.ReadConfigSeconds * time.Second)
 	if FirstRun {
 		GenerateTimer = time.NewTimer(0 * time.Second)
@@ -75,7 +76,6 @@ func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeat
 			metrics := collectMetrics(gatherers, logger)
 			if Ready {
 				processConfigurations(metrics, repeaters, configuration, logger)
-
 			}
 			if FirstRun {
 				os.Exit(0)

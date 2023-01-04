@@ -9,6 +9,7 @@ RELEEM_CONF_FILE="/opt/releem/releem.conf"
 MYSQLCONFIGURER_FILE_NAME="z_aiops_mysql.cnf"
 MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH"mysqltuner.pl"
 MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
+RELEEM_MYSQL_VERSION=$MYSQLCONFIGURER_PATH"mysql_version"
 MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
 MYSQL_MEMORY_LIMIT=0
 VERSION="1.0.3"
@@ -51,12 +52,15 @@ function wait_restart() {
 
 function check_mysql_version() {
 
-    if [ ! -f $MYSQLTUNER_REPORT ]; then
+    if [ -f $MYSQLTUNER_REPORT ]; then
+        mysql_version=$(grep -o '"Version":"[^"]*' $MYSQLTUNER_REPORT  | grep -o '[^"]*$')
+    elif [ -f "$RELEEM_MYSQL_VERSION" ]; then
+        mysql_version=$(cat $RELEEM_MYSQL_VERSION)
+    else
         printf "\033[37m\n * Please try again later or run Releem Agent manually:\033[0m"
-        printf "\033[32m\n bash /opt/releem/mysqlconfigurer.sh \033[0m\n\n"
+        printf "\033[32m\n  /opt/releem/releem-agent -f \033[0m\n\n"
         exit 1;
     fi
-    mysql_version=$(grep -o '"Version":"[^"]*' $MYSQLTUNER_REPORT  | grep -o '[^"]*$')
     if [ -z $mysql_version ]; then
         printf "\033[37m\n * Please try again later or run Releem Agent manually:\033[0m"
         printf "\033[32m\n bash /opt/releem/mysqlconfigurer.sh \033[0m\n\n"

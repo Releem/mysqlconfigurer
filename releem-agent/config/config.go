@@ -61,7 +61,7 @@ func LoadConfigFromString(data string, logger logging.Logger) (*Config, error) {
 		config.ReadConfigSeconds = 3600
 	}
 	if config.GenerateConfigSeconds == 0 {
-		config.GenerateConfigSeconds = 21600
+		config.GenerateConfigSeconds = 43200
 	}
 	if config.MysqlHost == "" {
 		config.MysqlHost = "127.0.0.1"

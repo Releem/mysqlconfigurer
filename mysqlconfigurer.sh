@@ -63,7 +63,7 @@ function check_mysql_version() {
     fi
     if [ -z $mysql_version ]; then
         printf "\033[37m\n * Please try again later or run Releem Agent manually:\033[0m"
-        printf "\033[32m\n bash /opt/releem/mysqlconfigurer.sh \033[0m\n\n"
+        printf "\033[32m\n /opt/releem/releem-agent -f \033[0m\n\n"
         exit 1;
     fi
     requiredver="5.6.8"
@@ -187,7 +187,7 @@ function releem_apply_config() {
     if [ ! -f $MYSQLCONFIGURER_CONFIGFILE ]; then
         printf "\033[37m\n * Recommended MySQL configuration is not found.\033[0m"
         printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"
-        printf "\033[32m\n bash /opt/releem/mysqlconfigurer.sh \033[0m\n\n"
+        printf "\033[32m\n /opt/releem/releem-agent -f \033[0m\n\n"
         exit 1;
     fi
     if ! check_mysql_version; then

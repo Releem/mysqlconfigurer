@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 1.0.3
+# install.sh - Version 1.0.4
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -7,7 +7,7 @@
 # using the package manager.
 
 set -e
-install_script_version=1.0.3
+install_script_version=1.0.4
 logfile="releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -50,10 +50,10 @@ function releem_set_cron() {
 function releem_update() {
     printf "\033[37m\n * Downloading latest version of Releem Agent...\033[0m\n"
     $sudo_cmd $WORKDIR/releem-agent  stop || true
-    $sudo_cmd curl -s -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh  2>/dev/null
-    $sudo_cmd curl -s -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent 2>/dev/null
+    $sudo_cmd curl -s -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh
+    $sudo_cmd curl -s -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent
     $sudo_cmd chmod 755 $WORKDIR/mysqlconfigurer.sh   $WORKDIR/releem-agent
-    $sudo_cmd $WORKDIR/releem-agent  start
+    $sudo_cmd $WORKDIR/releem-agent  start || true
     $sudo_cmd $WORKDIR/releem-agent -f
 
     echo

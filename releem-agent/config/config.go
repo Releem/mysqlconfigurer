@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ReleemAgentVersion = "1.0.3"
+	ReleemAgentVersion = "1.0.4"
 )
 
 type Config struct {

@@ -10,15 +10,14 @@ import (
 	"os"
 
 	"github.com/Releem/daemon"
-	"github.com/advantageous/go-logback/logging"
-	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	"github.com/aws/aws-sdk-go-v2/service/rds"
-
 	"github.com/Releem/mysqlconfigurer/releem-agent/config"
 	m "github.com/Releem/mysqlconfigurer/releem-agent/metrics"
 	r "github.com/Releem/mysqlconfigurer/releem-agent/repeater"
+	"github.com/advantageous/go-logback/logging"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	_ "github.com/go-sql-driver/mysql"
 )
 
@@ -118,12 +117,43 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 			logger.Println("AWS configuration loaded SUCCESS")
 		}
 
-		cwclient := cloudwatch.NewFromConfig(awscfg)
+		cwlogsclient := cloudwatchlogs.NewFromConfig(awscfg)
+		//	cwclient := cloudwatch.NewFromConfig(awscfg)
 		rdsclient := rds.NewFromConfig(awscfg)
-		ec2client := ec2.NewFromConfig(awscfg)
+		//	ec2client := ec2.NewFromConfig(awscfg)
 
-		gatherers = append(gatherers, m.NewAWSRDSMetricsGatherer(nil, cwclient, configuration))
-		gatherers = append(gatherers, m.NewAWSRDSInstanceGatherer(nil, rdsclient, ec2client, configuration))
+		// Prepare request to RDS
+		input := &rds.DescribeDBInstancesInput{
+			DBInstanceIdentifier: &configuration.AwsRDSDB,
+		}
+
+		// Request to RDS
+		result, err := rdsclient.DescribeDBInstances(context.TODO(), input)
+
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				logger.Error(aerr.Error())
+
+			} else {
+				// Print the error, cast err to awserr.Error to get the Code and
+				// Message from an error.
+				logger.Error(err.Error())
+			}
+		}
+
+		logger.Debug("RDS.DescribeDBInstances SUCCESS")
+
+		// Request detailed instance info
+		if len(result.DBInstances) == 1 {
+			//	gatherers = append(gatherers, m.NewAWSRDSMetricsGatherer(nil, cwclient, configuration))
+			//	gatherers = append(gatherers, m.NewAWSRDSInstanceGatherer(nil, rdsclient, ec2client, configuration))
+			configuration.Hostname = configuration.AwsRDSDB
+			gatherers = append(gatherers, m.NewAWSRDSEnhancedMetricsGatherer(nil, result.DBInstances[0], cwlogsclient, configuration))
+		} else if len(result.DBInstances) > 1 {
+			logger.Println("RDS.DescribeDBInstances: Database has %d instances. Clusters are not supported", len(result.DBInstances))
+		} else {
+			logger.Println("RDS.DescribeDBInstances: No instances")
+		}
 	default:
 		logger.Println("InstanceType is Local")
 		gatherers = append(gatherers, m.NewOSMetricsGatherer(nil, configuration))

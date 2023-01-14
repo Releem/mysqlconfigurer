@@ -2,7 +2,7 @@
 
 [![Build Status - Master](https://travis-ci.com/releem/mysqlconfigurer.svg?branch=master)](https://travis-ci.com/releem/mysqlconfigurer)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Releem/mysqlconfigurer)](https://goreportcard.com/report/github.com/Releem/mysqlconfigurer)
-</br>[![slack](https://img.shields.io/badge/Slack-4A154B?style=for-the-badge&logo=slack&logoColor=white)](https://join.slack.com/t/releem-community/shared_invite/zt-1j3d0vosh-AJHbDiQrzVDvLat5eqQorQ)
+[![slack](https://img.shields.io/badge/slack-Releem%20Community-brightgreen.svg?logo=slack)](https://join.slack.com/t/releem-community/shared_invite/zt-1j3d0vosh-AJHbDiQrzVDvLat5eqQorQ)
 
 <p align="center">
   <a href="https://plausible.io/">

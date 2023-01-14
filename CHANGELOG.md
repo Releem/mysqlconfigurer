@@ -1,6 +1,28 @@
 Releem releases
 ---
-Information about releases of the Releem Agent.
+Information about releases of the Releem.
+
+Releem 0.9.9, 2022-12-31
+- Added system metrics collection CPU, RAM, Swap, IOPS
+- Added Slow Log Graph in the Releem Customer Portal
+- Added CPU, IOPS, and Memory gauges for all users in the Releem Customer Portal
+- Added Docker integration container. Closes #108
+- Added Connection to MySQL via socket. Closes #117
+- Added All Servers page in the Releem Customer Portal
+- Improved Best Practices and Recommendations Block in the Releem Customer Portal
+- Improved Documentation
+- Fixed Installation with custome ip address. Closes #118
+- Fixed Releem Agent stopped after server reboot. Closes #122
+- Fixed During installation /etc/mysql/my.cnf was broke. Closes #126
+
+Releem 0.9.8, 2022-11-30
+- Added slow log queriest collection
+- Added Latency Graph in the Releem Customer Portal
+- Added collecting metrics from Performance Scheme
+- Improved Releem Agent installation process just in one command
+- Fixed output color. Closes #109
+- Fixed Exclude "MySQL client" information. Closes #45
+- Fixed Can't open error on CloudLinux. Closes #101
 
 Releem 0.9.7, 2022-10-31
 - Added installation logs collection.
@@ -21,7 +43,7 @@ Releem 0.9.5, 2022-08-31
 - Added Apply recommended MySQL configuration and rollback to previous configuration. Closes #63
 - Added Automatic update.
 - Added innodb_page_cleaners and innodb_purge_threads calculations.
-- Improved performance of Releem Agent minimize workload an run on servers with hundreds databases. Closes #30
+- Improved performance of Releem Agent minimize workload an run on servers with hundreds databases. Closes #30. Closes #58
 
 Releem 0.9.4, 2022-07-31
 - Added FreeBSD support. Closes #95

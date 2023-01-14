@@ -39,9 +39,29 @@ mysql_port="${DB_PORT:-3306}"
 mysql_restart_service=" /bin/systemctl restart mysql"
 
 # MysqlConfDir string `hcl:"mysql_cnf_dir"`
-# Defaults to 3600 seconds, the path to copy the recommended config.
+# The path to copy the recommended config.
 mysql_cnf_dir="/etc/mysql/releem.conf.d"
 
 # ReleemConfDir string `hcl:"releem_cnf_dir"`
-# Defaults to 3600 seconds, Releem Agent configuration path.
+# Releem Agent configuration path.
 releem_cnf_dir="/opt/releem/conf"
+
+# InstanceType string `hcl:"instance_type"`
+# Defaults to local, type of instance "local" or "aws/rds"
+instance_type="${INSTANCE_TYPE:-local}"
+
+# AwsRegion string `hcl:"aws_region"`
+# Defaults to us-east-1, AWS region for RDS
+aws_region="${AWS_REGION:-us-east-1}"
+
+# AwsRDSDB string `hcl:"aws_rds_db"`
+# RDS database name.
+aws_rds_db="${AWS_RDS_DB}"
+
+# Env string `hcl:"env"`
+# Releem Environment.
+env="${RELEEM_ENV:-prod}"
+
+# Debug string `hcl:"debug"`
+# Releem Debug messages
+debug=${RELEEM_DEBUG:-false}

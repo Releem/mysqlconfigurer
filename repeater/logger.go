@@ -1,7 +1,7 @@
 package repeater
 
 import (
-	m "github.com/Releem/mysqlconfigurer/releem-agent/metrics"
+	m "github.com/Releem/mysqlconfigurer/metrics"
 	lg "github.com/advantageous/go-logback/logging"
 )
 

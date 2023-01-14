@@ -3,7 +3,7 @@ package metrics
 import (
 	"database/sql"
 
-	"github.com/Releem/mysqlconfigurer/releem-agent/config"
+	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/advantageous/go-logback/logging"
 )
 

@@ -6,8 +6,8 @@ import (
 
 	"encoding/json"
 
-	"github.com/Releem/mysqlconfigurer/releem-agent/config"
-	m "github.com/Releem/mysqlconfigurer/releem-agent/metrics"
+	"github.com/Releem/mysqlconfigurer/config"
+	m "github.com/Releem/mysqlconfigurer/metrics"
 	"github.com/advantageous/go-logback/logging"
 
 	"time"

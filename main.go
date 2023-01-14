@@ -10,9 +10,9 @@ import (
 	"os"
 
 	"github.com/Releem/daemon"
-	"github.com/Releem/mysqlconfigurer/releem-agent/config"
-	m "github.com/Releem/mysqlconfigurer/releem-agent/metrics"
-	r "github.com/Releem/mysqlconfigurer/releem-agent/repeater"
+	"github.com/Releem/mysqlconfigurer/config"
+	m "github.com/Releem/mysqlconfigurer/metrics"
+	r "github.com/Releem/mysqlconfigurer/repeater"
 	"github.com/advantageous/go-logback/logging"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"

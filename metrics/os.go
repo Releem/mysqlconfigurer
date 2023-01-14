@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/Releem/mysqlconfigurer/releem-agent/config"
+	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/advantageous/go-logback/logging"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
@@ -128,7 +128,7 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 
 	//OS host info
 	hostInfo, _ := host.Info()
-	hostInfoMap := MapJoin(StructToMap(hostInfo.String()), MetricGroupValue{"instancetype": "local"})
+	hostInfoMap := MapJoin(StructToMap(hostInfo.String()), MetricGroupValue{"InstanceType": "local"})
 	info["Host"] = hostInfoMap
 
 	// IOCounters, _ := disk.IOCounters()

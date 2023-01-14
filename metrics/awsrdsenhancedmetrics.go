@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/Releem/mysqlconfigurer/releem-agent/config"
+	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/advantageous/go-logback/logging"
 
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"

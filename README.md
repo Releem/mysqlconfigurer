@@ -1,6 +1,8 @@
 # Releem Agent
 
 [![Build Status - Master](https://travis-ci.com/releem/mysqlconfigurer.svg?branch=master)](https://travis-ci.com/releem/mysqlconfigurer)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Releem/mysqlconfigurer)](https://goreportcard.com/report/github.com/Releem/mysqlconfigurer)
+</br>[![slack](https://img.shields.io/badge/Slack-4A154B?style=for-the-badge&logo=slack&logoColor=white)](https://releem-community.slack.com/)
 
 <p align="center">
   <a href="https://plausible.io/">

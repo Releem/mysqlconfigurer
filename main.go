@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"flag"
 	"io/fs"
-	"net"
 	"os"
 
 	"github.com/Releem/daemon"
@@ -47,7 +46,7 @@ func IsSocket(path string, logger logging.Logger) bool {
 
 // Manage by daemon commands or run the daemon
 func (service *Service) Manage(logger logging.Logger, configFile string, command []string, FirstRun bool) (string, error) {
-
+	var gatherers []m.MetricsGatherer
 	usage := "Usage: myservice install | remove | start | stop | status"
 
 	// if received any kind of command, do it
@@ -74,35 +73,6 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 	if err != nil {
 		logger.PrintError("Config load failed", err)
 	}
-	// Init connection DB
-	var db *sql.DB
-	if IsSocket(configuration.MysqlHost, logger) {
-		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@unix("+configuration.MysqlHost+")/mysql")
-	} else if addr := net.ParseIP(configuration.MysqlHost); addr != nil {
-		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@tcp("+configuration.MysqlHost+":"+configuration.MysqlPort+")/mysql")
-	}
-	if err != nil {
-		logger.PrintError("Connection opening to failed", err)
-	}
-	defer db.Close()
-
-	err = db.Ping()
-	if err != nil {
-		logger.PrintError("Connection failed", err)
-	} else {
-		logger.Println("Connect Success to DB", configuration.MysqlHost)
-	}
-	//Init repeaters
-	repeaters := make(map[string][]m.MetricsRepeater)
-	repeaters["Metrics"] = []m.MetricsRepeater{r.NewReleemMetricsRepeater(configuration)}
-	repeaters["Configurations"] = []m.MetricsRepeater{r.NewReleemConfigurationsRepeater(configuration)}
-
-	//Init gatherers
-	gatherers := []m.MetricsGatherer{
-		m.NewDbConfGatherer(nil, db, configuration),
-		m.NewDbInfoGatherer(nil, db, configuration),
-		m.NewDbMetricsGatherer(nil, db, configuration),
-		m.NewAgentMetricsGatherer(nil, configuration)}
 
 	// Select how we collect instance metrics depending on InstanceType
 	switch configuration.InstanceType {
@@ -148,6 +118,7 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 			//	gatherers = append(gatherers, m.NewAWSRDSMetricsGatherer(nil, cwclient, configuration))
 			//	gatherers = append(gatherers, m.NewAWSRDSInstanceGatherer(nil, rdsclient, ec2client, configuration))
 			configuration.Hostname = configuration.AwsRDSDB
+			configuration.MysqlHost = *result.DBInstances[0].Endpoint.Address
 			gatherers = append(gatherers, m.NewAWSRDSEnhancedMetricsGatherer(nil, result.DBInstances[0], cwlogsclient, configuration))
 		} else if len(result.DBInstances) > 1 {
 			logger.Println("RDS.DescribeDBInstances: Database has %d instances. Clusters are not supported", len(result.DBInstances))
@@ -159,6 +130,36 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 		gatherers = append(gatherers, m.NewOSMetricsGatherer(nil, configuration))
 
 	}
+
+	// Init connection DB
+	var db *sql.DB
+	if IsSocket(configuration.MysqlHost, logger) {
+		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@unix("+configuration.MysqlHost+")/mysql")
+	} else {
+		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@tcp("+configuration.MysqlHost+":"+configuration.MysqlPort+")/mysql")
+	}
+	if err != nil {
+		logger.PrintError("Connection opening to failed", err)
+	}
+	defer db.Close()
+
+	err = db.Ping()
+	if err != nil {
+		logger.PrintError("Connection failed", err)
+	} else {
+		logger.Println("Connect Success to DB", configuration.MysqlHost)
+	}
+	//Init repeaters
+	repeaters := make(map[string][]m.MetricsRepeater)
+	repeaters["Metrics"] = []m.MetricsRepeater{r.NewReleemMetricsRepeater(configuration)}
+	repeaters["Configurations"] = []m.MetricsRepeater{r.NewReleemConfigurationsRepeater(configuration)}
+
+	//Init gatherers
+	gatherers = append(gatherers,
+		m.NewDbConfGatherer(nil, db, configuration),
+		m.NewDbInfoGatherer(nil, db, configuration),
+		m.NewDbMetricsGatherer(nil, db, configuration),
+		m.NewAgentMetricsGatherer(nil, configuration))
 
 	m.RunWorker(gatherers, repeaters, nil, configuration, configFile, FirstRun)
 

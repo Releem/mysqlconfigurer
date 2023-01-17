@@ -80,20 +80,17 @@ fi
 connection_string=""  
 root_connection_string=""
 if [ -n "$RELEEM_MYSQL_HOST" ]; then
-    if [[ $RELEEM_MYSQL_HOST =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    if [ -S "$RELEEM_MYSQL_HOST" ]; then
+        mysql_user_host="localhost"
+        connection_string="${connection_string} --socket=${RELEEM_MYSQL_HOST}"
+        root_connection_string="${root_connection_string} --socket=${RELEEM_MYSQL_HOST}"
+    else
         if [ "$RELEEM_MYSQL_HOST" == "127.0.0.1" ]; then
             mysql_user_host="127.0.0.1"
         else
             mysql_user_host="%"
         fi
         connection_string="${connection_string} --host=${RELEEM_MYSQL_HOST}"
-    elif [ -S "$RELEEM_MYSQL_HOST" ]; then
-        mysql_user_host="localhost"
-        connection_string="${connection_string} --socket=${RELEEM_MYSQL_HOST}"
-        root_connection_string="${root_connection_string} --socket=${RELEEM_MYSQL_HOST}"
-    else
-        printf "\033[31m The variable RELEEM_MYSQL_HOST has an incorrect value. The value must be an ip address or a socket file.\033[0m\n"
-        exit 1;
     fi
 else
     mysql_user_host="127.0.0.1"
@@ -368,6 +365,12 @@ fi
 if [ -n "$RELEEM_HOSTNAME" ]; then
     printf "\033[37m - Adding hostname to the Releem Agent configuration: $CONF\n\033[0m"
 	echo "hostname=\"$RELEEM_HOSTNAME\"" | $sudo_cmd tee -a $CONF >/dev/null
+fi
+if [ -n "$RELEEM_ENV" ]; then
+	echo "env=\"$RELEEM_ENV\"" | $sudo_cmd tee -a $CONF >/dev/null
+fi
+if [ -n "$RELEEM_DEBUG" ]; then
+	echo "debug=$RELEEM_DEBUG" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 echo "interval_seconds=60" | $sudo_cmd tee -a $CONF >/dev/null
 echo "interval_read_config_seconds=3600" | $sudo_cmd tee -a $CONF >/dev/null

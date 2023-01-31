@@ -114,7 +114,7 @@ function releem_rollback_config() {
     printf "\033[31m\n * Restarting with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
     eval "$RELEEM_MYSQL_RESTART_SERVICE" &
     wait_restart
-    if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null) == "mysqld is alive" ]];
+    if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     then
         printf "\033[32m\n * MySQL service started successfully!\033[0m\n"
     else
@@ -169,7 +169,7 @@ function releem_ps_mysql() {
     printf "\033[37m Restarting service with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
     eval "$RELEEM_MYSQL_RESTART_SERVICE" &
     wait_restart
-    if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null) == "mysqld is alive" ]];
+    if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     then
         printf "\033[32m\n MySQL service started successfully!\033[0m\n"
         printf "\033[32m\n Performance schema and Slow Log is enabled.\033[0m\n"
@@ -228,7 +228,7 @@ function releem_apply_config() {
     eval "$RELEEM_MYSQL_RESTART_SERVICE" &
     wait_restart
 
-    if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null) == "mysqld is alive" ]];
+    if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     then
         printf "\033[32m\n MySQL service started successfully!\033[0m\n"
         printf "\033[32m\n Recommended configuration applied successfully!\033[0m\n"

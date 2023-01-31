@@ -256,7 +256,7 @@ FLAG_SUCCESS=0
 if [ -n "$RELEEM_MYSQL_PASSWORD" ] && [ -n "$RELEEM_MYSQL_LOGIN" ]; then
     FLAG_SUCCESS=1
 elif [ -n "$RELEEM_MYSQL_ROOT_PASSWORD" ]; then
-    if [[ $(mysqladmin ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping 2>/dev/null) == "mysqld is alive" ]];
+    if [[ $(mysqladmin ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     then
         # printf "\033[32m\n MySQL connect successfully!\033[0m\n"
         RELEEM_MYSQL_LOGIN="releem"
@@ -278,7 +278,7 @@ else
 fi
 
 if [ "$FLAG_SUCCESS" == "1" ]; then
-    if [[ $(mysqladmin ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping 2>/dev/null) == "mysqld is alive" ]];
+    if [[ $(mysqladmin ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     then
         printf "\033[32m\n Connect to mysql successfully with user \`${RELEEM_MYSQL_LOGIN}\`\033[0m\n"
         MYSQL_LOGIN=$RELEEM_MYSQL_LOGIN

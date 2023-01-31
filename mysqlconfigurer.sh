@@ -421,10 +421,12 @@ do
     m) MYSQL_MEMORY_LIMIT=${OPTARG};;
     a) releem_apply_config;;
     r) releem_rollback_config;;
-    c) releem_runnig_cron;;
+    c) get_config;;
     p) releem_ps_mysql;;
     u) update_agent; exit 0;;
   esac
 done
 
-get_config
+printf "\033[37m\n\033[0m"
+printf "\033[37m * To run Releem Agent manually please use the following command:\033[0m\n"
+printf "\033[32m /opt/releem/releem-agent -f\033[0m\n\n"

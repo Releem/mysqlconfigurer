@@ -440,7 +440,7 @@ fi
 $sudo_cmd $RELEEM_COMMAND -p
 
 printf "\033[37m\n\033[0m"
-printf "\033[37m * To run Releem Agent manually please use the following command:\033[0m\n"
-printf "\033[32m $RELEEM_COMMAND\033[0m\n\n"
-printf "\033[37m * To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics\033[0m"
+printf "\033[37m * Releem Agent installed successfully.\033[0m\n"
+printf "\033[37m\n\033[0m"
+printf "\033[37m * To see Releem recommendations and MySQL metrics please visit https://app.releem.com/dashboard\033[0m"
 printf "\033[37m\n\033[0m"

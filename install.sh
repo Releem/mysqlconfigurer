@@ -148,13 +148,13 @@ if [ "$OS" = "RedHat" ]; then
         package_manager='yum'
     fi
 
-    $sudo_cmd $package_manager -y install net-tools perl-JSON perl-Data-Dumper perl-Getopt-Long coreutils procps-ng
+    $sudo_cmd $package_manager -y install curl
 
 elif [ "$OS" = "Debian" ]; then
     printf "\033[37m\n * Installing dependences...\n\033[0m\n"
 
     $sudo_cmd apt-get update
-    $sudo_cmd apt-get install -y --force-yes curl net-tools libjson-perl coreutils procps
+    $sudo_cmd apt-get install -y --force-yes curl
 
 else
     printf "\033[31mYour OS or distribution are not supported by this install script.\033[0m\n"

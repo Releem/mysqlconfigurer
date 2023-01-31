@@ -18,11 +18,7 @@ ARG RELEEM_DEBUG
 RUN apt update \
  && apt install -y \
  curl \
- mariadb-client \
- net-tools \
- libjson-perl \
- procps \
- iputils-ping
+ mariadb-client
 
 RUN curl -L https://github.com/a8m/envsubst/releases/download/v1.2.0/envsubst-`uname -s`-`uname -m` -o envsubst \
  && chmod +x envsubst \
@@ -35,8 +31,8 @@ COPY docker/ /docker/
 
 RUN curl -o releem-agent https://releem.s3.amazonaws.com/v2/releem-agent \
  && curl -o mysqlconfigurer.sh https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh \
- && chmod +x releem-agent mysqlconfigurer.sh
-
+ && chmod +x releem-agent mysqlconfigurer.sh /docker/entrypoint.sh
+ 
 RUN mkdir -p /etc/mysql/releem.conf.d
 
 ENTRYPOINT [ "/docker/entrypoint.sh" ]

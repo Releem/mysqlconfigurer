@@ -66,6 +66,30 @@ function releem_update() {
     exit 0
 }
 
+if [ "$0" == "uninstall" ];
+then
+    printf "\033[37m\n * Configure crontab\033[0m\n"
+    ($sudo_cmd crontab -l 2>/dev/null | grep -v "$WORKDIR/mysqlconfigurer.sh" || true) | $sudo_cmd crontab -
+    printf "\033[37m\n * Stoping Releem Agent service...\033[0m\n"
+    releem_agent_stop=$($sudo_cmd $WORKDIR/releem-agent  stop)
+    if [ $? -eq 0 ]; then
+        printf "\033[32m\n Stop Releem Agent successfuly\033[0m\n"
+    else
+        echo $releem_agent_stop
+        printf "\033[31m\n Restart Releem Agent failed\033[0m\n"
+    fi
+    printf "\033[37m\n * Uninstalling Releem Agent service...\033[0m\n"
+    releem_agent_remove=$($sudo_cmd $WORKDIR/releem-agent remove)
+    if [ $? -eq 0 ]; then
+        printf "\033[32m\n Uninstall Releem Agent successfuly\033[0m\n"
+    else
+        echo $releem_agent_remove
+        printf "\033[31m\n Reinstall Releem Agent failed\033[0m\n"
+    fi
+    printf "\033[37m\n * Remove files Releem Agent\033[0m\n"
+    $sudo_cmd rm -rf $WORKDIR
+    exit 0
+fi
 
 apikey=
 if [ -n "$RELEEM_API_KEY" ]; then

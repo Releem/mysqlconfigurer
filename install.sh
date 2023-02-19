@@ -251,14 +251,16 @@ else
 fi
 
 
-printf "\033[37m\n * Configure mysql user for collect data\033[0m\n"
+printf "\033[37m\n * Configure MySQL user for collect data\033[0m\n"
 FLAG_SUCCESS=0
 if [ -n "$RELEEM_MYSQL_PASSWORD" ] && [ -n "$RELEEM_MYSQL_LOGIN" ]; then
+    printf "\033[37m\n * Using MySQL login and password from environment variables\033[0m\n"
     FLAG_SUCCESS=1
 elif [ -n "$RELEEM_MYSQL_ROOT_PASSWORD" ]; then
+    printf "\033[37m\n * Using root user MySQL\033[0m\n"
     if [[ $(mysqladmin ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     then
-        # printf "\033[32m\n MySQL connect successfully!\033[0m\n"
+        printf "\033[37m\n MySQL connect successfully!\033[0m\n"
         RELEEM_MYSQL_LOGIN="releem"
         RELEEM_MYSQL_PASSWORD=$(cat /dev/urandom | tr -cd '%*)?@#~A-Za-z0-9%*)?@#~' | head -c16 )
         mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "DROP USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' ;" 2>/dev/null || true
@@ -268,8 +270,8 @@ elif [ -n "$RELEEM_MYSQL_ROOT_PASSWORD" ]; then
         FLAG_SUCCESS=1
     else
         printf "\033[31m\n MySQL connect failed with user root with error:\033[0m\n"
-        mysqladmin  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping || true
-        printf "\033[31m\n Check that the password is correct, the execution of the command \`mysqladmin  ${root_connection_string}  --user=root --password=<root password> ping\` and reinstall the agent.\033[0m\n"
+        mysqladmin ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping || true
+        printf "\033[31m\n Check that the password is correct, the execution of the command \`mysqladmin ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping\` and reinstall the agent.\033[0m\n"
         exit 1
     fi
 else

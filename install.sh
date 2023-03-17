@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 1.0.4
+# install.sh - Version 1.2.0
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -7,7 +7,7 @@
 # using the package manager.
 
 set -e
-install_script_version=1.0.4
+install_script_version=1.2.0
 logfile="releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -296,7 +296,7 @@ else
     else
         printf "\033[31m\n MySQL connect failed with user root with error:\033[0m\n"
         mysqladmin ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping || true
-        printf "\033[31m\n%s\033[0m\n" "Check that the password is correct, the execution of the command \`mysqladmin ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping\` and reinstall the agent."
+        printf "\033[31m\n%s\033[0m\n" "Check that the password is correct, the execution of the command \`mysqladmin ${root_connection_string} --user=root --password=<MYSQL_ROOT_PASSWORD> ping\` and reinstall the agent."
         exit 1
     fi
 #else

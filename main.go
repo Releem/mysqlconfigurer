@@ -5,8 +5,8 @@ import (
 	"context"
 	"database/sql"
 	"flag"
-	"io/fs"
 	"os"
+	"strings"
 
 	"github.com/Releem/daemon"
 	"github.com/Releem/mysqlconfigurer/config"
@@ -36,12 +36,21 @@ type Service struct {
 	daemon.Daemon
 }
 
-func IsSocket(path string, logger logging.Logger) bool {
-	fileInfo, err := os.Stat(path)
-	if err != nil {
+// func IsSocket(path string, logger logging.Logger) bool {
+// 	fileInfo, err := os.Stat(path)
+// 	if err != nil {
+// 		return false
+// 	}
+// 	return fileInfo.Mode().Type() == fs.ModeSocket
+// }
+
+func IsPath(path string, logger logging.Logger) bool {
+	result_path := strings.Index(path, "/")
+	if result_path == 0 {
+		return true
+	} else {
 		return false
 	}
-	return fileInfo.Mode().Type() == fs.ModeSocket
 }
 
 // Manage by daemon commands or run the daemon
@@ -143,22 +152,32 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 	}
 	// Init connection DB
 	var db *sql.DB
-	if IsSocket(configuration.MysqlHost, logger) {
+	var TypeConnection string
+
+	if IsPath(configuration.MysqlHost, logger) {
 		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@unix("+configuration.MysqlHost+")/mysql")
+		TypeConnection = "unix"
+
 	} else {
 		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@tcp("+configuration.MysqlHost+":"+configuration.MysqlPort+")/mysql")
+		TypeConnection = "tcp"
 	}
 	if err != nil {
 		logger.PrintError("Connection opening to failed", err)
 	}
-	defer db.Close()
 
 	err = db.Ping()
 	if err != nil {
 		logger.PrintError("Connection failed", err)
 	} else {
-		logger.Println("Connect Success to DB", configuration.MysqlHost)
+		if TypeConnection == "unix" {
+			logger.Println("Connect Success to DB via unix socket", configuration.MysqlHost)
+		} else if TypeConnection == "tcp" {
+			logger.Println("Connect Success to DB via tcp", configuration.MysqlHost)
+		}
 	}
+	defer db.Close()
+
 	//Init repeaters
 	repeaters := make(map[string][]m.MetricsRepeater)
 	repeaters["Metrics"] = []m.MetricsRepeater{r.NewReleemMetricsRepeater(configuration)}

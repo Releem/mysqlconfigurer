@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 1.0.4
+# install.sh - Version 1.2.0
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -7,7 +7,7 @@
 # using the package manager.
 
 set -e
-install_script_version=1.0.4
+install_script_version=1.2.0
 logfile="releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -66,6 +66,30 @@ function releem_update() {
     exit 0
 }
 
+if [ "$0" == "uninstall" ];
+then
+    printf "\033[37m\n * Configure crontab\033[0m\n"
+    ($sudo_cmd crontab -l 2>/dev/null | grep -v "$WORKDIR/mysqlconfigurer.sh" || true) | $sudo_cmd crontab -
+    printf "\033[37m\n * Stoping Releem Agent service...\033[0m\n"
+    releem_agent_stop=$($sudo_cmd $WORKDIR/releem-agent  stop)
+    if [ $? -eq 0 ]; then
+        printf "\033[32m\n Stop Releem Agent successfuly\033[0m\n"
+    else
+        echo $releem_agent_stop
+        printf "\033[31m\n Restart Releem Agent failed\033[0m\n"
+    fi
+    printf "\033[37m\n * Uninstalling Releem Agent service...\033[0m\n"
+    releem_agent_remove=$($sudo_cmd $WORKDIR/releem-agent remove)
+    if [ $? -eq 0 ]; then
+        printf "\033[32m\n Uninstall Releem Agent successfuly\033[0m\n"
+    else
+        echo $releem_agent_remove
+        printf "\033[31m\n Reinstall Releem Agent failed\033[0m\n"
+    fi
+    printf "\033[37m\n * Remove files Releem Agent\033[0m\n"
+    $sudo_cmd rm -rf $WORKDIR
+    exit 0
+fi
 
 apikey=
 if [ -n "$RELEEM_API_KEY" ]; then
@@ -251,14 +275,17 @@ else
 fi
 
 
-printf "\033[37m\n * Configure mysql user for collect data\033[0m\n"
+printf "\033[37m\n * Configure MySQL user for collect data\033[0m\n"
 FLAG_SUCCESS=0
 if [ -n "$RELEEM_MYSQL_PASSWORD" ] && [ -n "$RELEEM_MYSQL_LOGIN" ]; then
+    printf "\033[37m\n * Using MySQL login and password from environment variables\033[0m\n"
     FLAG_SUCCESS=1
-elif [ -n "$RELEEM_MYSQL_ROOT_PASSWORD" ]; then
+#elif [ -n "$RELEEM_MYSQL_ROOT_PASSWORD" ]; then
+else
+    printf "\033[37m\n * Using root user MySQL\033[0m\n"
     if [[ $(mysqladmin ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     then
-        # printf "\033[32m\n MySQL connect successfully!\033[0m\n"
+        printf "\033[37m\n MySQL connect successfully!\033[0m\n"
         RELEEM_MYSQL_LOGIN="releem"
         RELEEM_MYSQL_PASSWORD=$(cat /dev/urandom | tr -cd '%*)?@#~A-Za-z0-9%*)?@#~' | head -c16 )
         mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "DROP USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' ;" 2>/dev/null || true
@@ -268,13 +295,13 @@ elif [ -n "$RELEEM_MYSQL_ROOT_PASSWORD" ]; then
         FLAG_SUCCESS=1
     else
         printf "\033[31m\n MySQL connect failed with user root with error:\033[0m\n"
-        mysqladmin  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping || true
-        printf "\033[31m\n Check that the password is correct, the execution of the command \`mysqladmin  ${root_connection_string}  --user=root --password=<root password> ping\` and reinstall the agent.\033[0m\n"
+        mysqladmin ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping || true
+        printf "\033[31m\n%s\033[0m\n" "Check that the password is correct, the execution of the command \`mysqladmin ${root_connection_string} --user=root --password=<MYSQL_ROOT_PASSWORD> ping\` and reinstall the agent."
         exit 1
     fi
-else
-    printf "\033[31m\n Variable RELEEM_MYSQL_ROOT_PASSWORD not found.\n Please, reinstall the agent by setting the \"RELEEM_MYSQL_ROOT_PASSWORD\" variable\033[0m\n"
-    exit 1
+#else
+#    printf "\033[31m\n Variable RELEEM_MYSQL_ROOT_PASSWORD not found.\n Please, reinstall the agent by setting the \"RELEEM_MYSQL_ROOT_PASSWORD\" variable\033[0m\n"
+#    exit 1
 fi
 
 if [ "$FLAG_SUCCESS" == "1" ]; then
@@ -286,7 +313,7 @@ if [ "$FLAG_SUCCESS" == "1" ]; then
     else
         printf "\033[31m\n Connect to mysql failed with user \`${RELEEM_MYSQL_LOGIN}\` with error:\033[0m\n"
         mysqladmin ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping || true
-        printf "\033[31m\n Check that the user and password is correct, the execution of the command \`mysqladmin ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping\` and reinstall the agent. \033[0m\n"
+        printf "\033[31m\n%s\033[0m\n" "Check that the user and password is correct, the execution of the command \`mysqladmin ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping\` and reinstall the agent."
         exit 1
     fi
 fi

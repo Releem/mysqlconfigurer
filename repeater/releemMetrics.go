@@ -38,7 +38,7 @@ func (repeater ReleemMetricsRepeater) ProcessMetrics(context m.MetricContext, me
 	req.Header.Set("x-releem-api-key", context.GetApiKey())
 
 	client := http.Client{
-		Timeout: 5 * time.Second,
+		Timeout: 30 * time.Second,
 	}
 
 	res, err := client.Do(req)

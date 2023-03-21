@@ -14,6 +14,7 @@ ARG AWS_RDS_DB
 
 ARG RELEEM_ENV
 ARG RELEEM_DEBUG
+ARG RELEEM_HOSTNAME
 
 RUN apt update \
  && apt install -y \

@@ -22,7 +22,7 @@ func makeTerminateChannel() <-chan os.Signal {
 }
 
 func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeater, logger logging.Logger,
-	configuration *config.Config, configFile string, FirstRun bool) {
+	configuration *config.Config, configFile string) {
 	var GenerateTimer *time.Timer
 	if logger == nil {
 		if configuration.Debug {
@@ -34,18 +34,11 @@ func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeat
 
 	timer := time.NewTimer(1 * time.Second)
 	configTimer := time.NewTimer(configuration.ReadConfigSeconds * time.Second)
-	if FirstRun {
+	if configuration.Mode.ModeType == "FirstRun" || configuration.Mode.Name == "Events" {
 		GenerateTimer = time.NewTimer(0 * time.Second)
 	} else {
 		GenerateTimer = time.NewTimer(configuration.GenerateConfigSeconds * time.Second)
 	}
-
-	// var configuration *config.Config
-	// if newConfig, err := config.LoadConfig(configFile, logger); err != nil {
-	// 	logger.PrintError("Error reading config", err)
-	// } else {
-	// 	configuration = newConfig
-	// }
 	terminator := makeTerminateChannel()
 
 	for {
@@ -58,7 +51,7 @@ func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeat
 			timer.Reset(configuration.TimePeriodSeconds * time.Second)
 			metrics := collectMetrics(gatherers, logger)
 			if Ready {
-				processMetrics(metrics, repeaters, configuration, logger)
+				processRepeaters(metrics, repeaters["Metrics"], configuration, logger)
 			}
 
 		case <-configTimer.C:
@@ -75,38 +68,19 @@ func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeat
 			logger.Println(" * Collecting metrics to recommend a config...")
 			metrics := collectMetrics(gatherers, logger)
 			if Ready {
-				processConfigurations(metrics, repeaters, configuration, logger)
+				processRepeaters(metrics, repeaters[configuration.Mode.Name], configuration, logger)
 			}
-			if FirstRun {
+			if configuration.Mode.ModeType == "FirstRun" || configuration.Mode.Name == "Events" {
 				os.Exit(0)
 			}
-			// logger.Println("Generating the recommended configuration")
-			// cmd := exec.Command("/bin/bash", "/opt/releem/mysqlconfigurer.sh")
-			// cmd.Env = os.Environ()
-			// cmd.Env = append(cmd.Env, "PATH=/bin:/sbin:/usr/bin:/usr/sbin")
-			// stdout, err := cmd.Output()
-			// if err != nil {
-			// 	logger.PrintError("Config generation with error", err)
-			// }
-			// logger.Debug(string(stdout))
 			GenerateTimer.Reset(configuration.GenerateConfigSeconds * time.Second)
 		}
 	}
 }
 
-func processMetrics(metrics Metrics, repeaters map[string][]MetricsRepeater,
+func processRepeaters(metrics Metrics, repeaters []MetricsRepeater,
 	configuration *config.Config, logger logging.Logger) {
-	for _, r := range repeaters["Metrics"] {
-		err := r.ProcessMetrics(configuration, metrics)
-		if err != nil {
-			logger.PrintError("Repeater failed", err)
-		}
-	}
-}
-
-func processConfigurations(metrics Metrics, repeaters map[string][]MetricsRepeater,
-	configuration *config.Config, logger logging.Logger) {
-	for _, r := range repeaters["Configurations"] {
+	for _, r := range repeaters {
 		err := r.ProcessMetrics(configuration, metrics)
 		if err != nil {
 			logger.PrintError("Repeater failed", err)

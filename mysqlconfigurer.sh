@@ -1,5 +1,5 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 1.2.0
+# mysqlconfigurer.sh - Version 1.2.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -12,17 +12,18 @@ MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 RELEEM_MYSQL_VERSION=$MYSQLCONFIGURER_PATH"mysql_version"
 MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
 MYSQL_MEMORY_LIMIT=0
-VERSION="1.2.0"
+VERSION="1.2.1"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 
 function update_agent() {
-  NEW_VER=$(curl  -s -L https://releem.s3.amazonaws.com/v2/current_version_agent)
-  if [ "$VERSION" \< "$NEW_VER" ]
-  then
-      printf "\033[37m\n * Updating script \e[31;1m%s\e[0m -> \e[32;1m%s\e[0m\n" "$VERSION" "$NEW_VER"
-      curl -s -L https://releem.s3.amazonaws.com/v2/install.sh > "$RELEEM_INSTALL_PATH"
-      RELEEM_API_KEY=$RELEEM_API_KEY exec bash "$RELEEM_INSTALL_PATH" -u
-  fi
+    NEW_VER=$(curl  -s -L https://releem.s3.amazonaws.com/v2/current_version_agent)
+    if [ "$VERSION" \< "$NEW_VER" ]
+    then
+        printf "\033[37m\n * Updating script \e[31;1m%s\e[0m -> \e[32;1m%s\e[0m\n" "$VERSION" "$NEW_VER"
+        curl -s -L https://releem.s3.amazonaws.com/v2/install.sh > "$RELEEM_INSTALL_PATH"
+        RELEEM_API_KEY=$RELEEM_API_KEY exec bash "$RELEEM_INSTALL_PATH" -u
+    fi
+    /opt/releem/releem-agent --event=agent_updated > /dev/null
 }
 
 function wait_restart() {
@@ -120,6 +121,8 @@ function releem_rollback_config() {
     else
         printf "\033[31m\n * MySQL service failed to start in 120 seconds! Check mysql error log! \033[0m\n"
     fi
+    /opt/releem/releem-agent --event=config_rollback > /dev/null
+
     exit 0
 }
 
@@ -177,6 +180,7 @@ function releem_ps_mysql() {
     else
         printf "\033[31m\n MySQL service failed to start in 120 seconds! Check the MySQL error log!\033[0m\n"
     fi
+
     exit 0
 
 }
@@ -239,6 +243,8 @@ function releem_apply_config() {
         printf "\033[31m\n Try to roll back the configuration application using the command: \033[0m\n"
         printf "\033[32m\n bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
     fi
+    /opt/releem/releem-agent --event=config_applied > /dev/null
+
     exit 0
 }
 

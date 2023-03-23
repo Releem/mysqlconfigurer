@@ -22,7 +22,7 @@ func makeTerminateChannel() <-chan os.Signal {
 }
 
 func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeater, logger logging.Logger,
-	configuration *config.Config, configFile string) {
+	configuration *config.Config, configFile string, Mode Mode) {
 	var GenerateTimer *time.Timer
 	if logger == nil {
 		if configuration.Debug {
@@ -34,7 +34,7 @@ func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeat
 
 	timer := time.NewTimer(1 * time.Second)
 	configTimer := time.NewTimer(configuration.ReadConfigSeconds * time.Second)
-	if configuration.Mode.ModeType == "FirstRun" || configuration.Mode.Name == "Events" {
+	if Mode.ModeType == "FirstRun" || Mode.Name == "Events" {
 		GenerateTimer = time.NewTimer(0 * time.Second)
 	} else {
 		GenerateTimer = time.NewTimer(configuration.GenerateConfigSeconds * time.Second)
@@ -68,9 +68,9 @@ func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeat
 			logger.Println(" * Collecting metrics to recommend a config...")
 			metrics := collectMetrics(gatherers, logger)
 			if Ready {
-				processRepeaters(metrics, repeaters[configuration.Mode.Name], configuration, logger)
+				processRepeaters(metrics, repeaters[Mode.Name], configuration, logger)
 			}
-			if configuration.Mode.ModeType == "FirstRun" || configuration.Mode.Name == "Events" {
+			if Mode.ModeType == "FirstRun" || Mode.Name == "Events" {
 				os.Exit(0)
 			}
 			GenerateTimer.Reset(configuration.GenerateConfigSeconds * time.Second)

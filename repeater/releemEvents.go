@@ -16,6 +16,7 @@ import (
 type ReleemEventsRepeater struct {
 	logger        logging.Logger
 	configuration *config.Config
+	Mode          m.Mode
 }
 
 func (repeater ReleemEventsRepeater) ProcessMetrics(context m.MetricContext, metrics m.Metrics) error {
@@ -31,7 +32,7 @@ func (repeater ReleemEventsRepeater) ProcessMetrics(context m.MetricContext, met
 	} else {
 		api_domain = "https://api.releem.com/v1/events/"
 	}
-	api_domain += repeater.configuration.Mode.ModeType
+	api_domain += repeater.Mode.ModeType
 
 	req, err := http.NewRequest(http.MethodPost, api_domain, bodyReader)
 	if err != nil {
@@ -51,12 +52,12 @@ func (repeater ReleemEventsRepeater) ProcessMetrics(context m.MetricContext, met
 	return err
 }
 
-func NewReleemEventsRepeater(configuration *config.Config) ReleemEventsRepeater {
+func NewReleemEventsRepeater(configuration *config.Config, Mode m.Mode) ReleemEventsRepeater {
 	var logger logging.Logger
 	if configuration.Debug {
 		logger = logging.NewSimpleDebugLogger("ReleemRepeaterMetrics")
 	} else {
 		logger = logging.NewSimpleLogger("ReleemRepeaterMetrics")
 	}
-	return ReleemEventsRepeater{logger, configuration}
+	return ReleemEventsRepeater{logger, configuration, Mode}
 }

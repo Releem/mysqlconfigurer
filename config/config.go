@@ -31,10 +31,6 @@ type Config struct {
 	InstanceType          string        `hcl:"instance_type"`
 	AwsRegion             string        `hcl:"aws_region"`
 	AwsRDSDB              string        `hcl:"aws_rds_db"`
-	Mode                  struct {
-		Name     string
-		ModeType string
-	}
 }
 
 func LoadConfig(filename string, logger logging.Logger) (*Config, error) {

@@ -171,15 +171,10 @@ if [ "$OS" = "RedHat" ]; then
     else
         package_manager='yum'
     fi
-
-    $sudo_cmd $package_manager -y install curl
-
+    which curl &> /dev/null || $sudo_cmd $package_manager -y install curl
 elif [ "$OS" = "Debian" ]; then
     printf "\033[37m\n * Installing dependences...\n\033[0m\n"
-
-    $sudo_cmd apt-get update
-    $sudo_cmd apt-get install -y --force-yes curl
-
+    which curl &> /dev/null || ($sudo_cmd apt-get update ; $sudo_cmd apt-get install -y --force-yes curl)
 else
     printf "\033[31mYour OS or distribution are not supported by this install script.\033[0m\n"
     exit;
@@ -287,9 +282,9 @@ else
     then
         printf "\033[37m\n MySQL connect successfully!\033[0m\n"
         RELEEM_MYSQL_LOGIN="releem"
-        RELEEM_MYSQL_PASSWORD=$(cat /dev/urandom | tr -cd '%*)?@#~A-Za-z0-9%*)?@#~' | head -c16 )
+        RELEEM_MYSQL_PASSWORD=$(cat /dev/urandom | tr -cd '%*)?@#~' | head -c2 ; cat /dev/urandom | tr -cd '%*)?@#~A-Za-z0-9%*)?@#~' | head -c16 ; cat /dev/urandom | tr -cd '%*)?@#~' | head -c2 )
         mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "DROP USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' ;" 2>/dev/null || true
-        mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "CREATE USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' identified by '${RELEEM_MYSQL_PASSWORD}';" 2>/dev/null
+        mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "CREATE USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' identified by '${RELEEM_MYSQL_PASSWORD}';"
         mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT, PROCESS,EXECUTE, REPLICATION CLIENT,SHOW DATABASES,SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 2>/dev/null
         printf "\033[32m\n Created new user \`${RELEEM_MYSQL_LOGIN}\`\033[0m\n"
         FLAG_SUCCESS=1

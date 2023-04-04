@@ -139,7 +139,7 @@ function releem_ps_mysql() {
     fi
 
     if [ -d "$RELEEM_MYSQL_CONFIG_DIR" ]; then
-        printf "\033[37m\n * Enabling Performance schema and SlowLog for collecting metrics...\n\033[0m\n"
+        printf "\033[37m\n * Enabling Performance schema and SlowLog to collect metrics...\n\033[0m\n"
         echo -e "### This configuration was recommended by Releem. https://releem.com\n[mysqld]\nperformance_schema = 1\nslow_query_log = 1" > "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf"
     else
         printf "\033[31m\n MySQL configuration directory is not found.\033[0m"
@@ -147,7 +147,7 @@ function releem_ps_mysql() {
         exit 1;
     fi
     if [ "$FLAG_CONFIGURE" -eq 1 ]; then
-        printf "\033[37m\n * Performance schema and SlowLog is enabled for collecting metrics.\033[0m\n"
+        printf "\033[37m\n * Performance schema and SlowLog are enabled for metrics collection.\033[0m\n"
         exit 0
     fi
     printf "\033[37m To apply changes to the mysql configuration, you need to restart the service\n\033[0m\n"
@@ -174,8 +174,8 @@ function releem_ps_mysql() {
     wait_restart
     if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     then
-        printf "\033[32m\n MySQL service started successfully!\033[0m\n"
-        printf "\033[32m\n Performance schema and Slow Log is enabled.\033[0m\n"
+        printf "\033[32m\n The MySQL service has started successfully!\033[0m\n"
+        printf "\033[32m\n Performance schema and Slow Log are enabled.\033[0m\n"
 
     else
         printf "\033[31m\n MySQL service failed to start in 120 seconds! Check the MySQL error log!\033[0m\n"
@@ -187,7 +187,7 @@ function releem_ps_mysql() {
 
 
 function releem_apply_config() {
-    printf "\033[37m\n * Applying recommended MySQL configuration...\033[0m\n"
+    printf "\033[37m\n * Applying the recommended MySQL configuration...\033[0m\n"
     if [ ! -f $MYSQLCONFIGURER_CONFIGFILE ]; then
         printf "\033[37m\n * Recommended MySQL configuration is not found.\033[0m"
         printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"
@@ -207,13 +207,13 @@ function releem_apply_config() {
         printf "\033[37m\n * The command to restart the MySQL service was not found. Try to reinstall Releem Agent.\033[0m"
         exit 1;
     fi
-    printf "\033[37m\n * Copy file $MYSQLCONFIGURER_CONFIGFILE to directory $RELEEM_MYSQL_CONFIG_DIR/...\033[0m\n"
+    printf "\033[37m\n * Copying file $MYSQLCONFIGURER_CONFIGFILE to directory $RELEEM_MYSQL_CONFIG_DIR/...\033[0m\n"
     yes | cp -fr $MYSQLCONFIGURER_CONFIGFILE $RELEEM_MYSQL_CONFIG_DIR/
 
 
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
-      read -p "Please confirm restart MySQL service? (Y/N) " -n 1 -r
+      read -p "Please confirm the MySQL service restart? (Y/N) " -n 1 -r
       echo    # move to a new line
       if [[ ! $REPLY =~ ^[Yy]$ ]]
       then
@@ -228,7 +228,7 @@ function releem_apply_config() {
     fi
 
     #echo "-------Test config-------"
-    printf "\033[37m\n * Restarting with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
+    printf "\033[37m\n * Restarting MySQL with the command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
     eval "$RELEEM_MYSQL_RESTART_SERVICE" &
     wait_restart
 

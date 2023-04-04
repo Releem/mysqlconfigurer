@@ -2,6 +2,21 @@ Releem releases
 ---
 Information about releases of the Releem.
 
+Releem 1.0.0, 2023-01-31 ([What’s New At Releem | January 2023](https://releem.com/blog/whats-new-at-releem-january-2023))
+- Added new insights (QPS and Latency) to Weekly Reports
+- Added CPU, IOPS, Memory charts for all users in the Releem Customer Portal
+- Added Collecting RDS metrics from Enhanced monitoring
+- Added Period selector to see data on graphs for more than 1 day in the Releem Customer Portal
+- Added Initialize server in docker.
+- Added Automated deployment via Fargate in AWS account.
+- Fixed connection to db using hostname.
+- Fixed default value to timer.
+- Fixed Output after successfull installation. Closes #142
+- Fixed Set domain name in mysql_host automatically in case using RDS. Closes #138
+- Fixed Agent crashed when set domain name instead of IP in mysql_host. Closes #137
+- Fixed Failed installation when password contains "!". Closes #121 
+
+
 Releem 0.9.9, 2022-12-31
 - Added system metrics collection CPU, RAM, Swap, IOPS
 - Added Slow Log Graph in the Releem Customer Portal

@@ -428,11 +428,11 @@ printf "\033[37m\n * Installing and starting Releem Agent service to collect met
 releem_agent_remove=$($sudo_cmd $WORKDIR/releem-agent remove)
 releem_agent_install=$($sudo_cmd $WORKDIR/releem-agent install)
 if [ $? -eq 0 ]; then
-    printf "\033[32m\n Reinstalling Releem Agent - successful\033[0m\n"
+    printf "\033[32m\n Installing Releem Agent - successful\033[0m\n"
 else
     echo $releem_agent_remove
     echo $releem_agent_install
-    printf "\033[31m\n Reinstalling Releem Agent - failed\033[0m\n"
+    printf "\033[31m\n Installing Releem Agent - failed\033[0m\n"
 fi
 releem_agent_stop=$($sudo_cmd $WORKDIR/releem-agent  stop)
 releem_agent_start=$($sudo_cmd $WORKDIR/releem-agent  start)

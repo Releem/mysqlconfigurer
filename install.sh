@@ -51,7 +51,7 @@ function releem_update() {
     printf "\033[37m\n * Downloading latest version of Releem Agent...\033[0m\n"
     $sudo_cmd $WORKDIR/releem-agent  stop || true
     $sudo_cmd curl -s -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh
-    $sudo_cmd curl -s -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent
+    $sudo_cmd curl -s -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent-$(arch)
     $sudo_cmd chmod 755 $WORKDIR/mysqlconfigurer.sh   $WORKDIR/releem-agent
     $sudo_cmd $WORKDIR/releem-agent  start || true
     $sudo_cmd $WORKDIR/releem-agent -f
@@ -187,9 +187,9 @@ if [ ! -e $CONF ]; then
     $sudo_cmd mkdir -p $WORKDIR/conf
 fi
 
-printf "\033[37m\n * Downloading Releem Agent...\033[0m\n"
-$sudo_cmd curl -s -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh  2>/dev/null
-$sudo_cmd curl -s -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent 2>/dev/null
+printf "\033[37m\n * Downloading Releem Agent, architecture $(arch)...\033[0m\n"
+$sudo_cmd curl -s -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh
+$sudo_cmd curl -s -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent-$(arch)
 
 
 $sudo_cmd chmod 755 $WORKDIR/mysqlconfigurer.sh $WORKDIR/releem-agent

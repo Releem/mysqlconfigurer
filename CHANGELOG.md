@@ -2,7 +2,6 @@ Releem releases
 ---
 Information about releases of the Releem.
 
-<<<<<<< HEAD
 Releem 1.1.0, 2023-02-28 ([What's New At Releem | February 2023](https://releem.com/blog/whats-new-in-releem-february-2023))
 - Added Display RDS instanses in the Releem Customer Portal
 - Added MySQL Health Checks in the Releem Customer Portal
@@ -11,8 +10,6 @@ Releem 1.1.0, 2023-02-28 ([What's New At Releem | February 2023](https://releem.
 - Added Releem Agent Uninstallation
 - Fixed MySQL socket detection in mysql_host
 
-=======
->>>>>>> master
 Releem 1.0.0, 2023-01-31 ([What’s New At Releem | January 2023](https://releem.com/blog/whats-new-at-releem-january-2023))
 - Added new insights (QPS and Latency) to Weekly Reports
 - Added CPU, IOPS, Memory charts for all users in the Releem Customer Portal
@@ -27,10 +24,6 @@ Releem 1.0.0, 2023-01-31 ([What’s New At Releem | January 2023](https://releem
 - Fixed Agent crashed when set domain name instead of IP in mysql_host. Closes #137
 - Fixed Failed installation when password contains "!". Closes #121 
 
-<<<<<<< HEAD
-=======
-
->>>>>>> master
 Releem 0.9.9, 2022-12-31
 - Added system metrics collection CPU, RAM, Swap, IOPS
 - Added Slow Log Graph in the Releem Customer Portal

@@ -23,6 +23,7 @@ Releem 1.0.0, 2023-01-31 ([What’s New At Releem | January 2023](https://releem
 - Fixed Set domain name in mysql_host automatically in case using RDS. Closes #138
 - Fixed Agent crashed when set domain name instead of IP in mysql_host. Closes #137
 - Fixed Failed installation when password contains "!". Closes #121 
+
 Releem 0.9.9, 2022-12-31
 - Added system metrics collection CPU, RAM, Swap, IOPS
 - Added Slow Log Graph in the Releem Customer Portal

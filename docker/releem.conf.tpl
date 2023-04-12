@@ -2,6 +2,8 @@
 # Defaults to 3600 seconds, api key for Releem Platform.
 apikey="${RELEEM_API_KEY}"
 
+hostname="${RELEEM_HOSTNAME}"
+
 # MemoryLimit int `hcl:"memory_limit"`
 # Defaults to 0, Mysql memory usage limit.
 memory_limit=${MEMORY_LIMIT:-0}

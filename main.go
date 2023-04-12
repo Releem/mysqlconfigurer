@@ -5,11 +5,12 @@ import (
 	"context"
 	"database/sql"
 	"flag"
-	"io/fs"
 	"os"
+	"strings"
 
 	"github.com/Releem/daemon"
 	"github.com/Releem/mysqlconfigurer/config"
+	"github.com/Releem/mysqlconfigurer/metrics"
 	m "github.com/Releem/mysqlconfigurer/metrics"
 	r "github.com/Releem/mysqlconfigurer/repeater"
 	"github.com/advantageous/go-logback/logging"
@@ -36,17 +37,27 @@ type Service struct {
 	daemon.Daemon
 }
 
-func IsSocket(path string, logger logging.Logger) bool {
-	fileInfo, err := os.Stat(path)
-	if err != nil {
+// func IsSocket(path string, logger logging.Logger) bool {
+// 	fileInfo, err := os.Stat(path)
+// 	if err != nil {
+// 		return false
+// 	}
+// 	return fileInfo.Mode().Type() == fs.ModeSocket
+// }
+
+func IsPath(path string, logger logging.Logger) bool {
+	result_path := strings.Index(path, "/")
+	if result_path == 0 {
+		return true
+	} else {
 		return false
 	}
-	return fileInfo.Mode().Type() == fs.ModeSocket
 }
 
 // Manage by daemon commands or run the daemon
-func (service *Service) Manage(logger logging.Logger, configFile string, command []string, FirstRun bool) (string, error) {
+func (service *Service) Manage(logger logging.Logger, configFile string, command []string, FirstRun bool, AgentEvents string) (string, error) {
 	var gatherers []m.MetricsGatherer
+	var Mode metrics.Mode
 	usage := "Usage: myservice install | remove | start | stop | status"
 
 	// if received any kind of command, do it
@@ -74,6 +85,16 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 		logger.PrintError("Config load failed", err)
 	}
 
+	if len(AgentEvents) > 0 {
+		Mode.Name = "Events"
+		Mode.ModeType = AgentEvents
+	} else {
+		Mode.Name = "Configurations"
+		if FirstRun {
+			Mode.ModeType = "FirstRun"
+		}
+	}
+	// if Mode.Name != "Events" {
 	// Select how we collect instance metrics depending on InstanceType
 	switch configuration.InstanceType {
 	case "aws/rds":
@@ -130,38 +151,56 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 		gatherers = append(gatherers, m.NewOSMetricsGatherer(nil, configuration))
 
 	}
+	// }
 
 	// Init connection DB
 	var db *sql.DB
-	if IsSocket(configuration.MysqlHost, logger) {
+	var TypeConnection string
+
+	if IsPath(configuration.MysqlHost, logger) {
 		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@unix("+configuration.MysqlHost+")/mysql")
+		TypeConnection = "unix"
+
 	} else {
 		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@tcp("+configuration.MysqlHost+":"+configuration.MysqlPort+")/mysql")
+		TypeConnection = "tcp"
 	}
 	if err != nil {
 		logger.PrintError("Connection opening to failed", err)
 	}
-	defer db.Close()
 
 	err = db.Ping()
 	if err != nil {
 		logger.PrintError("Connection failed", err)
 	} else {
-		logger.Println("Connect Success to DB", configuration.MysqlHost)
+		if TypeConnection == "unix" {
+			logger.Println("Connect Success to DB via unix socket", configuration.MysqlHost)
+		} else if TypeConnection == "tcp" {
+			logger.Println("Connect Success to DB via tcp", configuration.MysqlHost)
+		}
 	}
+	defer db.Close()
+
 	//Init repeaters
 	repeaters := make(map[string][]m.MetricsRepeater)
 	repeaters["Metrics"] = []m.MetricsRepeater{r.NewReleemMetricsRepeater(configuration)}
 	repeaters["Configurations"] = []m.MetricsRepeater{r.NewReleemConfigurationsRepeater(configuration)}
+	repeaters["Events"] = []m.MetricsRepeater{r.NewReleemEventsRepeater(configuration, Mode)}
 
 	//Init gatherers
-	gatherers = append(gatherers,
-		m.NewDbConfGatherer(nil, db, configuration),
-		m.NewDbInfoGatherer(nil, db, configuration),
-		m.NewDbMetricsGatherer(nil, db, configuration),
-		m.NewAgentMetricsGatherer(nil, configuration))
+	if Mode.Name != "Events" {
+		gatherers = append(gatherers,
+			m.NewDbConfGatherer(nil, db, configuration),
+			m.NewDbInfoGatherer(nil, db, configuration),
+			m.NewDbMetricsGatherer(nil, db, configuration),
+			m.NewAgentMetricsGatherer(nil, configuration))
+	} else {
+		gatherers = append(gatherers,
+			m.NewDbConfGatherer(nil, db, configuration),
+			m.NewAgentMetricsGatherer(nil, configuration))
+	}
 
-	m.RunWorker(gatherers, repeaters, nil, configuration, configFile, FirstRun)
+	m.RunWorker(gatherers, repeaters, nil, configuration, configFile, Mode)
 
 	// never happen, but need to complete code
 	return usage, nil
@@ -170,8 +209,9 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 func main() {
 	logger = logging.NewSimpleLogger("Main")
 
-	configFile := flag.String("config", "/opt/releem/releem.conf", "Releem config")
+	configFile := flag.String("config", "/opt/releem/releem.conf", "Releem agent config")
 	FirstRun := flag.Bool("f", false, "Releem agent generate config")
+	AgentEvents := flag.String("event", "", "Releem agent type event")
 
 	flag.Parse()
 	command := flag.Args()
@@ -182,7 +222,7 @@ func main() {
 		os.Exit(1)
 	}
 	service := &Service{srv}
-	status, err := service.Manage(logger, *configFile, command, *FirstRun)
+	status, err := service.Manage(logger, *configFile, command, *FirstRun, *AgentEvents)
 
 	if err != nil {
 		logger.Println(status, "\nError: ", err)

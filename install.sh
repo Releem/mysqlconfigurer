@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 1.0.4
+# install.sh - Version 1.2.3
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -7,7 +7,7 @@
 # using the package manager.
 
 set -e
-install_script_version=1.0.4
+install_script_version=1.2.3
 logfile="releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -28,7 +28,7 @@ exec 1>&-
 exec 1>$npipe 2>&1
 
 function on_exit() {
-    curl -s -d @$logfile -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v1/saving_log
+    curl -s -L -d @$logfile -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v1/events/saving_log
     rm -f $npipe
 }
 
@@ -51,7 +51,7 @@ function releem_update() {
     printf "\033[37m\n * Downloading latest version of Releem Agent...\033[0m\n"
     $sudo_cmd $WORKDIR/releem-agent  stop || true
     $sudo_cmd curl -s -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh
-    $sudo_cmd curl -s -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent
+    $sudo_cmd curl -s -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent-$(arch)
     $sudo_cmd chmod 755 $WORKDIR/mysqlconfigurer.sh   $WORKDIR/releem-agent
     $sudo_cmd $WORKDIR/releem-agent  start || true
     $sudo_cmd $WORKDIR/releem-agent -f
@@ -171,15 +171,10 @@ if [ "$OS" = "RedHat" ]; then
     else
         package_manager='yum'
     fi
-
-    $sudo_cmd $package_manager -y install curl
-
+    which curl &> /dev/null || $sudo_cmd $package_manager -y install curl
 elif [ "$OS" = "Debian" ]; then
     printf "\033[37m\n * Installing dependences...\n\033[0m\n"
-
-    $sudo_cmd apt-get update
-    $sudo_cmd apt-get install -y --force-yes curl
-
+    which curl &> /dev/null || ($sudo_cmd apt-get update ; $sudo_cmd apt-get install -y --force-yes curl)
 else
     printf "\033[31mYour OS or distribution are not supported by this install script.\033[0m\n"
     exit;
@@ -192,9 +187,9 @@ if [ ! -e $CONF ]; then
     $sudo_cmd mkdir -p $WORKDIR/conf
 fi
 
-printf "\033[37m\n * Downloading Releem Agent...\033[0m\n"
-$sudo_cmd curl -s -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh  2>/dev/null
-$sudo_cmd curl -s -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent 2>/dev/null
+printf "\033[37m\n * Downloading Releem Agent, architecture $(arch)...\033[0m\n"
+$sudo_cmd curl -s -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh
+$sudo_cmd curl -s -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent-$(arch)
 
 
 $sudo_cmd chmod 755 $WORKDIR/mysqlconfigurer.sh $WORKDIR/releem-agent
@@ -282,21 +277,21 @@ if [ -n "$RELEEM_MYSQL_PASSWORD" ] && [ -n "$RELEEM_MYSQL_LOGIN" ]; then
     FLAG_SUCCESS=1
 #elif [ -n "$RELEEM_MYSQL_ROOT_PASSWORD" ]; then
 else
-    printf "\033[37m\n * Using root user MySQL\033[0m\n"
+    printf "\033[37m\n * Using MySQL root user\033[0m\n"
     if [[ $(mysqladmin ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     then
-        printf "\033[37m\n MySQL connect successfully!\033[0m\n"
+        printf "\033[37m\n Connect to MySQL - successful \033[0m\n"
         RELEEM_MYSQL_LOGIN="releem"
-        RELEEM_MYSQL_PASSWORD=$(cat /dev/urandom | tr -cd '%*)?@#~A-Za-z0-9%*)?@#~' | head -c16 )
+        RELEEM_MYSQL_PASSWORD=$(cat /dev/urandom | tr -cd '%*)?@#~' | head -c2 ; cat /dev/urandom | tr -cd '%*)?@#~A-Za-z0-9%*)?@#~' | head -c16 ; cat /dev/urandom | tr -cd '%*)?@#~' | head -c2 )
         mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "DROP USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' ;" 2>/dev/null || true
-        mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "CREATE USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' identified by '${RELEEM_MYSQL_PASSWORD}';" 2>/dev/null
+        mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "CREATE USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' identified by '${RELEEM_MYSQL_PASSWORD}';"
         mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT, PROCESS,EXECUTE, REPLICATION CLIENT,SHOW DATABASES,SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 2>/dev/null
         printf "\033[32m\n Created new user \`${RELEEM_MYSQL_LOGIN}\`\033[0m\n"
         FLAG_SUCCESS=1
     else
-        printf "\033[31m\n MySQL connect failed with user root with error:\033[0m\n"
+        printf "\033[31m\n MySQL connection failed with user root with error:\033[0m\n"
         mysqladmin ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping || true
-        printf "\033[31m\n%s\033[0m\n" "Check that the password is correct, the execution of the command \`mysqladmin ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping\` and reinstall the agent."
+        printf "\033[31m\n%s\033[0m\n" "Check that the password is correct, the execution of the command \`mysqladmin ${root_connection_string} --user=root --password=<MYSQL_ROOT_PASSWORD> ping\` and reinstall the agent."
         exit 1
     fi
 #else
@@ -307,7 +302,7 @@ fi
 if [ "$FLAG_SUCCESS" == "1" ]; then
     if [[ $(mysqladmin ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     then
-        printf "\033[32m\n Connect to mysql successfully with user \`${RELEEM_MYSQL_LOGIN}\`\033[0m\n"
+        printf "\033[32m\n Connecting to MySQL with user \`${RELEEM_MYSQL_LOGIN}\` - successfull \033[0m\n"
         MYSQL_LOGIN=$RELEEM_MYSQL_LOGIN
         MYSQL_PASSWORD=$RELEEM_MYSQL_PASSWORD
     else
@@ -356,7 +351,7 @@ else
     fi
 fi
 
-printf "\033[37m\n * Saving variable to releem config\033[0m\n"
+printf "\033[37m\n * Saving variables to Releem Agent configuration\033[0m\n"
 
 printf "\033[37m\n - Adding API key to the Releem Agent configuration: $CONF\n\033[0m"
 echo "apikey=\"$apikey\"" | $sudo_cmd tee -a $CONF >/dev/null
@@ -370,11 +365,11 @@ if [ -n "$MYSQL_LOGIN" ] && [ -n "$MYSQL_PASSWORD" ]; then
 	echo "mysql_password=\"$MYSQL_PASSWORD\"" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 if [ -n "$RELEEM_MYSQL_HOST" ]; then
-    printf "\033[37m - Adding host mysql to the Releem Agent configuration: $CONF\n\033[0m"
+    printf "\033[37m - Adding MySQL host to the Releem Agent configuration: $CONF\n\033[0m"
 	echo "mysql_host=\"$RELEEM_MYSQL_HOST\"" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 if [ -n "$RELEEM_MYSQL_PORT" ]; then
-    printf "\033[37m - Adding port mysql to the Releem Agent configuration: $CONF\n\033[0m"
+    printf "\033[37m - Adding MySQL port to the Releem Agent configuration: $CONF\n\033[0m"
 	echo "mysql_port=\"$RELEEM_MYSQL_PORT\"" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 if [ -n "$MYSQL_LIMIT" ]; then
@@ -429,24 +424,24 @@ if [ -z "$RELEEM_AGENT_DISABLE" ]; then
     $sudo_cmd $WORKDIR/releem-agent -f
     $sudo_cmd timeout 3 $WORKDIR/releem-agent
 fi
-printf "\033[37m\n * Installing and starting Releem Agent service for collection metrics..\033[0m\n"
+printf "\033[37m\n * Installing and starting Releem Agent service to collect metrics..\033[0m\n"
 releem_agent_remove=$($sudo_cmd $WORKDIR/releem-agent remove)
 releem_agent_install=$($sudo_cmd $WORKDIR/releem-agent install)
 if [ $? -eq 0 ]; then
-    printf "\033[32m\n Reinstall Releem Agent successfuly\033[0m\n"
+    printf "\033[32m\n Installing Releem Agent - successful\033[0m\n"
 else
     echo $releem_agent_remove
     echo $releem_agent_install
-    printf "\033[31m\n Reinstall Releem Agent failed\033[0m\n"
+    printf "\033[31m\n Installing Releem Agent - failed\033[0m\n"
 fi
 releem_agent_stop=$($sudo_cmd $WORKDIR/releem-agent  stop)
 releem_agent_start=$($sudo_cmd $WORKDIR/releem-agent  start)
 if [ $? -eq 0 ]; then
-    printf "\033[32m\n Restart Releem Agent successfuly\033[0m\n"
+    printf "\033[32m\n Restarting Releem Agent - successful\033[0m\n"
 else
     echo $releem_agent_stop
     echo $releem_agent_start
-    printf "\033[31m\n Restart Releem Agent failed\033[0m\n"
+    printf "\033[31m\n Restarting Releem Agent - failed\033[0m\n"
 fi
 # $sudo_cmd $WORKDIR/releem-agent  status
 # if [ $? -eq 0 ]; then
@@ -467,7 +462,7 @@ fi
 $sudo_cmd $RELEEM_COMMAND -p
 
 printf "\033[37m\n\033[0m"
-printf "\033[37m * Releem Agent installed successfully.\033[0m\n"
+printf "\033[37m * Releem Agent is successfully installed.\033[0m\n"
 printf "\033[37m\n\033[0m"
-printf "\033[37m * To see Releem recommendations and MySQL metrics please visit https://app.releem.com/dashboard\033[0m"
+printf "\033[37m * To view Releem recommendations and MySQL metrics, visit https://app.releem.com/dashboard\033[0m"
 printf "\033[37m\n\033[0m"

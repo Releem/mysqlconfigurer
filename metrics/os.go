@@ -139,6 +139,7 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 	var UsageArray, PartitionsArray, IOCountersArray []MetricGroupValue
 	var readCount, writeCount uint64
 	//:= make(MetricGroupValue)
+	PartitionCheck := make(map[string]int)
 	Partitions, _ := disk.Partitions(false)
 	for _, part := range Partitions {
 		Usage, _ := disk.Usage(part.Mountpoint)
@@ -146,11 +147,17 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 		PartitionsArray = append(PartitionsArray, StructToMap(part.String()))
 		PartName := part.Device[strings.LastIndex(part.Device, "/")+1:]
 		IOCounters, _ := disk.IOCounters(PartName)
-		readCount = readCount + IOCounters[PartName].ReadCount
-		writeCount = writeCount + IOCounters[PartName].WriteCount
+		if _, exists := PartitionCheck[part.Device]; !exists {
+
+			readCount = readCount + IOCounters[PartName].ReadCount
+			writeCount = writeCount + IOCounters[PartName].WriteCount
+			PartitionCheck[part.Device] = 1
+		}
 		OS.logger.Debug("IOCounters ", IOCounters)
 		IOCountersArray = append(IOCountersArray, MetricGroupValue{PartName: StructToMap(IOCounters[PartName].String())})
+
 	}
+	OS.logger.Debug("PartitionCheck ", PartitionCheck)
 	info["Partitions"] = PartitionsArray
 	OS.logger.Debug("Partitions ", PartitionsArray)
 

@@ -33,7 +33,7 @@ With Releem we are trying to bring top-notch experience in performance tuning an
 - **Clutter Free**: Releem provides simple dashboard and it cuts through the noise. No layers of menus, no need for custom reports. Get all the important metrics on one single page. No training necessary.
 - **Hassle free**: Simple one-step Installation on most popular Linux platforms and Support of all MySQL/MariaDB/Percona versions.
 - **Performance Booster**: Recommended configuration delivers a [30% boost](#Tests) to MySQL performance compare to the default configuration.
-- **Best Practices**: MySQL Performance Score metric calculates by summarizing MySQL settings and status variables that describe the efficiency and "best practices" of using Memory, Connections, Logs, Cache, Disk, Indexes, and Threads.
+- **Simplified Monitoring**: [MySQL Health Checks](https://releem.com/blog/mysql-health-checks?utm_source=github&utm_medium=social&utm_campaign=mysql-health-checks&utm_content=post) greatly simplifies the process of monitoring and maintaining a healthy database by focusing on key aspects that describe the efficiency and "best practices" of using Memory, Connections, Logs, Cache, Disk, Indexes, and Threads. Releem Score metric calculates by summarizing Health Checks statuses. 
 - **Security**: Security is our top priority. Releem does not use your database data. It uses only MySQL metrics and system information, and HTTPS to transfer them.
 Releem Agent is open-source and can be reviewed to ensure it meets your security requirements.
 - **Email report**: Keep an eye on your servers with weekly email reports.

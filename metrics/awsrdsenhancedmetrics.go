@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/Releem/mysqlconfigurer/config"
@@ -214,14 +215,15 @@ func (awsrdsenhancedmetrics *AWSRDSEnhancedMetricsGatherer) GetMetrics(metrics *
 	result, err := awsrdsenhancedmetrics.cwlogsclient.GetLogEvents(context.TODO(), &input)
 
 	if err != nil {
-		awsrdsenhancedmetrics.logger.Warn("failed to read log stream %s:%s: %s", rdsMetricsLogGroupName, aws.StringValue(awsrdsenhancedmetrics.dbinstance.DbiResourceId), err)
+		awsrdsenhancedmetrics.logger.Critical("failed to read log stream %s:%s: %s", rdsMetricsLogGroupName, aws.StringValue(awsrdsenhancedmetrics.dbinstance.DbiResourceId), err)
 		return err
 	}
 
 	awsrdsenhancedmetrics.logger.Debug("CloudWatchLogs.GetLogEvents SUCCESS")
 
 	if len(result.Events) < 1 {
-		awsrdsenhancedmetrics.logger.Debug("CloudWatchLogs.GetLogEvents No data")
+		awsrdsenhancedmetrics.logger.Warn("CloudWatchLogs.GetLogEvents No data")
+		return errors.New("CloudWatchLogs.GetLogEvents No data")
 	}
 
 	// l.Debugf("Message:\n%s", *event.Message)
@@ -229,6 +231,7 @@ func (awsrdsenhancedmetrics *AWSRDSEnhancedMetricsGatherer) GetMetrics(metrics *
 
 	if err != nil {
 		awsrdsenhancedmetrics.logger.Errorf("Failed to parse metrics: %s.", err)
+		return err
 	}
 
 	// Set IOPS

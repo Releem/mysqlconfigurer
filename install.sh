@@ -285,7 +285,11 @@ else
         RELEEM_MYSQL_PASSWORD=$(cat /dev/urandom | tr -cd '%*)?@#~' | head -c2 ; cat /dev/urandom | tr -cd '%*)?@#~A-Za-z0-9%*)?@#~' | head -c16 ; cat /dev/urandom | tr -cd '%*)?@#~' | head -c2 )
         mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "DROP USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' ;" 2>/dev/null || true
         mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "CREATE USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' identified by '${RELEEM_MYSQL_PASSWORD}';"
-        mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT, PROCESS,EXECUTE, REPLICATION CLIENT,SHOW DATABASES,SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 2>/dev/null
+        mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT PROCESS ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 2>/dev/null
+        mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT REPLICATION CLIENT ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 2>/dev/null
+        mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 2>/dev/null
+        mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON performance_schema.events_statements_summary_by_digest TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 2>/dev/null
+        #mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT, PROCESS,EXECUTE, REPLICATION CLIENT,SHOW DATABASES,SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 2>/dev/null
         printf "\033[32m\n Created new user \`${RELEEM_MYSQL_LOGIN}\`\033[0m\n"
         FLAG_SUCCESS=1
     else

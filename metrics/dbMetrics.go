@@ -77,6 +77,26 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 		}
 		metrics.DB.Metrics.TotalTables = row.value
 	}
+	//list of databases
+	{
+		var database string
+		var output []string
+		rows, err := DbMetrics.db.Query("SELECT table_schema FROM INFORMATION_SCHEMA.tables group BY table_schema")
+		if err != nil {
+			DbMetrics.logger.Error(err)
+			return err
+		}
+		for rows.Next() {
+			err := rows.Scan(&database)
+			if err != nil {
+				DbMetrics.logger.Error(err)
+				return err
+			}
+			output = append(output, database)
+		}
+		rows.Close()
+		metrics.DB.Metrics.Databases = output
+	}
 	// TotalMyisamIndexes
 	{
 		var row MetricValue
@@ -87,7 +107,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 		}
 		metrics.DB.Metrics.TotalMyisamIndexes = row.value
 	}
-	//Latency
+	// Latency
 	{
 		var row MetricValue
 		err := DbMetrics.db.QueryRow("select `s2`.`avg_us` AS `avg_us` from ((select count(0) AS `cnt`,round(`performance_schema`.`events_statements_summary_by_digest`.`AVG_TIMER_WAIT` / 1000000,0) AS `avg_us` from `performance_schema`.`events_statements_summary_by_digest` group by round(`performance_schema`.`events_statements_summary_by_digest`.`AVG_TIMER_WAIT` / 1000000,0)) `s1` join (select count(0) AS `cnt`,round(`performance_schema`.`events_statements_summary_by_digest`.`AVG_TIMER_WAIT` / 1000000,0) AS `avg_us` from `performance_schema`.`events_statements_summary_by_digest` group by round(`performance_schema`.`events_statements_summary_by_digest`.`AVG_TIMER_WAIT` / 1000000,0)) `s2` on(`s1`.`avg_us` <= `s2`.`avg_us`)) group by `s2`.`avg_us` having ifnull(sum(`s1`.`cnt`) / nullif((select count(0) from `performance_schema`.`events_statements_summary_by_digest`),0),0) > 0.95 order by ifnull(sum(`s1`.`cnt`) / nullif((select count(0) from `performance_schema`.`events_statements_summary_by_digest`),0),0) limit 1").Scan(&row.value)
@@ -118,8 +138,8 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 			output[engine_db] = MetricGroupValue{"Enabled": engineenabled}
 			//output[engine_db]["Enabled"] = engineenabled
 		}
-
 		rows.Close()
+
 		rows, err = DbMetrics.db.Query("SELECT ENGINE, SUM(DATA_LENGTH+INDEX_LENGTH), COUNT(ENGINE), SUM(DATA_LENGTH), SUM(INDEX_LENGTH) FROM information_schema.TABLES WHERE TABLE_SCHEMA NOT IN ('information_schema', 'performance_schema', 'mysql') AND ENGINE IS NOT NULL  GROUP BY ENGINE ORDER BY ENGINE ASC")
 		if err != nil {
 			DbMetrics.logger.Error(err)

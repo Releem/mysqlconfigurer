@@ -26,6 +26,7 @@ type Metrics struct {
 			TotalMyisamIndexes string
 			Engine             map[string]MetricGroupValue
 			Latency            string
+			Databases          []string
 		}
 		Conf struct {
 			Variables MetricGroupValue

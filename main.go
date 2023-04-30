@@ -56,7 +56,7 @@ func IsPath(path string, logger logging.Logger) bool {
 
 // Manage by daemon commands or run the daemon
 func (service *Service) Manage(logger logging.Logger, configFile string, command []string, FirstRun bool, AgentEvents string) (string, error) {
-	var gatherers []m.MetricsGatherer
+	var gatherers, gatherers_configuration []m.MetricsGatherer
 	var Mode metrics.Mode
 	usage := "Usage: myservice install | remove | start | stop | status"
 
@@ -192,15 +192,16 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 		gatherers = append(gatherers,
 			m.NewDbConfGatherer(nil, db, configuration),
 			m.NewDbInfoGatherer(nil, db, configuration),
-			m.NewDbMetricsGatherer(nil, db, configuration),
+			m.NewDbMetricsBaseGatherer(nil, db, configuration),
 			m.NewAgentMetricsGatherer(nil, configuration))
+		gatherers_configuration = append(gatherers_configuration, m.NewDbMetricsGatherer(nil, db, configuration))
 	} else {
 		gatherers = append(gatherers,
 			m.NewDbConfGatherer(nil, db, configuration),
 			m.NewAgentMetricsGatherer(nil, configuration))
 	}
 
-	m.RunWorker(gatherers, repeaters, nil, configuration, configFile, Mode)
+	m.RunWorker(gatherers, gatherers_configuration, repeaters, nil, configuration, configFile, Mode)
 
 	// never happen, but need to complete code
 	return usage, nil

@@ -21,7 +21,7 @@ func makeTerminateChannel() <-chan os.Signal {
 	return ch
 }
 
-func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeater, logger logging.Logger,
+func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGatherer, repeaters map[string][]MetricsRepeater, logger logging.Logger,
 	configuration *config.Config, configFile string, Mode Mode) {
 	var GenerateTimer *time.Timer
 	if logger == nil {
@@ -66,7 +66,7 @@ func RunWorker(gatherers []MetricsGatherer, repeaters map[string][]MetricsRepeat
 		case <-GenerateTimer.C:
 			Ready = false
 			logger.Println(" * Collecting metrics to recommend a config...")
-			metrics := collectMetrics(gatherers, logger)
+			metrics := collectMetrics(append(gatherers, gatherers_configuration...), logger)
 			if Ready {
 				processRepeaters(metrics, repeaters[Mode.Name], configuration, logger)
 			}

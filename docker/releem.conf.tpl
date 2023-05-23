@@ -18,7 +18,7 @@ interval_read_config_seconds=3600
 
 # GenerateConfigSeconds time.Duration `hcl:"interval_generate_config_seconds"`
 # Defaults to 43200 seconds, how often to generate recommend the config.
-interval_generate_config_seconds=43200
+interval_generate_config_seconds=${RELEEM_INTERVAL_COLLECT_ALL_METRICS:-43200}
 
 # MysqlUser string`hcl:"mysql_user"`
 # Mysql user name for collection metrics.

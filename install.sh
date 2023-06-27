@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 1.4.0
+# install.sh - Version 1.5.0
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -7,7 +7,7 @@
 # using the package manager.
 
 set -e
-install_script_version=1.4.0
+install_script_version=1.5.0
 logfile="releem-install.log"
 
 WORKDIR="/opt/releem"

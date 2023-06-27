@@ -47,13 +47,14 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 			logger.Info("Exiting")
 			os.Exit(0)
 		case <-timer.C:
-			Ready = false
 			timer.Reset(configuration.TimePeriodSeconds * time.Second)
-			metrics := collectMetrics(gatherers, logger)
-			if Ready {
-				processRepeaters(metrics, repeaters["Metrics"], configuration, logger)
-			}
-
+			go func() {
+				Ready = false
+				metrics := collectMetrics(gatherers, logger)
+				if Ready {
+					processRepeaters(metrics, repeaters["Metrics"], configuration, logger)
+				}
+			}()
 		case <-configTimer.C:
 			configTimer.Reset(configuration.ReadConfigSeconds * time.Second)
 			if newConfig, err := config.LoadConfig(configFile, logger); err != nil {
@@ -64,16 +65,19 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 			}
 
 		case <-GenerateTimer.C:
-			Ready = false
-			logger.Println(" * Collecting metrics to recommend a config...")
-			metrics := collectMetrics(append(gatherers, gatherers_configuration...), logger)
-			if Ready {
-				processRepeaters(metrics, repeaters[Mode.Name], configuration, logger)
-			}
-			if Mode.ModeType == "FirstRun" || Mode.Name == "Events" {
-				os.Exit(0)
-			}
 			GenerateTimer.Reset(configuration.GenerateConfigSeconds * time.Second)
+			go func() {
+				Ready = false
+				logger.Println(" * Collecting metrics to recommend a config...")
+				metrics := collectMetrics(append(gatherers, gatherers_configuration...), logger)
+				if Ready {
+					processRepeaters(metrics, repeaters[Mode.Name], configuration, logger)
+				}
+				if Mode.ModeType == "FirstRun" || Mode.Name == "Events" {
+					os.Exit(0)
+				}
+			}()
+
 		}
 	}
 }

@@ -2,9 +2,41 @@ Releem releases
 ---
 Information about releases of the Releem.
 
+Releem 1.5.0, 2023-06-30 ([What's New At Releem | June 2023](https://releem.com/blog/whats-new-at-releem-june-2023))
+- Improved the Recommended configuration window to show users all variables that Releem tunes and details on variables. 
+- Improved MySQL metric charts with buttons and avg metrics remove Latency and SlowLog
+- Improved design of Recommendation block re current applied configuration and enable Configure button.
+- Fixed bug in Releem Agent to work with old databases. Closes #163
+- Fixed bug in full data metrics collection prevented collecting minute metrics.
+- Added collecting configuration performance metric (Latency) in the period when configuration applied
+- Added support of MariaDB 11
+
+Releem 1.4.0, 2023-05-31 ([What's New At Releem | May 2023](https://releem.com/blog/whats-new-at-releem-may-2023))
+- Improved “Add server” page to simplify the installation depending on environment
+- Added new states for Recommendation block to make clear current state of Releem.
+- Fixed bug in Releem Agent to collect information on database size 1 time in 12 hours to prevent performance issues.
+- Add change period of all metrics collection in docker. Closes #161
+- Added new variables 'innodb_change_buffering', 'innodb_autoextend_increment', 'innodb_change_buffer_max_size', 'thread_stack', 'innodb_adaptive_flushing_lwm', 'transaction_prealloc_size', 'innodb_max_dirty_pages_pct'
+
+Releem 1.3.0, 2023-04-30
+- Improved [Documentation](https://releem.com/docs/getstarted) 
+- Fixed bug agents for AWS periodical restarts. Closes #159
+- Fixed bug in Releem Agents calculation of iops for cpanel with cagefs. Closes #149
+- Added fast detection of applying MySQL configuration
+- Added detection that MySQL server was restarted
+- Added support for arm64 architecture
+
+Releem 1.2.0, 2023-03-31 ([What's New At Releem | March 2023](https://releem.com/blog/whats-new-at-releem-march-2023))
+- Added deletion servers in the Releem Customer Portal
+- Improved charts performance in the Releem Customer Portal
+- Added a start screen for users without servers in the Releem Customer Portal
+- Improved the installation process of Releem Agent and show users if Agent installed not properly
+- Added hostname for Releem Agent in docker containers
+- Added Events
+
 Releem 1.1.0, 2023-02-28 ([What's New At Releem | February 2023](https://releem.com/blog/whats-new-in-releem-february-2023))
 - Added Display RDS instanses in the Releem Customer Portal
-- Added MySQL Health Checks in the Releem Customer Portal
+- Added [MySQL Health Checks](https://releem.com/blog/mysql-health-checks) in the Releem Customer Portal
 - Redesigned Recommendation block in the Releem Customer Portal
 - Renamed and redesigned MySQL Performance Score block to Releem Score
 - Added Releem Agent Uninstallation

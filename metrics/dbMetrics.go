@@ -92,7 +92,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 		}
 		rows.Close()
 
-		rows, err = DbMetrics.db.Query("SELECT ENGINE, SUM(DATA_LENGTH+INDEX_LENGTH), COUNT(ENGINE), SUM(DATA_LENGTH), SUM(INDEX_LENGTH) FROM information_schema.TABLES WHERE TABLE_SCHEMA NOT IN ('information_schema', 'performance_schema', 'mysql') AND ENGINE IS NOT NULL  GROUP BY ENGINE ORDER BY ENGINE ASC")
+		rows, err = DbMetrics.db.Query("SELECT ENGINE, IFNULL(SUM(DATA_LENGTH+INDEX_LENGTH),0), IFNULL(COUNT(ENGINE),0), IFNULL(SUM(DATA_LENGTH),0), IFNULL(SUM(INDEX_LENGTH),0) FROM information_schema.TABLES WHERE TABLE_SCHEMA NOT IN ('information_schema', 'performance_schema', 'mysql') AND ENGINE IS NOT NULL  GROUP BY ENGINE ORDER BY ENGINE ASC")
 		if err != nil {
 			DbMetrics.logger.Error(err)
 			return err

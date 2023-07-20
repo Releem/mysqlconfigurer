@@ -1,5 +1,5 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 1.5.0
+# mysqlconfigurer.sh - Version 1.5.0.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -12,7 +12,7 @@ MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 RELEEM_MYSQL_VERSION=$MYSQLCONFIGURER_PATH"mysql_version"
 MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
 MYSQL_MEMORY_LIMIT=0
-VERSION="1.5.0"
+VERSION="1.5.0.1"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 logfile="releem-mysqlconfigurer.log"
 
@@ -33,11 +33,11 @@ function on_exit() {
 trap on_exit EXIT
 
 function update_agent() {
-    NEW_VER=$(curl  -s -L https://releem.s3.amazonaws.com/v2/current_version_agent)
+    NEW_VER=$(curl  -s -L http://releem.s3.amazonaws.com/v2/current_version_agent)
     if [ "$VERSION" \< "$NEW_VER" ]
     then
         printf "\033[37m\n * Updating script \e[31;1m%s\e[0m -> \e[32;1m%s\e[0m\n" "$VERSION" "$NEW_VER"
-        curl -s -L https://releem.s3.amazonaws.com/v2/install.sh > "$RELEEM_INSTALL_PATH"
+        curl -s -L http://releem.s3.amazonaws.com/v2/install.sh > "$RELEEM_INSTALL_PATH"
         RELEEM_API_KEY=$RELEEM_API_KEY exec bash "$RELEEM_INSTALL_PATH" -u
         /opt/releem/releem-agent --event=agent_updated > /dev/null
     fi
@@ -261,7 +261,7 @@ function releem_apply_config() {
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
     fi
     /opt/releem/releem-agent --event=config_applied > /dev/null
-    printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Sending a notification about the application of the config was completed successfully\033[0m"
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Sending a notification about the application of the config was completed successfully\033[0m\n"
 
     exit 0
 }

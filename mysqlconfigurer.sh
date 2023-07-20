@@ -33,11 +33,11 @@ function on_exit() {
 trap on_exit EXIT
 
 function update_agent() {
-    NEW_VER=$(curl  -s -L http://releem.s3.amazonaws.com/v2/current_version_agent)
+    NEW_VER=$(curl  -s -L https://releem.s3.amazonaws.com/v2/current_version_agent)
     if [ "$VERSION" \< "$NEW_VER" ]
     then
         printf "\033[37m\n * Updating script \e[31;1m%s\e[0m -> \e[32;1m%s\e[0m\n" "$VERSION" "$NEW_VER"
-        curl -s -L http://releem.s3.amazonaws.com/v2/install.sh > "$RELEEM_INSTALL_PATH"
+        curl -s -L https://releem.s3.amazonaws.com/v2/install.sh > "$RELEEM_INSTALL_PATH"
         RELEEM_API_KEY=$RELEEM_API_KEY exec bash "$RELEEM_INSTALL_PATH" -u
         /opt/releem/releem-agent --event=agent_updated > /dev/null
     fi

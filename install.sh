@@ -19,7 +19,7 @@ RELEEM_COMMAND="/bin/bash $WORKDIR/mysqlconfigurer.sh"
 
 
 # Set up a named pipe for logging
-npipe=/tmp/$$.tmp
+npipe=/tmp/$$.install.tmp
 mknod $npipe p
 
 # Log all output to a log for error checking
@@ -50,7 +50,7 @@ function releem_set_cron() {
 function releem_update() {
     printf "\033[37m\n * Downloading latest version of Releem Agent...\033[0m\n"
     $sudo_cmd $WORKDIR/releem-agent  stop || true
-    $sudo_cmd curl -s -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/test/mysqlconfigurer.sh
+    $sudo_cmd curl -s -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh
     $sudo_cmd curl -s -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent-$(arch)
     $sudo_cmd chmod 755 $WORKDIR/mysqlconfigurer.sh   $WORKDIR/releem-agent
     $sudo_cmd $WORKDIR/releem-agent  start || true
@@ -188,7 +188,7 @@ if [ ! -e $CONF ]; then
 fi
 
 printf "\033[37m\n * Downloading Releem Agent, architecture $(arch)...\033[0m\n"
-$sudo_cmd curl -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/test/mysqlconfigurer.sh
+$sudo_cmd curl -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh
 $sudo_cmd curl -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent-$(arch)
 
 

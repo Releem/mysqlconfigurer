@@ -17,7 +17,7 @@ RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 logfile="releem-mysqlconfigurer.log"
 
 # Set up a named pipe for logging
-npipe=/tmp/${RANDOM}mysqlconfigurer.tmp
+npipe=/tmp/$$.mysqlconfigurer.tmp
 mknod $npipe p
 
 # Log all output to a log for error checking

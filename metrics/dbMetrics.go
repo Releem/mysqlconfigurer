@@ -104,7 +104,9 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 				return err
 			}
 			engine_elem := MetricGroupValue{"Table Number": count, "Total Size": size, "Data Size": dsize, "Index Size": isize}
-			output[engine_db] = MapJoin(output[engine_db], engine_elem)
+			if _, ok := output[engine_db]; ok {
+				output[engine_db] = MapJoin(output[engine_db], engine_elem)
+			}
 		}
 		metrics.DB.Metrics.Engine = output
 		rows.Close()

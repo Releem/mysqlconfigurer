@@ -53,15 +53,16 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricCont
 	if err != nil {
 		repeater.logger.Error("Response: error read body request: ", err)
 	}
-	err = os.WriteFile(context.GetReleemConfDir()+"/z_aiops_mysql.cnf", body_res, 0644)
-	if err != nil {
-		repeater.logger.Error("WriteFile: Error write to file: ", err)
-	}
-	repeater.logger.Debug("Response: status code: ", res.StatusCode)
-	repeater.logger.Debug("Response: body:\n", string(body_res))
 	if res.StatusCode != 200 {
+		repeater.logger.Println("Response: status code: ", res.StatusCode)
 		repeater.logger.Println("Response: body:\n", string(body_res))
 	} else {
+		repeater.logger.Debug("Response: status code: ", res.StatusCode)
+		repeater.logger.Debug("Response: body:\n", string(body_res))
+		err = os.WriteFile(context.GetReleemConfDir()+"/z_aiops_mysql.cnf", body_res, 0644)
+		if err != nil {
+			repeater.logger.Error("WriteFile: Error write to file: ", err)
+		}
 		repeater.logger.Println("1. Recommended MySQL configuration downloaded to ", context.GetReleemConfDir())
 		repeater.logger.Println("2. To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics")
 		repeater.logger.Println("3. To apply the recommended configuration please read documentation https://app.releem.com/dashboard")

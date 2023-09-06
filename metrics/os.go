@@ -140,13 +140,22 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 	var readCount, writeCount uint64
 	//:= make(MetricGroupValue)
 	PartitionCheck := make(map[string]int)
-	Partitions, _ := disk.Partitions(false)
+	Partitions, err := disk.Partitions(false)
+	if err != nil {
+		OS.logger.Error(err)
+	}
 	for _, part := range Partitions {
-		Usage, _ := disk.Usage(part.Mountpoint)
+		Usage, err := disk.Usage(part.Mountpoint)
+		if err != nil {
+			OS.logger.Error(err)
+		}
 		UsageArray = append(UsageArray, StructToMap(Usage.String()))
 		PartitionsArray = append(PartitionsArray, StructToMap(part.String()))
 		PartName := part.Device[strings.LastIndex(part.Device, "/")+1:]
-		IOCounters, _ := disk.IOCounters(PartName)
+		IOCounters, err := disk.IOCounters(PartName)
+		if err != nil {
+			OS.logger.Error(err)
+		}
 		if _, exists := PartitionCheck[part.Device]; !exists {
 
 			readCount = readCount + IOCounters[PartName].ReadCount

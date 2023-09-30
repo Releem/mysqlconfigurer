@@ -11,9 +11,9 @@
 </p>
 <p align="center">
     <a href="https://releem.com/docs/getstarted">Docs<a> | 
-    <a href="https://releem.com/rds">AWS RDS</a> |
-    <a href="https://releem.com/blog">Blog</a> |
-    <a href="https://releem.com/compare/mysqltuner">Compare MySQLTuner</a>
+    <a href="https://releem.com/compare/mysqltuner">Compare MySQLTuner</a> |
+    <a href="https://releem.com/sql-query-optimization">SQL Query Optimization</a> |
+    <a href="https://releem.com/blog">Blog</a>
     <br /><br />
 </p>
 
@@ -64,6 +64,7 @@ Join the Releem Community on [Slack](https://join.slack.com/t/releem-community/s
 - MariaDB 10.1, MariaDB 10.2, MariaDB 10.3, MariaDB 10.4, MariaDB 10.5, MariaDB 10.6, MariaDB 10.7, MariaDB 10.8, MariaDB 10.9, MariaDB 10.10, MariaDB 10.11, MariaDB 11.0
 - Percona 8.0, Percona 5.7, Percona 5.6, Percona 5.5
 - Centos, CloudLinux, Debian, Ubuntu, RockyLinux
+- Amazon RDS MySQL, Amazon RDS Aurora
 
 *** MINIMAL REQUIREMENTS ***
 - Unix/Linux based operating system (tested on Linux, BSD variants, and Solaris variants)

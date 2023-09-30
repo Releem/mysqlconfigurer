@@ -2,6 +2,24 @@ Releem releases
 ---
 Information about releases of the Releem.
 
+Releem 1.7.0, 2023-08-31 ([What's New At Releem | August 2023](https://releem.com/blog/whats-new-at-releem-august-2023))
+- Added Automated Updates for Releem Agent installed in docker container. Closes #184
+- Improved version for mobile and Firefox compatibility.
+- Improved Query Cache suggestions. Closes #135
+- Fixed 'innodb_max_dirty_pages_pct' bug on MySQL 5.5. Closes #183
+- Fixed metrics collecttion issue for db servers with Sphinx engine. Closes #174 , Closes #175
+- Fixed bug for users with unapproved email. Closes #179
+- Fixed bug with saving errors in MySQL configuration when Releem Platform reply with errors.
+
+Releem 1.6.0, 2023-07-31 ([What's New At Releem | July 2023](https://releem.com/blog/whats-new-at-releem-july-2023))
+- Added IOPS graph to Releem Dashboard.
+- Added System Information to System Metrics block. Closes #169
+- Improved MySQL Metrics graph and included ‘Applying Configuration’ events on the timeline.
+- Improved graphs and made Y-axis absolute and not relative. Closes #167
+- Removed innodb_flush_log_at_trx_commit automatic recommendations. Closes #170
+- Fixed minor issues with the 'innodb_buffer_pool_instance' and 'thread_cache' MySQL variables.
+- Improved Releem Agent installation for older MySQL and MariaDB versions without Performance Schema.
+
 Releem 1.5.0, 2023-06-30 ([What's New At Releem | June 2023](https://releem.com/blog/whats-new-at-releem-june-2023))
 - Improved the Recommended configuration window to show users all variables that Releem tunes and details on variables. 
 - Improved MySQL metric charts with buttons and avg metrics remove Latency and SlowLog

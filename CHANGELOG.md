@@ -2,6 +2,13 @@ Releem releases
 ---
 Information about releases of the Releem.
 
+Releem 1.8.0, 2023-09-30 ([What's New At Releem | September 2023](https://releem.com/blog/whats-new-at-releem-september-2023))
+- Added OS version to the Releem Score block 
+- Fixed the issue with graphs for the America/Mexico_City timezone Closes #196.
+- Added a detailed description for the [Memory Limit] (https://releem.com/docs/getstarted#rec586933587). Closes #205.
+- Added unapplied recommendations to the server list. Closes #176.
+- Fixed innodb_page_cleaners wasn't changed during applying configuration. Closes #197.
+
 Releem 1.7.0, 2023-08-31 ([What's New At Releem | August 2023](https://releem.com/blog/whats-new-at-releem-august-2023))
 - Added Automated Updates for Releem Agent installed in docker container. Closes #184
 - Improved version for mobile and Firefox compatibility.

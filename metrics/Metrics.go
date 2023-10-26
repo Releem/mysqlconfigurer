@@ -34,7 +34,8 @@ type Metrics struct {
 		Info MetricGroupValue
 	}
 	ReleemAgent struct {
-		Info MetricGroupValue
+		Info  MetricGroupValue
+		Tasks MetricGroupValue
 	}
 }
 
@@ -46,6 +47,12 @@ type Metric map[string]MetricGroupValue
 // 	// GetValue() string
 // 	// GetName() string
 // }
+
+type Task struct {
+	TaskID     *int    `json:"task_id"`
+	TaskTypeID *int    `json:"task_type_id"`
+	IsExist    *string `json:"is_exist"`
+}
 
 type MetricContext interface {
 	GetApiKey() string
@@ -59,7 +66,7 @@ type MetricsGatherer interface {
 }
 
 type MetricsRepeater interface {
-	ProcessMetrics(context MetricContext, metrics Metrics) error
+	ProcessMetrics(context MetricContext, metrics Metrics) (interface{}, error)
 }
 
 func MapJoin(map1, map2 MetricGroupValue) MetricGroupValue {

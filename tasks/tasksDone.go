@@ -1,4 +1,4 @@
-package repeater
+package tasks
 
 import (
 	"net/http"
@@ -13,27 +13,23 @@ import (
 	"time"
 )
 
-type ReleemEventsRepeater struct {
-	logger        logging.Logger
-	configuration *config.Config
-	Mode          m.Mode
+type ReleemTaskStatusRepeater struct {
+	logger logging.Logger
 }
 
-func (repeater ReleemEventsRepeater) ProcessMetrics(context m.MetricContext, metrics m.Metrics) (interface{}, error) {
+func (repeater ReleemTaskStatusRepeater) ProcessMetrics(context m.MetricContext, metrics m.Metrics) (interface{}, error) {
 	e, _ := json.Marshal(metrics)
 	bodyReader := strings.NewReader(string(e))
 	repeater.logger.Debug("Result Send data: ", string(e))
 	var api_domain string
 	env := context.GetEnv()
 	if env == "dev" {
-		api_domain = "https://api.dev.releem.com/v1/events/"
+		api_domain = "https://api.dev.releem.com/v1/events/tasks_status"
 	} else if env == "stage" {
-		api_domain = "https://api.stage.releem.com/v1/events/"
+		api_domain = "https://api.stage.releem.com/v1/events/tasks_status"
 	} else {
-		api_domain = "https://api.releem.com/v1/events/"
+		api_domain = "https://api.releem.com/v1/events/tasks_status"
 	}
-	api_domain += repeater.Mode.ModeType
-
 	req, err := http.NewRequest(http.MethodPost, api_domain, bodyReader)
 	if err != nil {
 		repeater.logger.Error("Request: could not create request: ", err)
@@ -48,16 +44,21 @@ func (repeater ReleemEventsRepeater) ProcessMetrics(context m.MetricContext, met
 	if err != nil {
 		repeater.logger.Error("Request: error making http request: ", err)
 	}
-	repeater.logger.Debug("Response: status code: ", res)
+	if res.StatusCode != 201 {
+		repeater.logger.Println("Response: status code: ", res.StatusCode)
+		repeater.logger.Println("Response: \n", res)
+	} else {
+		repeater.logger.Debug("Response: status code: ", res.StatusCode)
+	}
 	return nil, err
 }
 
-func NewReleemEventsRepeater(configuration *config.Config, Mode m.Mode) ReleemEventsRepeater {
+func NewReleemTaskStatusRepeater(configuration *config.Config) ReleemTaskStatusRepeater {
 	var logger logging.Logger
 	if configuration.Debug {
-		logger = logging.NewSimpleDebugLogger("ReleemRepeaterMetrics")
+		logger = logging.NewSimpleDebugLogger("ReleemRepeaterTaskStatus")
 	} else {
-		logger = logging.NewSimpleLogger("ReleemRepeaterMetrics")
+		logger = logging.NewSimpleLogger("ReleemRepeaterTaskStatus")
 	}
-	return ReleemEventsRepeater{logger, configuration, Mode}
+	return ReleemTaskStatusRepeater{logger}
 }

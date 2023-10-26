@@ -1,6 +1,7 @@
 package repeater
 
 import (
+	"io"
 	"net/http"
 	"strings"
 
@@ -18,7 +19,7 @@ type ReleemMetricsRepeater struct {
 	configuration *config.Config
 }
 
-func (repeater ReleemMetricsRepeater) ProcessMetrics(context m.MetricContext, metrics m.Metrics) error {
+func (repeater ReleemMetricsRepeater) ProcessMetrics(context m.MetricContext, metrics m.Metrics) (interface{}, error) {
 	e, _ := json.Marshal(metrics)
 	bodyReader := strings.NewReader(string(e))
 	repeater.logger.Debug("Result Send data: ", string(e))
@@ -45,8 +46,18 @@ func (repeater ReleemMetricsRepeater) ProcessMetrics(context m.MetricContext, me
 	if err != nil {
 		repeater.logger.Error("Request: error making http request: ", err)
 	}
-	repeater.logger.Debug("Response: status code: ", res)
-	return err
+	result_data := m.Task{}
+	repeater.logger.Debug("Response: status code: ", res.StatusCode)
+	if res.StatusCode == 200 {
+		defer res.Body.Close()
+		body_res, _ := io.ReadAll(res.Body)
+		repeater.logger.Debug("Response: body:\n", string(body_res))
+		err := json.Unmarshal(body_res, &result_data)
+		if err != nil {
+			repeater.logger.Error(err)
+		}
+	}
+	return result_data, err
 }
 
 func NewReleemMetricsRepeater(configuration *config.Config) ReleemMetricsRepeater {

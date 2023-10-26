@@ -13,6 +13,7 @@ import (
 	"github.com/Releem/mysqlconfigurer/metrics"
 	m "github.com/Releem/mysqlconfigurer/metrics"
 	r "github.com/Releem/mysqlconfigurer/repeater"
+	t "github.com/Releem/mysqlconfigurer/tasks"
 	"github.com/advantageous/go-logback/logging"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
@@ -182,10 +183,12 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 	defer db.Close()
 
 	//Init repeaters
-	repeaters := make(map[string][]m.MetricsRepeater)
-	repeaters["Metrics"] = []m.MetricsRepeater{r.NewReleemMetricsRepeater(configuration)}
-	repeaters["Configurations"] = []m.MetricsRepeater{r.NewReleemConfigurationsRepeater(configuration)}
-	repeaters["Events"] = []m.MetricsRepeater{r.NewReleemEventsRepeater(configuration, Mode)}
+	repeaters := make(map[string]m.MetricsRepeater)
+	repeaters["Metrics"] = m.MetricsRepeater(r.NewReleemMetricsRepeater(configuration))
+	repeaters["Configurations"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration))
+	repeaters["Events"] = m.MetricsRepeater(r.NewReleemEventsRepeater(configuration, Mode))
+	repeaters["Tasks"] = m.MetricsRepeater(t.NewReleemTasksRepeater(configuration))
+	repeaters["TaskStatus"] = m.MetricsRepeater(t.NewReleemTaskStatusRepeater(configuration))
 
 	//Init gatherers
 	if Mode.Name != "Events" {

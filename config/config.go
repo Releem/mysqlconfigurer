@@ -1,7 +1,7 @@
 package config
 
 import (
-	"io/ioutil"
+	"os"
 	"time"
 
 	"github.com/advantageous/go-logback/logging"
@@ -27,6 +27,7 @@ type Config struct {
 	CommandRestartService string        `hcl:"mysql_restart_service"`
 	MysqlConfDir          string        `hcl:"mysql_cnf_dir"`
 	ReleemConfDir         string        `hcl:"releem_cnf_dir"`
+	ReleemDir             string        `hcl:"releem_dir"`
 	MemoryLimit           int           `hcl:"memory_limit"`
 	InstanceType          string        `hcl:"instance_type"`
 	AwsRegion             string        `hcl:"aws_region"`
@@ -38,7 +39,7 @@ func LoadConfig(filename string, logger logging.Logger) (*Config, error) {
 		logger = logging.NewSimpleLogger("config")
 	}
 	logger.Printf("Loading config %s", filename)
-	configBytes, err := ioutil.ReadFile(filename)
+	configBytes, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +70,9 @@ func LoadConfigFromString(data string, logger logging.Logger) (*Config, error) {
 	if config.MysqlPort == "" {
 		config.MysqlPort = "3306"
 	}
-
+	if config.ReleemDir == "" {
+		config.ReleemDir = "/opt/releem"
+	}
 	return config, nil
 }
 

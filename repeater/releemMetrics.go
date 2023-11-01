@@ -46,18 +46,11 @@ func (repeater ReleemMetricsRepeater) ProcessMetrics(context m.MetricContext, me
 	if err != nil {
 		repeater.logger.Error("Request: error making http request: ", err)
 	}
-	result_data := m.Task{}
 	repeater.logger.Debug("Response: status code: ", res.StatusCode)
-	if res.StatusCode == 200 {
-		defer res.Body.Close()
-		body_res, _ := io.ReadAll(res.Body)
-		repeater.logger.Debug("Response: body:\n", string(body_res))
-		err := json.Unmarshal(body_res, &result_data)
-		if err != nil {
-			repeater.logger.Error(err)
-		}
-	}
-	return result_data, err
+	defer res.Body.Close()
+	body_res, _ := io.ReadAll(res.Body)
+	repeater.logger.Debug("Response: body:\n", string(body_res))
+	return string(body_res), err
 }
 
 func NewReleemMetricsRepeater(configuration *config.Config) ReleemMetricsRepeater {

@@ -69,14 +69,26 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *Metrics) error {
 	}
 	// Latency
 	{
+		var output []MetricGroupValue
 		var row MetricValue
-		err := DbMetricsBase.db.QueryRow("select `s2`.`avg_us` AS `avg_us` from ((select count(0) AS `cnt`,round(`performance_schema`.`events_statements_summary_by_digest`.`AVG_TIMER_WAIT` / 1000000,0) AS `avg_us` from `performance_schema`.`events_statements_summary_by_digest` group by round(`performance_schema`.`events_statements_summary_by_digest`.`AVG_TIMER_WAIT` / 1000000,0)) `s1` join (select count(0) AS `cnt`,round(`performance_schema`.`events_statements_summary_by_digest`.`AVG_TIMER_WAIT` / 1000000,0) AS `avg_us` from `performance_schema`.`events_statements_summary_by_digest` group by round(`performance_schema`.`events_statements_summary_by_digest`.`AVG_TIMER_WAIT` / 1000000,0)) `s2` on(`s1`.`avg_us` <= `s2`.`avg_us`)) group by `s2`.`avg_us` having ifnull(sum(`s1`.`cnt`) / nullif((select count(0) from `performance_schema`.`events_statements_summary_by_digest`),0),0) > 0.95 order by ifnull(sum(`s1`.`cnt`) / nullif((select count(0) from `performance_schema`.`events_statements_summary_by_digest`),0),0) limit 1").Scan(&row.value)
+
+		var digest string
+		rows, err := DbMetricsBase.db.Query("SELECT CONCAT(IFNULL(schema_name, 'NULL'), '_', IFNULL(digest, 'NULL')) as queryid, count_star as calls, round(avg_timer_wait/1000000, 0) as avg_time_us FROM performance_schema.events_statements_summary_by_digest")
 		if err != nil {
 			if err != sql.ErrNoRows {
 				DbMetricsBase.logger.Error(err)
 			}
 		} else {
-			metrics.DB.Metrics.Latency = row.value
+			for rows.Next() {
+				err := rows.Scan(&digest, &row.name, &row.value)
+				if err != nil {
+					DbMetricsBase.logger.Error(err)
+					return err
+				}
+				digest := MetricGroupValue{"queryid": digest, "calls": row.name, "avg_time_us": row.value}
+				output = append(output, digest)
+			}
+			metrics.DB.Metrics.Latency = output
 		}
 	}
 

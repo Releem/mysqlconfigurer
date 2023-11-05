@@ -25,7 +25,7 @@ type Metrics struct {
 			TotalTables        string
 			TotalMyisamIndexes string
 			Engine             map[string]MetricGroupValue
-			Latency            string
+			Latency            []MetricGroupValue
 			Databases          []string
 		}
 		Conf struct {

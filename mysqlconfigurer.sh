@@ -43,6 +43,18 @@ function update_agent() {
     fi
 }
 
+function non_blocking_wait() {
+    PID=$1
+    if [ ! -d "/proc/$PID" ]; then
+        wait $PID
+        CODE=$?
+    else
+        CODE=150
+    fi
+    return $CODE
+}
+
+
 function wait_restart() {
   sleep 1
   flag=0
@@ -50,23 +62,34 @@ function wait_restart() {
   spin[1]="\\"
   spin[2]="|"
   spin[3]="/"
-#  echo -n "Waiting for restarted mysql ${spin[0]}"
-  printf "\033[37m\n Waiting for mysql service to start 300 seconds ${spin[0]}"
-
-  while !(mysqladmin ${connection_string} --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping > /dev/null 2>&1)
-  do
+  printf "\033[37m\n Waiting for mysql service to start 30 seconds ${spin[0]}"
+  while /bin/true; do
+    PID=$1
+    non_blocking_wait $PID
+    CODE=$?
+    if [ $CODE -ne 150 ]; then
+        echo "PID $PID terminated with exit code $CODE"
+        if [ $CODE -eq 0 ]; then
+                RETURN_CODE=0
+        else
+                RETURN_CODE=6
+        fi
+        break
+    fi
     flag=$(($flag + 1))
-    if [ $flag == 300 ]; then
-#        echo "$flag break"
+    if [ $flag == 30 ]; then
+        echo "Timeout"
+        RETURN_CODE=7
         break
     fi
     i=`expr $flag % 4`
-    #echo -ne "\b${spin[$i]}"
     printf "\b${spin[$i]}"
     sleep 1
   done
   printf "\033[0m\n"
+  return $RETURN_CODE
 }
+
 
 function check_mysql_version() {
 
@@ -257,25 +280,32 @@ function releem_apply_config() {
     #echo "-------Test config-------"
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Restarting MySQL with the command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
     eval "$RELEEM_MYSQL_RESTART_SERVICE" &
-    wait_restart
+    wait_restart $!
+    RESTART_CODE=$?
+
 
     if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
+    if [ $RESTART_CODE -eq 0 ];
     then
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m MySQL service started successfully!\033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Recommended configuration applied successfully!\033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S` MySQL Performance Score and recommended configuration in Releem Customer Portal will update after 12 hours.\n"
-        exit_code=0
         rm -f "${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}.bkp"
-    else
+    elif [ $RESTART_CODE -eq 7 ];
+    then
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to start in 300 seconds! Check the MySQL error log! \033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
-        exit_code=6
+    elif [ $RESTART_CODE -eq 6 ];
+    then
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to start! Check the MySQL error log! \033[0m\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"    
     fi
     /opt/releem/releem-agent --event=config_applied > /dev/null
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Sending a notification about the application of the config was completed successfully\033[0m\n"
 
-    exit "${exit_code}"
+    exit "${RESTART_CODE}"
 }
 
 

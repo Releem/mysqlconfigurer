@@ -2,4 +2,5 @@
 test-project/test.sh
 .DS_Store
 releem-install.log
-releem-agent
+releem-agent-*
+releem1.conf

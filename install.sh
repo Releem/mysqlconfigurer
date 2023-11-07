@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 1.7.0
+# install.sh - Version 1.9.0
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -7,7 +7,7 @@
 # using the package manager.
 
 set -e
-install_script_version=1.7.0
+install_script_version=1.9.0
 logfile="releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -69,6 +69,8 @@ function releem_update() {
 
 if [ "$0" == "uninstall" ];
 then
+    trap - EXIT
+    $WORKDIR/releem-agent --event=agent_uninstall > /dev/null
     printf "\033[37m\n * Configure crontab\033[0m\n"
     ($sudo_cmd crontab -l 2>/dev/null | grep -v "$WORKDIR/mysqlconfigurer.sh" || true) | $sudo_cmd crontab -
     printf "\033[37m\n * Stoping Releem Agent service...\033[0m\n"

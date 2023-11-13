@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 1.9.0
+# install.sh - Version 1.9.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -7,7 +7,7 @@
 # using the package manager.
 
 set -e
-install_script_version=1.9.0
+install_script_version=1.9.1
 logfile="releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -399,6 +399,15 @@ fi
 if [ -n "$RELEEM_HOSTNAME" ]; then
     printf "\033[37m - Adding hostname to the Releem Agent configuration: $CONF\n\033[0m"
 	echo "hostname=\"$RELEEM_HOSTNAME\"" | $sudo_cmd tee -a $CONF >/dev/null
+else
+    RELEEM_HOSTNAME=$(hostname 2>&1)
+    if [ $? -eq 0 ];
+    then
+        printf "\033[37m - Adding autodetected hostname to the Releem Agent configuration: $CONF\n\033[0m"
+	    echo "hostname=\"$RELEEM_HOSTNAME\"" | $sudo_cmd tee -a $CONF >/dev/null        
+    else
+        printf "\033[31m The variable RELEEM_HOSTNAME is not defined and the hostname could not be determined automatically with error\033[0m\n $RELEEM_HOSTNAME.\n\033[0m"
+    fi
 fi
 if [ -n "$RELEEM_ENV" ]; then
 	echo "env=\"$RELEEM_ENV\"" | $sudo_cmd tee -a $CONF >/dev/null

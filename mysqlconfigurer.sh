@@ -1,5 +1,5 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 1.9.0
+# mysqlconfigurer.sh - Version 1.9.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -12,7 +12,7 @@ MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 RELEEM_MYSQL_VERSION=$MYSQLCONFIGURER_PATH"mysql_version"
 MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
 MYSQL_MEMORY_LIMIT=0
-VERSION="1.9.0"
+VERSION="1.9.1"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 logfile="releem-mysqlconfigurer.log"
 
@@ -34,7 +34,7 @@ trap on_exit EXIT
 
 function update_agent() {
     NEW_VER=$(curl  -s -L https://releem.s3.amazonaws.com/v2/current_version_agent)
-    if [ "$VERSION" \< "$NEW_VER" ]
+    if [ "$(printf '%s\n' "$NEW_VER" "$VERSION" | sort -V | head -n1)" = "$VERSION" ]; 
     then
         printf "\033[37m\n * Updating script \e[31;1m%s\e[0m -> \e[32;1m%s\e[0m\n" "$VERSION" "$NEW_VER"
         curl -s -L https://releem.s3.amazonaws.com/v2/install.sh > "$RELEEM_INSTALL_PATH"

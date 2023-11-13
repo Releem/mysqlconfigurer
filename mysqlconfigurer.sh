@@ -68,18 +68,17 @@ function wait_restart() {
     non_blocking_wait $PID
     CODE=$?
     if [ $CODE -ne 150 ]; then
-        echo "PID $PID terminated with exit code $CODE"
+        printf "\033[0m\n PID $PID terminated with exit code $CODE"
         if [ $CODE -eq 0 ]; then
                 RETURN_CODE=0
         else
-                RETURN_CODE=6
+                RETURN_CODE=7
         fi
         break
     fi
     flag=$(($flag + 1))
     if [ $flag == 30 ]; then
-        echo "Timeout"
-        RETURN_CODE=7
+        RETURN_CODE=6
         break
     fi
     i=`expr $flag % 4`
@@ -158,20 +157,26 @@ function releem_rollback_config() {
 
     printf "\033[31m\n * Restarting with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
     eval "$RELEEM_MYSQL_RESTART_SERVICE" &
-    wait_restart
-    if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
+    wait_restart $!
+    RESTART_CODE=$?
+
+    #if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
+    if [ $RESTART_CODE -eq 0 ];
     then
-        printf "\033[32m\n * MySQL service started successfully!\033[0m\n"
-        exit_code=0
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m MySQL service started successfully!\033[0m\n"
         rm -f "${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}.bkp"
-    else
-        printf "\033[31m\n * MySQL service failed to start in 300 seconds! Check mysql error log! \033[0m\n"
-        exit_code=6
+    elif [ $RESTART_CODE -eq 6 ];
+    then
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to start in 30 seconds! Check the MySQL error log! \033[0m\n"
+    elif [ $RESTART_CODE -eq 7 ];
+    then
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to start! Check the MySQL error log! \033[0m\n" 
     fi
     /opt/releem/releem-agent --event=config_rollback > /dev/null
-
-    exit "${exit_code}"
+    exit "${RESTART_CODE}"
 }
+
+
 
 function releem_ps_mysql() {
     FLAG_CONFIGURE=1
@@ -185,13 +190,13 @@ function releem_ps_mysql() {
         FLAG_CONFIGURE=0
     fi
 
-    if [ -d "$RELEEM_MYSQL_CONFIG_DIR" ]; then
+    if [ -n "$RELEEM_MYSQL_CONFIG_DIR" -a -d "$RELEEM_MYSQL_CONFIG_DIR" ]; then
         printf "\033[37m\n * Enabling Performance schema and SlowLog to collect metrics...\n\033[0m\n"
         echo -e "### This configuration was recommended by Releem. https://releem.com\n[mysqld]\nperformance_schema = 1\nslow_query_log = 1" > "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf"
     else
         printf "\033[31m\n MySQL configuration directory is not found.\033[0m"
         printf "\033[31m\n Try to reinstall Releem Agent.\033[0m"
-        exit 1;
+        exit 3;
     fi
     if [ "$FLAG_CONFIGURE" -eq 1 ]; then
         printf "\033[37m\n * Performance schema and SlowLog are enabled for metrics collection.\033[0m\n"
@@ -213,24 +218,29 @@ function releem_ps_mysql() {
     if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
         printf "\033[31m\n * For appling change in configuration mysql need restart service.\n\033[0m"
         printf "\033[31m Run the command \`bash /opt/releem/mysqlconfigurer.sh -p\` when it is possible to restart the service.\033[0m\n"
-        exit 0
+        exit 5
     fi
     #echo "-------Test config-------"
     printf "\033[37m Restarting service with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
     eval "$RELEEM_MYSQL_RESTART_SERVICE" &
-    wait_restart
-    if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
+    wait_restart $!
+    RESTART_CODE=$?
+
+    #if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
+    if [ $RESTART_CODE -eq 0 ];
     then
         printf "\033[32m\n The MySQL service has started successfully!\033[0m\n"
         printf "\033[32m\n Performance schema and Slow Log are enabled.\033[0m\n"
-
-    else
-        printf "\033[31m\n MySQL service failed to start in 300 seconds! Check the MySQL error log!\033[0m\n"
+    elif [ $RESTART_CODE -eq 6 ];
+    then
+        printf "\033[31m\n MySQL service failed to start in 30 seconds! Check the MySQL error log!\033[0m\n"
+    elif [ $RESTART_CODE -eq 7 ];
+    then
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to start! Check the MySQL error log! \033[0m\n" 
     fi
-
-    exit 0
-
+    exit "${RESTART_CODE}"
 }
+
 
 
 function releem_apply_config() {
@@ -284,19 +294,19 @@ function releem_apply_config() {
     RESTART_CODE=$?
 
 
-    if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
+    #if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     if [ $RESTART_CODE -eq 0 ];
     then
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m MySQL service started successfully!\033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Recommended configuration applied successfully!\033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S` MySQL Performance Score and recommended configuration in Releem Customer Portal will update after 12 hours.\n"
         rm -f "${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}.bkp"
-    elif [ $RESTART_CODE -eq 7 ];
+    elif [ $RESTART_CODE -eq 6 ];
     then
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to start in 300 seconds! Check the MySQL error log! \033[0m\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to start in 30 seconds! Check the MySQL error log! \033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
-    elif [ $RESTART_CODE -eq 6 ];
+    elif [ $RESTART_CODE -eq 7 ];
     then
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to start! Check the MySQL error log! \033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"

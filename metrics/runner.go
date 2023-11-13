@@ -131,7 +131,7 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 			}
 			output["task_output"] = task_output + stdout.String() + stderr.String()
 
-			if output["task_exit_code"] == 6 {
+			if output["task_exit_code"] == 7 {
 				cmd := exec.Command(configuration.ReleemDir+"/mysqlconfigurer.sh", "-r")
 				cmd.Stdout = &stdout
 				cmd.Stderr = &stderr

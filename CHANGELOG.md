@@ -2,6 +2,20 @@ Releem releases
 ---
 Information about releases of the Releem.
 
+Releem 1.9.0, 2023-10-31 ([What's New At Releem | October 2023](https://releem.com/blog/whats-new-at-releem-october-2023))
+- Improved InnoDB Log File Size Health Check. Closes #202 
+- Improved Table Cache Hit Rate Health Check. Closes #201
+- Added Open Files Utilization
+- Added Table Locking Efficiency
+- Added InnoDB Dirty Pages Ratio
+- Added default start page for users with multiple servers. Closes #177
+- Added new Help windows with Frequently Asked Questions.
+- Fixed RDS Memory Usage. Closes #212
+- Fixed query_cache_type. Closes #214
+- Fixed query_cache_size. Closes #216
+- Fixed the time of applying configuration events on the day graph. Closes #220
+- Improved documentation.
+
 Releem 1.8.0, 2023-09-30 ([What's New At Releem | September 2023](https://releem.com/blog/whats-new-at-releem-september-2023))
 - Added OS version to the Releem Score block 
 - Fixed the issue with graphs for the America/Mexico_City timezone Closes #196.

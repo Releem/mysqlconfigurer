@@ -5,9 +5,9 @@ Information about releases of the Releem.
 Releem 1.9.0, 2023-10-31 ([What's New At Releem | October 2023](https://releem.com/blog/whats-new-at-releem-october-2023))
 - Improved InnoDB Log File Size Health Check. Closes #202 
 - Improved Table Cache Hit Rate Health Check. Closes #201
-- Added Open Files Utilization
-- Added Table Locking Efficiency
-- Added InnoDB Dirty Pages Ratio
+- Added [Open Files Utilization](https://releem.com/blog/mysql-health-checks#rec667806004)
+- Added [Table Locking Efficiency](https://releem.com/blog/mysql-health-checks#rec667808781)
+- Added [InnoDB Dirty Pages Ratio](https://releem.com/blog/mysql-health-checks#rec667811185) 
 - Added default start page for users with multiple servers. Closes #177
 - Added new Help windows with Frequently Asked Questions.
 - Fixed RDS Memory Usage. Closes #212

@@ -256,7 +256,7 @@ function releem_apply_config() {
     then
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m MySQL service started successfully!\033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Recommended configuration applied successfully!\033[0m\n"
-        printf "\n`date +%Y%m%d-%H:%M:%S` MySQL Performance Score and recommended configuration in Releem Customer Portal will update after 12 hours.\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S` Releem Score and Unapplied recommendations in the Releem Dashboard will be updated in a few minutes.\n"
 
     else
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to start in 120 seconds! Check the MySQL error log! \033[0m\n"
@@ -264,7 +264,7 @@ function releem_apply_config() {
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
     fi
     /opt/releem/releem-agent --event=config_applied > /dev/null
-    printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Sending a notification about the application of the config was completed successfully\033[0m\n"
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Notification to Releem Platform was sent successfully!\033[0m\n"
 
     exit 0
 }

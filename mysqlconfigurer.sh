@@ -242,8 +242,21 @@ function releem_ps_mysql() {
 }
 
 
-
 function releem_apply_config() {
+    if [ "$1" -eq "auto" ]; 
+    then
+        releem_apply_auto
+    else
+        releem_apply_manual
+    fi
+}
+ 
+function releem_apply_auto() {
+    /opt/releem/releem-agent --task=apply_config #> /dev/null
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Request to create a task to apply the configuration was sended!\033[0m\n"
+}
+
+function releem_apply_manual() {
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended MySQL configuration...\033[0m\n"
     if [ ! -f $MYSQLCONFIGURER_CONFIGFILE ]; then
         printf "\033[37m\n * Recommended MySQL configuration is not found.\033[0m"
@@ -490,12 +503,12 @@ fi
 
 
 # Parse parameters
-while getopts "k:m:arcpu" option
+while getopts "k:m:a:rcpu" option
 do
   case "${option}" in
     k) RELEEM_API_KEY=${OPTARG};;
     m) MYSQL_MEMORY_LIMIT=${OPTARG};;
-    a) releem_apply_config;;
+    a) releem_apply_config ${OPTARG};;
     r) releem_rollback_config;;
     c) get_config;;
     p) releem_ps_mysql;;

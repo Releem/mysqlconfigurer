@@ -25,11 +25,11 @@ func (repeater ReleemTasksRepeater) ProcessMetrics(context m.MetricContext, metr
 	var api_domain string
 	env := context.GetEnv()
 	if env == "dev" {
-		api_domain = "https://api.dev.releem.com/v1/events/tasks_get"
+		api_domain = "https://api.dev.releem.com/v1/tasks/task_get"
 	} else if env == "stage" {
-		api_domain = "https://api.stage.releem.com/v1/events/tasks_get"
+		api_domain = "https://api.stage.releem.com/v1/tasks/task_get"
 	} else {
-		api_domain = "https://api.releem.com/v1/events/tasks_get"
+		api_domain = "https://api.releem.com/v1/tasks/task_get"
 	}
 	req, err := http.NewRequest(http.MethodPost, api_domain, bodyReader)
 	if err != nil {

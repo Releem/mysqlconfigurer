@@ -56,7 +56,7 @@ func IsPath(path string, logger logging.Logger) bool {
 }
 
 // Manage by daemon commands or run the daemon
-func (service *Service) Manage(logger logging.Logger, configFile string, command []string, FirstRun bool, AgentEvents string) (string, error) {
+func (service *Service) Manage(logger logging.Logger, configFile string, command []string, FirstRun bool, AgentEvents string, AgentTask string) (string, error) {
 	var gatherers, gatherers_configuration []m.MetricsGatherer
 	var Mode metrics.Mode
 	usage := "Usage: myservice install | remove | start | stop | status"
@@ -89,6 +89,9 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 	if len(AgentEvents) > 0 {
 		Mode.Name = "Events"
 		Mode.ModeType = AgentEvents
+	} else if len(AgentTask) > 0 {
+		Mode.Name = "Task"
+		Mode.ModeType = AgentTask
 	} else {
 		Mode.Name = "Configurations"
 		if FirstRun {
@@ -189,19 +192,20 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 	repeaters["Events"] = m.MetricsRepeater(r.NewReleemEventsRepeater(configuration, Mode))
 	repeaters["Tasks"] = m.MetricsRepeater(t.NewReleemTasksRepeater(configuration))
 	repeaters["TaskStatus"] = m.MetricsRepeater(t.NewReleemTaskStatusRepeater(configuration))
+	repeaters["Task"] = m.MetricsRepeater(t.NewReleemTaskSetRepeater(configuration, Mode))
 
 	//Init gatherers
-	if Mode.Name != "Events" {
+	if Mode.Name == "Events" || Mode.Name == "Task" {
+		gatherers = append(gatherers,
+			m.NewDbConfGatherer(nil, db, configuration),
+			m.NewAgentMetricsGatherer(nil, configuration))
+	} else {
 		gatherers = append(gatherers,
 			m.NewDbConfGatherer(nil, db, configuration),
 			m.NewDbInfoGatherer(nil, db, configuration),
 			m.NewDbMetricsBaseGatherer(nil, db, configuration),
 			m.NewAgentMetricsGatherer(nil, configuration))
 		gatherers_configuration = append(gatherers_configuration, m.NewDbMetricsGatherer(nil, db, configuration))
-	} else {
-		gatherers = append(gatherers,
-			m.NewDbConfGatherer(nil, db, configuration),
-			m.NewAgentMetricsGatherer(nil, configuration))
 	}
 
 	m.RunWorker(gatherers, gatherers_configuration, repeaters, nil, configuration, configFile, Mode)
@@ -216,6 +220,7 @@ func main() {
 	configFile := flag.String("config", "/opt/releem/releem.conf", "Releem agent config")
 	FirstRun := flag.Bool("f", false, "Releem agent generate config")
 	AgentEvents := flag.String("event", "", "Releem agent type event")
+	AgentTask := flag.String("task", "", "Releem agent task name")
 
 	flag.Parse()
 	command := flag.Args()
@@ -226,7 +231,7 @@ func main() {
 		os.Exit(1)
 	}
 	service := &Service{srv}
-	status, err := service.Manage(logger, *configFile, command, *FirstRun, *AgentEvents)
+	status, err := service.Manage(logger, *configFile, command, *FirstRun, *AgentEvents, *AgentTask)
 
 	if err != nil {
 		logger.Println(status, "\nError: ", err)

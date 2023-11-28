@@ -132,6 +132,7 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 			output["task_output"] = task_output + stdout.String() + stderr.String()
 
 			if output["task_exit_code"] == 7 {
+				var rollback_exit_code int
 				cmd := exec.Command(configuration.ReleemDir+"/mysqlconfigurer.sh", "-r")
 				cmd.Stdout = &stdout
 				cmd.Stderr = &stderr
@@ -141,17 +142,17 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 					task_output = task_output + err.Error()
 					logger.Error(err)
 					if exiterr, ok := err.(*exec.ExitError); ok {
-						output["task_exit_code"] = exiterr.ExitCode()
+						rollback_exit_code = exiterr.ExitCode()
 					} else {
-						output["task_exit_code"] = 999
+						rollback_exit_code = 999
 					}
 				} else {
-					output["task_exit_code"] = 0
+					rollback_exit_code = 0
 				}
 				output["task_output"] = task_output + stdout.String() + stderr.String()
 
 				output["task_status"] = 4
-				logger.Println(" * Task with id -", TaskID, "and type id -", TaskTypeID, "rollbacked with code", output["task_exit_code"])
+				logger.Println(" * Task with id -", TaskID, "and type id -", TaskTypeID, "rollbacked with code", rollback_exit_code)
 
 			} else {
 				output["task_status"] = 1

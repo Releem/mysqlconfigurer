@@ -255,7 +255,7 @@ function releem_apply_config() {
 }
  
 function releem_apply_auto() {
-    /opt/releem/releem-agent --task=apply_config #> /dev/null
+    /opt/releem/releem-agent --task=apply_config > /dev/null
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Request to create a task to apply the configuration was sended!\033[0m\n"
     exit 0
 }

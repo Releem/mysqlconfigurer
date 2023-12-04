@@ -1,4 +1,4 @@
-package repeater
+package tasks
 
 import (
 	"net/http"
@@ -13,24 +13,23 @@ import (
 	"time"
 )
 
-type ReleemEventsRepeater struct {
-	logger        logging.Logger
-	configuration *config.Config
-	Mode          m.Mode
+type ReleemTaskSetRepeater struct {
+	logger logging.Logger
+	Mode   m.Mode
 }
 
-func (repeater ReleemEventsRepeater) ProcessMetrics(context m.MetricContext, metrics m.Metrics) (interface{}, error) {
+func (repeater ReleemTaskSetRepeater) ProcessMetrics(context m.MetricContext, metrics m.Metrics) (interface{}, error) {
 	e, _ := json.Marshal(metrics)
 	bodyReader := strings.NewReader(string(e))
 	repeater.logger.Debug("Result Send data: ", string(e))
 	var api_domain string
 	env := context.GetEnv()
 	if env == "dev" {
-		api_domain = "https://api.dev.releem.com/v1/events/"
+		api_domain = "https://api.dev.releem.com/v1/tasks/"
 	} else if env == "stage" {
-		api_domain = "https://api.stage.releem.com/v1/events/"
+		api_domain = "https://api.stage.releem.com/v1/tasks/"
 	} else {
-		api_domain = "https://api.releem.com/v1/events/"
+		api_domain = "https://api.releem.com/v1/tasks/"
 	}
 	api_domain += repeater.Mode.ModeType
 
@@ -52,12 +51,12 @@ func (repeater ReleemEventsRepeater) ProcessMetrics(context m.MetricContext, met
 	return nil, err
 }
 
-func NewReleemEventsRepeater(configuration *config.Config, Mode m.Mode) ReleemEventsRepeater {
+func NewReleemTaskSetRepeater(configuration *config.Config, Mode m.Mode) ReleemTaskSetRepeater {
 	var logger logging.Logger
 	if configuration.Debug {
 		logger = logging.NewSimpleDebugLogger("ReleemRepeaterMetrics")
 	} else {
 		logger = logging.NewSimpleLogger("ReleemRepeaterMetrics")
 	}
-	return ReleemEventsRepeater{logger, configuration, Mode}
+	return ReleemTaskSetRepeater{logger, Mode}
 }

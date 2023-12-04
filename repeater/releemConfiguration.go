@@ -1,7 +1,7 @@
 package repeater
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -20,7 +20,7 @@ type ReleemConfigurationsRepeater struct {
 	configuration *config.Config
 }
 
-func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricContext, metrics m.Metrics) error {
+func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricContext, metrics m.Metrics) (interface{}, error) {
 	repeater.logger.Println(" * Sending metrics to Releem Cloud Platform...")
 	e, _ := json.Marshal(metrics)
 	bodyReader := strings.NewReader(string(e))
@@ -49,7 +49,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricCont
 	defer res.Body.Close()
 	repeater.logger.Println(" * Downloading recommended MySQL configuration from Releem Cloud Platform...")
 
-	body_res, err := ioutil.ReadAll(res.Body)
+	body_res, err := io.ReadAll(res.Body)
 	if err != nil {
 		repeater.logger.Error("Response: error read body request: ", err)
 	}
@@ -67,7 +67,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricCont
 		repeater.logger.Println("2. To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics")
 		repeater.logger.Println("3. To apply the recommended configuration please read documentation https://app.releem.com/dashboard")
 	}
-	return err
+	return nil, err
 }
 
 func NewReleemConfigurationsRepeater(configuration *config.Config) ReleemConfigurationsRepeater {

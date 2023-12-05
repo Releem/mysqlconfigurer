@@ -221,7 +221,7 @@ function releem_ps_mysql() {
     if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
         printf "\033[31m\n * For appling change in configuration mysql need restart service.\n\033[0m"
         printf "\033[31m Run the command \`bash /opt/releem/mysqlconfigurer.sh -p\` when it is possible to restart the service.\033[0m\n"
-        exit 5
+        exit 0
     fi
     #echo "-------Test config-------"
     printf "\033[37m Restarting service with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"

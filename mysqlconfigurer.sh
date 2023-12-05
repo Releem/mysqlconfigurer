@@ -281,6 +281,16 @@ function releem_apply_manual() {
         printf "\033[37m\n * The command to restart the MySQL service was not found. Try to reinstall Releem Agent.\033[0m"
         exit 4;
     fi
+    diff_cmd=$(which diff || true)
+    if [ -n "$diff_cmd" ];then
+        diff "${RELEEM_MYSQL_CONFIG_DIR}/${MYSQLCONFIGURER_FILE_NAME}" "$MYSQLCONFIGURER_CONFIGFILE" > /dev/null 2>&1
+        retVal=$?
+        if [ $retVal -eq 0 ];
+        then
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m The new configuration does not differ from the current one applied. No restart is required.!\033[0m\n"        
+            exit 0
+        fi
+    fi
 
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then

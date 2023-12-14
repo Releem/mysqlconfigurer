@@ -22,6 +22,10 @@ jobs:
 
     - name: Build
       run: bash build.sh
+    - name: Create upload dir
+      run: |
+        mkdir -p ../v2
+        cp current_version_agent install.sh mysqlconfigurer.sh releem-agent-x86_64 releem-agent-amd64 releem-agent-aarch64 releem-agent-freebsd-amd64 ../v2/
 
     - uses: shallwefootball/s3-upload-action@master
       name: Upload S3 current_version_agent
@@ -29,57 +33,8 @@ jobs:
         aws_key_id: ${{ secrets.AWS_KEY_ID }}
         aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
         aws_bucket: ${{ secrets.AWS_BUCKET }}
-        source_dir: 'current_version_agent'
+        source_dir: '../v2'
         destination_dir: 'v2'
-    - uses: shallwefootball/s3-upload-action@master
-      name: Upload S3 install.sh
-      with:
-        aws_key_id: ${{ secrets.AWS_KEY_ID }}
-        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
-        aws_bucket: ${{ secrets.AWS_BUCKET }}
-        source_dir: 'install.sh'
-        destination_dir: 'v2'
-    - uses: shallwefootball/s3-upload-action@master
-      name: Upload S3 mysqlconfigurer.sh
-      with:
-        aws_key_id: ${{ secrets.AWS_KEY_ID }}
-        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
-        aws_bucket: ${{ secrets.AWS_BUCKET }}
-        source_dir: 'mysqlconfigurer.sh'
-        destination_dir: 'v2'
-    - uses: shallwefootball/s3-upload-action@master
-      name: Upload S3 releem-agent-x86_64
-      with:
-        aws_key_id: ${{ secrets.AWS_KEY_ID }}
-        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
-        aws_bucket: ${{ secrets.AWS_BUCKET }}
-        source_dir: 'releem-agent-x86_64'
-        destination_dir: 'v2'
-    - uses: shallwefootball/s3-upload-action@master
-      name: Upload S3 releem-agent-amd64
-      with:
-        aws_key_id: ${{ secrets.AWS_KEY_ID }}
-        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
-        aws_bucket: ${{ secrets.AWS_BUCKET }}
-        source_dir: 'releem-agent-amd64'
-        destination_dir: 'v2'
-    - uses: shallwefootball/s3-upload-action@master
-      name: Upload S3 releem-agent-aarch64
-      with:
-        aws_key_id: ${{ secrets.AWS_KEY_ID }}
-        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
-        aws_bucket: ${{ secrets.AWS_BUCKET }}
-        source_dir: 'releem-agent-aarch64'
-        destination_dir: 'v2'
-    - uses: shallwefootball/s3-upload-action@master
-      name: Upload S3 releem-agent-freebsd-amd64
-      with:
-        aws_key_id: ${{ secrets.AWS_KEY_ID }}
-        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
-        aws_bucket: ${{ secrets.AWS_BUCKET }}
-        source_dir: 'releem-agent-freebsd-amd64'
-        destination_dir: 'v2'      
-        
           
     - name: Log in to Docker Hub
       uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a

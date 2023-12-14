@@ -1,5 +1,5 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 1.10.0.1
+# mysqlconfigurer.sh - Version 1.10.0.2
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -12,7 +12,7 @@ MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 RELEEM_MYSQL_VERSION=$MYSQLCONFIGURER_PATH"mysql_version"
 MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
 MYSQL_MEMORY_LIMIT=0
-VERSION="1.10.0.1"
+VERSION="1.10.0.2"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 logfile="releem-mysqlconfigurer.log"
 
@@ -328,13 +328,14 @@ function releem_apply_manual() {
         rm -f "${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}.bkp"
     elif [ $RESTART_CODE -eq 6 ];
     then
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to restart in 1200 seconds! Check the MySQL error log! \033[0m\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to restart in 1200 seconds! \033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Wait for the MySQL service to start and Check the MySQL error log!\033[0m\n"
 
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
     elif [ $RESTART_CODE -eq 7 ];
     then
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to restart! Check the MySQL error log! \033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
     fi

@@ -1,0 +1,116 @@
+# This workflow will build a golang project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
+
+name: Go
+
+on:
+  push:
+    tags: [ "*" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.19.1'
+
+    - name: Build
+      run: bash build.sh
+
+    - uses: chrnorm/deployment-action@releases/v1
+      name: Create GitHub deployment
+      id: test
+      with:
+        token: ${{ secrets.GITHUB_TOKEN}}
+        description: 'Preview my app'
+        environment: preview
+
+    - uses: shallwefootball/s3-upload-action@master
+      name: Upload S3 current_version_agent
+      with:
+        aws_key_id: ${{ secrets.AWS_KEY_ID }}
+        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
+        aws_bucket: ${{ secrets.AWS_BUCKET }}
+        source_dir: 'current_version_agent'
+        destination_dir: 'v2'
+    - uses: shallwefootball/s3-upload-action@master
+      name: Upload S3 install.sh
+      with:
+        aws_key_id: ${{ secrets.AWS_KEY_ID }}
+        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
+        aws_bucket: ${{ secrets.AWS_BUCKET }}
+        source_dir: 'install.sh'
+        destination_dir: 'v2'
+    - uses: shallwefootball/s3-upload-action@master
+      name: Upload S3 mysqlconfigurer.sh
+      with:
+        aws_key_id: ${{ secrets.AWS_KEY_ID }}
+        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
+        aws_bucket: ${{ secrets.AWS_BUCKET }}
+        source_dir: 'mysqlconfigurer.sh'
+        destination_dir: 'v2'
+    - uses: shallwefootball/s3-upload-action@master
+      name: Upload S3 releem-agent-x86_64
+      with:
+        aws_key_id: ${{ secrets.AWS_KEY_ID }}
+        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
+        aws_bucket: ${{ secrets.AWS_BUCKET }}
+        source_dir: 'releem-agent-x86_64'
+        destination_dir: 'v2'
+    - uses: shallwefootball/s3-upload-action@master
+      name: Upload S3 releem-agent-amd64
+      with:
+        aws_key_id: ${{ secrets.AWS_KEY_ID }}
+        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
+        aws_bucket: ${{ secrets.AWS_BUCKET }}
+        source_dir: 'releem-agent-amd64'
+        destination_dir: 'v2'
+    - uses: shallwefootball/s3-upload-action@master
+      name: Upload S3 releem-agent-aarch64
+      with:
+        aws_key_id: ${{ secrets.AWS_KEY_ID }}
+        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
+        aws_bucket: ${{ secrets.AWS_BUCKET }}
+        source_dir: 'releem-agent-aarch64'
+        destination_dir: 'v2'
+    - uses: shallwefootball/s3-upload-action@master
+      name: Upload S3 releem-agent-freebsd-amd64
+      with:
+        aws_key_id: ${{ secrets.AWS_KEY_ID }}
+        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
+        aws_bucket: ${{ secrets.AWS_BUCKET }}
+        source_dir: 'releem-agent-freebsd-amd64'
+        destination_dir: 'v2'      
+        
+    - name: Update deployment status (success)
+      if: success()
+      uses: chrnorm/deployment-status@releases/v1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        target_url: https://aws-bucket.s3.ap-northeast-2.amazonaws.com/${{steps.S3.outputs.object_key}}/index.html
+        state: 'success'
+        deployment_id: ${{ steps.test.outputs.deployment_id }}
+          
+    - name: Log in to Docker Hub
+      uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+          
+    - name: Extract metadata (tags, labels) for Docker
+      id: meta
+      uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
+      with:
+        images: releem/releem-agent            
+      
+    - name: Build and push Docker images
+      uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}        

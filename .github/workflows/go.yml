@@ -5,8 +5,10 @@ name: Go
 
 on:
   push:
-    tags: [ "*" ]
-
+    tags: 
+      - '*'
+  workflow_dispatch:
+  
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,14 +22,6 @@ jobs:
 
     - name: Build
       run: bash build.sh
-
-    - uses: chrnorm/deployment-action@releases/v1
-      name: Create GitHub deployment
-      id: test
-      with:
-        token: ${{ secrets.GITHUB_TOKEN}}
-        description: 'Preview my app'
-        environment: preview
 
     - uses: shallwefootball/s3-upload-action@master
       name: Upload S3 current_version_agent
@@ -86,14 +80,6 @@ jobs:
         source_dir: 'releem-agent-freebsd-amd64'
         destination_dir: 'v2'      
         
-    - name: Update deployment status (success)
-      if: success()
-      uses: chrnorm/deployment-status@releases/v1
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        target_url: https://aws-bucket.s3.ap-northeast-2.amazonaws.com/${{steps.S3.outputs.object_key}}/index.html
-        state: 'success'
-        deployment_id: ${{ steps.test.outputs.deployment_id }}
           
     - name: Log in to Docker Hub
       uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a

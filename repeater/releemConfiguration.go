@@ -37,6 +37,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricCont
 	req, err := http.NewRequest(http.MethodPost, api_domain, bodyReader)
 	if err != nil {
 		repeater.logger.Error("Request: could not create request: ", err)
+		return nil, err
 	}
 	req.Header.Set("x-releem-api-key", context.GetApiKey())
 	client := http.Client{
@@ -45,6 +46,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricCont
 	res, err := client.Do(req)
 	if err != nil {
 		repeater.logger.Error("Request: error making http request: ", err)
+		return nil, err
 	}
 	defer res.Body.Close()
 	repeater.logger.Println(" * Downloading recommended MySQL configuration from Releem Cloud Platform...")
@@ -52,6 +54,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricCont
 	body_res, err := io.ReadAll(res.Body)
 	if err != nil {
 		repeater.logger.Error("Response: error read body request: ", err)
+		return nil, err
 	}
 	if res.StatusCode != 200 {
 		repeater.logger.Println("Response: status code: ", res.StatusCode)
@@ -62,6 +65,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricCont
 		err = os.WriteFile(context.GetReleemConfDir()+"/z_aiops_mysql.cnf", body_res, 0644)
 		if err != nil {
 			repeater.logger.Error("WriteFile: Error write to file: ", err)
+			return nil, err
 		}
 		repeater.logger.Println("1. Recommended MySQL configuration downloaded to ", context.GetReleemConfDir())
 		repeater.logger.Println("2. To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics")

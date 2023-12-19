@@ -37,6 +37,7 @@ func (repeater ReleemEventsRepeater) ProcessMetrics(context m.MetricContext, met
 	req, err := http.NewRequest(http.MethodPost, api_domain, bodyReader)
 	if err != nil {
 		repeater.logger.Error("Request: could not create request: ", err)
+		return nil, err
 	}
 	req.Header.Set("x-releem-api-key", context.GetApiKey())
 
@@ -47,6 +48,7 @@ func (repeater ReleemEventsRepeater) ProcessMetrics(context m.MetricContext, met
 	res, err := client.Do(req)
 	if err != nil {
 		repeater.logger.Error("Request: error making http request: ", err)
+		return nil, err
 	}
 	repeater.logger.Debug("Response: status code: ", res)
 	return nil, err

@@ -19,6 +19,7 @@ type ReleemTasksRepeater struct {
 }
 
 func (repeater ReleemTasksRepeater) ProcessMetrics(context m.MetricContext, metrics m.Metrics) (interface{}, error) {
+	result_data := m.Task{}
 	e, _ := json.Marshal(metrics)
 	bodyReader := strings.NewReader(string(e))
 	repeater.logger.Debug("Result Send data: ", string(e))
@@ -34,6 +35,7 @@ func (repeater ReleemTasksRepeater) ProcessMetrics(context m.MetricContext, metr
 	req, err := http.NewRequest(http.MethodPost, api_domain, bodyReader)
 	if err != nil {
 		repeater.logger.Error("Request: could not create request: ", err)
+		return result_data, err
 	}
 	req.Header.Set("x-releem-api-key", context.GetApiKey())
 	client := http.Client{
@@ -42,16 +44,17 @@ func (repeater ReleemTasksRepeater) ProcessMetrics(context m.MetricContext, metr
 	res, err := client.Do(req)
 	if err != nil {
 		repeater.logger.Error("Request: error making http request: ", err)
+		return result_data, err
 	}
 	defer res.Body.Close()
 
 	body_res, err := io.ReadAll(res.Body)
 	if err != nil {
 		repeater.logger.Error("Response: error read body request: ", err)
+		return result_data, err
 	}
 	repeater.logger.Debug("Response: status code: ", res.StatusCode, api_domain)
 	repeater.logger.Debug("Response: body:\n", string(body_res))
-	result_data := m.Task{}
 	err1 := json.Unmarshal(body_res, &result_data)
 
 	if err1 != nil {

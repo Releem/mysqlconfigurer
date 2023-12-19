@@ -53,12 +53,17 @@ func (repeater ReleemTasksRepeater) ProcessMetrics(context m.MetricContext, metr
 		repeater.logger.Error("Response: error read body request: ", err)
 		return result_data, err
 	}
-	repeater.logger.Debug("Response: status code: ", res.StatusCode, api_domain)
-	repeater.logger.Debug("Response: body:\n", string(body_res))
-	err1 := json.Unmarshal(body_res, &result_data)
+	if res.StatusCode != 200 {
+		repeater.logger.Println("Response: status code: ", res.StatusCode)
+		repeater.logger.Println("Response: body:\n", string(body_res))
+	} else {
+		repeater.logger.Debug("Response: status code: ", res.StatusCode)
+		repeater.logger.Debug("Response: body:\n", string(body_res))
+		err := json.Unmarshal(body_res, &result_data)
 
-	if err1 != nil {
-		repeater.logger.Error(err1)
+		if err != nil {
+			repeater.logger.Error(err)
+		}
 	}
 	return result_data, err
 

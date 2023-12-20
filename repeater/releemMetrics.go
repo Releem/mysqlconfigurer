@@ -35,6 +35,7 @@ func (repeater ReleemMetricsRepeater) ProcessMetrics(context m.MetricContext, me
 	req, err := http.NewRequest(http.MethodPost, api_domain, bodyReader)
 	if err != nil {
 		repeater.logger.Error("Request: could not create request: ", err)
+		return nil, err
 	}
 	req.Header.Set("x-releem-api-key", context.GetApiKey())
 
@@ -45,10 +46,15 @@ func (repeater ReleemMetricsRepeater) ProcessMetrics(context m.MetricContext, me
 	res, err := client.Do(req)
 	if err != nil {
 		repeater.logger.Error("Request: error making http request: ", err)
+		return nil, err
 	}
 	repeater.logger.Debug("Response: status code: ", res.StatusCode)
 	defer res.Body.Close()
-	body_res, _ := io.ReadAll(res.Body)
+	body_res, err := io.ReadAll(res.Body)
+	if err != nil {
+		repeater.logger.Error("Response: error read body request: ", err)
+		return nil, err
+	}
 	repeater.logger.Debug("Response: body:\n", string(body_res))
 	return string(body_res), err
 }

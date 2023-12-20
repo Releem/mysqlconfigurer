@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 1.10.0.4
+# install.sh - Version 1.11.0
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -7,7 +7,7 @@
 # using the package manager.
 
 set -e
-install_script_version=1.10.0.4
+install_script_version=1.11.0
 logfile="releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -55,7 +55,7 @@ function releem_update() {
     $sudo_cmd chmod 755 $WORKDIR/mysqlconfigurer.sh   $WORKDIR/releem-agent
     $sudo_cmd $WORKDIR/releem-agent start || true
     $sudo_cmd $WORKDIR/releem-agent -f
-
+    
     echo
     echo
     echo -e "Releem Agent updated successfully."

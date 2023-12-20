@@ -126,8 +126,10 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 				} else {
 					output["task_exit_code"] = 999
 				}
+				output["task_status"] = 4
 			} else {
 				output["task_exit_code"] = 0
+				output["task_status"] = 1
 			}
 			output["task_output"] = task_output + stdout.String() + stderr.String()
 
@@ -150,14 +152,9 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 					rollback_exit_code = 0
 				}
 				output["task_output"] = task_output + stdout.String() + stderr.String()
-
-				output["task_status"] = 4
-				logger.Println(" * Task with id -", TaskID, "and type id -", TaskTypeID, "rollbacked with code", rollback_exit_code)
-
-			} else {
-				output["task_status"] = 1
-				logger.Println(" * Task with id -", TaskID, "and type id -", TaskTypeID, "completed with code", output["task_exit_code"])
+				logger.Println(" * Task rollbacked with code", rollback_exit_code)
 			}
+			logger.Println(" * Task with id -", TaskID, "and type id -", TaskTypeID, "completed with code", output["task_exit_code"])
 
 			metrics.ReleemAgent.Tasks = output
 			logger.Debug(output)
@@ -177,11 +174,12 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 				} else {
 					output["task_exit_code"] = 999
 				}
+				output["task_status"] = 4
 			} else {
 				output["task_exit_code"] = 0
+				output["task_status"] = 1
 			}
 			output["task_output"] = task_output + stderr.String()
-			output["task_status"] = 1
 			logger.Println(" * Task with id -", TaskID, "and type id -", TaskTypeID, "completed with code", output["task_exit_code"])
 
 			metrics.ReleemAgent.Tasks = output

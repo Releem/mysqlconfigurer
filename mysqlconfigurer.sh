@@ -34,6 +34,7 @@ trap on_exit EXIT
 
 function update_agent() {
     trap - EXIT
+    /opt/releem/releem-agent start > /dev/null || true
     NEW_VER=$(curl  -s -L https://releem.s3.amazonaws.com/v2/current_version_agent)
     if [ "$NEW_VER" != "$VERSION" ]; then
         if [ "$(printf '%s\n' "$NEW_VER" "$VERSION" | sort -V | head -n1)" = "$VERSION" ]; 

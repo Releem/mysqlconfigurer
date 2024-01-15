@@ -2,6 +2,17 @@ Releem releases
 ---
 Information about releases of the Releem.
 
+Releem 1.11.0, 2023-12-31 ([What's New At Releem | December 2023](https://releem.com/blog/whats-new-at-releem-november-2023))
+- Added notification on increasing open_files_limit. Closes #171
+- Added server restarts to MySQL Metrics graphs. Closes #191
+- Added Automatic applying configuration by clicking button in the web interface.
+- Added automatic rollback function if any issues arise while applying a new configuration. Closes #187
+- Added new Health check - Table Definition Cache
+- Fixed unable to bring recommendations for servers with disabled InnoDB. Closes #213
+- Fixed InnoDB log file size Health Check calculation. Closes #234
+- Fixed Releem Agent installation guide for AWS RDS. Closes #223
+- Fixed Releem Agent tends to stop by itself from time to time. Closes #210
+
 Releem 1.9.0, 2023-10-31 ([What's New At Releem | October 2023](https://releem.com/blog/whats-new-at-releem-october-2023))
 - Improved InnoDB Log File Size Health Check. Closes #202 
 - Improved Table Cache Hit Rate Health Check. Closes #201

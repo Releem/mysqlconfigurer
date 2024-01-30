@@ -1,5 +1,5 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 1.11.0.1.1
+# mysqlconfigurer.sh - Version 1.12.0
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -12,7 +12,7 @@ MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 RELEEM_MYSQL_VERSION=$MYSQLCONFIGURER_PATH"mysql_version"
 MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
 MYSQL_MEMORY_LIMIT=0
-VERSION="1.11.0.1.1"
+VERSION="1.12.0"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 logfile="releem-mysqlconfigurer.log"
 
@@ -263,6 +263,9 @@ function releem_apply_auto() {
 
 function releem_apply_manual() {
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended MySQL configuration...\033[0m\n"
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the latest up-to-date configuration...\033[0m\n"
+    /opt/releem/releem-agent -c >/dev/null 2>&1 || true
+
     if [ ! -f $MYSQLCONFIGURER_CONFIGFILE ]; then
         printf "\033[37m\n * Recommended MySQL configuration is not found.\033[0m"
         printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"

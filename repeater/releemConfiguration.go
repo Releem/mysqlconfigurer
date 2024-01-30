@@ -18,6 +18,7 @@ import (
 type ReleemConfigurationsRepeater struct {
 	logger        logging.Logger
 	configuration *config.Config
+	Mode          m.Mode
 }
 
 func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricContext, metrics m.Metrics) (interface{}, error) {
@@ -27,12 +28,21 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricCont
 	repeater.logger.Debug("Result Send data: ", string(e))
 	var api_domain string
 	env := context.GetEnv()
-	if env == "dev" {
-		api_domain = "https://api.dev.releem.com/v2/mysql"
+	if env == "dev2" {
+		api_domain = "https://api.dev2.releem.com/v2/"
+	} else if env == "dev" {
+		api_domain = "https://api.dev.releem.com/v2/"
 	} else if env == "stage" {
-		api_domain = "https://api.stage.releem.com/v2/mysql"
+		api_domain = "https://api.stage.releem.com/v2/"
 	} else {
-		api_domain = "https://api.releem.com/v2/mysql"
+		api_domain = "https://api.releem.com/v2/"
+	}
+	if repeater.Mode.ModeType == "set" {
+		api_domain = api_domain + "mysql"
+	} else if repeater.Mode.ModeType == "get" {
+		api_domain = api_domain + "config"
+	} else {
+		api_domain = api_domain + "mysql"
 	}
 	req, err := http.NewRequest(http.MethodPost, api_domain, bodyReader)
 	if err != nil {
@@ -74,12 +84,12 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricCont
 	return nil, err
 }
 
-func NewReleemConfigurationsRepeater(configuration *config.Config) ReleemConfigurationsRepeater {
+func NewReleemConfigurationsRepeater(configuration *config.Config, Mode m.Mode) ReleemConfigurationsRepeater {
 	var logger logging.Logger
 	if configuration.Debug {
 		logger = logging.NewSimpleDebugLogger("ReleemRepeaterConfigurations")
 	} else {
 		logger = logging.NewSimpleLogger("ReleemRepeaterConfigurations")
 	}
-	return ReleemConfigurationsRepeater{logger, configuration}
+	return ReleemConfigurationsRepeater{logger, configuration, Mode}
 }

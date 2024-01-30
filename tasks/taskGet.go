@@ -25,7 +25,9 @@ func (repeater ReleemTasksRepeater) ProcessMetrics(context m.MetricContext, metr
 	repeater.logger.Debug("Result Send data: ", string(e))
 	var api_domain string
 	env := context.GetEnv()
-	if env == "dev" {
+	if env == "dev2" {
+		api_domain = "https://api.dev2.releem.com/v1/tasks/task_get"
+	} else if env == "dev" {
 		api_domain = "https://api.dev.releem.com/v1/tasks/task_get"
 	} else if env == "stage" {
 		api_domain = "https://api.stage.releem.com/v1/tasks/task_get"

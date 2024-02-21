@@ -10,7 +10,6 @@ import (
 
 	"github.com/Releem/daemon"
 	"github.com/Releem/mysqlconfigurer/config"
-	"github.com/Releem/mysqlconfigurer/metrics"
 	m "github.com/Releem/mysqlconfigurer/metrics"
 	r "github.com/Releem/mysqlconfigurer/repeater"
 	t "github.com/Releem/mysqlconfigurer/tasks"
@@ -58,7 +57,7 @@ func IsPath(path string, logger logging.Logger) bool {
 // Manage by daemon commands or run the daemon
 func (service *Service) Manage(logger logging.Logger, configFile string, command []string, TypeConfiguration string, AgentEvents string, AgentTask string) (string, error) {
 	var gatherers, gatherers_configuration []m.MetricsGatherer
-	var Mode metrics.Mode
+	var Mode m.Mode
 	usage := "Usage: myservice install | remove | start | stop | status"
 
 	// if received any kind of command, do it

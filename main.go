@@ -84,6 +84,7 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 	if err != nil {
 		logger.PrintError("Config load failed", err)
 	}
+	defer m.HandlePanic(configuration, logger)
 
 	if len(AgentEvents) > 0 {
 		Mode.Name = "Events"

@@ -2,15 +2,11 @@ package metrics
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
-
-	e "github.com/Releem/mysqlconfigurer/errors"
-	"github.com/pkg/errors"
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/advantageous/go-logback/logging"
@@ -30,7 +26,7 @@ func makeTerminateChannel() <-chan os.Signal {
 func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGatherer, repeaters map[string]MetricsRepeater, logger logging.Logger,
 	configuration *config.Config, configFile string, Mode Mode) {
 	var GenerateTimer *time.Timer
-	defer handlePanic(configuration, logger)
+	defer HandlePanic(configuration, logger)
 	if logger == nil {
 		if configuration.Debug {
 			logger = logging.NewSimpleDebugLogger("Worker")
@@ -59,7 +55,7 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 
 			timer.Reset(configuration.TimePeriodSeconds * time.Second)
 			go func() {
-				defer handlePanic(configuration, logger)
+				defer HandlePanic(configuration, logger)
 				Ready = false
 				metrics := collectMetrics(gatherers, logger)
 				if Ready {
@@ -83,7 +79,7 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 		case <-GenerateTimer.C:
 			GenerateTimer.Reset(configuration.GenerateConfigSeconds * time.Second)
 			go func() {
-				defer handlePanic(configuration, logger)
+				defer HandlePanic(configuration, logger)
 				Ready = false
 				logger.Println(" * Collecting metrics to recommend a config...")
 				metrics := collectMetrics(append(gatherers, gatherers_configuration...), logger)
@@ -105,7 +101,7 @@ func processTaskFunc(metrics Metrics, repeaters map[string]MetricsRepeater, logg
 }
 
 func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger logging.Logger, configuration *config.Config) {
-	defer handlePanic(configuration, logger)
+	defer HandlePanic(configuration, logger)
 	output := make(MetricGroupValue)
 	//metrics := collectMetrics(gatherers, logger)
 	task := processRepeaters(metrics, repeaters["Tasks"], configuration, logger)
@@ -200,6 +196,8 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 
 func processRepeaters(metrics Metrics, repeaters MetricsRepeater,
 	configuration *config.Config, logger logging.Logger) interface{} {
+	defer HandlePanic(configuration, logger)
+
 	result, err := repeaters.ProcessMetrics(configuration, metrics)
 	if err != nil {
 		logger.PrintError("Repeater failed", err)
@@ -218,14 +216,4 @@ func collectMetrics(gatherers []MetricsGatherer, logger logging.Logger) Metrics 
 	}
 	Ready = true
 	return metrics
-}
-
-func handlePanic(configuration *config.Config, logger logging.Logger) {
-
-	if r := recover(); r != nil {
-		err := errors.WithStack(fmt.Errorf("%v", r))
-		sender := e.NewReleemErrorsRepeater(configuration)
-		sender.ProcessErrors(fmt.Sprintf("%+v", err))
-	}
-
 }

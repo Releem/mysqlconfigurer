@@ -197,6 +197,7 @@ function releem_ps_mysql() {
     if [ -n "$RELEEM_MYSQL_CONFIG_DIR" -a -d "$RELEEM_MYSQL_CONFIG_DIR" ]; then
         printf "\033[37m\n * Enabling Performance schema and SlowLog to collect metrics...\n\033[0m\n"
         echo -e "### This configuration was recommended by Releem. https://releem.com\n[mysqld]\nperformance_schema = 1\nslow_query_log = 1" > "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf"
+        chmod 644 $RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf
     else
         printf "\033[31m\n MySQL configuration directory is not found.\033[0m"
         printf "\033[31m\n Try to reinstall Releem Agent.\033[0m"
@@ -317,6 +318,7 @@ function releem_apply_manual() {
         yes | cp -f "${RELEEM_MYSQL_CONFIG_DIR}/${MYSQLCONFIGURER_FILE_NAME}" "${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}.bkp"
     fi    
     yes | cp -fr $MYSQLCONFIGURER_CONFIGFILE $RELEEM_MYSQL_CONFIG_DIR/
+    chmod 644 $RELEEM_MYSQL_CONFIG_DIR/*
 
     #echo "-------Test config-------"
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Restarting MySQL with the command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"

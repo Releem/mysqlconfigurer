@@ -263,6 +263,7 @@ else
     printf "\033[37m\n * The $MYSQL_MY_CNF_PATH file is used for automatic Releem settings. \n\033[0m"
 	printf "\033[37m\n * Adding directive includedir to the MySQL configuration $MYSQL_MY_CNF_PATH.\n\033[0m"
 	$sudo_cmd mkdir -p $MYSQL_CONF_DIR
+    $sudo_cmd chmod 755 $MYSQL_CONF_DIR
     #Исключить дублирование
     if [ `$sudo_cmd grep -cE "!includedir $MYSQL_CONF_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ];
 	then

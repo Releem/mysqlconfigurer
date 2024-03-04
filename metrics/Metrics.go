@@ -86,12 +86,10 @@ func MapJoin(map1, map2 MetricGroupValue) MetricGroupValue {
 }
 
 func HandlePanic(configuration *config.Config, logger logging.Logger) {
-	logger.Println()
 	if r := recover(); r != nil {
 		err := errors.WithStack(fmt.Errorf("%v", r))
-		logger.Errorf("%v+", err)
+		logger.Printf("%+v", err)
 		sender := e.NewReleemErrorsRepeater(configuration)
 		sender.ProcessErrors(fmt.Sprintf("%+v", err))
 	}
-
 }

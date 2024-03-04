@@ -16,12 +16,16 @@ type ReleemErrorsRepeater struct {
 }
 
 func (repeater ReleemErrorsRepeater) ProcessErrors(message string) interface{} {
-
+	var env string
 	bodyReader := strings.NewReader(message)
 
 	repeater.logger.Debug("Result Send data: ", message)
 	var api_domain string
-	env := repeater.configuration.Env
+	if repeater.configuration != nil {
+		env = repeater.configuration.Env
+	} else {
+		env = "prod"
+	}
 	if env == "dev2" {
 		api_domain = "https://api.dev2.releem.com/v2/events/saving_agent_errors_log"
 	} else if env == "dev" {
@@ -36,7 +40,9 @@ func (repeater ReleemErrorsRepeater) ProcessErrors(message string) interface{} {
 		repeater.logger.Error("Request: could not create request: ", err)
 		return nil
 	}
-	req.Header.Set("x-releem-api-key", repeater.configuration.ApiKey)
+	if repeater.configuration != nil {
+		req.Header.Set("x-releem-api-key", repeater.configuration.ApiKey)
+	}
 
 	client := http.Client{
 		Timeout: 30 * time.Second,
@@ -52,11 +58,6 @@ func (repeater ReleemErrorsRepeater) ProcessErrors(message string) interface{} {
 }
 
 func NewReleemErrorsRepeater(configuration *config.Config) ReleemErrorsRepeater {
-	var logger logging.Logger
-	if configuration.Debug {
-		logger = logging.NewSimpleDebugLogger("ReleemRepeaterMetrics")
-	} else {
-		logger = logging.NewSimpleLogger("ReleemRepeaterMetrics")
-	}
+	logger := logging.NewSimpleLogger("ReleemRepeaterMetrics")
 	return ReleemErrorsRepeater{logger, configuration}
 }

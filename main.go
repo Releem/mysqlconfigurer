@@ -58,7 +58,10 @@ func IsPath(path string, logger logging.Logger) bool {
 func (service *Service) Manage(logger logging.Logger, configFile string, command []string, TypeConfiguration string, AgentEvents string, AgentTask string) (string, error) {
 	var gatherers, gatherers_configuration []m.MetricsGatherer
 	var Mode m.Mode
+	var configuration *config.Config
 	usage := "Usage: myservice install | remove | start | stop | status"
+
+	defer m.HandlePanic(configuration, logger)
 
 	// if received any kind of command, do it
 	if len(command) >= 1 {
@@ -84,7 +87,6 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 	if err != nil {
 		logger.PrintError("Config load failed", err)
 	}
-	defer m.HandlePanic(configuration, logger)
 
 	if len(AgentEvents) > 0 {
 		Mode.Name = "Events"

@@ -35,8 +35,8 @@ func NewDbMetricsBaseGatherer(logger logging.Logger, db *sql.DB, configuration *
 func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *Metrics) error {
 	// Mysql Status
 	output := make(MetricGroupValue)
-	var row MetricValue
 	{
+		var row MetricValue
 		rows, err := DbMetricsBase.db.Query("SHOW STATUS")
 
 		if err != nil {
@@ -51,11 +51,9 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *Metrics) error {
 			}
 			output[row.name] = row.value
 		}
-
 		rows.Close()
-	}
-	{
-		rows, err := DbMetricsBase.db.Query("SHOW GLOBAL STATUS")
+
+		rows, err = DbMetricsBase.db.Query("SHOW GLOBAL STATUS")
 		if err != nil {
 			DbMetricsBase.logger.Error(err)
 			return err

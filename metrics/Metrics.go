@@ -1,5 +1,14 @@
 package metrics
 
+import (
+	"fmt"
+
+	"github.com/Releem/mysqlconfigurer/config"
+	e "github.com/Releem/mysqlconfigurer/errors"
+	"github.com/advantageous/go-logback/logging"
+	"github.com/pkg/errors"
+)
+
 type MetricType byte
 type MetricIntervalType byte
 
@@ -74,4 +83,13 @@ func MapJoin(map1, map2 MetricGroupValue) MetricGroupValue {
 		map1[k] = v
 	}
 	return map1
+}
+
+func HandlePanic(configuration *config.Config, logger logging.Logger) {
+	if r := recover(); r != nil {
+		err := errors.WithStack(fmt.Errorf("%v", r))
+		logger.Printf("%+v", err)
+		sender := e.NewReleemErrorsRepeater(configuration)
+		sender.ProcessErrors(fmt.Sprintf("%+v", err))
+	}
 }

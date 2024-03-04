@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 1.12.0
+# install.sh - Version 1.13.0
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -7,7 +7,7 @@
 # using the package manager.
 
 set -e
-install_script_version=1.12.0
+install_script_version=1.13.0
 logfile="releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -28,7 +28,7 @@ exec 1>&-
 exec 1>$npipe 2>&1
 
 function on_exit() {
-    curl -s -L -d @$logfile -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v1/events/saving_log
+    curl -s -L -d @$logfile -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v2/events/saving_log
     rm -f $npipe
 }
 

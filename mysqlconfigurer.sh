@@ -1,5 +1,5 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 1.12.0
+# mysqlconfigurer.sh - Version 1.13.0
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -12,7 +12,7 @@ MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 RELEEM_MYSQL_VERSION=$MYSQLCONFIGURER_PATH"mysql_version"
 MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
 MYSQL_MEMORY_LIMIT=0
-VERSION="1.12.0"
+VERSION="1.13.0"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 logfile="releem-mysqlconfigurer.log"
 
@@ -26,7 +26,7 @@ exec 1>&-
 exec 1>$npipe 2>&1
 
 function on_exit() {
-    curl -s -L -d @$logfile -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v1/events/configurer_log
+    curl -s -L -d @$logfile -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v2/events/configurer_log
     rm -f $npipe
 }
 

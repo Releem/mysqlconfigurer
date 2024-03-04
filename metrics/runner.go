@@ -26,6 +26,7 @@ func makeTerminateChannel() <-chan os.Signal {
 func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGatherer, repeaters map[string]MetricsRepeater, logger logging.Logger,
 	configuration *config.Config, configFile string, Mode Mode) {
 	var GenerateTimer *time.Timer
+	defer HandlePanic(configuration, logger)
 	if logger == nil {
 		if configuration.Debug {
 			logger = logging.NewSimpleDebugLogger("Worker")
@@ -33,6 +34,7 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 			logger = logging.NewSimpleLogger("Worker")
 		}
 	}
+
 	logger.Debug(configuration)
 	timer := time.NewTimer(1 * time.Second)
 	configTimer := time.NewTimer(configuration.ReadConfigSeconds * time.Second)
@@ -53,6 +55,7 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 
 			timer.Reset(configuration.TimePeriodSeconds * time.Second)
 			go func() {
+				defer HandlePanic(configuration, logger)
 				Ready = false
 				metrics := collectMetrics(gatherers, logger)
 				if Ready {
@@ -76,6 +79,7 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 		case <-GenerateTimer.C:
 			GenerateTimer.Reset(configuration.GenerateConfigSeconds * time.Second)
 			go func() {
+				defer HandlePanic(configuration, logger)
 				Ready = false
 				logger.Println(" * Collecting metrics to recommend a config...")
 				metrics := collectMetrics(append(gatherers, gatherers_configuration...), logger)
@@ -97,6 +101,7 @@ func processTaskFunc(metrics Metrics, repeaters map[string]MetricsRepeater, logg
 }
 
 func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger logging.Logger, configuration *config.Config) {
+	defer HandlePanic(configuration, logger)
 	output := make(MetricGroupValue)
 	//metrics := collectMetrics(gatherers, logger)
 	task := processRepeaters(metrics, repeaters["Tasks"], configuration, logger)
@@ -191,6 +196,8 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 
 func processRepeaters(metrics Metrics, repeaters MetricsRepeater,
 	configuration *config.Config, logger logging.Logger) interface{} {
+	defer HandlePanic(configuration, logger)
+
 	result, err := repeaters.ProcessMetrics(configuration, metrics)
 	if err != nil {
 		logger.PrintError("Repeater failed", err)

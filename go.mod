@@ -14,6 +14,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/rds v1.64.5
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/hashicorp/hcl v1.0.0
+	github.com/pkg/errors v0.9.1
 	github.com/shirou/gopsutil/v3 v3.23.11
 )
 

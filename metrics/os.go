@@ -148,23 +148,24 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 		Usage, err := disk.Usage(part.Mountpoint)
 		if err != nil {
 			OS.logger.Error(err)
+		} else {
+			UsageArray = append(UsageArray, StructToMap(Usage.String()))
 		}
-		UsageArray = append(UsageArray, StructToMap(Usage.String()))
 		PartitionsArray = append(PartitionsArray, StructToMap(part.String()))
 		PartName := part.Device[strings.LastIndex(part.Device, "/")+1:]
 		IOCounters, err := disk.IOCounters(PartName)
 		if err != nil {
 			OS.logger.Error(err)
-		}
-		if _, exists := PartitionCheck[part.Device]; !exists {
+		} else {
+			if _, exists := PartitionCheck[part.Device]; !exists {
 
-			readCount = readCount + IOCounters[PartName].ReadCount
-			writeCount = writeCount + IOCounters[PartName].WriteCount
-			PartitionCheck[part.Device] = 1
+				readCount = readCount + IOCounters[PartName].ReadCount
+				writeCount = writeCount + IOCounters[PartName].WriteCount
+				PartitionCheck[part.Device] = 1
+			}
+			OS.logger.Debug("IOCounters ", IOCounters)
+			IOCountersArray = append(IOCountersArray, MetricGroupValue{PartName: StructToMap(IOCounters[PartName].String())})
 		}
-		OS.logger.Debug("IOCounters ", IOCounters)
-		IOCountersArray = append(IOCountersArray, MetricGroupValue{PartName: StructToMap(IOCounters[PartName].String())})
-
 	}
 	OS.logger.Debug("PartitionCheck ", PartitionCheck)
 	info["Partitions"] = PartitionsArray

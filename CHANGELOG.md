@@ -2,6 +2,25 @@ Releem releases
 ---
 Information about releases of the Releem.
 
+Releem 1.13.0, 2024-02-29
+- Added MySQL memory_limit and long_query_time to settings in the Releem dashboard
+- Added sending logs to Platform when agent crashed
+- Added detection that configuration was changed without MySQL restart (for AWS RDS customers). Closes #270
+- Added collection information about the file system. Closes #189
+- Added version of Releem Agent for i686. Closes #263
+- Improved description of MySQL Health Checks
+- Integrated RabbitMQ to remove dependence on AWS Lambda and process metrics asynchronously
+- Changed time of metrics to Releem Platform time instead of time on customers servers Closes #264
+- Removed transaction_prealloc_size from recommendations for MySQL 8.0.29 as deprecated. Closes #267
+
+Releem 1.12.0, 2024-01-31 ([What's New At Releem | January 2024](https://releem.com/blog/whats-new-at-releem-january-2024))
+- Improved Servers page to highligt servers with unapplied recommendations
+- Added email reports for newly recommended MySQL configurations Closes #193
+- Disabled apply button for old agents
+- Published [list of MySQL variables](https://releem.com/docs/mysql-performance-parameters) that Releem tuned on Free plan
+- [Migrated database metrics](https://releem.com/blog/migrating-to-clickhouse) from MySQL to ClickHouse and improve performance of Dashboard by 25%
+- Fixed bugs on RAM and IOPS charts
+
 Releem 1.11.0, 2023-12-31 ([What's New At Releem | December 2023](https://releem.com/blog/whats-new-at-releem-november-2023))
 - Added notification on increasing open_files_limit. Closes #171
 - Added server restarts to MySQL Metrics graphs. Closes #191

@@ -38,7 +38,7 @@ func (DbCollectQueries *DbCollectQueries) GetMetrics(metrics *Metrics) error {
 		var schema_name, query string
 		var calls, avg_time_us int
 
-		rows, err := DbCollectQueries.db.Query("SELECT IFNULL(schema_name, 'NULL') as schema_name, IFNULL(digest_text, 'NULL') as query, count_star as calls, round(avg_timer_wait/1000000, 0) as avg_time_us FROM performance_schema.events_statements_summary_by_digest")
+		rows, err := DbCollectQueries.db.Query("SELECT IFNULL(schema_name, 'NULL') as schema_name, IFNULL(digest_text, 'NULL') as query, count_star as calls, round(avg_timer_wait/1000000, 0) as avg_time_us, round(SUM_TIMER_WAIT/1000000, 0) as sum_time_us FROM performance_schema.events_statements_summary_by_digest")
 		if err != nil {
 			if err != sql.ErrNoRows {
 				DbCollectQueries.logger.Error(err)

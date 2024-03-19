@@ -86,6 +86,7 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 	configuration, err := config.LoadConfig(configFile, logger)
 	if err != nil {
 		logger.PrintError("Config load failed", err)
+		os.Exit(0)
 	}
 
 	if len(AgentEvents) > 0 {
@@ -139,7 +140,7 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 		logger.Debug("RDS.DescribeDBInstances SUCCESS")
 
 		// Request detailed instance info
-		if len(result.DBInstances) == 1 {
+		if result != nil && len(result.DBInstances) == 1 {
 			//	gatherers = append(gatherers, m.NewAWSRDSMetricsGatherer(nil, cwclient, configuration))
 			//	gatherers = append(gatherers, m.NewAWSRDSInstanceGatherer(nil, rdsclient, ec2client, configuration))
 			configuration.Hostname = configuration.AwsRDSDB
@@ -198,6 +199,7 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 	if (Mode.Name == "Configurations" && Mode.ModeType == "get") || Mode.Name == "Events" || Mode.Name == "Task" {
 		gatherers = append(gatherers,
 			m.NewDbConfGatherer(nil, db, configuration),
+			m.NewDbInfoGatherer(nil, db, configuration),
 			m.NewAgentMetricsGatherer(nil, configuration))
 	} else {
 		gatherers = append(gatherers,
@@ -207,7 +209,9 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 			m.NewAgentMetricsGatherer(nil, configuration))
 		gatherers_configuration = append(gatherers_configuration, m.NewDbMetricsGatherer(nil, db, configuration))
 	}
-
+	if Mode.Name == "Task" && Mode.ModeType == "collect_queries" {
+		gatherers = append(gatherers, m.NewDbCollectQueries(nil, db, configuration))
+	}
 	m.RunWorker(gatherers, gatherers_configuration, repeaters, nil, configuration, configFile, Mode)
 
 	// never happen, but need to complete code

@@ -36,14 +36,12 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 	}
 
 	logger.Debug(configuration)
-	configTimer := time.NewTimer(configuration.ReadConfigSeconds * time.Second)
 	if (Mode.Name == "Configurations" && Mode.ModeType != "default") || Mode.Name == "Events" || Mode.Name == "Task" {
 		GenerateTimer = time.NewTimer(0 * time.Second)
 		timer = time.NewTimer(3600 * time.Second)
 	} else {
 		GenerateTimer = time.NewTimer(configuration.GenerateConfigSeconds * time.Second)
 		timer = time.NewTimer(1 * time.Second)
-
 	}
 
 	terminator := makeTerminateChannel()
@@ -53,7 +51,6 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 			logger.Info("Exiting")
 			os.Exit(0)
 		case <-timer.C:
-
 			timer.Reset(configuration.TimePeriodSeconds * time.Second)
 			go func() {
 				defer HandlePanic(configuration, logger)
@@ -68,15 +65,6 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 					}
 				}
 			}()
-		case <-configTimer.C:
-			configTimer.Reset(configuration.ReadConfigSeconds * time.Second)
-			if newConfig, err := config.LoadConfig(configFile, logger); err != nil {
-				logger.PrintError("Error reading config", err)
-			} else {
-				configuration = newConfig
-				logger.Debug("LOADED NEW CONFIG", "APIKEY", configuration.GetApiKey())
-			}
-
 		case <-GenerateTimer.C:
 			GenerateTimer.Reset(configuration.GenerateConfigSeconds * time.Second)
 			go func() {

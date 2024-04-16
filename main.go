@@ -196,19 +196,12 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 	repeaters["Task"] = m.MetricsRepeater(t.NewReleemTaskSetRepeater(configuration, Mode))
 
 	//Init gatherers
-	if (Mode.Name == "Configurations" && Mode.ModeType == "get") || Mode.Name == "Events" || Mode.Name == "Task" {
-		gatherers = append(gatherers,
-			m.NewDbConfGatherer(nil, db, configuration),
-			m.NewDbInfoGatherer(nil, db, configuration),
-			m.NewAgentMetricsGatherer(nil, configuration))
-	} else {
-		gatherers = append(gatherers,
-			m.NewDbConfGatherer(nil, db, configuration),
-			m.NewDbInfoGatherer(nil, db, configuration),
-			m.NewDbMetricsBaseGatherer(nil, db, configuration),
-			m.NewAgentMetricsGatherer(nil, configuration))
-		gatherers_configuration = append(gatherers_configuration, m.NewDbMetricsGatherer(nil, db, configuration))
-	}
+	gatherers = append(gatherers,
+		m.NewDbConfGatherer(nil, db, configuration),
+		m.NewDbInfoGatherer(nil, db, configuration),
+		m.NewDbMetricsBaseGatherer(nil, db, configuration),
+		m.NewAgentMetricsGatherer(nil, configuration))
+	gatherers_configuration = append(gatherers_configuration, m.NewDbMetricsGatherer(nil, db, configuration))
 	if Mode.Name == "Task" && Mode.ModeType == "collect_queries" {
 		gatherers = append(gatherers, m.NewDbCollectQueries(nil, db, configuration))
 	}

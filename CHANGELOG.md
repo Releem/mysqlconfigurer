@@ -2,6 +2,17 @@ Releem releases
 ---
 Information about releases of the Releem.
 
+Releem 1.14.0, 2024-03-31
+- Added [SQL Query Analytics](https://releem.com/query-analytics) block to the Dashboard. Closes #256
+- Added new task collection of performance_schema.events_statements_summary_by_digest to Releem Agent
+- Added new metric to the Dashboard [Aborted_clients](https://releem.com/docs/mysql-aborted-clients)
+- Fixed incorrect permissions after installation. Closes #272
+- Fixed File integrity issue after the agent update. Closes #277
+- Fixed open_files_limit issue for AWS RDS. Closes #284
+- Fixed recommendations of variables that couldn't be changed ffor AWS RDS Aurora. Closes #281
+- Fixed Releem Agent fatal error when an agent couldn't get disk information. Closes #276
+- Improved Wizard to add new servers
+
 Releem 1.13.0, 2024-02-29
 - Added MySQL memory_limit and long_query_time to settings in the Releem dashboard
 - Added sending logs to Platform when agent crashed

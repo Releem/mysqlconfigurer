@@ -78,7 +78,7 @@ Recommended configuration delivered a 30% boost to MySQL performance compared to
 
 Follow this links to see results:
 [MySQL 5.7 Benchmark](https://releem.com/blog/how-to-improve-performance-mysql57-default-configuration)
-[MySQL 8 Benchmark](https://releem.com/blog/tpost/9kdjxj8ve1-mysql-8-performance-benchmark)
+[MySQL 8 Benchmark](https://releem.com/blog/mysql-8-performance-benchmark)
 
 ## Feedback 
 We welcome feedback from our community. Take a look at our [feedback board](https://github.com/Releem/mysqlconfigurer/discussions) directly here on GitHub. Please let us know if you have any requests and vote on open issues so we can better prioritize.

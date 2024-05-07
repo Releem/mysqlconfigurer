@@ -114,6 +114,8 @@ func (DbCollectQueries *DbCollectQueries) GetMetrics(metrics *Metrics) error {
 	{
 		var output []MetricGroupValue
 		type information_schema_column_type struct {
+			TABLE_SCHEMA             string
+			TABLE_NAME               string
 			COLUMN_NAME              string
 			ORDINAL_POSITION         string
 			IS_NULLABLE              string
@@ -125,17 +127,17 @@ func (DbCollectQueries *DbCollectQueries) GetMetrics(metrics *Metrics) error {
 		}
 		var information_schema_column information_schema_column_type
 
-		rows, err := DbCollectQueries.db.Query("SELECT IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(ORDINAL_POSITION, 'NULL') as ORDINAL_POSITION, IFNULL(IS_NULLABLE, 'NULL') as IS_NULLABLE, IFNULL(DATA_TYPE, 'NULL') as DATA_TYPE, IFNULL(CHARACTER_MAXIMUM_LENGTH, 'NULL') as CHARACTER_MAXIMUM_LENGTH, IFNULL(NUMERIC_PRECISION, 'NULL') as NUMERIC_PRECISION, IFNULL(NUMERIC_SCALE, 'NULL') as NUMERIC_SCALE, IFNULL(CHARACTER_SET_NAME, 'NULL') as CHARACTER_SET_NAME FROM information_schema.columns")
+		rows, err := DbCollectQueries.db.Query("SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(ORDINAL_POSITION, 'NULL') as ORDINAL_POSITION, IFNULL(IS_NULLABLE, 'NULL') as IS_NULLABLE, IFNULL(DATA_TYPE, 'NULL') as DATA_TYPE, IFNULL(CHARACTER_MAXIMUM_LENGTH, 'NULL') as CHARACTER_MAXIMUM_LENGTH, IFNULL(NUMERIC_PRECISION, 'NULL') as NUMERIC_PRECISION, IFNULL(NUMERIC_SCALE, 'NULL') as NUMERIC_SCALE, IFNULL(CHARACTER_SET_NAME, 'NULL') as CHARACTER_SET_NAME FROM information_schema.columns")
 		if err != nil {
 			DbCollectQueries.logger.Error(err)
 		} else {
 			for rows.Next() {
-				err := rows.Scan(&information_schema_column.COLUMN_NAME, &information_schema_column.ORDINAL_POSITION, &information_schema_column.IS_NULLABLE, &information_schema_column.DATA_TYPE, &information_schema_column.CHARACTER_MAXIMUM_LENGTH, &information_schema_column.NUMERIC_PRECISION, &information_schema_column.NUMERIC_SCALE, &information_schema_column.CHARACTER_SET_NAME)
+				err := rows.Scan(&information_schema_column.TABLE_SCHEMA, &information_schema_column.TABLE_NAME, &information_schema_column.COLUMN_NAME, &information_schema_column.ORDINAL_POSITION, &information_schema_column.IS_NULLABLE, &information_schema_column.DATA_TYPE, &information_schema_column.CHARACTER_MAXIMUM_LENGTH, &information_schema_column.NUMERIC_PRECISION, &information_schema_column.NUMERIC_SCALE, &information_schema_column.CHARACTER_SET_NAME)
 				if err != nil {
 					DbCollectQueries.logger.Error(err)
 					return err
 				}
-				column := MetricGroupValue{"COLUMN_NAME": information_schema_column.COLUMN_NAME, "ORDINAL_POSITION": information_schema_column.ORDINAL_POSITION, "IS_NULLABLE": information_schema_column.IS_NULLABLE, "DATA_TYPE": information_schema_column.DATA_TYPE, "CHARACTER_MAXIMUM_LENGTH": information_schema_column.CHARACTER_MAXIMUM_LENGTH, "NUMERIC_PRECISION": information_schema_column.NUMERIC_PRECISION, "NUMERIC_SCALE": information_schema_column.NUMERIC_SCALE, "CHARACTER_SET_NAME": information_schema_column.CHARACTER_SET_NAME}
+				column := MetricGroupValue{"TABLE_SCHEMA": information_schema_column.TABLE_SCHEMA, "TABLE_NAME": information_schema_column.TABLE_NAME, "COLUMN_NAME": information_schema_column.COLUMN_NAME, "ORDINAL_POSITION": information_schema_column.ORDINAL_POSITION, "IS_NULLABLE": information_schema_column.IS_NULLABLE, "DATA_TYPE": information_schema_column.DATA_TYPE, "CHARACTER_MAXIMUM_LENGTH": information_schema_column.CHARACTER_MAXIMUM_LENGTH, "NUMERIC_PRECISION": information_schema_column.NUMERIC_PRECISION, "NUMERIC_SCALE": information_schema_column.NUMERIC_SCALE, "CHARACTER_SET_NAME": information_schema_column.CHARACTER_SET_NAME}
 				output = append(output, column)
 			}
 		}
@@ -145,6 +147,8 @@ func (DbCollectQueries *DbCollectQueries) GetMetrics(metrics *Metrics) error {
 	{
 		var output []MetricGroupValue
 		type information_schema_index_type struct {
+			TABLE_SCHEMA string
+			TABLE_NAME   string
 			INDEX_NAME   string
 			NON_UNIQUE   string
 			SEQ_IN_INDEX string
@@ -159,31 +163,31 @@ func (DbCollectQueries *DbCollectQueries) GetMetrics(metrics *Metrics) error {
 		}
 		var information_schema_index information_schema_index_type
 
-		rows, err := DbCollectQueries.db.Query("SELECT IFNULL(INDEX_NAME, 'NULL') as INDEX_NAME, IFNULL(NON_UNIQUE, 'NULL') as NON_UNIQUE, IFNULL(SEQ_IN_INDEX, 'NULL') as SEQ_IN_INDEX, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(COLLATION, 'NULL') as COLLATION, IFNULL(CARDINALITY, 'NULL') as CARDINALITY, IFNULL(SUB_PART, 'NULL') as SUB_PART, IFNULL(PACKED, 'NULL') as PACKED, IFNULL(NULLABLE, 'NULL') as NULLABLE, IFNULL(INDEX_TYPE, 'NULL') as INDEX_TYPE, IFNULL(EXPRESSION, 'NULL') as EXPRESSION FROM information_schema.statistics")
+		rows, err := DbCollectQueries.db.Query("SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(INDEX_NAME, 'NULL') as INDEX_NAME, IFNULL(NON_UNIQUE, 'NULL') as NON_UNIQUE, IFNULL(SEQ_IN_INDEX, 'NULL') as SEQ_IN_INDEX, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(COLLATION, 'NULL') as COLLATION, IFNULL(CARDINALITY, 'NULL') as CARDINALITY, IFNULL(SUB_PART, 'NULL') as SUB_PART, IFNULL(PACKED, 'NULL') as PACKED, IFNULL(NULLABLE, 'NULL') as NULLABLE, IFNULL(INDEX_TYPE, 'NULL') as INDEX_TYPE, IFNULL(EXPRESSION, 'NULL') as EXPRESSION FROM information_schema.statistics")
 		if err != nil {
 			DbCollectQueries.logger.Error(err)
-			rows, err = DbCollectQueries.db.Query("SELECT IFNULL(INDEX_NAME, 'NULL') as INDEX_NAME, IFNULL(NON_UNIQUE, 'NULL') as NON_UNIQUE, IFNULL(SEQ_IN_INDEX, 'NULL') as SEQ_IN_INDEX, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(COLLATION, 'NULL') as COLLATION, IFNULL(CARDINALITY, 'NULL') as CARDINALITY, IFNULL(SUB_PART, 'NULL') as SUB_PART, IFNULL(PACKED, 'NULL') as PACKED, IFNULL(NULLABLE, 'NULL') as NULLABLE, IFNULL(INDEX_TYPE, 'NULL') as INDEX_TYPE FROM information_schema.statistics")
+			rows, err = DbCollectQueries.db.Query("SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(INDEX_NAME, 'NULL') as INDEX_NAME, IFNULL(NON_UNIQUE, 'NULL') as NON_UNIQUE, IFNULL(SEQ_IN_INDEX, 'NULL') as SEQ_IN_INDEX, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(COLLATION, 'NULL') as COLLATION, IFNULL(CARDINALITY, 'NULL') as CARDINALITY, IFNULL(SUB_PART, 'NULL') as SUB_PART, IFNULL(PACKED, 'NULL') as PACKED, IFNULL(NULLABLE, 'NULL') as NULLABLE, IFNULL(INDEX_TYPE, 'NULL') as INDEX_TYPE FROM information_schema.statistics")
 			if err != nil {
 				DbCollectQueries.logger.Error(err)
 			} else {
 				for rows.Next() {
-					err := rows.Scan(&information_schema_index.INDEX_NAME, &information_schema_index.NON_UNIQUE, &information_schema_index.SEQ_IN_INDEX, &information_schema_index.COLUMN_NAME, &information_schema_index.COLLATION, &information_schema_index.CARDINALITY, &information_schema_index.SUB_PART, &information_schema_index.PACKED, &information_schema_index.NULLABLE, &information_schema_index.INDEX_TYPE)
+					err := rows.Scan(&information_schema_index.TABLE_SCHEMA, &information_schema_index.TABLE_NAME, &information_schema_index.INDEX_NAME, &information_schema_index.NON_UNIQUE, &information_schema_index.SEQ_IN_INDEX, &information_schema_index.COLUMN_NAME, &information_schema_index.COLLATION, &information_schema_index.CARDINALITY, &information_schema_index.SUB_PART, &information_schema_index.PACKED, &information_schema_index.NULLABLE, &information_schema_index.INDEX_TYPE)
 					if err != nil {
 						DbCollectQueries.logger.Error(err)
 						return err
 					}
-					index := MetricGroupValue{"INDEX_NAME": information_schema_index.INDEX_NAME, "NON_UNIQUE": information_schema_index.NON_UNIQUE, "SEQ_IN_INDEX": information_schema_index.SEQ_IN_INDEX, "COLUMN_NAME": information_schema_index.COLUMN_NAME, "COLLATION": information_schema_index.COLLATION, "CARDINALITY": information_schema_index.CARDINALITY, "SUB_PART": information_schema_index.SUB_PART, "PACKED": information_schema_index.PACKED, "NULLABLE": information_schema_index.NULLABLE, "INDEX_TYPE": information_schema_index.INDEX_TYPE}
+					index := MetricGroupValue{"TABLE_SCHEMA": information_schema_index.TABLE_SCHEMA, "TABLE_NAME": information_schema_index.TABLE_NAME, "INDEX_NAME": information_schema_index.INDEX_NAME, "NON_UNIQUE": information_schema_index.NON_UNIQUE, "SEQ_IN_INDEX": information_schema_index.SEQ_IN_INDEX, "COLUMN_NAME": information_schema_index.COLUMN_NAME, "COLLATION": information_schema_index.COLLATION, "CARDINALITY": information_schema_index.CARDINALITY, "SUB_PART": information_schema_index.SUB_PART, "PACKED": information_schema_index.PACKED, "NULLABLE": information_schema_index.NULLABLE, "INDEX_TYPE": information_schema_index.INDEX_TYPE}
 					output = append(output, index)
 				}
 			}
 		} else {
 			for rows.Next() {
-				err := rows.Scan(&information_schema_index.INDEX_NAME, &information_schema_index.NON_UNIQUE, &information_schema_index.SEQ_IN_INDEX, &information_schema_index.COLUMN_NAME, &information_schema_index.COLLATION, &information_schema_index.CARDINALITY, &information_schema_index.SUB_PART, &information_schema_index.PACKED, &information_schema_index.NULLABLE, &information_schema_index.INDEX_TYPE, &information_schema_index.EXPRESSION)
+				err := rows.Scan(&information_schema_index.TABLE_SCHEMA, &information_schema_index.TABLE_NAME, &information_schema_index.INDEX_NAME, &information_schema_index.NON_UNIQUE, &information_schema_index.SEQ_IN_INDEX, &information_schema_index.COLUMN_NAME, &information_schema_index.COLLATION, &information_schema_index.CARDINALITY, &information_schema_index.SUB_PART, &information_schema_index.PACKED, &information_schema_index.NULLABLE, &information_schema_index.INDEX_TYPE, &information_schema_index.EXPRESSION)
 				if err != nil {
 					DbCollectQueries.logger.Error(err)
 					return err
 				}
-				index := MetricGroupValue{"INDEX_NAME": information_schema_index.INDEX_NAME, "NON_UNIQUE": information_schema_index.NON_UNIQUE, "SEQ_IN_INDEX": information_schema_index.SEQ_IN_INDEX, "COLUMN_NAME": information_schema_index.COLUMN_NAME, "COLLATION": information_schema_index.COLLATION, "CARDINALITY": information_schema_index.CARDINALITY, "SUB_PART": information_schema_index.SUB_PART, "PACKED": information_schema_index.PACKED, "NULLABLE": information_schema_index.NULLABLE, "INDEX_TYPE": information_schema_index.INDEX_TYPE, "EXPRESSION": information_schema_index.EXPRESSION}
+				index := MetricGroupValue{"TABLE_SCHEMA": information_schema_index.TABLE_SCHEMA, "TABLE_NAME": information_schema_index.TABLE_NAME, "INDEX_NAME": information_schema_index.INDEX_NAME, "NON_UNIQUE": information_schema_index.NON_UNIQUE, "SEQ_IN_INDEX": information_schema_index.SEQ_IN_INDEX, "COLUMN_NAME": information_schema_index.COLUMN_NAME, "COLLATION": information_schema_index.COLLATION, "CARDINALITY": information_schema_index.CARDINALITY, "SUB_PART": information_schema_index.SUB_PART, "PACKED": information_schema_index.PACKED, "NULLABLE": information_schema_index.NULLABLE, "INDEX_TYPE": information_schema_index.INDEX_TYPE, "EXPRESSION": information_schema_index.EXPRESSION}
 				output = append(output, index)
 			}
 		}

@@ -24,13 +24,13 @@ func (repeater ReleemTaskStatusRepeater) ProcessMetrics(context m.MetricContext,
 	var api_domain string
 	env := context.GetEnv()
 	if env == "dev2" {
-		api_domain = "https://api.dev2.releem.com/v2/tasks/task_status"
+		api_domain = "https://api.dev2.releem.com/v2/task/task_status"
 	} else if env == "dev" {
-		api_domain = "https://api.dev.releem.com/v2/tasks/task_status"
+		api_domain = "https://api.dev.releem.com/v2/task/task_status"
 	} else if env == "stage" {
-		api_domain = "https://api.stage.releem.com/v2/tasks/task_status"
+		api_domain = "https://api.stage.releem.com/v2/task/task_status"
 	} else {
-		api_domain = "https://api.releem.com/v2/tasks/task_status"
+		api_domain = "https://api.releem.com/v2/task/task_status"
 	}
 	req, err := http.NewRequest(http.MethodPost, api_domain, bodyReader)
 	if err != nil {

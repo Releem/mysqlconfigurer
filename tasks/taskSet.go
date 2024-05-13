@@ -26,13 +26,13 @@ func (repeater ReleemTaskSetRepeater) ProcessMetrics(context m.MetricContext, me
 		var api_domain_queries string
 		env := context.GetEnv()
 		if env == "dev2" {
-			api_domain_queries = "http://api.queries.dev2.releem.com:8000/v2/task/"
+			api_domain_queries = "https://api.queries.dev2.releem.com/v2/task/"
 		} else if env == "dev" {
-			api_domain_queries = "http://api.queries.dev.releem.com:8000/v2/task/"
+			api_domain_queries = "https://api.queries.dev.releem.com/v2/task/"
 		} else if env == "stage" {
-			api_domain_queries = "http://api.queries.stage.releem.com:8000/v2/task/"
+			api_domain_queries = "https://api.queries.stage.releem.com/v2/task/"
 		} else {
-			api_domain_queries = "http://api.queries.releem.com:8000/v2/task/"
+			api_domain_queries = "https://api.queries.releem.com/v2/task/"
 		}
 		api_domain_queries += repeater.Mode.ModeType
 

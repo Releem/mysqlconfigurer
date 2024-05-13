@@ -119,17 +119,25 @@ if [ -n "$RELEEM_MYSQL_HOST" ]; then
             mysql_user_host="%"
         fi
         connection_string="${connection_string} --host=${RELEEM_MYSQL_HOST}"
+
+        if [ -n "$RELEEM_MYSQL_PORT" ]; then
+            connection_string="${connection_string} --port=${RELEEM_MYSQL_PORT}"
+        else
+            connection_string="${connection_string} --port=3306"
+        fi        
     fi
 else
     mysql_user_host="127.0.0.1"
     connection_string="${connection_string} --host=127.0.0.1"
+    
+    if [ -n "$RELEEM_MYSQL_PORT" ]; then
+        connection_string="${connection_string} --port=${RELEEM_MYSQL_PORT}"
+    else
+        connection_string="${connection_string} --port=3306"
+    fi    
 fi
 
-if [ -n "$RELEEM_MYSQL_PORT" ]; then
-    connection_string="${connection_string} --port=${RELEEM_MYSQL_PORT}"
-else
-    connection_string="${connection_string} --port=3306"
-fi
+
 
 
 

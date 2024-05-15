@@ -2,7 +2,18 @@ Releem releases
 ---
 Information about releases of the Releem.
 
-Releem 1.14.0, 2024-03-31
+Releem 1.15.0, 2024-04-30
+- Added new option to disable Query Cache manually. Feature request #289
+- Added Max Query Length option allows Releem to save full queries for analysis. Closes #291
+- Added Query Inspect popup displays the details of queries.
+- Fixed IP address update in the dashboard if real IP address was changed. Closes #292
+- Fixed Releem can't recognize that innodb_log_file_buffering is enabled. Closes #285
+- Fixed Latency on the Servers page displays not in ms. Closes #303
+- Fixed Incorrect aggregation on weekly and monthly charts.
+- Fixed Using innodb_log_file_size instead of innodb_redo_log_capacity for Percona 8.x
+- Removed transaction_prealloc_size for Percona 8.0.29 and later
+
+Releem 1.14.0, 2024-03-31 ([What's New At Releem | April 2024](https://releem.com/blog/whats-new-at-releem-april-2024))
 - Added [SQL Query Analytics](https://releem.com/query-analytics) block to the Dashboard. Closes #256
 - Added new task collection of performance_schema.events_statements_summary_by_digest to Releem Agent
 - Added new metric to the Dashboard [Aborted_clients](https://releem.com/docs/mysql-aborted-clients)
@@ -13,7 +24,7 @@ Releem 1.14.0, 2024-03-31
 - Fixed Releem Agent fatal error when an agent couldn't get disk information. Closes #276
 - Improved Wizard to add new servers
 
-Releem 1.13.0, 2024-02-29
+Releem 1.13.0, 2024-02-29 ([What's New At Releem | February 2024](https://releem.com/blog/whats-new-in-releem-february-2024))
 - Added MySQL memory_limit and long_query_time to settings in the Releem dashboard
 - Added sending logs to Platform when agent crashed
 - Added detection that configuration was changed without MySQL restart (for AWS RDS customers). Closes #270

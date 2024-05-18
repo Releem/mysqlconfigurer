@@ -256,6 +256,54 @@ func (DbCollectQueries *DbCollectQueries) GetMetrics(metrics *Metrics) error {
 		QueriesOptimization["performance_schema_table_io_waits_summary_by_index_usage"] = output
 	}
 
+	{
+		var output []MetricGroupValue
+		type performance_schema_file_summary_by_instance_type struct {
+			FILE_NAME                 string
+			EVENT_NAME                string
+			OBJECT_INSTANCE_BEGIN     string
+			COUNT_STAR                string
+			SUM_TIMER_WAIT            string
+			MIN_TIMER_WAIT            string
+			AVG_TIMER_WAIT            string
+			MAX_TIMER_WAIT            string
+			COUNT_READ                string
+			SUM_TIMER_READ            string
+			MIN_TIMER_READ            string
+			AVG_TIMER_READ            string
+			MAX_TIMER_READ            string
+			SUM_NUMBER_OF_BYTES_READ  string
+			COUNT_WRITE               string
+			SUM_TIMER_WRITE           string
+			MIN_TIMER_WRITE           string
+			AVG_TIMER_WRITE           string
+			MAX_TIMER_WRITE           string
+			SUM_NUMBER_OF_BYTES_WRITE string
+			COUNT_MISC                string
+			SUM_TIMER_MISC            string
+			MIN_TIMER_MISC            string
+			AVG_TIMER_MISC            string
+			MAX_TIMER_MISC            string
+		}
+		var performance_schema_file_summary_by_instance performance_schema_file_summary_by_instance_type
+
+		rows, err := DbCollectQueries.db.Query("SELECT IFNULL(FILE_NAME, 'NULL') as FILE_NAME , IFNULL(EVENT_NAME, 'NULL') as EVENT_NAME, IFNULL(OBJECT_INSTANCE_BEGIN, 'NULL') as OBJECT_INSTANCE_BEGIN, IFNULL(COUNT_STAR, 'NULL') as COUNT_STAR, IFNULL(SUM_TIMER_WAIT, 'NULL') as SUM_TIMER_WAIT, IFNULL(MIN_TIMER_WAIT, 'NULL') as MIN_TIMER_WAIT, IFNULL(AVG_TIMER_WAIT, 'NULL') as AVG_TIMER_WAIT, IFNULL(MAX_TIMER_WAIT, 'NULL') as MAX_TIMER_WAIT, IFNULL(COUNT_READ, 'NULL') as COUNT_READ, IFNULL(SUM_TIMER_READ, 'NULL') as SUM_TIMER_READ, IFNULL(MIN_TIMER_READ, 'NULL') as MIN_TIMER_READ, IFNULL(AVG_TIMER_READ, 'NULL') as AVG_TIMER_READ, IFNULL(MAX_TIMER_READ, 'NULL') as MAX_TIMER_READ, IFNULL(SUM_NUMBER_OF_BYTES_READ, 'NULL') as SUM_NUMBER_OF_BYTES_READ, IFNULL(COUNT_WRITE, 'NULL') as COUNT_WRITE, IFNULL(SUM_TIMER_WRITE, 'NULL') as SUM_TIMER_WRITE, IFNULL(MIN_TIMER_WRITE, 'NULL') as MIN_TIMER_WRITE, IFNULL(AVG_TIMER_WRITE, 'NULL') as AVG_TIMER_WRITE, IFNULL(MAX_TIMER_WRITE, 'NULL') as MAX_TIMER_WRITE, IFNULL(SUM_NUMBER_OF_BYTES_WRITE, 'NULL') as SUM_NUMBER_OF_BYTES_WRITE, IFNULL(COUNT_MISC, 'NULL') as COUNT_MISC, IFNULL(SUM_TIMER_MISC, 'NULL') as SUM_TIMER_MISC, IFNULL(MIN_TIMER_MISC, 'NULL') as MIN_TIMER_MISC, IFNULL(AVG_TIMER_MISC, 'NULL') as AVG_TIMER_MISC, IFNULL(MAX_TIMER_MISC, 'NULL') as MAX_TIMER_MISC FROM performance_schema.file_summary_by_instance")
+		if err != nil {
+			DbCollectQueries.logger.Error(err)
+		} else {
+			for rows.Next() {
+				err := rows.Scan(&performance_schema_file_summary_by_instance.FILE_NAME, &performance_schema_file_summary_by_instance.EVENT_NAME, &performance_schema_file_summary_by_instance.OBJECT_INSTANCE_BEGIN, &performance_schema_file_summary_by_instance.COUNT_STAR, &performance_schema_file_summary_by_instance.SUM_TIMER_WAIT, &performance_schema_file_summary_by_instance.MIN_TIMER_WAIT, &performance_schema_file_summary_by_instance.AVG_TIMER_WAIT, &performance_schema_file_summary_by_instance.MAX_TIMER_WAIT, &performance_schema_file_summary_by_instance.COUNT_READ, &performance_schema_file_summary_by_instance.SUM_TIMER_READ, &performance_schema_file_summary_by_instance.MIN_TIMER_READ, &performance_schema_file_summary_by_instance.AVG_TIMER_READ, &performance_schema_file_summary_by_instance.MAX_TIMER_READ, &performance_schema_file_summary_by_instance.SUM_NUMBER_OF_BYTES_READ, &performance_schema_file_summary_by_instance.COUNT_WRITE, &performance_schema_file_summary_by_instance.SUM_TIMER_WRITE, &performance_schema_file_summary_by_instance.MIN_TIMER_WRITE, &performance_schema_file_summary_by_instance.AVG_TIMER_WRITE, &performance_schema_file_summary_by_instance.MAX_TIMER_WRITE, &performance_schema_file_summary_by_instance.SUM_NUMBER_OF_BYTES_WRITE, &performance_schema_file_summary_by_instance.COUNT_MISC, &performance_schema_file_summary_by_instance.SUM_TIMER_MISC, &performance_schema_file_summary_by_instance.MIN_TIMER_MISC, &performance_schema_file_summary_by_instance.AVG_TIMER_MISC, &performance_schema_file_summary_by_instance.MAX_TIMER_MISC)
+				if err != nil {
+					DbCollectQueries.logger.Error(err)
+					return err
+				}
+				index := MetricGroupValue{"FILE_NAME": performance_schema_file_summary_by_instance.FILE_NAME, "EVENT_NAME": performance_schema_file_summary_by_instance.EVENT_NAME, "OBJECT_INSTANCE_BEGIN": performance_schema_file_summary_by_instance.OBJECT_INSTANCE_BEGIN, "COUNT_STAR": performance_schema_file_summary_by_instance.COUNT_STAR, "SUM_TIMER_WAIT": performance_schema_file_summary_by_instance.SUM_TIMER_WAIT, "MIN_TIMER_WAIT": performance_schema_file_summary_by_instance.MIN_TIMER_WAIT, "AVG_TIMER_WAIT": performance_schema_file_summary_by_instance.AVG_TIMER_WAIT, "MAX_TIMER_WAIT": performance_schema_file_summary_by_instance.MAX_TIMER_WAIT, "COUNT_READ": performance_schema_file_summary_by_instance.COUNT_READ, "SUM_TIMER_READ": performance_schema_file_summary_by_instance.SUM_TIMER_READ, "MIN_TIMER_READ": performance_schema_file_summary_by_instance.MIN_TIMER_READ, "AVG_TIMER_READ": performance_schema_file_summary_by_instance.AVG_TIMER_READ, "MAX_TIMER_READ": performance_schema_file_summary_by_instance.MAX_TIMER_READ, "SUM_NUMBER_OF_BYTES_READ": performance_schema_file_summary_by_instance.SUM_NUMBER_OF_BYTES_READ, "COUNT_WRITE": performance_schema_file_summary_by_instance.COUNT_WRITE, "SUM_TIMER_WRITE": performance_schema_file_summary_by_instance.SUM_TIMER_WRITE, "MIN_TIMER_WRITE": performance_schema_file_summary_by_instance.MIN_TIMER_WRITE, "AVG_TIMER_WRITE": performance_schema_file_summary_by_instance.AVG_TIMER_WRITE, "MAX_TIMER_WRITE": performance_schema_file_summary_by_instance.MAX_TIMER_WRITE, "SUM_NUMBER_OF_BYTES_WRITE": performance_schema_file_summary_by_instance.SUM_NUMBER_OF_BYTES_WRITE, "COUNT_MISC": performance_schema_file_summary_by_instance.COUNT_MISC, "SUM_TIMER_MISC": performance_schema_file_summary_by_instance.SUM_TIMER_MISC, "MIN_TIMER_MISC": performance_schema_file_summary_by_instance.MIN_TIMER_MISC, "AVG_TIMER_MISC": performance_schema_file_summary_by_instance.AVG_TIMER_MISC, "MAX_TIMER_MISC": performance_schema_file_summary_by_instance.MAX_TIMER_MISC}
+				output = append(output, index)
+			}
+		}
+		QueriesOptimization["performance_schema_file_summary_by_instance"] = output
+	}
+
 	metrics.DB.QueriesOptimization = QueriesOptimization
 
 	DbCollectQueries.logger.Debug("collectMetrics ", metrics.DB.Queries)

@@ -308,8 +308,14 @@ else
         else
             printf "\033[31m\n This database version is too old, and it doesn’t collect SQL Queries Latency metrics. You couldn’t see Latency in the Dashboard.\033[0m\n"
         fi
-
         if mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON performance_schema.table_io_waits_summary_by_index_usage TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
+        then
+            echo "Successfully GRANT" > /dev/null
+        else
+            printf "\033[31m\n This database version is too old.\033[0m\n"
+        fi   
+
+        if mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON performance_schema.file_summary_by_instance TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
         then
             echo "Successfully GRANT" > /dev/null
         else

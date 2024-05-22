@@ -2,9 +2,11 @@ package metrics
 
 import (
 	"bytes"
+	"log"
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -93,148 +95,156 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 	defer HandlePanic(configuration, logger)
 	output := make(MetricGroupValue)
 	//metrics := collectMetrics(gatherers, logger)
-	task := processRepeaters(metrics, repeaters["Tasks"], configuration, logger)
-	if task.(Task).TaskTypeID != nil {
-		TaskTypeID := *task.(Task).TaskTypeID
-		TaskID := *task.(Task).TaskID
-		var stdout, stderr bytes.Buffer
+	task := processRepeaters(metrics, repeaters["TaskGet"], configuration, logger)
+	if task.(Task).TaskTypeID == nil {
+		return
+	}
 
-		output["task_id"] = TaskID
-		output["task_type_id"] = TaskTypeID
-		output["task_status"] = 3
-		metrics.ReleemAgent.Tasks = output
-		logger.Println(" * Task with id -", TaskID, "and type id -", TaskTypeID, "is being started...")
-		if TaskTypeID == 0 {
-			cmd := exec.Command(configuration.ReleemDir+"/mysqlconfigurer.sh", "-a")
+	TaskTypeID := *task.(Task).TaskTypeID
+	TaskID := *task.(Task).TaskID
+	var stdout, stderr bytes.Buffer
+
+	output["task_id"] = TaskID
+	output["task_type_id"] = TaskTypeID
+	output["task_status"] = 3
+	metrics.ReleemAgent.Tasks = output
+	processRepeaters(metrics, repeaters["TaskStatus"], configuration, logger)
+	logger.Println(" * Task with id -", TaskID, "and type id -", TaskTypeID, "is being started...")
+
+	if TaskTypeID == 0 {
+		output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -a", logger)
+		task_output := output["task_output"].(string)
+
+		if output["task_exit_code"] == 7 {
+			var rollback_exit_code int
+			cmd := exec.Command(configuration.ReleemDir+"/mysqlconfigurer.sh", "-r")
 			cmd.Stdout = &stdout
 			cmd.Stderr = &stderr
 			cmd.Env = append(cmd.Environ(), "RELEEM_RESTART_SERVICE=1")
-			processRepeaters(metrics, repeaters["TaskStatus"], configuration, logger)
 			err := cmd.Run()
-			task_output := ""
 			if err != nil {
-				task_output = task_output + err.Error()
+				output["task_output"] = task_output + err.Error()
 				logger.Error(err)
 				if exiterr, ok := err.(*exec.ExitError); ok {
-					output["task_exit_code"] = exiterr.ExitCode()
+					rollback_exit_code = exiterr.ExitCode()
 				} else {
-					output["task_exit_code"] = 999
+					rollback_exit_code = 999
 				}
-				output["task_status"] = 4
 			} else {
-				output["task_exit_code"] = 0
-				output["task_status"] = 1
+				rollback_exit_code = 0
 			}
 			output["task_output"] = task_output + stdout.String() + stderr.String()
+			logger.Println(" * Task rollbacked with code", rollback_exit_code)
+		}
 
-			if output["task_exit_code"] == 7 {
-				var rollback_exit_code int
-				cmd := exec.Command(configuration.ReleemDir+"/mysqlconfigurer.sh", "-r")
-				cmd.Stdout = &stdout
-				cmd.Stderr = &stderr
-				cmd.Env = append(cmd.Environ(), "RELEEM_RESTART_SERVICE=1")
-				err := cmd.Run()
+	} else if TaskTypeID == 1 {
+		output = execCmd(configuration.ReleemDir+"/releem-agent -f", logger)
+	} else if TaskTypeID == 2 {
+		output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -u", logger)
+	} else if TaskTypeID == 3 {
+		output = execCmd(configuration.ReleemDir+"/releem-agent --task=collect_queries", logger)
+	} else if TaskTypeID == 4 {
+		task_output := ""
+
+		if configuration.InstanceType != "aws" {
+			output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -a", logger)
+			task_output = task_output + output["task_output"].(string)
+
+		}
+
+		recommend_var := processRepeaters(metrics, repeaters["ConfigGet"], configuration, logger)
+		need_restart := false
+		need_privileges := false
+		need_flush := false
+		flush_queries := []string{"flush status", "flush statistic"}
+		for _, variable := range recommend_var.(MetricGroupValue) {
+			if recommend_var.(MetricGroupValue)[variable.(string)] != metrics.DB.Conf.Variables[variable.(string)] {
+				_, err := config.DB.Exec("set global ? = ?", variable, recommend_var.(MetricGroupValue)[variable.(string)])
+				if err != nil {
+					log.Fatalf("not execute query %s", err)
+					task_output = task_output + err.Error()
+					if strings.Contains(err.Error(), "read-only") {
+						need_restart = true
+					} else if strings.Contains(err.Error(), "denied") {
+						need_privileges = true
+						break
+					} else {
+						if exiterr, ok := err.(*exec.ExitError); ok {
+							output["task_exit_code"] = exiterr.ExitCode()
+						} else {
+							output["task_exit_code"] = 999
+						}
+						output["task_status"] = 4
+						break
+					}
+				} else {
+					need_flush = true
+				}
+			}
+		}
+
+		if need_flush {
+			for _, query := range flush_queries {
+
+				_, err := config.DB.Exec(query)
 				if err != nil {
 					task_output = task_output + err.Error()
 					logger.Error(err)
 					if exiterr, ok := err.(*exec.ExitError); ok {
-						rollback_exit_code = exiterr.ExitCode()
+						output["task_exit_code"] = exiterr.ExitCode()
 					} else {
-						rollback_exit_code = 999
+						output["task_exit_code"] = 999
 					}
 				} else {
-					rollback_exit_code = 0
+					output["task_exit_code"] = 0
 				}
-				output["task_output"] = task_output + stdout.String() + stderr.String()
-				logger.Println(" * Task rollbacked with code", rollback_exit_code)
 			}
-			logger.Println(" * Task with id -", TaskID, "and type id -", TaskTypeID, "completed with code", output["task_exit_code"])
-
-			metrics.ReleemAgent.Tasks = output
-			logger.Debug(output)
-			processRepeaters(metrics, repeaters["TaskStatus"], configuration, logger)
-		} else if TaskTypeID == 1 {
-			cmd := exec.Command(configuration.ReleemDir+"/releem-agent", "-f")
-			cmd.Stdout = &stdout
-			cmd.Stderr = &stderr
-			processRepeaters(metrics, repeaters["TaskStatus"], configuration, logger)
-			err := cmd.Run()
-			task_output := ""
-			if err != nil {
-				task_output = task_output + err.Error()
-				logger.Error(err)
-				if exiterr, ok := err.(*exec.ExitError); ok {
-					output["task_exit_code"] = exiterr.ExitCode()
-				} else {
-					output["task_exit_code"] = 999
-				}
-				output["task_status"] = 4
-			} else {
-				output["task_exit_code"] = 0
-				output["task_status"] = 1
-			}
-			output["task_output"] = task_output + stderr.String()
-			logger.Println(" * Task with id -", TaskID, "and type id -", TaskTypeID, "completed with code", output["task_exit_code"])
-
-			metrics.ReleemAgent.Tasks = output
-			logger.Debug(output)
-			processRepeaters(metrics, repeaters["TaskStatus"], configuration, logger)
-		} else if TaskTypeID == 2 {
-			cmd := exec.Command(configuration.ReleemDir+"/mysqlconfigurer.sh", "-u")
-			cmd.Stdout = &stdout
-			cmd.Stderr = &stderr
-			processRepeaters(metrics, repeaters["TaskStatus"], configuration, logger)
-			err := cmd.Run()
-			task_output := ""
-			if err != nil {
-				task_output = task_output + err.Error()
-				logger.Error(err)
-				if exiterr, ok := err.(*exec.ExitError); ok {
-					output["task_exit_code"] = exiterr.ExitCode()
-				} else {
-					output["task_exit_code"] = 999
-				}
-				output["task_status"] = 4
-			} else {
-				output["task_exit_code"] = 0
-				output["task_status"] = 1
-			}
-			output["task_output"] = task_output + stderr.String()
-			logger.Println(" * Task with id -", TaskID, "and type id -", TaskTypeID, "completed with code", output["task_exit_code"])
-
-			metrics.ReleemAgent.Tasks = output
-			logger.Debug(output)
-			processRepeaters(metrics, repeaters["TaskStatus"], configuration, logger)
-		} else if TaskTypeID == 3 {
-			cmd := exec.Command(configuration.ReleemDir+"/releem-agent", "--task=collect_queries")
-			cmd.Stdout = &stdout
-			cmd.Stderr = &stderr
-			processRepeaters(metrics, repeaters["TaskStatus"], configuration, logger)
-			err := cmd.Run()
-			task_output := ""
-			if err != nil {
-				task_output = task_output + err.Error()
-				logger.Error(err)
-				if exiterr, ok := err.(*exec.ExitError); ok {
-					output["task_exit_code"] = exiterr.ExitCode()
-				} else {
-					output["task_exit_code"] = 999
-				}
-				output["task_status"] = 4
-			} else {
-				output["task_exit_code"] = 0
-				output["task_status"] = 1
-			}
-			output["task_output"] = task_output + stderr.String()
-			logger.Println(" * Task with id -", TaskID, "and type id -", TaskTypeID, "completed with code", output["task_exit_code"])
-
-			metrics.ReleemAgent.Tasks = output
-			logger.Debug(output)
-			processRepeaters(metrics, repeaters["TaskStatus"], configuration, logger)
 		}
+		if need_privileges {
+			output["task_exit_code"] = 0
+			output["task_status"] = 11
+		}
+		if need_restart {
+			output["task_exit_code"] = 0
+			output["task_status"] = 22
+		}
+
+		output["task_output"] = task_output + stderr.String()
+
 	}
+	logger.Println(" * Task with id -", TaskID, "and type id -", TaskTypeID, "completed with code", output["task_exit_code"])
+
+	metrics.ReleemAgent.Tasks = output
+	logger.Debug(output)
+	processRepeaters(metrics, repeaters["TaskStatus"], configuration, logger)
+
 }
 
+func execCmd(cmd_path string, logger logging.Logger) MetricGroupValue {
+	output := make(MetricGroupValue)
+	var stdout, stderr bytes.Buffer
+
+	cmd := exec.Command("sh", "-c", cmd_path)
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	task_output := ""
+	if err != nil {
+		task_output = task_output + err.Error()
+		logger.Error(err)
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			output["task_exit_code"] = exiterr.ExitCode()
+		} else {
+			output["task_exit_code"] = 999
+		}
+		output["task_status"] = 4
+	} else {
+		output["task_exit_code"] = 0
+		output["task_status"] = 1
+	}
+	output["task_output"] = task_output + stderr.String()
+	return output
+}
 func processRepeaters(metrics Metrics, repeaters MetricsRepeater,
 	configuration *config.Config, logger logging.Logger) interface{} {
 	defer HandlePanic(configuration, logger)

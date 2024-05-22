@@ -88,7 +88,6 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 		logger.PrintError("Config load failed", err)
 		os.Exit(0)
 	}
-
 	if len(AgentEvents) > 0 {
 		Mode.Name = "Events"
 		Mode.ModeType = AgentEvents
@@ -184,6 +183,7 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 			logger.Println("Connect Success to DB via tcp", configuration.MysqlHost)
 		}
 	}
+	config.DB = db
 	defer db.Close()
 
 	//Init repeaters

@@ -14,7 +14,7 @@ const (
 )
 
 var (
-	db *sql.DB
+	DB *sql.DB
 )
 
 type Config struct {

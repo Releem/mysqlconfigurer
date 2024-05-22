@@ -55,7 +55,7 @@ func IsPath(path string, logger logging.Logger) bool {
 }
 
 // Manage by daemon commands or run the daemon
-func (service *Service) Manage(logger logging.Logger, configFile string, command []string, TypeConfiguration string, AgentEvents string, AgentTask string) (string, error) {
+func (service *Service) Manage(logger logging.Logger, configFile string, command []string, TypeConfiguration string, AgentEvent string, AgentTask string) (string, error) {
 	var gatherers, gatherers_configuration []m.MetricsGatherer
 	var Mode m.Mode
 	var configuration *config.Config
@@ -89,17 +89,17 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 		os.Exit(0)
 	}
 
-	if len(AgentEvents) > 0 {
-		Mode.Name = "Events"
-		Mode.ModeType = AgentEvents
+	if len(AgentEvent) > 0 {
+		Mode.Name = "Event"
+		Mode.ModeType = AgentEvent
 	} else if len(AgentTask) > 0 {
-		Mode.Name = "Task"
+		Mode.Name = "TaskSet"
 		Mode.ModeType = AgentTask
 	} else {
 		Mode.Name = "Configurations"
 		Mode.ModeType = TypeConfiguration
 	}
-	// if Mode.Name != "Events" {
+	// if Mode.Name != "Event" {
 	// Select how we collect instance metrics depending on InstanceType
 	switch configuration.InstanceType {
 	case "aws/rds":
@@ -190,10 +190,10 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 	repeaters := make(map[string]m.MetricsRepeater)
 	repeaters["Metrics"] = m.MetricsRepeater(r.NewReleemMetricsRepeater(configuration))
 	repeaters["Configurations"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
-	repeaters["Events"] = m.MetricsRepeater(r.NewReleemEventsRepeater(configuration, Mode))
-	repeaters["Tasks"] = m.MetricsRepeater(t.NewReleemTasksRepeater(configuration))
+	repeaters["Event"] = m.MetricsRepeater(r.NewReleemEventRepeater(configuration, Mode))
+	repeaters["TaskGet"] = m.MetricsRepeater(t.NewReleemTaskGetRepeater(configuration))
 	repeaters["TaskStatus"] = m.MetricsRepeater(t.NewReleemTaskStatusRepeater(configuration))
-	repeaters["Task"] = m.MetricsRepeater(t.NewReleemTaskSetRepeater(configuration, Mode))
+	repeaters["TaskSet"] = m.MetricsRepeater(t.NewReleemTaskSetRepeater(configuration, Mode))
 
 	//Init gatherers
 	gatherers = append(gatherers,
@@ -202,7 +202,7 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 		m.NewDbMetricsBaseGatherer(nil, db, configuration),
 		m.NewAgentMetricsGatherer(nil, configuration))
 	gatherers_configuration = append(gatherers_configuration, m.NewDbMetricsGatherer(nil, db, configuration))
-	if Mode.Name == "Task" && Mode.ModeType == "collect_queries" {
+	if Mode.Name == "TaskSet" && Mode.ModeType == "collect_queries" {
 		gatherers = append(gatherers, m.NewDbCollectQueries(nil, db, configuration))
 	}
 	m.RunWorker(gatherers, gatherers_configuration, repeaters, nil, configuration, configFile, Mode)
@@ -219,7 +219,7 @@ func main() {
 	SetConfigRun := flag.Bool("f", false, "Releem agent generate config")
 	GetConfigRun := flag.Bool("c", false, "Releem agent generate config")
 
-	AgentEvents := flag.String("event", "", "Releem agent type event")
+	AgentEvent := flag.String("event", "", "Releem agent type event")
 	AgentTask := flag.String("task", "", "Releem agent task name")
 
 	flag.Parse()
@@ -238,7 +238,7 @@ func main() {
 		os.Exit(1)
 	}
 	service := &Service{srv}
-	status, err := service.Manage(logger, *configFile, command, TypeConfiguration, *AgentEvents, *AgentTask)
+	status, err := service.Manage(logger, *configFile, command, TypeConfiguration, *AgentEvent, *AgentTask)
 
 	if err != nil {
 		logger.Println(status, "\nError: ", err)

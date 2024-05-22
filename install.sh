@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 1.15.0
+# install.sh - Version 1.16.0
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -7,7 +7,7 @@
 # using the package manager.
 
 set -e
-install_script_version=1.15.0
+install_script_version=1.16.0
 logfile="releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -119,17 +119,25 @@ if [ -n "$RELEEM_MYSQL_HOST" ]; then
             mysql_user_host="%"
         fi
         connection_string="${connection_string} --host=${RELEEM_MYSQL_HOST}"
+
+        if [ -n "$RELEEM_MYSQL_PORT" ]; then
+            connection_string="${connection_string} --port=${RELEEM_MYSQL_PORT}"
+        else
+            connection_string="${connection_string} --port=3306"
+        fi        
     fi
 else
     mysql_user_host="127.0.0.1"
     connection_string="${connection_string} --host=127.0.0.1"
+    
+    if [ -n "$RELEEM_MYSQL_PORT" ]; then
+        connection_string="${connection_string} --port=${RELEEM_MYSQL_PORT}"
+    else
+        connection_string="${connection_string} --port=3306"
+    fi    
 fi
 
-if [ -n "$RELEEM_MYSQL_PORT" ]; then
-    connection_string="${connection_string} --port=${RELEEM_MYSQL_PORT}"
-else
-    connection_string="${connection_string} --port=3306"
-fi
+
 
 
 
@@ -300,8 +308,14 @@ else
         else
             printf "\033[31m\n This database version is too old, and it doesn’t collect SQL Queries Latency metrics. You couldn’t see Latency in the Dashboard.\033[0m\n"
         fi
-
         if mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON performance_schema.table_io_waits_summary_by_index_usage TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
+        then
+            echo "Successfully GRANT" > /dev/null
+        else
+            printf "\033[31m\n This database version is too old.\033[0m\n"
+        fi   
+
+        if mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON performance_schema.file_summary_by_instance TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
         then
             echo "Successfully GRANT" > /dev/null
         else

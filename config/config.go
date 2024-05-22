@@ -1,6 +1,7 @@
 package config
 
 import (
+	"database/sql"
 	"os"
 	"time"
 
@@ -10,6 +11,10 @@ import (
 
 const (
 	ReleemAgentVersion = "1.15.0"
+)
+
+var (
+	db *sql.DB
 )
 
 type Config struct {

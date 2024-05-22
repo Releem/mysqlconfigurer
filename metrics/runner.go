@@ -38,7 +38,7 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 	}
 
 	logger.Debug(configuration)
-	if (Mode.Name == "Configurations" && Mode.ModeType != "default") || Mode.Name == "Events" || Mode.Name == "Task" {
+	if (Mode.Name == "Configurations" && Mode.ModeType != "default") || Mode.Name == "Event" || Mode.Name == "TaskSet" {
 		GenerateTimer = time.NewTimer(0 * time.Second)
 		timer = time.NewTimer(3600 * time.Second)
 	} else {
@@ -77,7 +77,7 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 				if Ready {
 					processRepeaters(metrics, repeaters[Mode.Name], configuration, logger)
 				}
-				if (Mode.Name == "Configurations" && Mode.ModeType != "default") || Mode.Name == "Events" || Mode.Name == "Task" {
+				if (Mode.Name == "Configurations" && Mode.ModeType != "default") || Mode.Name == "Event" || Mode.Name == "TaskSet" {
 					os.Exit(0)
 				}
 			}()

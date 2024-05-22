@@ -95,6 +95,9 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 	defer HandlePanic(configuration, logger)
 	output := make(MetricGroupValue)
 	//metrics := collectMetrics(gatherers, logger)
+	logger.Println(metrics)
+	logger.Println(repeaters["TaskGet"])
+
 	task := processRepeaters(metrics, repeaters["TaskGet"], configuration, logger)
 	if task.(Task).TaskTypeID == nil {
 		return
@@ -146,11 +149,11 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 	} else if TaskTypeID == 4 {
 		task_output := ""
 
-		if configuration.InstanceType != "aws" {
-			output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -a", logger)
-			task_output = task_output + output["task_output"].(string)
+		// if configuration.InstanceType != "aws" {
+		// 	output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -a", logger)
+		// 	task_output = task_output + output["task_output"].(string)
 
-		}
+		// }
 
 		recommend_var := processRepeaters(metrics, repeaters["ConfigGet"], configuration, logger)
 		need_restart := false
@@ -183,9 +186,12 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 			}
 		}
 
+		logger.Println(need_flush)
+		logger.Println(need_restart)
+		logger.Println(need_privileges)
+
 		if need_flush {
 			for _, query := range flush_queries {
-
 				_, err := config.DB.Exec(query)
 				if err != nil {
 					task_output = task_output + err.Error()

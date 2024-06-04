@@ -440,6 +440,9 @@ fi
 if [ -n "$RELEEM_DEBUG" ]; then
 	echo "debug=$RELEEM_DEBUG" | $sudo_cmd tee -a $CONF >/dev/null
 fi
+if [ -n "$RELEEM_MYSQL_SSL_MODE" ]; then
+	echo "mysql_ssl_mode=$RELEEM_MYSQL_SSL_MODE" | $sudo_cmd tee -a $CONF >/dev/null
+fi
 echo "interval_seconds=60" | $sudo_cmd tee -a $CONF >/dev/null
 echo "interval_read_config_seconds=3600" | $sudo_cmd tee -a $CONF >/dev/null
 

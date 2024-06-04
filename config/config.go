@@ -29,6 +29,7 @@ type Config struct {
 	MysqlUser             string        `hcl:"mysql_user"`
 	MysqlHost             string        `hcl:"mysql_host"`
 	MysqlPort             string        `hcl:"mysql_port"`
+	MysqlSslMode          bool          `hcl:"mysql_ssl_mode"`
 	CommandRestartService string        `hcl:"mysql_restart_service"`
 	MysqlConfDir          string        `hcl:"mysql_cnf_dir"`
 	ReleemConfDir         string        `hcl:"releem_cnf_dir"`
@@ -52,9 +53,6 @@ func LoadConfig(filename string, logger logging.Logger) (*Config, error) {
 }
 
 func LoadConfigFromString(data string, logger logging.Logger) (*Config, error) {
-	if logger == nil {
-		logger = logging.NewSimpleLogger("config")
-	}
 	config := &Config{}
 	err := hcl.Decode(&config, data)
 	if err != nil {

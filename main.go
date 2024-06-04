@@ -195,6 +195,7 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 	repeaters["TaskGet"] = m.MetricsRepeater(t.NewReleemTaskGetRepeater(configuration))
 	repeaters["TaskStatus"] = m.MetricsRepeater(t.NewReleemTaskStatusRepeater(configuration))
 	repeaters["TaskSet"] = m.MetricsRepeater(t.NewReleemTaskSetRepeater(configuration, Mode))
+	repeaters["GetConfigurationJson"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{"Configurations", "get-json"}))
 
 	//Init gatherers
 	gatherers = append(gatherers,

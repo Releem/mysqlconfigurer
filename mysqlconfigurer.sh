@@ -251,9 +251,9 @@ function releem_apply_config() {
     if [ "$1" == "auto" ];
     then
         releem_apply_auto
-    elif [ "$1" == "without_restart" ]; 
+    elif [ "$1" == "automatic" ]; 
     then
-        releem_apply_without_restart
+        releem_apply_automatic
     else
         releem_apply_manual
     fi
@@ -354,7 +354,7 @@ function releem_apply_manual() {
     exit "${RESTART_CODE}"
 }
 
-function releem_apply_without_restart() {
+function releem_apply_automatic() {
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended MySQL configuration...\033[0m\n"
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the latest up-to-date configuration...\033[0m\n"
     /opt/releem/releem-agent -c >/dev/null 2>&1 || true

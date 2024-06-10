@@ -12,7 +12,6 @@ import (
 	"github.com/Releem/mysqlconfigurer/config"
 	m "github.com/Releem/mysqlconfigurer/metrics"
 	r "github.com/Releem/mysqlconfigurer/repeater"
-	t "github.com/Releem/mysqlconfigurer/tasks"
 	"github.com/advantageous/go-logback/logging"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
@@ -189,13 +188,13 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 
 	//Init repeaters
 	repeaters := make(map[string]m.MetricsRepeater)
-	repeaters["Metrics"] = m.MetricsRepeater(r.NewReleemMetricsRepeater(configuration))
+	repeaters["Metrics"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "Metrics", ModeType: ""}))
 	repeaters["Configurations"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
-	repeaters["Event"] = m.MetricsRepeater(r.NewReleemEventRepeater(configuration, Mode))
-	repeaters["TaskGet"] = m.MetricsRepeater(t.NewReleemTaskGetRepeater(configuration))
-	repeaters["TaskStatus"] = m.MetricsRepeater(t.NewReleemTaskStatusRepeater(configuration))
-	repeaters["TaskSet"] = m.MetricsRepeater(t.NewReleemTaskSetRepeater(configuration, Mode))
-	repeaters["GetConfigurationJson"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{"Configurations", "get-json"}))
+	repeaters["Event"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
+	repeaters["TaskGet"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "TaskGet", ModeType: ""}))
+	repeaters["TaskStatus"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "TaskStatus", ModeType: ""}))
+	repeaters["TaskSet"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
+	repeaters["GetConfigurationJson"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "Configurations", ModeType: "get-json"}))
 
 	//Init gatherers
 	gatherers = append(gatherers,

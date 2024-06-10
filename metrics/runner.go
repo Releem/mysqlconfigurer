@@ -75,7 +75,13 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 				logger.Println(" * Collecting metrics to recommend a config...")
 				metrics := collectMetrics(append(gatherers, gatherers_configuration...), logger)
 				if Ready {
+					logger.Println(" * Sending metrics to Releem Cloud Platform...")
 					processRepeaters(metrics, repeaters[Mode.Name], configuration, logger)
+					if Mode.Name == "Configurations" {
+						logger.Println("1. Recommended MySQL configuration downloaded to ", configuration.GetReleemConfDir())
+						logger.Println("2. To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics")
+						logger.Println("3. To apply the recommended configuration please read documentation https://app.releem.com/dashboard")
+					}
 				}
 				if (Mode.Name == "Configurations" && Mode.ModeType != "default") || Mode.Name == "Event" || Mode.Name == "TaskSet" {
 					os.Exit(0)
@@ -151,7 +157,7 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 		output["task_output"] = output["task_output"].(string) + task_output
 	} else if TaskTypeID == 4 {
 		if configuration.InstanceType != "aws" {
-			output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -s without_restart", []string{"RELEEM_RESTART_SERVICE=0"}, logger)
+			output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=0"}, logger)
 			output["task_output"] = output["task_output"].(string) + task_output
 		}
 		logger.Println(output)
@@ -170,12 +176,10 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 			}
 
 			for key, _ := range result_data {
-				logger.Println(key)
-				logger.Println(result_data[key])
-				logger.Println(metrics.DB.Conf.Variables[key])
+				logger.Println(key, result_data[key], metrics.DB.Conf.Variables[key])
+
 				if result_data[key] != metrics.DB.Conf.Variables[key] {
 					query_set_var := "set global " + key + "=" + result_data[key].(string)
-					logger.Println(query_set_var)
 					_, err := config.DB.Exec(query_set_var)
 					if err != nil {
 						logger.Error(err)
@@ -229,7 +233,7 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 			}
 		}
 	} else if TaskTypeID == 5 {
-		output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -s without_restart", []string{"RELEEM_RESTART_SERVICE=1"}, logger)
+		output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=1"}, logger)
 		output["task_output"] = output["task_output"].(string) + task_output
 
 		if output["task_exit_code"] == 7 {

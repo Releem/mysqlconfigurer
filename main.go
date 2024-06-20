@@ -159,14 +159,19 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 
 	// Init connection DB
 	var db *sql.DB
-	var TypeConnection string
+	var TypeConnection, MysqlSslMode string
 
+	if configuration.MysqlSslMode {
+		MysqlSslMode = "?tls=skip-verify"
+	} else {
+		MysqlSslMode = ""
+	}
 	if IsPath(configuration.MysqlHost, logger) {
-		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@unix("+configuration.MysqlHost+")/mysql")
+		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@unix("+configuration.MysqlHost+")/mysql"+MysqlSslMode)
 		TypeConnection = "unix"
 
 	} else {
-		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@tcp("+configuration.MysqlHost+":"+configuration.MysqlPort+")/mysql")
+		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@tcp("+configuration.MysqlHost+":"+configuration.MysqlPort+")/mysql"+MysqlSslMode)
 		TypeConnection = "tcp"
 	}
 	if err != nil {

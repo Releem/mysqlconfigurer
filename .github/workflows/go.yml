@@ -18,10 +18,11 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.19.1'
+        go-version: '1.22.0'
 
     - name: Build
       run: bash build.sh
+      
     - name: Create upload dir
       run: |
         mkdir -p ../v2

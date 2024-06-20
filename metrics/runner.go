@@ -62,7 +62,7 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 					task := processRepeaters(metrics, repeaters["Metrics"], configuration, logger)
 					if task == "Task" {
 						logger.Println(" * A task has been found for the agent...")
-						f := processTaskFunc(metrics, repeaters, logger, configuration)
+						f := processTaskFunc(metrics, repeaters, gatherers, logger, configuration)
 						time.AfterFunc(5*time.Second, f)
 					}
 				}
@@ -91,13 +91,13 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 	}
 }
 
-func processTaskFunc(metrics Metrics, repeaters map[string]MetricsRepeater, logger logging.Logger, configuration *config.Config) func() {
+func processTaskFunc(metrics Metrics, repeaters map[string]MetricsRepeater, gatherers []MetricsGatherer, logger logging.Logger, configuration *config.Config) func() {
 	return func() {
-		processTask(metrics, repeaters, logger, configuration)
+		processTask(metrics, repeaters, gatherers, logger, configuration)
 	}
 }
 
-func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger logging.Logger, configuration *config.Config) {
+func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, gatherers []MetricsGatherer, logger logging.Logger, configuration *config.Config) {
 	defer HandlePanic(configuration, logger)
 	output := make(MetricGroupValue)
 	//metrics := collectMetrics(gatherers, logger)
@@ -160,7 +160,6 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 			output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=0"}, logger)
 			output["task_output"] = output["task_output"].(string) + task_output
 		}
-		logger.Println(output)
 		if output["task_exit_code"] == 0 {
 			result_data := MetricGroupValue{}
 			// flush_queries := []string{"flush status", "flush statistic"}
@@ -175,7 +174,7 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 				logger.Error(err)
 			}
 
-			for key, _ := range result_data {
+			for key := range result_data {
 				logger.Println(key, result_data[key], metrics.DB.Conf.Variables[key])
 
 				if result_data[key] != metrics.DB.Conf.Variables[key] {
@@ -198,12 +197,7 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 					}
 				}
 			}
-
-			logger.Println(need_flush)
-			logger.Println(need_restart)
-			logger.Println(need_privileges)
-			logger.Println(error_exist)
-
+			logger.Println(need_flush, need_restart, need_privileges, error_exist)
 			if error_exist {
 				output["task_exit_code"] = 8
 				output["task_status"] = 4
@@ -227,10 +221,12 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 				// }
 				if need_privileges {
 					output["task_exit_code"] = 9
+					output["task_status"] = 4
 				} else if need_restart {
 					output["task_exit_code"] = 10
 				}
 			}
+			metrics = collectMetrics(gatherers, logger)
 		}
 	} else if TaskTypeID == 5 {
 		output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=1"}, logger)
@@ -258,10 +254,9 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, logger l
 			logger.Println(" * Task rollbacked with code", rollback_exit_code)
 		}
 	}
-
+	logger.Debug(output)
 	logger.Println(" * Task with id -", TaskID, "and type id -", TaskTypeID, "completed with code", output["task_exit_code"])
 	metrics.ReleemAgent.Tasks = output
-	logger.Debug(output)
 	processRepeaters(metrics, repeaters["TaskStatus"], configuration, logger)
 
 }

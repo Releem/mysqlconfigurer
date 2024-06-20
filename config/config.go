@@ -10,11 +10,11 @@ import (
 )
 
 const (
-	ReleemAgentVersion = "1.16.0"
+	ReleemAgentVersion = "1.17.0"
 )
 
 var (
-	db *sql.DB
+	DB *sql.DB
 )
 
 type Config struct {

@@ -1,5 +1,5 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 1.16.0
+# mysqlconfigurer.sh - Version 1.17.0
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -12,7 +12,7 @@ MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 RELEEM_MYSQL_VERSION=$MYSQLCONFIGURER_PATH"mysql_version"
 MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
 MYSQL_MEMORY_LIMIT=0
-VERSION="1.16.0"
+VERSION="1.17.0"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 logfile="releem-mysqlconfigurer.log"
 
@@ -37,7 +37,7 @@ function update_agent() {
     /opt/releem/releem-agent start > /dev/null || true
     NEW_VER=$(curl  -s -L https://releem.s3.amazonaws.com/v2/current_version_agent)
     if [ "$NEW_VER" != "$VERSION" ]; then
-        if [ "$(printf '%s\n' "$NEW_VER" "$VERSION" | sort -V | head -n1)" = "$VERSION" ]; 
+        if [ "$(printf '%s\n' "$NEW_VER" "$VERSION" | sort -V | head -n1)" = "$VERSION" ];
         then
             printf "\033[37m\n * Updating script \e[31;1m%s\e[0m -> \e[32;1m%s\e[0m\n" "$VERSION" "$NEW_VER"
             curl -s -L https://releem.s3.amazonaws.com/v2/install.sh > "$RELEEM_INSTALL_PATH"
@@ -248,9 +248,12 @@ function releem_ps_mysql() {
 
 
 function releem_apply_config() {
-    if [ "$1" == "auto" ]; 
+    if [ "$1" == "auto" ];
     then
         releem_apply_auto
+    elif [ "$1" == "automatic" ]; 
+    then
+        releem_apply_automatic
     else
         releem_apply_manual
     fi
@@ -292,7 +295,7 @@ function releem_apply_manual() {
         retVal=$?
         if [ $retVal -eq 0 ];
         then
-            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m The new configuration does not differ from the current one applied. No restart is required.!\033[0m\n"        
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m The new configuration does not differ from the current one applied. No restart is required.!\033[0m\n"
             exit 0
         fi
     fi
@@ -351,6 +354,86 @@ function releem_apply_manual() {
     exit "${RESTART_CODE}"
 }
 
+function releem_apply_automatic() {
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended MySQL configuration...\033[0m\n"
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the latest up-to-date configuration...\033[0m\n"
+    /opt/releem/releem-agent -c >/dev/null 2>&1 || true
+
+    if [ ! -f $MYSQLCONFIGURER_CONFIGFILE ]; then
+        printf "\033[37m\n * Recommended MySQL configuration is not found.\033[0m"
+        printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"
+        printf "\033[32m\n /opt/releem/releem-agent -f \033[0m\n\n"
+        exit 1;
+    fi
+    if ! check_mysql_version; then
+        printf "\033[31m\n * MySQL version is lower than 5.6.7. Check the documentation https://github.com/Releem/mysqlconfigurer#how-to-apply-the-recommended-configuration for applying the configuration. \033[0m\n"
+        exit 2
+    fi
+    if [ -z "$RELEEM_MYSQL_CONFIG_DIR" -o ! -d "$RELEEM_MYSQL_CONFIG_DIR" ]; then
+        printf "\033[37m\n * MySQL configuration directory is not found.\033[0m"
+        printf "\033[37m\n * Try to reinstall Releem Agent, and please set the my.cnf location.\033[0m"
+        exit 3;
+    fi
+    if [ -z "$RELEEM_MYSQL_RESTART_SERVICE" ]; then
+        printf "\033[37m\n * The command to restart the MySQL service was not found. Try to reinstall Releem Agent.\033[0m"
+        exit 4;
+    fi
+
+    FLAG_RESTART_SERVICE=1
+    if [ -z "$RELEEM_RESTART_SERVICE" ]; then
+      read -p "Please confirm the MySQL service restart? (Y/N) " -n 1 -r
+      echo    # move to a new line
+      if [[ ! $REPLY =~ ^[Yy]$ ]]
+      then
+          printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m A confirmation to restart the service has not been received. Releem recommended configuration has not been applied.\033[0m\n"
+          FLAG_RESTART_SERVICE=0
+      fi
+    elif [ "$RELEEM_RESTART_SERVICE" -eq 0 ]; then
+        FLAG_RESTART_SERVICE=0
+    fi
+
+
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Copying file $MYSQLCONFIGURER_CONFIGFILE to directory $RELEEM_MYSQL_CONFIG_DIR/...\033[0m\n"
+    if [ ! -f "${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}.bkp" ]; then
+        yes | cp -f "${RELEEM_MYSQL_CONFIG_DIR}/${MYSQLCONFIGURER_FILE_NAME}" "${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}.bkp"
+    fi    
+    yes | cp -fr $MYSQLCONFIGURER_CONFIGFILE $RELEEM_MYSQL_CONFIG_DIR/
+    chmod 644 $RELEEM_MYSQL_CONFIG_DIR/*
+
+    if [ "$FLAG_RESTART_SERVICE" -ne 0 ]; then
+        #echo "-------Test config-------"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Restarting MySQL with the command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
+        eval "$RELEEM_MYSQL_RESTART_SERVICE" &
+        wait_restart $!
+        RESTART_CODE=$?
+
+        if [ $RESTART_CODE -eq 0 ];
+        then
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m The MySQL service restarted successfully!\033[0m\n"
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Recommended configuration applied successfully!\033[0m\n"
+            printf "\n`date +%Y%m%d-%H:%M:%S` Releem Score and Unapplied recommendations in the Releem Dashboard will be updated in a few minutes.\n"
+            rm -f "${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}.bkp"
+        elif [ $RESTART_CODE -eq 6 ];
+        then
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to restart in 1200 seconds! \033[0m\n"
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Wait for the MySQL service to start and Check the MySQL error log!\033[0m\n"
+
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
+        elif [ $RESTART_CODE -eq 7 ];
+        then
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to restart! Check the MySQL error log! \033[0m\n"
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
+        fi
+    else
+        RESTART_CODE=0
+    fi
+    /opt/releem/releem-agent --event=config_applied > /dev/null
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Notification to Releem Platform was sent successfully!\033[0m\n"
+
+    exit "${RESTART_CODE}"
+}
 
 function releem_runnig_cron() {
   HOUR=$(date +%I)
@@ -517,7 +600,7 @@ if test -f $RELEEM_CONF_FILE ; then
     if [ ! -z "$mysql_port" ]; then
         connection_string="${connection_string} --port=$mysql_port"
     else
-        connection_string="${connection_string} --port=3306"        
+        connection_string="${connection_string} --port=3306"
     fi
 fi
 

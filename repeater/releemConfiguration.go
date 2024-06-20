@@ -22,36 +22,61 @@ type ReleemConfigurationsRepeater struct {
 }
 
 func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricContext, metrics m.Metrics) (interface{}, error) {
-	repeater.logger.Println(" * Sending metrics to Releem Cloud Platform...")
+	repeater.logger.Debug(repeater.Mode.Name, repeater.Mode.ModeType)
 	e, _ := json.Marshal(metrics)
 	bodyReader := strings.NewReader(string(e))
 	repeater.logger.Debug("Result Send data: ", string(e))
-	var api_domain string
+	var api_domain, subdomain string
 	env := context.GetEnv()
+
 	if env == "dev2" {
-		api_domain = "https://api.dev2.releem.com/v2/"
+		subdomain = "dev2."
 	} else if env == "dev" {
-		api_domain = "https://api.dev.releem.com/v2/"
+		subdomain = "dev."
 	} else if env == "stage" {
-		api_domain = "https://api.stage.releem.com/v2/"
+		subdomain = "stage."
 	} else {
-		api_domain = "https://api.releem.com/v2/"
+		subdomain = ""
 	}
-	if repeater.Mode.ModeType == "set" {
-		api_domain = api_domain + "mysql"
-	} else if repeater.Mode.ModeType == "get" {
-		api_domain = api_domain + "config"
+
+	if repeater.Mode.Name == "TaskSet" && repeater.Mode.ModeType == "collect_queries" {
+		api_domain = "https://api.queries." + subdomain + "releem.com/v2/"
 	} else {
-		api_domain = api_domain + "mysql"
+		api_domain = "https://api." + subdomain + "releem.com/v2/"
 	}
+
+	if repeater.Mode.Name == "Configurations" {
+		if repeater.Mode.ModeType == "set" {
+			api_domain = api_domain + "mysql"
+		} else if repeater.Mode.ModeType == "get" {
+			api_domain = api_domain + "config"
+		} else if repeater.Mode.ModeType == "get-json" {
+			api_domain = api_domain + "config?json=1"
+		} else {
+			api_domain = api_domain + "mysql"
+		}
+	} else if repeater.Mode.Name == "Metrics" {
+		api_domain = api_domain + "metrics"
+	} else if repeater.Mode.Name == "Event" {
+		api_domain = api_domain + "event/" + repeater.Mode.ModeType
+	} else if repeater.Mode.Name == "TaskGet" {
+		api_domain = api_domain + "task/task_get"
+	} else if repeater.Mode.Name == "TaskSet" {
+		api_domain = api_domain + "task/" + repeater.Mode.ModeType
+	} else if repeater.Mode.Name == "TaskStatus" {
+		api_domain = api_domain + "task/task_status"
+	}
+	repeater.logger.Debug(api_domain)
+
 	req, err := http.NewRequest(http.MethodPost, api_domain, bodyReader)
 	if err != nil {
 		repeater.logger.Error("Request: could not create request: ", err)
 		return nil, err
 	}
 	req.Header.Set("x-releem-api-key", context.GetApiKey())
+
 	client := http.Client{
-		Timeout: 30 * time.Second,
+		Timeout: 180 * time.Second,
 	}
 	res, err := client.Do(req)
 	if err != nil {
@@ -59,27 +84,40 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricCont
 		return nil, err
 	}
 	defer res.Body.Close()
-	repeater.logger.Println(" * Downloading recommended MySQL configuration from Releem Cloud Platform...")
 
 	body_res, err := io.ReadAll(res.Body)
 	if err != nil {
 		repeater.logger.Error("Response: error read body request: ", err)
 		return nil, err
 	}
-	if res.StatusCode != 200 {
-		repeater.logger.Println("Response: status code: ", res.StatusCode)
-		repeater.logger.Println("Response: body:\n", string(body_res))
+	if res.StatusCode != 200 && res.StatusCode != 201 {
+		repeater.logger.Error("Response: status code: ", res.StatusCode)
+		repeater.logger.Error("Response: body:\n", string(body_res))
 	} else {
 		repeater.logger.Debug("Response: status code: ", res.StatusCode)
 		repeater.logger.Debug("Response: body:\n", string(body_res))
-		err = os.WriteFile(context.GetReleemConfDir()+"/z_aiops_mysql.cnf", body_res, 0644)
-		if err != nil {
-			repeater.logger.Error("WriteFile: Error write to file: ", err)
+
+		if repeater.Mode.Name == "Configurations" {
+			err = os.WriteFile(context.GetReleemConfDir()+"/z_aiops_mysql.cnf", body_res, 0644)
+			if err != nil {
+				repeater.logger.Error("WriteFile: Error write to file: ", err)
+				return nil, err
+			}
+			return string(body_res), err
+
+		} else if repeater.Mode.Name == "Metrics" {
+			return string(body_res), err
+		} else if repeater.Mode.Name == "Event" {
+			return nil, err
+		} else if repeater.Mode.Name == "TaskGet" {
+			result_data := m.Task{}
+			err := json.Unmarshal(body_res, &result_data)
+			return result_data, err
+		} else if repeater.Mode.Name == "TaskSet" {
+			return nil, err
+		} else if repeater.Mode.Name == "TaskStatus" {
 			return nil, err
 		}
-		repeater.logger.Println("1. Recommended MySQL configuration downloaded to ", context.GetReleemConfDir())
-		repeater.logger.Println("2. To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics")
-		repeater.logger.Println("3. To apply the recommended configuration please read documentation https://app.releem.com/dashboard")
 	}
 	return nil, err
 }

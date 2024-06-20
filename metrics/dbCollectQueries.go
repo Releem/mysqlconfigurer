@@ -34,7 +34,7 @@ func (DbCollectQueries *DbCollectQueries) GetMetrics(metrics *Metrics) error {
 
 	{
 		var output []MetricGroupValue
-		var schema_name, query, query_text string
+		var schema_name, query, query_text, query_id string
 		var calls, avg_time_us, sum_time_us int
 
 		rows, err := DbCollectQueries.db.Query("SELECT IFNULL(schema_name, 'NULL') as schema_name, IFNULL(digest, 'NULL') as query_id, IFNULL(digest_text, 'NULL') as query, IFNULL(QUERY_SAMPLE_TEXT, 'NULL') as query_text, count_star as calls, round(avg_timer_wait/1000000, 0) as avg_time_us, round(SUM_TIMER_WAIT/1000000, 0) as sum_time_us FROM performance_schema.events_statements_summary_by_digest")
@@ -50,24 +50,24 @@ func (DbCollectQueries *DbCollectQueries) GetMetrics(metrics *Metrics) error {
 				}
 			} else {
 				for rows.Next() {
-					err := rows.Scan(&schema_name, &query, &calls, &avg_time_us, &sum_time_us)
+					err := rows.Scan(&schema_name, &query_id, &query, &calls, &avg_time_us, &sum_time_us)
 					if err != nil {
 						DbCollectQueries.logger.Error(err)
 						return err
 					}
-					digest := MetricGroupValue{"schema_name": schema_name, "query": query, "calls": calls, "avg_time_us": avg_time_us, "sum_time_us": sum_time_us}
+					digest := MetricGroupValue{"schema_name": schema_name, "query_id": query_id, "query": query, "calls": calls, "avg_time_us": avg_time_us, "sum_time_us": sum_time_us}
 					output = append(output, digest)
 				}
 			}
 
 		} else {
 			for rows.Next() {
-				err := rows.Scan(&schema_name, &query, &query_text, &calls, &avg_time_us, &sum_time_us)
+				err := rows.Scan(&schema_name, &query_id, &query, &query_text, &calls, &avg_time_us, &sum_time_us)
 				if err != nil {
 					DbCollectQueries.logger.Error(err)
 					return err
 				}
-				digest := MetricGroupValue{"schema_name": schema_name, "query": query, "query_text": query_text, "calls": calls, "avg_time_us": avg_time_us, "sum_time_us": sum_time_us}
+				digest := MetricGroupValue{"schema_name": schema_name, "query_id": query_id, "query": query, "query_text": query_text, "calls": calls, "avg_time_us": avg_time_us, "sum_time_us": sum_time_us}
 				output = append(output, digest)
 			}
 		}

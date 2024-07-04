@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 
@@ -108,6 +109,7 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 		awscfg, err := awsconfig.LoadDefaultConfig(context.TODO(), awsconfig.WithRegion(configuration.AwsRegion))
 		if err != nil {
 			logger.PrintError("Load AWS configuration FAILED", err)
+			return "Error", err
 		} else {
 			logger.Println("AWS configuration loaded SUCCESS")
 		}
@@ -128,11 +130,12 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok {
 				logger.Error(aerr.Error())
-
+				return "Error", aerr
 			} else {
 				// Print the error, cast err to awserr.Error to get the Code and
 				// Message from an error.
 				logger.Error(err.Error())
+				return "Error", err
 			}
 		}
 
@@ -145,10 +148,12 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 			configuration.Hostname = configuration.AwsRDSDB
 			configuration.MysqlHost = *result.DBInstances[0].Endpoint.Address
 			gatherers = append(gatherers, m.NewAWSRDSEnhancedMetricsGatherer(nil, result.DBInstances[0], cwlogsclient, configuration))
-		} else if len(result.DBInstances) > 1 {
+		} else if result != nil && len(result.DBInstances) > 1 {
 			logger.Println("RDS.DescribeDBInstances: Database has %d instances. Clusters are not supported", len(result.DBInstances))
+			return "Error", fmt.Errorf("RDS.DescribeDBInstances: Database has %d instances. Clusters are not supported", len(result.DBInstances))
 		} else {
 			logger.Println("RDS.DescribeDBInstances: No instances")
+			return "Error", fmt.Errorf("RDS.DescribeDBInstances: No instances")
 		}
 	default:
 		logger.Println("InstanceType is Local")

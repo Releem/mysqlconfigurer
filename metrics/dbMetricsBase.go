@@ -10,9 +10,9 @@ import (
 )
 
 type DbMetricsBaseGatherer struct {
-	logger logging.Logger
-	debug  bool
-	db     *sql.DB
+	logger        logging.Logger
+	configuration *config.Config
+	db            *sql.DB
 }
 
 func NewDbMetricsBaseGatherer(logger logging.Logger, db *sql.DB, configuration *config.Config) *DbMetricsBaseGatherer {
@@ -26,13 +26,14 @@ func NewDbMetricsBaseGatherer(logger logging.Logger, db *sql.DB, configuration *
 	}
 
 	return &DbMetricsBaseGatherer{
-		logger: logger,
-		debug:  configuration.Debug,
-		db:     db,
+		logger:        logger,
+		configuration: configuration,
+		db:            db,
 	}
 }
 
 func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *Metrics) error {
+	defer HandlePanic(DbMetricsBase.configuration, DbMetricsBase.logger)
 	// Mysql Status
 	output := make(MetricGroupValue)
 	{

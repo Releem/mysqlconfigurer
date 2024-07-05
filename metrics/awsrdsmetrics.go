@@ -71,6 +71,7 @@ func NewAWSRDSMetricsGatherer(logger logging.Logger, cwclient *cloudwatch.Client
 }
 
 func (awsrdsmetrics *AWSRDSMetricsGatherer) GetMetrics(metrics *Metrics) error {
+	defer HandlePanic(awsrdsmetrics.configuration, awsrdsmetrics.logger)
 
 	MetricDataQueries := []types.MetricDataQuery{}
 	output := make(MetricGroupValue)

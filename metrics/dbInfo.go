@@ -33,6 +33,7 @@ func NewDbInfoGatherer(logger logging.Logger, db *sql.DB, configuration *config.
 }
 
 func (DbInfo *DbInfoGatherer) GetMetrics(metrics *Metrics) error {
+	defer HandlePanic(DbInfo.configuration, DbInfo.logger)
 
 	var row MetricValue
 	var mysql_version string

@@ -98,6 +98,7 @@ func StructToMap(valueStruct string) MetricGroupValue {
 	return value_map
 }
 func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
+	defer HandlePanic(OS.configuration, OS.logger)
 
 	info := make(MetricGroupValue)
 	metricsMap := make(MetricGroupValue)

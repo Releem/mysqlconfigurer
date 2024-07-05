@@ -22,6 +22,7 @@ type ReleemConfigurationsRepeater struct {
 }
 
 func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricContext, metrics m.Metrics) (interface{}, error) {
+	defer m.HandlePanic(repeater.configuration, repeater.logger)
 	repeater.logger.Debug(repeater.Mode.Name, repeater.Mode.ModeType)
 	e, _ := json.Marshal(metrics)
 	bodyReader := strings.NewReader(string(e))

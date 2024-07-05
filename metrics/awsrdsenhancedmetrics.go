@@ -201,6 +201,7 @@ func NewAWSRDSEnhancedMetricsGatherer(logger logging.Logger, dbinstance types.DB
 }
 
 func (awsrdsenhancedmetrics *AWSRDSEnhancedMetricsGatherer) GetMetrics(metrics *Metrics) error {
+	defer HandlePanic(awsrdsenhancedmetrics.configuration, awsrdsenhancedmetrics.logger)
 
 	info := make(MetricGroupValue)
 	metricsMap := make(MetricGroupValue)

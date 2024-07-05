@@ -8,9 +8,9 @@ import (
 )
 
 type DbMetricsGatherer struct {
-	logger logging.Logger
-	debug  bool
-	db     *sql.DB
+	logger        logging.Logger
+	configuration *config.Config
+	db            *sql.DB
 }
 
 func NewDbMetricsGatherer(logger logging.Logger, db *sql.DB, configuration *config.Config) *DbMetricsGatherer {
@@ -24,13 +24,14 @@ func NewDbMetricsGatherer(logger logging.Logger, db *sql.DB, configuration *conf
 	}
 
 	return &DbMetricsGatherer{
-		logger: logger,
-		debug:  configuration.Debug,
-		db:     db,
+		logger:        logger,
+		configuration: configuration,
+		db:            db,
 	}
 }
 
 func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
+	defer HandlePanic(DbMetrics.configuration, DbMetrics.logger)
 	//Total table
 	{
 		var row MetricValue

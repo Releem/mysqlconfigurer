@@ -41,6 +41,7 @@ func NewAWSRDSInstanceGatherer(logger logging.Logger, rdsclient *rds.Client, ec2
 }
 
 func (awsrdsinstance *AWSRDSInstanceGatherer) GetMetrics(metrics *Metrics) error {
+	defer HandlePanic(awsrdsinstance.configuration, awsrdsinstance.logger)
 
 	//output := make(MetricGroupValue)
 	info := make(MetricGroupValue)

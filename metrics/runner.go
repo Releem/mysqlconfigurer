@@ -53,11 +53,12 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 			logger.Info("Exiting")
 			os.Exit(0)
 		case <-timer.C:
+			logger.Println("Starting collection of data for saving a metrics...", timer)
 			timer.Reset(configuration.TimePeriodSeconds * time.Second)
 			go func() {
 				defer HandlePanic(configuration, logger)
 				Ready = false
-				metrics := collectMetrics(gatherers, logger)
+				metrics := collectMetrics(gatherers, logger, configuration)
 				if Ready {
 					task := processRepeaters(metrics, repeaters["Metrics"], configuration, logger)
 					if task == "Task" {
@@ -66,14 +67,17 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 						time.AfterFunc(5*time.Second, f)
 					}
 				}
+				logger.Println("Saved a metrics...")
 			}()
+			logger.Println("End collection of metrics for saving a metrics...", timer)
 		case <-GenerateTimer.C:
+			logger.Println("Starting collection of data for generating a config...", GenerateTimer)
 			GenerateTimer.Reset(configuration.GenerateConfigSeconds * time.Second)
 			go func() {
+				logger.Println(" * Collecting metrics to recommend a config...")
 				defer HandlePanic(configuration, logger)
 				Ready = false
-				logger.Println(" * Collecting metrics to recommend a config...")
-				metrics := collectMetrics(append(gatherers, gatherers_configuration...), logger)
+				metrics := collectMetrics(append(gatherers, gatherers_configuration...), logger, configuration)
 				if Ready {
 					logger.Println(" * Sending metrics to Releem Cloud Platform...")
 					processRepeaters(metrics, repeaters[Mode.Name], configuration, logger)
@@ -84,10 +88,14 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 					}
 				}
 				if (Mode.Name == "Configurations" && Mode.ModeType != "default") || Mode.Name == "Event" || Mode.Name == "TaskSet" {
+					logger.Info("Exiting")
 					os.Exit(0)
 				}
+				logger.Println("Saved a config...")
 			}()
+			logger.Println("End collection of metrics for saving a metrics...", GenerateTimer)
 		}
+		logger.Info("LOOP")
 	}
 }
 
@@ -226,7 +234,7 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, gatherer
 					output["task_exit_code"] = 10
 				}
 			}
-			metrics = collectMetrics(gatherers, logger)
+			metrics = collectMetrics(gatherers, logger, configuration)
 		}
 	} else if TaskTypeID == 5 {
 		output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=1"}, logger)
@@ -299,7 +307,8 @@ func processRepeaters(metrics Metrics, repeaters MetricsRepeater,
 	return result
 }
 
-func collectMetrics(gatherers []MetricsGatherer, logger logging.Logger) Metrics {
+func collectMetrics(gatherers []MetricsGatherer, logger logging.Logger, configuration *config.Config) Metrics {
+	defer HandlePanic(configuration, logger)
 	var metrics Metrics
 	for _, g := range gatherers {
 		err := g.GetMetrics(&metrics)

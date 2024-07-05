@@ -8,9 +8,9 @@ import (
 )
 
 type DbCollectQueries struct {
-	logger logging.Logger
-	debug  bool
-	db     *sql.DB
+	logger        logging.Logger
+	configuration *config.Config
+	db            *sql.DB
 }
 
 func NewDbCollectQueries(logger logging.Logger, db *sql.DB, configuration *config.Config) *DbCollectQueries {
@@ -24,13 +24,14 @@ func NewDbCollectQueries(logger logging.Logger, db *sql.DB, configuration *confi
 	}
 
 	return &DbCollectQueries{
-		logger: logger,
-		debug:  configuration.Debug,
-		db:     db,
+		logger:        logger,
+		configuration: configuration,
+		db:            db,
 	}
 }
 
 func (DbCollectQueries *DbCollectQueries) GetMetrics(metrics *Metrics) error {
+	defer HandlePanic(DbCollectQueries.configuration, DbCollectQueries.logger)
 
 	{
 		var output []MetricGroupValue

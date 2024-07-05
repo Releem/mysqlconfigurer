@@ -29,6 +29,7 @@ func NewAgentMetricsGatherer(logger logging.Logger, configuration *config.Config
 }
 
 func (Agent *AgentMetricsGatherer) GetMetrics(metrics *Metrics) error {
+	defer HandlePanic(Agent.configuration, Agent.logger)
 
 	output := make(map[string]interface{})
 	output["Version"] = config.ReleemAgentVersion

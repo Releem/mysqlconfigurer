@@ -2,6 +2,21 @@ Releem releases
 ---
 Information about releases of the Releem.
 
+Releem 1.17.0, 2024-06-30
+- Improved Weekly Reports
+- Added Alerts on CPU Utilization and Disk space. Closes #147
+- Added applying configuration without restart to Releem Agent.
+- Added SSL support to Releem Agent. Closes #310
+- Added collection information from performance_schema.file_summary_by_instance
+- Fixed Automatic installation doens't work in some cases. Closes #166
+- Fixed buffer recommendations more that total RAM. Closes #262
+
+Releem 1.16.0, 2024-05-31 ([What's New At Releem | May 2024](https://releem.com/blog/whats-new-at-releem-may-2024))
+- Added Security Checks
+- Added new event for partially applied configuration.
+- Added support of AWS RDS Aurora. Closes #308
+- Fixed Many events on MySQL restart. Closes #305
+
 Releem 1.15.0, 2024-04-30
 - Added new option to disable Query Cache manually. Feature request #289
 - Added Max Query Length option allows Releem to save full queries for analysis. Closes #291

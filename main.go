@@ -3,16 +3,16 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"flag"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/Releem/daemon"
 	"github.com/Releem/mysqlconfigurer/config"
 	m "github.com/Releem/mysqlconfigurer/metrics"
 	r "github.com/Releem/mysqlconfigurer/repeater"
+	u "github.com/Releem/mysqlconfigurer/utils"
+
 	"github.com/advantageous/go-logback/logging"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
@@ -44,15 +44,6 @@ type Service struct {
 // 	}
 // 	return fileInfo.Mode().Type() == fs.ModeSocket
 // }
-
-func IsPath(path string, logger logging.Logger) bool {
-	result_path := strings.Index(path, "/")
-	if result_path == 0 {
-		return true
-	} else {
-		return false
-	}
-}
 
 // Manage by daemon commands or run the daemon
 func (service *Service) Manage(logger logging.Logger, configFile string, command []string, TypeConfiguration string, AgentEvent string, AgentTask string) (string, error) {
@@ -160,41 +151,9 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 		gatherers = append(gatherers, m.NewOSMetricsGatherer(nil, configuration))
 
 	}
-	// }
 
-	// Init connection DB
-	var db *sql.DB
-	var TypeConnection, MysqlSslMode string
-
-	if configuration.MysqlSslMode {
-		MysqlSslMode = "?tls=skip-verify"
-	} else {
-		MysqlSslMode = ""
-	}
-	if IsPath(configuration.MysqlHost, logger) {
-		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@unix("+configuration.MysqlHost+")/mysql"+MysqlSslMode)
-		TypeConnection = "unix"
-
-	} else {
-		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@tcp("+configuration.MysqlHost+":"+configuration.MysqlPort+")/mysql"+MysqlSslMode)
-		TypeConnection = "tcp"
-	}
-	if err != nil {
-		logger.PrintError("Connection opening to failed", err)
-	}
-
-	err = db.Ping()
-	if err != nil {
-		logger.PrintError("Connection failed", err)
-	} else {
-		if TypeConnection == "unix" {
-			logger.Println("Connect Success to DB via unix socket", configuration.MysqlHost)
-		} else if TypeConnection == "tcp" {
-			logger.Println("Connect Success to DB via tcp", configuration.MysqlHost)
-		}
-	}
-	config.DB = db
-	defer db.Close()
+	config.DB = u.ConnectionDatabase(configuration, logger, "mysql")
+	defer config.DB.Close()
 
 	//Init repeaters
 	repeaters := make(map[string]m.MetricsRepeater)
@@ -208,13 +167,13 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 
 	//Init gatherers
 	gatherers = append(gatherers,
-		m.NewDbConfGatherer(nil, db, configuration),
-		m.NewDbInfoGatherer(nil, db, configuration),
-		m.NewDbMetricsBaseGatherer(nil, db, configuration),
+		m.NewDbConfGatherer(nil, configuration),
+		m.NewDbInfoGatherer(nil, configuration),
+		m.NewDbMetricsBaseGatherer(nil, configuration),
 		m.NewAgentMetricsGatherer(nil, configuration))
-	gatherers_configuration = append(gatherers_configuration, m.NewDbMetricsGatherer(nil, db, configuration))
+	gatherers_configuration = append(gatherers_configuration, m.NewDbMetricsGatherer(nil, configuration))
 	if Mode.Name == "TaskSet" && Mode.ModeType == "collect_queries" {
-		gatherers = append(gatherers, m.NewDbCollectQueries(nil, db, configuration))
+		gatherers = append(gatherers, m.NewDbCollectQueries(nil, configuration))
 	}
 	m.RunWorker(gatherers, gatherers_configuration, repeaters, nil, configuration, configFile, Mode)
 

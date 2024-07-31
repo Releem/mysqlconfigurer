@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	ReleemAgentVersion = "1.17.4.1"
+	ReleemAgentVersion = "1.18.0"
 )
 
 var (
@@ -38,6 +38,7 @@ type Config struct {
 	InstanceType          string        `hcl:"instance_type"`
 	AwsRegion             string        `hcl:"aws_region"`
 	AwsRDSDB              string        `hcl:"aws_rds_db"`
+	CollectExplain        bool          `hcl:"collect_explain"`
 }
 
 func LoadConfig(filename string, logger logging.Logger) (*Config, error) {

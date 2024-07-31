@@ -67,3 +67,5 @@ env="${RELEEM_ENV:-prod}"
 # Debug string `hcl:"debug"`
 # Releem Debug messages
 debug=${RELEEM_DEBUG:-false}
+
+collect_explain=${RELEEM_QUERY_OPTIMIZATION:-false}

@@ -1,8 +1,6 @@
 package metrics
 
 import (
-	"database/sql"
-
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/advantageous/go-logback/logging"
 )
@@ -10,10 +8,9 @@ import (
 type DbMetricsGatherer struct {
 	logger        logging.Logger
 	configuration *config.Config
-	db            *sql.DB
 }
 
-func NewDbMetricsGatherer(logger logging.Logger, db *sql.DB, configuration *config.Config) *DbMetricsGatherer {
+func NewDbMetricsGatherer(logger logging.Logger, configuration *config.Config) *DbMetricsGatherer {
 
 	if logger == nil {
 		if configuration.Debug {
@@ -26,7 +23,6 @@ func NewDbMetricsGatherer(logger logging.Logger, db *sql.DB, configuration *conf
 	return &DbMetricsGatherer{
 		logger:        logger,
 		configuration: configuration,
-		db:            db,
 	}
 }
 
@@ -35,7 +31,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 	//Total table
 	{
 		var row MetricValue
-		err := DbMetrics.db.QueryRow("SELECT COUNT(*) as count FROM information_schema.tables").Scan(&row.value)
+		err := config.DB.QueryRow("SELECT COUNT(*) as count FROM information_schema.tables").Scan(&row.value)
 		if err != nil {
 			DbMetrics.logger.Error(err)
 			return err
@@ -46,7 +42,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 	{
 		var database string
 		var output []string
-		rows, err := DbMetrics.db.Query("SELECT table_schema FROM INFORMATION_SCHEMA.tables group BY table_schema")
+		rows, err := config.DB.Query("SELECT table_schema FROM INFORMATION_SCHEMA.tables group BY table_schema")
 		if err != nil {
 			DbMetrics.logger.Error(err)
 			return err
@@ -65,7 +61,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 	// TotalMyisamIndexes
 	{
 		var row MetricValue
-		err := DbMetrics.db.QueryRow("SELECT IFNULL(SUM(INDEX_LENGTH), 0) FROM information_schema.TABLES WHERE TABLE_SCHEMA NOT IN ('information_schema') AND ENGINE = 'MyISAM'").Scan(&row.value)
+		err := config.DB.QueryRow("SELECT IFNULL(SUM(INDEX_LENGTH), 0) FROM information_schema.TABLES WHERE TABLE_SCHEMA NOT IN ('information_schema') AND ENGINE = 'MyISAM'").Scan(&row.value)
 		if err != nil {
 			DbMetrics.logger.Error(err)
 			return err
@@ -77,7 +73,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 		output := make(map[string]MetricGroupValue)
 		var engine_db, size, count, dsize, isize, engineenabled string
 
-		rows, err := DbMetrics.db.Query("SELECT ENGINE,SUPPORT FROM information_schema.ENGINES ORDER BY ENGINE ASC")
+		rows, err := config.DB.Query("SELECT ENGINE,SUPPORT FROM information_schema.ENGINES ORDER BY ENGINE ASC")
 		if err != nil {
 			DbMetrics.logger.Error(err)
 			return err
@@ -93,7 +89,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 		}
 		rows.Close()
 
-		rows, err = DbMetrics.db.Query("SELECT ENGINE, IFNULL(SUM(DATA_LENGTH+INDEX_LENGTH),0), IFNULL(COUNT(ENGINE),0), IFNULL(SUM(DATA_LENGTH),0), IFNULL(SUM(INDEX_LENGTH),0) FROM information_schema.TABLES WHERE TABLE_SCHEMA NOT IN ('information_schema', 'performance_schema', 'mysql') AND ENGINE IS NOT NULL  GROUP BY ENGINE ORDER BY ENGINE ASC")
+		rows, err = config.DB.Query("SELECT ENGINE, IFNULL(SUM(DATA_LENGTH+INDEX_LENGTH),0), IFNULL(COUNT(ENGINE),0), IFNULL(SUM(DATA_LENGTH),0), IFNULL(SUM(INDEX_LENGTH),0) FROM information_schema.TABLES WHERE TABLE_SCHEMA NOT IN ('information_schema', 'performance_schema', 'mysql') AND ENGINE IS NOT NULL  GROUP BY ENGINE ORDER BY ENGINE ASC")
 		if err != nil {
 			DbMetrics.logger.Error(err)
 			return err

@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 1.17.4.1
+# install.sh - Version 1.18.0
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -7,7 +7,7 @@
 # using the package manager.
 
 set -e
-install_script_version=1.17.4.1
+install_script_version=1.18.0
 logfile="releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -300,8 +300,8 @@ else
         mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "CREATE USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' identified by '${RELEEM_MYSQL_PASSWORD}';"
         mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT PROCESS ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
         mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT REPLICATION CLIENT ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
-        mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
-        
+        mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"        
+
         if mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON performance_schema.events_statements_summary_by_digest TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
         then
             echo "Successfully GRANT" > /dev/null
@@ -321,6 +321,11 @@ else
         else
             printf "\033[31m\n This database version is too old.\033[0m\n"
         fi      
+        if [ -n $RELEEM_QUERY_OPTIMIZATION ]; 
+        then
+            mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
+            mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT ALL ON releem.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
+        fi        
 
         #mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT, PROCESS,EXECUTE, REPLICATION CLIENT,SHOW DATABASES,SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
         printf "\033[32m\n Created new user \`${RELEEM_MYSQL_LOGIN}\`\033[0m\n"
@@ -442,6 +447,9 @@ if [ -n "$RELEEM_DEBUG" ]; then
 fi
 if [ -n "$RELEEM_MYSQL_SSL_MODE" ]; then
 	echo "mysql_ssl_mode=$RELEEM_MYSQL_SSL_MODE" | $sudo_cmd tee -a $CONF >/dev/null
+fi
+if [ -n "$RELEEM_QUERY_OPTIMIZATION" ]; then
+	echo "collect_explain=$RELEEM_QUERY_OPTIMIZATION" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 echo "interval_seconds=60" | $sudo_cmd tee -a $CONF >/dev/null
 echo "interval_read_config_seconds=3600" | $sudo_cmd tee -a $CONF >/dev/null

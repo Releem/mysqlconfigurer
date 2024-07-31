@@ -12,10 +12,9 @@ import (
 type DbMetricsBaseGatherer struct {
 	logger        logging.Logger
 	configuration *config.Config
-	db            *sql.DB
 }
 
-func NewDbMetricsBaseGatherer(logger logging.Logger, db *sql.DB, configuration *config.Config) *DbMetricsBaseGatherer {
+func NewDbMetricsBaseGatherer(logger logging.Logger, configuration *config.Config) *DbMetricsBaseGatherer {
 
 	if logger == nil {
 		if configuration.Debug {
@@ -28,7 +27,6 @@ func NewDbMetricsBaseGatherer(logger logging.Logger, db *sql.DB, configuration *
 	return &DbMetricsBaseGatherer{
 		logger:        logger,
 		configuration: configuration,
-		db:            db,
 	}
 }
 
@@ -38,7 +36,7 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *Metrics) error {
 	output := make(MetricGroupValue)
 	{
 		var row MetricValue
-		rows, err := DbMetricsBase.db.Query("SHOW STATUS")
+		rows, err := config.DB.Query("SHOW STATUS")
 
 		if err != nil {
 			DbMetricsBase.logger.Error(err)
@@ -54,7 +52,7 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *Metrics) error {
 		}
 		rows.Close()
 
-		rows, err = DbMetricsBase.db.Query("SHOW GLOBAL STATUS")
+		rows, err = config.DB.Query("SHOW GLOBAL STATUS")
 		if err != nil {
 			DbMetricsBase.logger.Error(err)
 			return err
@@ -76,7 +74,7 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *Metrics) error {
 		var digest string
 		var calls, avg_time_us int
 
-		rows, err := DbMetricsBase.db.Query("SELECT CONCAT(IFNULL(schema_name, 'NULL'), '_', IFNULL(digest, 'NULL')) as queryid, count_star as calls, round(avg_timer_wait/1000000, 0) as avg_time_us FROM performance_schema.events_statements_summary_by_digest")
+		rows, err := config.DB.Query("SELECT CONCAT(IFNULL(schema_name, 'NULL'), '_', IFNULL(digest, 'NULL')) as queryid, count_star as calls, round(avg_timer_wait/1000000, 0) as avg_time_us FROM performance_schema.events_statements_summary_by_digest")
 		if err != nil {
 			if err != sql.ErrNoRows {
 				DbMetricsBase.logger.Error(err)

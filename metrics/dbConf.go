@@ -1,8 +1,6 @@
 package metrics
 
 import (
-	"database/sql"
-
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/advantageous/go-logback/logging"
 )
@@ -10,10 +8,9 @@ import (
 type DbConfGatherer struct {
 	logger        logging.Logger
 	configuration *config.Config
-	db            *sql.DB
 }
 
-func NewDbConfGatherer(logger logging.Logger, db *sql.DB, configuration *config.Config) *DbConfGatherer {
+func NewDbConfGatherer(logger logging.Logger, configuration *config.Config) *DbConfGatherer {
 
 	if logger == nil {
 		if configuration.Debug {
@@ -26,7 +23,6 @@ func NewDbConfGatherer(logger logging.Logger, db *sql.DB, configuration *config.
 	return &DbConfGatherer{
 		logger:        logger,
 		configuration: configuration,
-		db:            db,
 	}
 }
 
@@ -35,7 +31,7 @@ func (DbConf *DbConfGatherer) GetMetrics(metrics *Metrics) error {
 
 	output := make(MetricGroupValue)
 
-	rows, err := DbConf.db.Query("SHOW VARIABLES")
+	rows, err := config.DB.Query("SHOW VARIABLES")
 	if err != nil {
 		DbConf.logger.Error(err)
 		DbConf.logger.Debug("collectMetrics ", output)
@@ -52,7 +48,7 @@ func (DbConf *DbConfGatherer) GetMetrics(metrics *Metrics) error {
 	}
 	rows.Close()
 
-	rows, err = DbConf.db.Query("SHOW GLOBAL VARIABLES")
+	rows, err = config.DB.Query("SHOW GLOBAL VARIABLES")
 	if err != nil {
 		DbConf.logger.Error(err)
 		DbConf.logger.Debug("collectMetrics ", output)

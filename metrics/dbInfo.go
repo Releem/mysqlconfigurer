@@ -1,7 +1,6 @@
 package metrics
 
 import (
-	"database/sql"
 	"os"
 	"regexp"
 
@@ -12,10 +11,9 @@ import (
 type DbInfoGatherer struct {
 	logger        logging.Logger
 	configuration *config.Config
-	db            *sql.DB
 }
 
-func NewDbInfoGatherer(logger logging.Logger, db *sql.DB, configuration *config.Config) *DbInfoGatherer {
+func NewDbInfoGatherer(logger logging.Logger, configuration *config.Config) *DbInfoGatherer {
 
 	if logger == nil {
 		if configuration.Debug {
@@ -28,7 +26,6 @@ func NewDbInfoGatherer(logger logging.Logger, db *sql.DB, configuration *config.
 	return &DbInfoGatherer{
 		logger:        logger,
 		configuration: configuration,
-		db:            db,
 	}
 }
 
@@ -40,7 +37,7 @@ func (DbInfo *DbInfoGatherer) GetMetrics(metrics *Metrics) error {
 
 	info := make(MetricGroupValue)
 	// Mysql version
-	err := DbInfo.db.QueryRow("select VERSION()").Scan(&row.value)
+	err := config.DB.QueryRow("select VERSION()").Scan(&row.value)
 	if err != nil {
 		DbInfo.logger.Error(err)
 		return nil

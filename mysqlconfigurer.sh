@@ -1,5 +1,5 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 1.17.4.1
+# mysqlconfigurer.sh - Version 1.18.0
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -12,7 +12,7 @@ MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 RELEEM_MYSQL_VERSION=$MYSQLCONFIGURER_PATH"mysql_version"
 MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
 MYSQL_MEMORY_LIMIT=0
-VERSION="1.17.4.1"
+VERSION="1.18.0"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 logfile="releem-mysqlconfigurer.log"
 
@@ -196,7 +196,14 @@ function releem_ps_mysql() {
 
     if [ -n "$RELEEM_MYSQL_CONFIG_DIR" -a -d "$RELEEM_MYSQL_CONFIG_DIR" ]; then
         printf "\033[37m\n * Enabling Performance schema and SlowLog to collect metrics...\n\033[0m\n"
-        echo -e "### This configuration was recommended by Releem. https://releem.com\n[mysqld]\nperformance_schema = 1\nslow_query_log = 1" > "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf"
+        echo "### This configuration was recommended by Releem. https://releem.com" | $sudo_cmd tee "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+        echo "[mysqld]" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+        echo "performance_schema = 1" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+        echo "slow_query_log = 1" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+        if [ -n "$RELEEM_QUERY_OPTIMIZATION" -a "$RELEEM_QUERY_OPTIMIZATION" = true ]; then
+            echo "performance-schema-consumer-events-statements-history = ON" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+            echo "performance_schema_events_statements_history_size = 500" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+        fi        
         chmod 644 $RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf
     else
         printf "\033[31m\n MySQL configuration directory is not found.\033[0m"
@@ -602,8 +609,10 @@ if test -f $RELEEM_CONF_FILE ; then
     else
         connection_string="${connection_string} --port=3306"
     fi
+    if [ ! -z "$collect_explain" ]; then
+        RELEEM_QUERY_OPTIMIZATION=$collect_explain
+    fi    
 fi
-
 
 # Parse parameters
 while getopts "k:m:s:arcpu" option

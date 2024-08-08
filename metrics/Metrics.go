@@ -36,6 +36,7 @@ type Metrics struct {
 			Engine             map[string]MetricGroupValue
 			Latency            string
 			Databases          []string
+			InnoDBEngineStatus string
 		}
 		Conf struct {
 			Variables MetricGroupValue

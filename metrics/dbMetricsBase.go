@@ -132,7 +132,16 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *Metrics) error {
 			metrics.DB.Metrics.Latency = ""
 		}
 	}
-
+	//status innodb engine
+	{
+		var engine, name, status string
+		err := config.DB.QueryRow("show engine innodb status").Scan(&engine, &name, &status)
+		if err != nil {
+			DbMetricsBase.logger.Error(err)
+		} else {
+			metrics.DB.Metrics.InnoDBEngineStatus = status
+		}
+	}
 	DbMetricsBase.logger.Debug("collectMetrics ", metrics.DB.Metrics)
 	return nil
 

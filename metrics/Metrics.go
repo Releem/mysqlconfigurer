@@ -18,7 +18,7 @@ type MetricValue struct {
 }
 type MetricGroupValue map[string]interface{}
 
-type Mode struct {
+type ModeT struct {
 	Name     string
 	ModeType string
 }
@@ -78,7 +78,7 @@ type MetricsGatherer interface {
 }
 
 type MetricsRepeater interface {
-	ProcessMetrics(context MetricContext, metrics Metrics) (interface{}, error)
+	ProcessMetrics(context MetricContext, metrics Metrics, Mode ModeT) (interface{}, error)
 }
 
 func MapJoin(map1, map2 MetricGroupValue) MetricGroupValue {

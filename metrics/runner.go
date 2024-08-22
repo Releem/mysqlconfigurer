@@ -25,9 +25,9 @@ func makeTerminateChannel() <-chan os.Signal {
 	return ch
 }
 
-func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGatherer, repeaters map[string]MetricsRepeater, logger logging.Logger,
-	configuration *config.Config, configFile string, Mode Mode) {
-	var GenerateTimer, timer *time.Timer
+func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGatherer, gatherers_query_optimization []MetricsGatherer, repeaters MetricsRepeater, logger logging.Logger,
+	configuration *config.Config, configFile string, Mode ModeT) {
+	var GenerateTimer, timer, QueryOptimizationTimer *time.Timer
 	defer HandlePanic(configuration, logger)
 	if logger == nil {
 		if configuration.Debug {
@@ -42,10 +42,13 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 		GenerateTimer = time.NewTimer(0 * time.Second)
 		timer = time.NewTimer(3600 * time.Second)
 	} else {
-		GenerateTimer = time.NewTimer(configuration.GenerateConfigSeconds * time.Second)
+		GenerateTimer = time.NewTimer(configuration.GenerateConfigPeriod * time.Second)
 		timer = time.NewTimer(1 * time.Second)
 	}
-
+	QueryOptimizationTimer = time.NewTimer(10 * time.Second)
+	if !configuration.QueryOptimization {
+		QueryOptimizationTimer.Stop()
+	}
 	terminator := makeTerminateChannel()
 	for {
 		select {
@@ -54,13 +57,13 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 			os.Exit(0)
 		case <-timer.C:
 			logger.Println("Starting collection of data for saving a metrics...", timer)
-			timer.Reset(configuration.TimePeriodSeconds * time.Second)
+			timer.Reset(configuration.MetricsPeriod * time.Second)
 			go func() {
 				defer HandlePanic(configuration, logger)
 				Ready = false
 				metrics := collectMetrics(gatherers, logger, configuration)
 				if Ready {
-					task := processRepeaters(metrics, repeaters["Metrics"], configuration, logger)
+					task := processRepeaters(metrics, repeaters, configuration, logger, ModeT{Name: "Metrics", ModeType: ""})
 					if task == "Task" {
 						logger.Println(" * A task has been found for the agent...")
 						f := processTaskFunc(metrics, repeaters, gatherers, logger, configuration)
@@ -72,19 +75,22 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 			logger.Println("End collection of metrics for saving a metrics...", timer)
 		case <-GenerateTimer.C:
 			logger.Println("Starting collection of data for generating a config...", GenerateTimer)
-			GenerateTimer.Reset(configuration.GenerateConfigSeconds * time.Second)
+			GenerateTimer.Reset(configuration.GenerateConfigPeriod * time.Second)
 			go func() {
+				var metrics Metrics
 				logger.Println(" * Collecting metrics to recommend a config...")
 				defer HandlePanic(configuration, logger)
 				Ready = false
-				metrics := collectMetrics(append(gatherers, gatherers_configuration...), logger, configuration)
+				if Mode.Name == "TaskSet" && Mode.ModeType == "queries_optimization" {
+					metrics = collectMetrics(append(gatherers, gatherers_query_optimization...), logger, configuration)
+				} else {
+					metrics = collectMetrics(append(gatherers, gatherers_configuration...), logger, configuration)
+				}
 				if Ready {
 					logger.Println(" * Sending metrics to Releem Cloud Platform...")
-					processRepeaters(metrics, repeaters[Mode.Name], configuration, logger)
+					processRepeaters(metrics, repeaters, configuration, logger, Mode)
 					if Mode.Name == "Configurations" {
-						logger.Println("1. Recommended MySQL configuration downloaded to ", configuration.GetReleemConfDir())
-						logger.Println("2. To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics")
-						logger.Println("3. To apply the recommended configuration please read documentation https://app.releem.com/dashboard")
+						logger.Println("Recommended MySQL configuration downloaded to ", configuration.GetReleemConfDir())
 					}
 				}
 				if (Mode.Name == "Configurations" && Mode.ModeType != "default") || Mode.Name == "Event" || Mode.Name == "TaskSet" {
@@ -94,23 +100,36 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 				logger.Println("Saved a config...")
 			}()
 			logger.Println("End collection of metrics for saving a metrics...", GenerateTimer)
+		case <-QueryOptimizationTimer.C:
+			logger.Println("Starting collection of data for queries optimization...", GenerateTimer)
+			QueryOptimizationTimer.Reset(configuration.QueryOptimizationPeriod * time.Second)
+			go func() {
+				defer HandlePanic(configuration, logger)
+				Ready = false
+				logger.Println("QueryOptimization")
+				metrics := collectMetrics(append(gatherers, gatherers_query_optimization...), logger, configuration)
+				if Ready {
+					processRepeaters(metrics, repeaters, configuration, logger, ModeT{Name: "Metrics", ModeType: "QueryOptimization"})
+				}
+				logger.Println("Saved a queries...")
+			}()
 		}
 		logger.Info("LOOP")
 	}
 }
 
-func processTaskFunc(metrics Metrics, repeaters map[string]MetricsRepeater, gatherers []MetricsGatherer, logger logging.Logger, configuration *config.Config) func() {
+func processTaskFunc(metrics Metrics, repeaters MetricsRepeater, gatherers []MetricsGatherer, logger logging.Logger, configuration *config.Config) func() {
 	return func() {
 		processTask(metrics, repeaters, gatherers, logger, configuration)
 	}
 }
 
-func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, gatherers []MetricsGatherer, logger logging.Logger, configuration *config.Config) {
+func processTask(metrics Metrics, repeaters MetricsRepeater, gatherers []MetricsGatherer, logger logging.Logger, configuration *config.Config) {
 	defer HandlePanic(configuration, logger)
 	output := make(MetricGroupValue)
 	//metrics := collectMetrics(gatherers, logger)
 	var task_output string
-	task := processRepeaters(metrics, repeaters["TaskGet"], configuration, logger)
+	task := processRepeaters(metrics, repeaters, configuration, logger, ModeT{Name: "TaskGet", ModeType: ""})
 	if task.(Task).TaskTypeID == nil {
 		return
 	}
@@ -125,7 +144,7 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, gatherer
 	output["task_output"] = ""
 
 	metrics.ReleemAgent.Tasks = output
-	processRepeaters(metrics, repeaters["TaskStatus"], configuration, logger)
+	processRepeaters(metrics, repeaters, configuration, logger, ModeT{Name: "TaskStatus", ModeType: ""})
 	logger.Println(" * Task with id -", TaskID, "and type id -", TaskTypeID, "is being started...")
 
 	if TaskTypeID == 0 {
@@ -161,7 +180,7 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, gatherer
 		output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -u", []string{}, logger)
 		output["task_output"] = output["task_output"].(string) + task_output
 	} else if TaskTypeID == 3 {
-		output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/releem-agent --task=collect_queries", []string{}, logger)
+		output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/releem-agent --task=queries_optimization", []string{}, logger)
 		output["task_output"] = output["task_output"].(string) + task_output
 	} else if TaskTypeID == 4 {
 		if configuration.InstanceType != "aws" {
@@ -176,7 +195,7 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, gatherer
 			need_flush := false
 			error_exist := false
 
-			recommend_var := processRepeaters(metrics, repeaters["GetConfigurationJson"], configuration, logger)
+			recommend_var := processRepeaters(metrics, repeaters, configuration, logger, ModeT{Name: "Configurations", ModeType: "get-json"})
 			err := json.Unmarshal([]byte(recommend_var.(string)), &result_data)
 			if err != nil {
 				logger.Error(err)
@@ -265,7 +284,7 @@ func processTask(metrics Metrics, repeaters map[string]MetricsRepeater, gatherer
 	logger.Debug(output)
 	logger.Println(" * Task with id -", TaskID, "and type id -", TaskTypeID, "completed with code", output["task_exit_code"])
 	metrics.ReleemAgent.Tasks = output
-	processRepeaters(metrics, repeaters["TaskStatus"], configuration, logger)
+	processRepeaters(metrics, repeaters, configuration, logger, ModeT{Name: "TaskStatus", ModeType: ""})
 
 }
 
@@ -297,10 +316,10 @@ func execCmd(cmd_path string, environment []string, logger logging.Logger) (int,
 	return task_exit_code, task_status, task_output
 }
 func processRepeaters(metrics Metrics, repeaters MetricsRepeater,
-	configuration *config.Config, logger logging.Logger) interface{} {
+	configuration *config.Config, logger logging.Logger, Mode ModeT) interface{} {
 	defer HandlePanic(configuration, logger)
 
-	result, err := repeaters.ProcessMetrics(configuration, metrics)
+	result, err := repeaters.ProcessMetrics(configuration, metrics, Mode)
 	if err != nil {
 		logger.PrintError("Repeater failed", err)
 	}

@@ -8,17 +8,21 @@ hostname="${RELEEM_HOSTNAME}"
 # Defaults to 0, Mysql memory usage limit.
 memory_limit=${MEMORY_LIMIT:-0}
 
-# TimePeriodSeconds time.Duration `hcl:"interval_seconds"`
+# MetricsPeriod time.Duration `hcl:"interval_seconds"`
 # Defaults to 30 seconds, how often metrics are collected.
 interval_seconds=60
 
-# ReadConfigSeconds time.Duration `hcl:"interval_read_config_seconds"`
+# ReadConfigPeriod time.Duration `hcl:"interval_read_config_seconds"`
 # Defaults to 3600 seconds, how often to update the values from the config.
 interval_read_config_seconds=3600
 
-# GenerateConfigSeconds time.Duration `hcl:"interval_generate_config_seconds"`
+# GenerateConfigPeriod time.Duration `hcl:"interval_generate_config_seconds"`
 # Defaults to 43200 seconds, how often to generate recommend the config.
 interval_generate_config_seconds=${RELEEM_INTERVAL_COLLECT_ALL_METRICS:-43200}
+
+# QueryOptimization time.Duration `hcl:"interval_query_optimization_seconds"`
+# Defaults to 3600 seconds, how often query metrics are collected.
+interval_query_optimization_seconds=3600
 
 # MysqlUser string`hcl:"mysql_user"`
 # Mysql user name for collection metrics.
@@ -68,4 +72,6 @@ env="${RELEEM_ENV:-prod}"
 # Releem Debug messages
 debug=${RELEEM_DEBUG:-false}
 
-collect_explain=${RELEEM_QUERY_OPTIMIZATION:-false}
+# Collect Explain string `hcl:"query_optimization"`
+# Releem collect explain for query
+query_optimization=${RELEEM_QUERY_OPTIMIZATION:-false}

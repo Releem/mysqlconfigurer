@@ -47,8 +47,8 @@ type Service struct {
 
 // Manage by daemon commands or run the daemon
 func (service *Service) Manage(logger logging.Logger, configFile string, command []string, TypeConfiguration string, AgentEvent string, AgentTask string) (string, error) {
-	var gatherers, gatherers_configuration []m.MetricsGatherer
-	var Mode m.Mode
+	var gatherers, gatherers_configuration, gatherers_query_optimization []m.MetricsGatherer
+	var Mode m.ModeT
 	var configuration *config.Config
 	usage := "Usage: myservice install | remove | start | stop | status"
 
@@ -156,14 +156,18 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 	defer config.DB.Close()
 
 	//Init repeaters
-	repeaters := make(map[string]m.MetricsRepeater)
-	repeaters["Metrics"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "Metrics", ModeType: ""}))
-	repeaters["Configurations"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
-	repeaters["Event"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
-	repeaters["TaskGet"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "TaskGet", ModeType: ""}))
-	repeaters["TaskStatus"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "TaskStatus", ModeType: ""}))
-	repeaters["TaskSet"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
-	repeaters["GetConfigurationJson"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "Configurations", ModeType: "get-json"}))
+	// repeaters := make(map[string]m.MetricsRepeater)
+	// repeaters["Metrics"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "Metrics", ModeType: ""}))
+	// repeaters["Configurations"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
+	// repeaters["Event"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
+	// repeaters["TaskGet"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "TaskGet", ModeType: ""}))
+	// repeaters["TaskStatus"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "TaskStatus", ModeType: ""}))
+	// repeaters["TaskSet"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
+	// repeaters["GetConfigurationJson"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "Configurations", ModeType: "get-json"}))
+	// repeaters["QueryOptimization"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "Metrics", ModeType: "QuerysOptimization"}))
+	// repeaters["QueriesOptimization"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "TaskSet", ModeType: "queries_optimization"}))
+	//var repeaters m.MetricsRepeater
+	repeaters := m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration))
 
 	//Init gatherers
 	gatherers = append(gatherers,
@@ -172,10 +176,9 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 		m.NewDbMetricsBaseGatherer(nil, configuration),
 		m.NewAgentMetricsGatherer(nil, configuration))
 	gatherers_configuration = append(gatherers_configuration, m.NewDbMetricsGatherer(nil, configuration))
-	if Mode.Name == "TaskSet" && Mode.ModeType == "collect_queries" {
-		gatherers = append(gatherers, m.NewDbCollectQueries(nil, configuration))
-	}
-	m.RunWorker(gatherers, gatherers_configuration, repeaters, nil, configuration, configFile, Mode)
+	gatherers_query_optimization = append(gatherers_query_optimization, m.NewDbCollectQueriesOptimization(nil, configuration))
+
+	m.RunWorker(gatherers, gatherers_configuration, gatherers_query_optimization, repeaters, nil, configuration, configFile, Mode)
 
 	// never happen, but need to complete code
 	return usage, nil
@@ -187,7 +190,7 @@ func main() {
 
 	configFile := flag.String("config", "/opt/releem/releem.conf", "Releem agent config")
 	SetConfigRun := flag.Bool("f", false, "Releem agent generate config")
-	GetConfigRun := flag.Bool("c", false, "Releem agent generate config")
+	GetConfigRun := flag.Bool("c", false, "Releem agent get config")
 
 	AgentEvent := flag.String("event", "", "Releem agent type event")
 	AgentTask := flag.String("task", "", "Releem agent task name")

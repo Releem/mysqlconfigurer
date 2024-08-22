@@ -321,6 +321,19 @@ else
         else
             printf "\033[31m\n This database version is too old.\033[0m\n"
         fi      
+
+        if mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SYSTEM_VARIABLES_ADMIN ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
+        then
+            echo "Successfully GRANT" > /dev/null
+        else
+            if mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SUPER ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
+            then
+                echo "Successfully GRANT" > /dev/null
+            else
+                printf "\033[31m\n Error granting privileges to apply without restarting.\033[0m\n"
+            fi         
+        fi 
+
         if [ -n $RELEEM_QUERY_OPTIMIZATION ]; 
         then
             mysql  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
@@ -449,7 +462,7 @@ if [ -n "$RELEEM_MYSQL_SSL_MODE" ]; then
 	echo "mysql_ssl_mode=$RELEEM_MYSQL_SSL_MODE" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 if [ -n "$RELEEM_QUERY_OPTIMIZATION" ]; then
-	echo "collect_explain=$RELEEM_QUERY_OPTIMIZATION" | $sudo_cmd tee -a $CONF >/dev/null
+	echo "query_optimization=$RELEEM_QUERY_OPTIMIZATION" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 echo "interval_seconds=60" | $sudo_cmd tee -a $CONF >/dev/null
 echo "interval_read_config_seconds=3600" | $sudo_cmd tee -a $CONF >/dev/null

@@ -45,7 +45,7 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 		GenerateTimer = time.NewTimer(configuration.GenerateConfigPeriod * time.Second)
 		timer = time.NewTimer(1 * time.Second)
 	}
-	QueryOptimizationTimer = time.NewTimer(1 * time.Second)
+	QueryOptimizationTimer = time.NewTimer(10 * time.Second)
 	if !configuration.CollectExplain {
 		QueryOptimizationTimer.Stop()
 	}

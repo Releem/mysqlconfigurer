@@ -39,7 +39,7 @@ type Config struct {
 	InstanceType            string        `hcl:"instance_type"`
 	AwsRegion               string        `hcl:"aws_region"`
 	AwsRDSDB                string        `hcl:"aws_rds_db"`
-	CollectExplain          bool          `hcl:"query_optimization"`
+	QueryOptimization       bool          `hcl:"query_optimization"`
 }
 
 func LoadConfig(filename string, logger logging.Logger) (*Config, error) {

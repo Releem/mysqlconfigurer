@@ -609,8 +609,8 @@ if test -f $RELEEM_CONF_FILE ; then
     else
         connection_string="${connection_string} --port=3306"
     fi
-    if [ ! -z "$collect_explain" ]; then
-        RELEEM_QUERY_OPTIMIZATION=$collect_explain
+    if [ ! -z "$query_optimization" ]; then
+        RELEEM_QUERY_OPTIMIZATION=$query_optimization
     fi    
 fi
 

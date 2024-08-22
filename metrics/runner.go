@@ -27,7 +27,7 @@ func makeTerminateChannel() <-chan os.Signal {
 
 func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGatherer, gatherers_query_optimization []MetricsGatherer, repeaters MetricsRepeater, logger logging.Logger,
 	configuration *config.Config, configFile string, Mode ModeT) {
-	var GenerateTimer, timer, QueryMonitoringPeriodTimer *time.Timer
+	var GenerateTimer, timer, QueryOptimizationTimer *time.Timer
 	defer HandlePanic(configuration, logger)
 	if logger == nil {
 		if configuration.Debug {
@@ -41,13 +41,14 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 	if (Mode.Name == "Configurations" && Mode.ModeType != "default") || Mode.Name == "Event" || Mode.Name == "TaskSet" {
 		GenerateTimer = time.NewTimer(0 * time.Second)
 		timer = time.NewTimer(3600 * time.Second)
-		QueryMonitoringPeriodTimer = time.NewTimer(3600 * time.Second)
 	} else {
 		GenerateTimer = time.NewTimer(configuration.GenerateConfigPeriod * time.Second)
 		timer = time.NewTimer(1 * time.Second)
-		QueryMonitoringPeriodTimer = time.NewTimer(1 * time.Second)
 	}
-
+	QueryOptimizationTimer = time.NewTimer(1 * time.Second)
+	if !configuration.CollectExplain {
+		QueryOptimizationTimer.Stop()
+	}
 	terminator := makeTerminateChannel()
 	for {
 		select {
@@ -89,9 +90,7 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 					logger.Println(" * Sending metrics to Releem Cloud Platform...")
 					processRepeaters(metrics, repeaters, configuration, logger, Mode)
 					if Mode.Name == "Configurations" {
-						logger.Println("1. Recommended MySQL configuration downloaded to ", configuration.GetReleemConfDir())
-						logger.Println("2. To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics")
-						logger.Println("3. To apply the recommended configuration please read documentation https://app.releem.com/dashboard")
+						logger.Println("Recommended MySQL configuration downloaded to ", configuration.GetReleemConfDir())
 					}
 				}
 				if (Mode.Name == "Configurations" && Mode.ModeType != "default") || Mode.Name == "Event" || Mode.Name == "TaskSet" {
@@ -101,21 +100,19 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 				logger.Println("Saved a config...")
 			}()
 			logger.Println("End collection of metrics for saving a metrics...", GenerateTimer)
-		case <-QueryMonitoringPeriodTimer.C:
-			if configuration.CollectExplain {
-				logger.Println("Starting collection of data for queries...", GenerateTimer)
-				QueryMonitoringPeriodTimer.Reset(configuration.QueryMonitoringPeriod * time.Second)
-				go func() {
-					defer HandlePanic(configuration, logger)
-					Ready = false
-					logger.Println("QueryMonitoring")
-					metrics := collectMetrics(append(gatherers, gatherers_query_optimization...), logger, configuration)
-					if Ready {
-						processRepeaters(metrics, repeaters, configuration, logger, ModeT{Name: "Metrics", ModeType: "QueryMonitoringPeriod"})
-					}
-					logger.Println("Saved a queries...")
-				}()
-			}
+		case <-QueryOptimizationTimer.C:
+			logger.Println("Starting collection of data for queries optimization...", GenerateTimer)
+			QueryOptimizationTimer.Reset(configuration.QueryOptimizationPeriod * time.Second)
+			go func() {
+				defer HandlePanic(configuration, logger)
+				Ready = false
+				logger.Println("QueryOptimization")
+				metrics := collectMetrics(append(gatherers, gatherers_query_optimization...), logger, configuration)
+				if Ready {
+					processRepeaters(metrics, repeaters, configuration, logger, ModeT{Name: "Metrics", ModeType: "QueryOptimization"})
+				}
+				logger.Println("Saved a queries...")
+			}()
 		}
 		logger.Info("LOOP")
 	}

@@ -41,7 +41,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricCont
 
 	if Mode.Name == "TaskSet" && Mode.ModeType == "queries_optimization" {
 		api_domain = "https://api.queries." + subdomain + "releem.com/v2/"
-	} else if Mode.Name == "Metrics" && Mode.ModeType == "QueryMonitoringPeriod" {
+	} else if Mode.Name == "Metrics" && Mode.ModeType == "QuerysOptimization" {
 		api_domain = "https://api.queries." + subdomain + "releem.com/v2/"
 	} else {
 		api_domain = "https://api." + subdomain + "releem.com/v2/"

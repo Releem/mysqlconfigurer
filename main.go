@@ -164,10 +164,10 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 	// repeaters["TaskStatus"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "TaskStatus", ModeType: ""}))
 	// repeaters["TaskSet"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
 	// repeaters["GetConfigurationJson"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "Configurations", ModeType: "get-json"}))
-	// repeaters["QueryMonitoringPeriod"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "Metrics", ModeType: "QueryMonitoringPeriod"}))
+	// repeaters["QueryOptimization"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "Metrics", ModeType: "QuerysOptimization"}))
 	// repeaters["QueriesOptimization"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "TaskSet", ModeType: "queries_optimization"}))
-	var repeaters m.MetricsRepeater
-	repeaters = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration))
+	//var repeaters m.MetricsRepeater
+	repeaters := m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration))
 
 	//Init gatherers
 	gatherers = append(gatherers,
@@ -190,7 +190,7 @@ func main() {
 
 	configFile := flag.String("config", "/opt/releem/releem.conf", "Releem agent config")
 	SetConfigRun := flag.Bool("f", false, "Releem agent generate config")
-	GetConfigRun := flag.Bool("c", false, "Releem agent generate config")
+	GetConfigRun := flag.Bool("c", false, "Releem agent get config")
 
 	AgentEvent := flag.String("event", "", "Releem agent type event")
 	AgentTask := flag.String("task", "", "Releem agent task name")

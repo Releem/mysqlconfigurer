@@ -6,7 +6,7 @@
 # Releem installation script: install and set up the Releem Agent on supported Linux distributions
 # using the package manager.
 
-set -e
+set -e -E
 install_script_version=1.19.1
 logfile="releem-install.log"
 
@@ -184,9 +184,11 @@ if [ "$OS" = "RedHat" ]; then
         package_manager='yum'
     fi
     which curl &> /dev/null || $sudo_cmd $package_manager -y install curl
+    which crontab &> /dev/null || $sudo_cmd $package_manager -y install cronie
 elif [ "$OS" = "Debian" ]; then
     printf "\033[37m\n * Installing dependences...\n\033[0m\n"
     which curl &> /dev/null || ($sudo_cmd apt-get update ; $sudo_cmd apt-get install -y --force-yes curl)
+    which crontab &> /dev/null || ($sudo_cmd apt-get update ; $sudo_cmd apt-get install -y --force-yes cron)
 else
     printf "\033[31mYour OS or distribution are not supported by this install script.\033[0m\n"
     exit;

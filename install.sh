@@ -3,6 +3,8 @@
 # (C) Releem, Inc 2022
 # All rights reserved
 
+export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+
 # Releem installation script: install and set up the Releem Agent on supported Linux distributions
 # using the package manager.
 
@@ -26,8 +28,6 @@ mknod $npipe p
 tee <$npipe $logfile &
 exec 1>&-
 exec 1>$npipe 2>&1
-
-export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
 
 function on_exit() {
     curl -s -L -d @$logfile -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v2/events/saving_log

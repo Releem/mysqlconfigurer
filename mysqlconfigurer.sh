@@ -3,6 +3,8 @@
 # (C) Releem, Inc 2022
 # All rights reserved
 
+export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+
 # Variables
 MYSQLCONFIGURER_PATH="/opt/releem/conf/"
 RELEEM_CONF_FILE="/opt/releem/releem.conf"
@@ -24,8 +26,6 @@ mknod $npipe p
 tee <$npipe $logfile &
 exec 1>&-
 exec 1>$npipe 2>&1
-
-export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
 
 function on_exit() {
     curl -s -L -d @$logfile -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v2/events/configurer_log

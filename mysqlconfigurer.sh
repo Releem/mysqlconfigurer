@@ -25,6 +25,8 @@ tee <$npipe $logfile &
 exec 1>&-
 exec 1>$npipe 2>&1
 
+export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+
 function on_exit() {
     curl -s -L -d @$logfile -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v2/events/configurer_log
     rm -f $npipe
@@ -202,6 +204,7 @@ function releem_ps_mysql() {
         echo "slow_query_log = 1" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
         if [ -n "$RELEEM_QUERY_OPTIMIZATION" -a "$RELEEM_QUERY_OPTIMIZATION" = true ]; then
             echo "performance-schema-consumer-events-statements-history = ON" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+            echo "performance-schema-consumer-events-statements-current = ON" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
             echo "performance_schema_events_statements_history_size = 500" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
         fi        
         chmod 644 $RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf

@@ -166,7 +166,7 @@ function releem_rollback_config() {
     wait_restart $!
     RESTART_CODE=$?
 
-    #if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
+    #if [[ $($mysqladmincmd  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     if [ $RESTART_CODE -eq 0 ];
     then
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m The MySQL service restarted successfully!\033[0m\n"
@@ -186,12 +186,12 @@ function releem_rollback_config() {
 
 function releem_ps_mysql() {
     FLAG_CONFIGURE=1
-    status_ps=$(mysql  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'performance_schema'" 2>/dev/null | awk '{print $2}')
+    status_ps=$($mysqlcmd  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'performance_schema'" 2>/dev/null | awk '{print $2}')
     if [ "$status_ps" != "ON" ]; then
         FLAG_CONFIGURE=0
     fi
 
-    status_slowlog=$(mysql  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'slow_query_log'" 2>/dev/null | awk '{print $2}')
+    status_slowlog=$($mysqlcmd  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'slow_query_log'" 2>/dev/null | awk '{print $2}')
     if [ "$status_slowlog" != "ON" ]; then
         FLAG_CONFIGURE=0
     fi
@@ -241,7 +241,7 @@ function releem_ps_mysql() {
     wait_restart $!
     RESTART_CODE=$?
 
-    #if [[ $(mysqladmin  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
+    #if [[ $($mysqladmincmd  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     if [ $RESTART_CODE -eq 0 ];
     then
         printf "\033[32m\n The MySQL service restarted successfully!\033[0m\n"
@@ -576,6 +576,30 @@ function get_config() {
   fi
 
 }
+
+mysqladmincmd=$(which  mariadb-admin)
+if [ -z $mysqladmincmd ];
+then
+    mysqladmincmd=$(which  mysqladmin)
+fi
+if [ -z $mysqladmincmd ];
+then
+    printf "\033[31m Couldn't find mysqladmin/mariadb-admin in your \$PATH. Is MySQL installed? \033[0m\n"
+    exit 1
+fi
+echo "$mysqladmincmd"
+mysqlcmd=$(which  mariadb)
+if [ -z $mysqlcmd ];
+then
+    mysqlcmd=$(which  mysql)
+fi
+if [ -z $mysqlcmd ];
+then
+    printf "\033[31m Couldn't find mysql/mariadb in your \$PATH. Is MySQL installed? \033[0m\n"
+    exit 1
+fi
+echo "$mysqlcmd"
+
 connection_string=""
 if test -f $RELEEM_CONF_FILE ; then
     . $RELEEM_CONF_FILE

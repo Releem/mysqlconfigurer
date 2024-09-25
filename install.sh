@@ -112,8 +112,6 @@ if [ -z $mysqladmincmd ];
 then
     mysqladmincmd=$(which  mysqladmin || true)
 fi
-echo "$mysqladmincmd"
-
 if [ -z $mysqladmincmd ];
 then
     printf "\033[31m Couldn't find mysqladmin/mariadb-admin in your \$PATH. Is MySQL installed? \033[0m\n"
@@ -125,7 +123,6 @@ if [ -z $mysqlcmd ];
 then
     mysqlcmd=$(which  mysql || true)
 fi
-echo "$mysqlcmd"
 if [ -z $mysqlcmd ];
 then
     printf "\033[31m Couldn't find mysql/mariadb in your \$PATH. Is MySQL installed? \033[0m\n"

@@ -587,7 +587,7 @@ then
     printf "\033[31m Couldn't find mysqladmin/mariadb-admin in your \$PATH. Is MySQL installed? \033[0m\n"
     exit 1
 fi
-echo "$mysqladmincmd"
+
 mysqlcmd=$(which  mariadb)
 if [ -z $mysqlcmd ];
 then
@@ -598,7 +598,6 @@ then
     printf "\033[31m Couldn't find mysql/mariadb in your \$PATH. Is MySQL installed? \033[0m\n"
     exit 1
 fi
-echo "$mysqlcmd"
 
 connection_string=""
 if test -f $RELEEM_CONF_FILE ; then

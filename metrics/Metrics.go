@@ -96,3 +96,9 @@ func HandlePanic(configuration *config.Config, logger logging.Logger) {
 		sender.ProcessErrors(fmt.Sprintf("%+v", err))
 	}
 }
+
+type SqlTextType struct {
+	CURRENT_SCHEMA string
+	DIGEST         string
+	SQL_TEXT       string
+}

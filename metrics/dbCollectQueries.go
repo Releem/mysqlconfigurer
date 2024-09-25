@@ -60,7 +60,21 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 						DbCollectQueriesOptimization.logger.Error(err)
 						return err
 					}
-					output_digest[query_id] = MetricGroupValue{"schema_name": schema_name, "query_id": query_id, "query": query, "calls": calls, "avg_time_us": avg_time_us, "sum_time_us": sum_time_us, "SUM_LOCK_TIME": SUM_LOCK_TIME, "SUM_ERRORS": SUM_ERRORS, "SUM_WARNINGS": SUM_WARNINGS, "SUM_ROWS_AFFECTED": SUM_ROWS_AFFECTED, "SUM_ROWS_SENT": SUM_ROWS_SENT, "SUM_ROWS_EXAMINED": SUM_ROWS_EXAMINED, "SUM_CREATED_TMP_DISK_TABLES": SUM_CREATED_TMP_DISK_TABLES, "SUM_CREATED_TMP_TABLES": SUM_CREATED_TMP_TABLES, "SUM_SELECT_FULL_JOIN": SUM_SELECT_FULL_JOIN, "SUM_SELECT_FULL_RANGE_JOIN": SUM_SELECT_FULL_RANGE_JOIN, "SUM_SELECT_RANGE": SUM_SELECT_RANGE, "SUM_SELECT_RANGE_CHECK": SUM_SELECT_RANGE_CHECK, "SUM_SELECT_SCAN": SUM_SELECT_SCAN, "SUM_SORT_MERGE_PASSES": SUM_SORT_MERGE_PASSES, "SUM_SORT_RANGE": SUM_SORT_RANGE, "SUM_SORT_ROWS": SUM_SORT_ROWS, "SUM_SORT_SCAN": SUM_SORT_SCAN, "SUM_NO_INDEX_USED": SUM_NO_INDEX_USED, "SUM_NO_GOOD_INDEX_USED": SUM_NO_GOOD_INDEX_USED}
+					config.SqlTextMutex.RLock()
+					_, ok_schema_name := config.SqlText[schema_name]
+					_, ok_query_id := config.SqlText[schema_name][query_id]
+
+					if ok_schema_name && ok_query_id {
+						query_text = config.SqlText[schema_name][query_id]
+					} else {
+						query_text = ""
+					}
+					config.SqlTextMutex.RUnlock()
+					output_digest[query_id] = MetricGroupValue{"schema_name": schema_name, "query_id": query_id, "query": query, "query_text": query_text, "calls": calls, "avg_time_us": avg_time_us, "sum_time_us": sum_time_us, "SUM_LOCK_TIME": SUM_LOCK_TIME, "SUM_ERRORS": SUM_ERRORS, "SUM_WARNINGS": SUM_WARNINGS, "SUM_ROWS_AFFECTED": SUM_ROWS_AFFECTED, "SUM_ROWS_SENT": SUM_ROWS_SENT, "SUM_ROWS_EXAMINED": SUM_ROWS_EXAMINED, "SUM_CREATED_TMP_DISK_TABLES": SUM_CREATED_TMP_DISK_TABLES, "SUM_CREATED_TMP_TABLES": SUM_CREATED_TMP_TABLES, "SUM_SELECT_FULL_JOIN": SUM_SELECT_FULL_JOIN, "SUM_SELECT_FULL_RANGE_JOIN": SUM_SELECT_FULL_RANGE_JOIN, "SUM_SELECT_RANGE": SUM_SELECT_RANGE, "SUM_SELECT_RANGE_CHECK": SUM_SELECT_RANGE_CHECK, "SUM_SELECT_SCAN": SUM_SELECT_SCAN, "SUM_SORT_MERGE_PASSES": SUM_SORT_MERGE_PASSES, "SUM_SORT_RANGE": SUM_SORT_RANGE, "SUM_SORT_ROWS": SUM_SORT_ROWS, "SUM_SORT_SCAN": SUM_SORT_SCAN, "SUM_NO_INDEX_USED": SUM_NO_INDEX_USED, "SUM_NO_GOOD_INDEX_USED": SUM_NO_GOOD_INDEX_USED}
+				}
+				if DbCollectQueriesOptimization.configuration.QueryOptimization {
+					CollectionExplain(output_digest, "sum_time_us", DbCollectQueriesOptimization.logger, DbCollectQueriesOptimization.configuration, true)
+					CollectionExplain(output_digest, "avg_time_us", DbCollectQueriesOptimization.logger, DbCollectQueriesOptimization.configuration, true)
 				}
 			}
 
@@ -74,8 +88,8 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 				output_digest[query_id] = MetricGroupValue{"schema_name": schema_name, "query_id": query_id, "query": query, "query_text": query_text, "calls": calls, "avg_time_us": avg_time_us, "sum_time_us": sum_time_us, "SUM_LOCK_TIME": SUM_LOCK_TIME, "SUM_ERRORS": SUM_ERRORS, "SUM_WARNINGS": SUM_WARNINGS, "SUM_ROWS_AFFECTED": SUM_ROWS_AFFECTED, "SUM_ROWS_SENT": SUM_ROWS_SENT, "SUM_ROWS_EXAMINED": SUM_ROWS_EXAMINED, "SUM_CREATED_TMP_DISK_TABLES": SUM_CREATED_TMP_DISK_TABLES, "SUM_CREATED_TMP_TABLES": SUM_CREATED_TMP_TABLES, "SUM_SELECT_FULL_JOIN": SUM_SELECT_FULL_JOIN, "SUM_SELECT_FULL_RANGE_JOIN": SUM_SELECT_FULL_RANGE_JOIN, "SUM_SELECT_RANGE": SUM_SELECT_RANGE, "SUM_SELECT_RANGE_CHECK": SUM_SELECT_RANGE_CHECK, "SUM_SELECT_SCAN": SUM_SELECT_SCAN, "SUM_SORT_MERGE_PASSES": SUM_SORT_MERGE_PASSES, "SUM_SORT_RANGE": SUM_SORT_RANGE, "SUM_SORT_ROWS": SUM_SORT_ROWS, "SUM_SORT_SCAN": SUM_SORT_SCAN, "SUM_NO_INDEX_USED": SUM_NO_INDEX_USED, "SUM_NO_GOOD_INDEX_USED": SUM_NO_GOOD_INDEX_USED}
 			}
 			if DbCollectQueriesOptimization.configuration.QueryOptimization {
-				CollectionExplain(output_digest, "sum_time_us", DbCollectQueriesOptimization.logger, DbCollectQueriesOptimization.configuration)
-				CollectionExplain(output_digest, "avg_time_us", DbCollectQueriesOptimization.logger, DbCollectQueriesOptimization.configuration)
+				CollectionExplain(output_digest, "sum_time_us", DbCollectQueriesOptimization.logger, DbCollectQueriesOptimization.configuration, false)
+				CollectionExplain(output_digest, "avg_time_us", DbCollectQueriesOptimization.logger, DbCollectQueriesOptimization.configuration, false)
 			}
 		}
 		for _, value := range output_digest {
@@ -362,8 +376,8 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 
 }
 
-func CollectionExplain(digests map[string]MetricGroupValue, field_sorting string, logger logging.Logger, configuration *config.Config) {
-	var explain, schema_name_conn string
+func CollectionExplain(digests map[string]MetricGroupValue, field_sorting string, logger logging.Logger, configuration *config.Config, is_mysql57 bool) {
+	var explain, schema_name_conn, query_text string
 	var i int
 	var db *sql.DB
 
@@ -385,6 +399,13 @@ func CollectionExplain(digests map[string]MetricGroupValue, field_sorting string
 			(strings.Contains(digests[k]["query_text"].(string), "SELECT") || strings.Contains(digests[k]["query_text"].(string), "select")) &&
 			digests[k]["explain"] == nil {
 
+			if digests[k]["query_text"].(string) == "" {
+				continue
+			}
+			if strings.Contains(digests[k]["query_text"].(string), "EXPLAIN FORMAT=JSON") {
+				continue
+			}
+
 			if (strings.Contains(digests[k]["query_text"].(string), "SELECT") || strings.Contains(digests[k]["query_text"].(string), "select")) &&
 				strings.Contains(digests[k]["query_text"].(string), "SQL_NO_CACHE") &&
 				!(strings.Contains(digests[k]["query_text"].(string), "WHERE") || strings.Contains(digests[k]["query_text"].(string), "where")) {
@@ -392,7 +413,7 @@ func CollectionExplain(digests map[string]MetricGroupValue, field_sorting string
 				continue
 			}
 
-			if strings.HasSuffix(digests[k]["query_text"].(string), "...") {
+			if strings.HasSuffix(digests[k]["query"].(string), "...") || strings.HasSuffix(digests[k]["query_text"].(string), "...") {
 				digests[k]["explain"] = "need_full_query"
 				logger.Debug("need_full_query") //, digests[k]["query_text"].(string))
 				continue
@@ -405,11 +426,14 @@ func CollectionExplain(digests map[string]MetricGroupValue, field_sorting string
 				defer db.Close()
 				schema_name_conn = digests[k]["schema_name"].(string)
 			}
-			err := db.QueryRow("EXPLAIN FORMAT=JSON " + strings.Replace(digests[k]["query_text"].(string), "\"", "'", -1)).Scan(&explain)
+			if is_mysql57 {
+				query_text = strings.Replace(digests[k]["query_text"].(string), "\"", "`", -1)
+			} else {
+				query_text = strings.Replace(digests[k]["query_text"].(string), "\"", "'", -1)
+			}
+			err := db.QueryRow("EXPLAIN FORMAT=JSON " + query_text).Scan(&explain)
 			if err != nil {
-				logger.DebugError("Explain Error", err)
-				//logger.Println(digests[k]["query_text"].(string))
-				//digests[k]["explain"] = err.Error()
+				logger.PrintError("Explain Error", err)
 			} else {
 				logger.Debug(i, "OK")
 				digests[k]["explain"] = explain

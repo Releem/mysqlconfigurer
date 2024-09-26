@@ -132,10 +132,6 @@ function releem_rollback_config() {
         printf "\033[37m\n * Try to reinstall Releem Agent, and please set the my.cnf location.\033[0m"
         exit 3;
     fi
-    if [ -z "$RELEEM_MYSQL_RESTART_SERVICE" ]; then
-        printf "\033[37m\n * The command to restart the MySQL service was not found. Try to reinstall Releem Agent.\033[0m"
-        exit 4;
-    fi
 
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
@@ -161,6 +157,10 @@ function releem_rollback_config() {
         cp -f "${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}.bkp" "${RELEEM_MYSQL_CONFIG_DIR}/${MYSQLCONFIGURER_FILE_NAME}"
     fi
 
+    if [ -z "$RELEEM_MYSQL_RESTART_SERVICE" ]; then
+        printf "\033[37m\n * The command to restart the MySQL service was not found. Try to reinstall Releem Agent.\033[0m"
+        exit 4;
+    fi
     printf "\033[31m\n * Restarting with command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
     eval "$RELEEM_MYSQL_RESTART_SERVICE" &
     wait_restart $!
@@ -295,10 +295,6 @@ function releem_apply_manual() {
         printf "\033[37m\n * Try to reinstall Releem Agent, and please set the my.cnf location.\033[0m"
         exit 3;
     fi
-    if [ -z "$RELEEM_MYSQL_RESTART_SERVICE" ]; then
-        printf "\033[37m\n * The command to restart the MySQL service was not found. Try to reinstall Releem Agent.\033[0m"
-        exit 4;
-    fi
     diff_cmd=$(which diff || true)
     if [ -n "$diff_cmd" ];then
         diff "${RELEEM_MYSQL_CONFIG_DIR}/${MYSQLCONFIGURER_FILE_NAME}" "$MYSQLCONFIGURER_CONFIGFILE" > /dev/null 2>&1
@@ -332,6 +328,10 @@ function releem_apply_manual() {
     fi    
     yes | cp -fr $MYSQLCONFIGURER_CONFIGFILE $RELEEM_MYSQL_CONFIG_DIR/
     chmod 644 $RELEEM_MYSQL_CONFIG_DIR/*
+    if [ -z "$RELEEM_MYSQL_RESTART_SERVICE" ]; then
+        printf "\033[37m\n * The command to restart the MySQL service was not found. Try to reinstall Releem Agent.\033[0m"
+        exit 4;
+    fi
 
     #echo "-------Test config-------"
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Restarting MySQL with the command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
@@ -384,10 +384,6 @@ function releem_apply_automatic() {
         printf "\033[37m\n * Try to reinstall Releem Agent, and please set the my.cnf location.\033[0m"
         exit 3;
     fi
-    if [ -z "$RELEEM_MYSQL_RESTART_SERVICE" ]; then
-        printf "\033[37m\n * The command to restart the MySQL service was not found. Try to reinstall Releem Agent.\033[0m"
-        exit 4;
-    fi
 
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
@@ -411,6 +407,10 @@ function releem_apply_automatic() {
     chmod 644 $RELEEM_MYSQL_CONFIG_DIR/*
 
     if [ "$FLAG_RESTART_SERVICE" -ne 0 ]; then
+        if [ -z "$RELEEM_MYSQL_RESTART_SERVICE" ]; then
+            printf "\033[37m\n * The command to restart the MySQL service was not found. Try to reinstall Releem Agent.\033[0m"
+            exit 4;
+        fi    
         #echo "-------Test config-------"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Restarting MySQL with the command '$RELEEM_MYSQL_RESTART_SERVICE'...\033[0m\n"
         eval "$RELEEM_MYSQL_RESTART_SERVICE" &

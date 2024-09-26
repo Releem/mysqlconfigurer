@@ -4,6 +4,7 @@
 # All rights reserved
 
 export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+export EXTEND_TIMEOUT_USEC=18000000000
 
 # Variables
 MYSQLCONFIGURER_PATH="/opt/releem/conf/"

@@ -27,13 +27,13 @@ func (repeater ReleemErrorsRepeater) ProcessErrors(message string) interface{} {
 		env = "prod"
 	}
 	if env == "dev2" {
-		api_domain = "https://api.dev2.releem.com/v2/events/saving_agent_errors_log"
+		api_domain = "https://api.dev2.releem.com/v2/events/agent_errors_log"
 	} else if env == "dev" {
-		api_domain = "https://api.dev.releem.com/v2/events/saving_agent_errors_log"
+		api_domain = "https://api.dev.releem.com/v2/events/agent_errors_log"
 	} else if env == "stage" {
-		api_domain = "https://api.stage.releem.com/v2/events/saving_agent_errors_log"
+		api_domain = "https://api.stage.releem.com/v2/events/agent_errors_log"
 	} else {
-		api_domain = "https://api.releem.com/v2/events/saving_agent_errors_log"
+		api_domain = "https://api.releem.com/v2/events/agent_errors_log"
 	}
 	req, err := http.NewRequest(http.MethodPost, api_domain, bodyReader)
 	if err != nil {

@@ -10,7 +10,7 @@ export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/
 
 set -e -E
 install_script_version=1.19.2
-logfile="releem-install.log"
+logfile="/var/log/releem-install.log"
 
 WORKDIR="/opt/releem"
 CONF="$WORKDIR/releem.conf"

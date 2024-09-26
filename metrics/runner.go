@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -37,7 +38,6 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 		}
 	}
 
-	logger.Debug(configuration)
 	if (Mode.Name == "Configurations" && Mode.ModeType != "default") || Mode.Name == "Event" || Mode.Name == "TaskSet" {
 		GenerateTimer = time.NewTimer(0 * time.Second)
 		timer = time.NewTimer(3600 * time.Second)
@@ -45,9 +45,14 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 		GenerateTimer = time.NewTimer(configuration.GenerateConfigPeriod * time.Second)
 		timer = time.NewTimer(1 * time.Second)
 	}
-	QueryOptimizationTimer = time.NewTimer(10 * time.Second)
+	QueryOptimizationTimer = time.NewTimer(60 * time.Second)
+	QueryOptimizationCollectSqlText := time.NewTimer(1 * time.Second)
+	config.SqlText = make(map[string]map[string]string)
+	config.SqlTextMutex = sync.RWMutex{}
+
 	if !configuration.QueryOptimization {
 		QueryOptimizationTimer.Stop()
+		QueryOptimizationCollectSqlText.Stop()
 	}
 	terminator := makeTerminateChannel()
 	for {
@@ -113,8 +118,33 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 				}
 				logger.Println("Saved a queries...")
 			}()
+		case <-QueryOptimizationCollectSqlText.C:
+			QueryOptimizationCollectSqlText.Reset(configuration.QueryOptimizationCollectSqlTextPeriod * time.Second)
+			go func() {
+				defer HandlePanic(configuration, logger)
+				Ready = false
+				var SqlText_elem SqlTextType
+				rows, err := config.DB.Query("SELECT CURRENT_SCHEMA, DIGEST, SQL_TEXT FROM performance_schema.events_statements_history WHERE DIGEST IS NOT NULL AND CURRENT_SCHEMA IS NOT NULL GROUP BY current_schema, digest")
+				if err != nil {
+					logger.Error(err)
+				} else {
+					for rows.Next() {
+						err := rows.Scan(&SqlText_elem.CURRENT_SCHEMA, &SqlText_elem.DIGEST, &SqlText_elem.SQL_TEXT)
+						if err != nil {
+							logger.Error(err)
+						} else {
+							config.SqlTextMutex.Lock()
+							if config.SqlText[SqlText_elem.CURRENT_SCHEMA] == nil {
+								config.SqlText[SqlText_elem.CURRENT_SCHEMA] = make(map[string]string)
+							}
+							config.SqlText[SqlText_elem.CURRENT_SCHEMA][SqlText_elem.DIGEST] = SqlText_elem.SQL_TEXT
+							config.SqlTextMutex.Unlock()
+						}
+					}
+				}
+
+			}()
 		}
-		logger.Info("LOOP")
 	}
 }
 

@@ -16,7 +16,7 @@ MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
 MYSQL_MEMORY_LIMIT=0
 VERSION="1.19.2"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
-logfile="releem-mysqlconfigurer.log"
+logfile="/var/log/releem-mysqlconfigurer.log"
 
 # Set up a named pipe for logging
 npipe=/tmp/$$.mysqlconfigurer.tmp

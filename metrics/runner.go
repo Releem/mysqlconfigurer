@@ -61,7 +61,7 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 			logger.Info("Exiting")
 			os.Exit(0)
 		case <-timer.C:
-			logger.Println("Starting collection of data for saving a metrics...", timer)
+			logger.Println("Starting collection of data for saving a metrics...")
 			timer.Reset(configuration.MetricsPeriod * time.Second)
 			go func() {
 				defer HandlePanic(configuration, logger)
@@ -77,9 +77,9 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 				}
 				logger.Println("Saved a metrics...")
 			}()
-			logger.Println("End collection of metrics for saving a metrics...", timer)
+			logger.Println("End collection of metrics for saving a metrics...")
 		case <-GenerateTimer.C:
-			logger.Println("Starting collection of data for generating a config...", GenerateTimer)
+			logger.Println("Starting collection of data for generating a config...")
 			GenerateTimer.Reset(configuration.GenerateConfigPeriod * time.Second)
 			go func() {
 				var metrics Metrics
@@ -104,9 +104,9 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 				}
 				logger.Println("Saved a config...")
 			}()
-			logger.Println("End collection of metrics for saving a metrics...", GenerateTimer)
+			logger.Println("End collection of metrics for saving a metrics...")
 		case <-QueryOptimizationTimer.C:
-			logger.Println("Starting collection of data for queries optimization...", GenerateTimer)
+			logger.Println("Starting collection of data for queries optimization...")
 			QueryOptimizationTimer.Reset(configuration.QueryOptimizationPeriod * time.Second)
 			go func() {
 				defer HandlePanic(configuration, logger)
@@ -283,6 +283,7 @@ func processTask(metrics Metrics, repeaters MetricsRepeater, gatherers []Metrics
 					output["task_exit_code"] = 10
 				}
 			}
+			time.Sleep(10 * time.Second)
 			metrics = collectMetrics(gatherers, logger, configuration)
 		}
 	} else if TaskTypeID == 5 {

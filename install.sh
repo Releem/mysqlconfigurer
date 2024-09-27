@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 1.19.3
+# install.sh - Version 1.19.3.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -9,7 +9,7 @@ export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/
 # using the package manager.
 
 set -e -E
-install_script_version=1.19.3
+install_script_version=1.19.3.1
 logfile="/var/log/releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -107,10 +107,10 @@ if [ ! "$apikey" ]; then
     exit 1;
 fi
 
-mysqladmincmd=$(which  mariadb-admin || true)
+mysqladmincmd=$(which  mariadb-admin 2>/dev/null || true)
 if [ -z $mysqladmincmd ];
 then
-    mysqladmincmd=$(which  mysqladmin || true)
+    mysqladmincmd=$(which  mysqladmin 2>/dev/null || true)
 fi
 if [ -z $mysqladmincmd ];
 then
@@ -118,10 +118,10 @@ then
     exit 1
 fi
 
-mysqlcmd=$(which  mariadb || true)
+mysqlcmd=$(which  mariadb 2>/dev/null || true)
 if [ -z $mysqlcmd ];
 then
-    mysqlcmd=$(which  mysql || true)
+    mysqlcmd=$(which  mysql 2>/dev/null || true)
 fi
 if [ -z $mysqlcmd ];
 then

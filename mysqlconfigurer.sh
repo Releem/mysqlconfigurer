@@ -1,5 +1,5 @@
 #!/bin/bash
-# mysqlconfigurer.sh - Version 1.19.3
+# mysqlconfigurer.sh - Version 1.19.3.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -15,7 +15,7 @@ MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 RELEEM_MYSQL_VERSION=$MYSQLCONFIGURER_PATH"mysql_version"
 MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
 MYSQL_MEMORY_LIMIT=0
-VERSION="1.19.3"
+VERSION="1.19.3.1"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 logfile="/var/log/releem-mysqlconfigurer.log"
 
@@ -582,10 +582,10 @@ function get_config() {
 
 }
 
-mysqladmincmd=$(which  mariadb-admin)
+mysqladmincmd=$(which  mariadb-admin 2>/dev/null || true)
 if [ -z $mysqladmincmd ];
 then
-    mysqladmincmd=$(which  mysqladmin)
+    mysqladmincmd=$(which  mysqladmin 2>/dev/null || true)
 fi
 if [ -z $mysqladmincmd ];
 then
@@ -593,10 +593,10 @@ then
     exit 1
 fi
 
-mysqlcmd=$(which  mariadb)
+mysqlcmd=$(which  mariadb 2>/dev/null || true)
 if [ -z $mysqlcmd ];
 then
-    mysqlcmd=$(which  mysql)
+    mysqlcmd=$(which  mysql 2>/dev/null || true)
 fi
 if [ -z $mysqlcmd ];
 then

@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 1.19.3.1
+# install.sh - Version 1.19.3.2
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -9,7 +9,7 @@ export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/
 # using the package manager.
 
 set -e -E
-install_script_version=1.19.3.1
+install_script_version=1.19.3.2
 logfile="/var/log/releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -348,7 +348,7 @@ else
             printf "\033[31m\n This database version is too old.\033[0m\n"
         fi      
 
-        if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SYSTEM_VARIABLES_ADMIN ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
+        if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SYSTEM_VARIABLES_ADMIN ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 2>/dev/null
         then
             echo "Successfully GRANT" > /dev/null
         else

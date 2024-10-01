@@ -31,8 +31,8 @@ type Metrics struct {
 	DB struct {
 		Metrics struct {
 			Status             MetricGroupValue
-			TotalTables        string
-			TotalMyisamIndexes string
+			TotalTables        int
+			TotalMyisamIndexes int
 			Engine             map[string]MetricGroupValue
 			Latency            string
 			Databases          []string

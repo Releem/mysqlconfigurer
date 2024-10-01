@@ -244,10 +244,8 @@ func processTask(metrics Metrics, repeaters MetricsRepeater, gatherers []Metrics
 							need_restart = true
 						} else if strings.Contains(err.Error(), "Access denied") {
 							need_privileges = true
-							break
 						} else {
 							error_exist = true
-							break
 						}
 					} else {
 						need_flush = true

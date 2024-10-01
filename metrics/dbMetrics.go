@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"time"
+
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/advantageous/go-logback/logging"
 )
@@ -30,13 +32,13 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 	defer HandlePanic(DbMetrics.configuration, DbMetrics.logger)
 	//Total table
 	{
-		var row MetricValue
-		err := config.DB.QueryRow("SELECT COUNT(*) as count FROM information_schema.tables").Scan(&row.value)
+		var row int
+		err := config.DB.QueryRow("SELECT COUNT(*) as count FROM information_schema.tables").Scan(&row)
 		if err != nil {
 			DbMetrics.logger.Error(err)
 			return err
 		}
-		metrics.DB.Metrics.TotalTables = row.value
+		metrics.DB.Metrics.TotalTables = row
 	}
 	//list of databases
 	{
@@ -58,20 +60,12 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 		rows.Close()
 		metrics.DB.Metrics.Databases = output
 	}
-	// TotalMyisamIndexes
-	{
-		var row MetricValue
-		err := config.DB.QueryRow("SELECT IFNULL(SUM(INDEX_LENGTH), 0) FROM information_schema.TABLES WHERE TABLE_SCHEMA NOT IN ('information_schema') AND ENGINE = 'MyISAM'").Scan(&row.value)
-		if err != nil {
-			DbMetrics.logger.Error(err)
-			return err
-		}
-		metrics.DB.Metrics.TotalMyisamIndexes = row.value
-	}
 	//Stat mysql Engine
 	{
+		var engine_db, engineenabled string
+		var size, count, dsize, isize int
 		output := make(map[string]MetricGroupValue)
-		var engine_db, size, count, dsize, isize, engineenabled string
+		engine_elem := make(map[string]MetricGroupValue)
 
 		rows, err := config.DB.Query("SELECT ENGINE,SUPPORT FROM information_schema.ENGINES ORDER BY ENGINE ASC")
 		if err != nil {
@@ -85,28 +79,46 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 				return err
 			}
 			output[engine_db] = MetricGroupValue{"Enabled": engineenabled}
-			//output[engine_db]["Enabled"] = engineenabled
+			engine_elem[engine_db] = MetricGroupValue{"Table Number": 0, "Total Size": 0, "Data Size": 0, "Index Size": 0}
 		}
 		rows.Close()
-
-		rows, err = config.DB.Query("SELECT ENGINE, IFNULL(SUM(DATA_LENGTH+INDEX_LENGTH),0), IFNULL(COUNT(ENGINE),0), IFNULL(SUM(DATA_LENGTH),0), IFNULL(SUM(INDEX_LENGTH),0) FROM information_schema.TABLES WHERE TABLE_SCHEMA NOT IN ('information_schema', 'performance_schema', 'mysql') AND ENGINE IS NOT NULL  GROUP BY ENGINE ORDER BY ENGINE ASC")
-		if err != nil {
-			DbMetrics.logger.Error(err)
-			return err
-		}
-		for rows.Next() {
-			err := rows.Scan(&engine_db, &size, &count, &dsize, &isize)
+		i := 0
+		for _, database := range metrics.DB.Metrics.Databases {
+			if database == "information_schema" || database == "performance_schema" || database == "mysql" {
+				continue
+			}
+			rows, err = config.DB.Query(`SELECT ENGINE, IFNULL(SUM(DATA_LENGTH+INDEX_LENGTH), 0), IFNULL(COUNT(ENGINE), 0), IFNULL(SUM(DATA_LENGTH), 0), IFNULL(SUM(INDEX_LENGTH), 0) FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND ENGINE IS NOT NULL  GROUP BY ENGINE ORDER BY ENGINE ASC`, database)
 			if err != nil {
 				DbMetrics.logger.Error(err)
 				return err
 			}
-			engine_elem := MetricGroupValue{"Table Number": count, "Total Size": size, "Data Size": dsize, "Index Size": isize}
-			if _, ok := output[engine_db]; ok {
-				output[engine_db] = MapJoin(output[engine_db], engine_elem)
+			for rows.Next() {
+				err := rows.Scan(&engine_db, &size, &count, &dsize, &isize)
+				if err != nil {
+					DbMetrics.logger.Error(err)
+					return err
+				}
+				engine_elem[engine_db]["Table Number"] = engine_elem[engine_db]["Table Number"].(int) + count
+				engine_elem[engine_db]["Total Size"] = engine_elem[engine_db]["Total Size"].(int) + size
+				engine_elem[engine_db]["Data Size"] = engine_elem[engine_db]["Data Size"].(int) + dsize
+				engine_elem[engine_db]["Index Size"] = engine_elem[engine_db]["Index Size"].(int) + isize
+			}
+			rows.Close()
+			i += 1
+			if i%50 == 0 {
+				time.Sleep(3 * time.Second)
 			}
 		}
+		for k := range output {
+			output[k] = MapJoin(output[k], engine_elem[k])
+		}
+
 		metrics.DB.Metrics.Engine = output
-		rows.Close()
+		if metrics.DB.Metrics.Engine["MyISAM"] == nil {
+			metrics.DB.Metrics.TotalMyisamIndexes = 0
+		} else {
+			metrics.DB.Metrics.TotalMyisamIndexes = metrics.DB.Metrics.Engine["MyISAM"]["Index Size"].(int)
+		}
 	}
 
 	DbMetrics.logger.Debug("collectMetrics ", metrics.DB.Metrics)

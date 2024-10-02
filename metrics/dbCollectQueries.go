@@ -392,6 +392,9 @@ func CollectionExplain(digests map[string]MetricGroupValue, field_sorting string
 
 	for _, p := range pairs {
 		k := p[0].(string)
+		if i > 100 {
+			break
+		}
 
 		if digests[k]["schema_name"].(string) != "mysql" && digests[k]["schema_name"].(string) != "information_schema" &&
 			digests[k]["schema_name"].(string) != "performance_schema" && digests[k]["schema_name"].(string) != "NULL" &&
@@ -425,23 +428,56 @@ func CollectionExplain(digests map[string]MetricGroupValue, field_sorting string
 				defer db.Close()
 				schema_name_conn = digests[k]["schema_name"].(string)
 			}
-			if is_mysql57 {
-				query_text = strings.Replace(digests[k]["query_text"].(string), "\"", "`", -1)
-			} else {
-				query_text = strings.Replace(digests[k]["query_text"].(string), "\"", "'", -1)
-			}
-			err := db.QueryRow("EXPLAIN FORMAT=JSON " + query_text).Scan(&explain)
+
+			//Try exec EXPLAIN for origin query
+			err := db.QueryRow("EXPLAIN FORMAT=JSON " + digests[k]["query_text"].(string)).Scan(&explain)
 			if err != nil {
 				logger.PrintError("Explain Error", err)
+				if strings.Contains(err.Error(), "command denied to user") {
+					continue
+				}
+				logger.Error(digests[k]["query_text"].(string))
+
 			} else {
 				logger.Debug(i, "OK")
 				digests[k]["explain"] = explain
 				i = i + 1
+				continue
 			}
 
-			if i > 100 {
-				break
+			//Try exec EXPLAIN for  query with replace "\"" on "'"
+			query_text = strings.Replace(digests[k]["query_text"].(string), "\"", "'", -1)
+			err_1 := db.QueryRow("EXPLAIN FORMAT=JSON " + query_text).Scan(&explain)
+			if err_1 != nil {
+				logger.PrintError("Explain Error", err_1)
+				if strings.Contains(err_1.Error(), "command denied to user") {
+					continue
+				}
+				logger.Error(query_text)
+			} else {
+				logger.Debug(i, "OK")
+				digests[k]["explain"] = explain
+				i = i + 1
+				continue
 			}
+
+			//Try exec EXPLAIN for  query with replace "\"" on "`"
+			query_text = strings.Replace(digests[k]["query_text"].(string), "\"", "`", -1)
+			err_2 := db.QueryRow("EXPLAIN FORMAT=JSON " + query_text).Scan(&explain)
+			if err_2 != nil {
+				logger.PrintError("Explain Error", err_2)
+				if strings.Contains(err_2.Error(), "command denied to user") {
+					continue
+				}
+				logger.Error(query_text)
+
+			} else {
+				logger.Debug(i, "OK")
+				digests[k]["explain"] = explain
+				i = i + 1
+				continue
+			}
+
 		}
 	}
 }

@@ -98,6 +98,9 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 					DbMetrics.logger.Error(err)
 					return err
 				}
+				if engine_elem[engine_db]["Table Number"] == nil {
+					engine_elem[engine_db] = MetricGroupValue{"Table Number": 0, "Total Size": 0, "Data Size": 0, "Index Size": 0}
+				}
 				engine_elem[engine_db]["Table Number"] = engine_elem[engine_db]["Table Number"].(int) + count
 				engine_elem[engine_db]["Total Size"] = engine_elem[engine_db]["Total Size"].(int) + size
 				engine_elem[engine_db]["Data Size"] = engine_elem[engine_db]["Data Size"].(int) + dsize
@@ -105,7 +108,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 			}
 			rows.Close()
 			i += 1
-			if i%50 == 0 {
+			if i%25 == 0 {
 				time.Sleep(3 * time.Second)
 			}
 		}

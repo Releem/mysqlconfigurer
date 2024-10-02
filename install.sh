@@ -100,6 +100,10 @@ fi
 apikey=
 if [ -n "$RELEEM_API_KEY" ]; then
     apikey=$RELEEM_API_KEY
+else
+    if test -f $CONF ; then
+        . $CONF
+    fi
 fi
 
 if [ ! "$apikey" ]; then
@@ -161,16 +165,46 @@ else
     fi    
 fi
 
-
-
-
-
 # Root user detection
 if [ "$(echo "$UID")" = "0" ]; then
     sudo_cmd=''
 else
     sudo_cmd='sudo'
 fi
+
+#Enable Query Optimitsation
+if [ "$0" == "enable_query_optimization" ];
+then
+    $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON *.* TO 'releem'@'${mysql_user_host}';"
+    if [ -z "$query_optimization" ]; then
+        echo "query_optimization=true" | $sudo_cmd tee -a $CONF
+    fi    
+    
+    set +e
+    trap - ERR
+    releem_agent_stop=$($sudo_cmd $WORKDIR/releem-agent  stop)
+    releem_agent_start=$($sudo_cmd $WORKDIR/releem-agent  start)
+    if [ $? -eq 0 ]; then
+        printf "\033[32m\n Restarting Releem Agent - successful\033[0m\n"
+    else
+        echo $releem_agent_stop
+        echo $releem_agent_start
+        printf "\033[31m\n Restarting Releem Agent - failed\033[0m\n"
+    fi
+    trap on_error ERR
+    set -e
+    sleep 3
+    releem_agent_pid=$(pgrep releem-agent || true)
+    if [ -z "$releem_agent_pid" ]; then
+        printf "\033[31m\n The releem-agent process was not found! Check the system log for an error.\033[0m\n"
+        on_error
+        exit 1;
+    fi
+    # Enable perfomance schema
+    $sudo_cmd $RELEEM_COMMAND -p
+    exit 0
+fi
+
 
 # Parse parameters
 while getopts "u" option
@@ -363,7 +397,6 @@ else
         if [ -n $RELEEM_QUERY_OPTIMIZATION ]; 
         then
             $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
-            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT ALL ON releem.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
         fi        
 
         #$mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT, PROCESS,EXECUTE, REPLICATION CLIENT,SHOW DATABASES,SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"

@@ -40,26 +40,6 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 		}
 		metrics.DB.Metrics.TotalTables = row
 	}
-	//list of databases
-	{
-		var database string
-		var output []string
-		rows, err := config.DB.Query("SELECT table_schema FROM INFORMATION_SCHEMA.tables group BY table_schema")
-		if err != nil {
-			DbMetrics.logger.Error(err)
-			return err
-		}
-		for rows.Next() {
-			err := rows.Scan(&database)
-			if err != nil {
-				DbMetrics.logger.Error(err)
-				return err
-			}
-			output = append(output, database)
-		}
-		rows.Close()
-		metrics.DB.Metrics.Databases = output
-	}
 	//Stat mysql Engine
 	{
 		var engine_db, engineenabled string

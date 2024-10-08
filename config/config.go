@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	ReleemAgentVersion = "1.19.4.1"
+	ReleemAgentVersion = "1.19.4.2"
 )
 
 var (

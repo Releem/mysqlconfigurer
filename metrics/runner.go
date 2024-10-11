@@ -124,7 +124,7 @@ func RunWorker(gatherers []MetricsGatherer, gatherers_configuration []MetricsGat
 				defer HandlePanic(configuration, logger)
 				Ready = false
 				var SqlText_elem SqlTextType
-				rows, err := config.DB.Query("SELECT CURRENT_SCHEMA, DIGEST, SQL_TEXT FROM performance_schema.events_statements_history WHERE DIGEST IS NOT NULL AND CURRENT_SCHEMA IS NOT NULL GROUP BY current_schema, digest")
+				rows, err := config.DB.Query("SELECT CURRENT_SCHEMA, DIGEST, SQL_TEXT FROM performance_schema.events_statements_history WHERE DIGEST IS NOT NULL AND CURRENT_SCHEMA IS NOT NULL GROUP BY CURRENT_SCHEMA, DIGEST, SQL_TEXT")
 				if err != nil {
 					logger.Error(err)
 				} else {

@@ -423,7 +423,7 @@ func CollectionExplain(digests map[string]MetricGroupValue, field_sorting string
 				continue
 			}
 
-			if strings.HasSuffix(digests[k]["query"].(string), "...") || strings.HasSuffix(digests[k]["query_text"].(string), "...") {
+			if strings.HasSuffix(digests[k]["query_text"].(string), "...") {
 				digests[k]["explain"] = "need_full_query"
 				logger.Debug("need_full_query") //, digests[k]["query_text"].(string))
 				continue

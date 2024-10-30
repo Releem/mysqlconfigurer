@@ -2,6 +2,8 @@ package metrics
 
 import (
 	"github.com/Releem/mysqlconfigurer/config"
+	"github.com/Releem/mysqlconfigurer/models"
+	"github.com/Releem/mysqlconfigurer/utils"
 	"github.com/advantageous/go-logback/logging"
 )
 
@@ -26,12 +28,12 @@ func NewDbConfGatherer(logger logging.Logger, configuration *config.Config) *DbC
 	}
 }
 
-func (DbConf *DbConfGatherer) GetMetrics(metrics *Metrics) error {
-	defer HandlePanic(DbConf.configuration, DbConf.logger)
+func (DbConf *DbConfGatherer) GetMetrics(metrics *models.Metrics) error {
+	defer utils.HandlePanic(DbConf.configuration, DbConf.logger)
 
-	output := make(MetricGroupValue)
+	output := make(models.MetricGroupValue)
 
-	rows, err := config.DB.Query("SHOW VARIABLES")
+	rows, err := models.DB.Query("SHOW VARIABLES")
 	if err != nil {
 		DbConf.logger.Error(err)
 		DbConf.logger.Debug("collectMetrics ", output)
@@ -40,15 +42,16 @@ func (DbConf *DbConfGatherer) GetMetrics(metrics *Metrics) error {
 	defer rows.Close()
 
 	for rows.Next() {
-		var row MetricValue
-		if err := rows.Scan(&row.name, &row.value); err != nil {
+		var row models.MetricValue
+
+		if err := rows.Scan(&row.Name, &row.Value); err != nil {
 			DbConf.logger.Error(err)
 		}
-		output[row.name] = row.value
+		output[row.Name] = row.Value
 	}
 	rows.Close()
 
-	rows, err = config.DB.Query("SHOW GLOBAL VARIABLES")
+	rows, err = models.DB.Query("SHOW GLOBAL VARIABLES")
 	if err != nil {
 		DbConf.logger.Error(err)
 		DbConf.logger.Debug("collectMetrics ", output)
@@ -57,11 +60,11 @@ func (DbConf *DbConfGatherer) GetMetrics(metrics *Metrics) error {
 	defer rows.Close()
 
 	for rows.Next() {
-		var row MetricValue
-		if err := rows.Scan(&row.name, &row.value); err != nil {
+		var row models.MetricValue
+		if err := rows.Scan(&row.Name, &row.Value); err != nil {
 			DbConf.logger.Error(err)
 		}
-		output[row.name] = row.value
+		output[row.Name] = row.Value
 	}
 	metrics.DB.Conf.Variables = output
 	DbConf.logger.Debug("collectMetrics ", output)

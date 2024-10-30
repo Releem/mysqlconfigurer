@@ -3,12 +3,56 @@ package utils
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 
 	"github.com/Releem/mysqlconfigurer/config"
+	e "github.com/Releem/mysqlconfigurer/errors"
+	"github.com/Releem/mysqlconfigurer/models"
 	"github.com/advantageous/go-logback/logging"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/pkg/errors"
 )
+
+func ProcessRepeaters(metrics *models.Metrics, repeaters models.MetricsRepeater,
+	configuration *config.Config, logger logging.Logger, Mode models.ModeType) interface{} {
+	defer HandlePanic(configuration, logger)
+
+	result, err := repeaters.ProcessMetrics(configuration, *metrics, Mode)
+	if err != nil {
+		logger.PrintError("Repeater failed", err)
+	}
+	return result
+}
+
+func CollectMetrics(gatherers []models.MetricsGatherer, logger logging.Logger, configuration *config.Config) *models.Metrics {
+	defer HandlePanic(configuration, logger)
+	var metrics models.Metrics
+	for _, g := range gatherers {
+		err := g.GetMetrics(&metrics)
+		if err != nil {
+			logger.Error("Problem getting metrics from gatherer")
+			return nil
+		}
+	}
+	return &metrics
+}
+
+func HandlePanic(configuration *config.Config, logger logging.Logger) {
+	if r := recover(); r != nil {
+		err := errors.WithStack(fmt.Errorf("%v", r))
+		logger.Printf("%+v", err)
+		sender := e.NewReleemErrorsRepeater(configuration)
+		sender.ProcessErrors(fmt.Sprintf("%+v", err))
+	}
+}
+
+func MapJoin(map1, map2 models.MetricGroupValue) models.MetricGroupValue {
+	for k, v := range map2 {
+		map1[k] = v
+	}
+	return map1
+}
 
 func IsPath(path string, logger logging.Logger) bool {
 	result_path := strings.Index(path, "/")

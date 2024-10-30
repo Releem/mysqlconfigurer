@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/Releem/mysqlconfigurer/config"
+	"github.com/Releem/mysqlconfigurer/models"
+	"github.com/Releem/mysqlconfigurer/utils"
 	"github.com/advantageous/go-logback/logging"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
@@ -91,17 +93,16 @@ func NewOSMetricsGatherer(logger logging.Logger, configuration *config.Config) *
 // 	return 0
 // }
 
-func StructToMap(valueStruct string) MetricGroupValue {
-	var value_map MetricGroupValue
+func StructToMap(valueStruct string) models.MetricGroupValue {
+	var value_map models.MetricGroupValue
 
 	_ = json.Unmarshal([]byte(valueStruct), &value_map)
 	return value_map
 }
-func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
-	defer HandlePanic(OS.configuration, OS.logger)
-
-	info := make(MetricGroupValue)
-	metricsMap := make(MetricGroupValue)
+func (OS *OSMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
+	defer utils.HandlePanic(OS.configuration, OS.logger)
+	info := make(models.MetricGroupValue)
+	metricsMap := make(models.MetricGroupValue)
 
 	// if out, err := exec.Command("uname").Output(); err != nil {
 	// 	return err
@@ -120,16 +121,16 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 	VirtualMemory, _ := mem.VirtualMemory()
 	//info["VirtualMemory"] = StructToMap(VirtualMemory.String())
 	metricsMap["PhysicalMemory"] = StructToMap(VirtualMemory.String())
-	info["PhysicalMemory"] = MetricGroupValue{"total": VirtualMemory.Total}
-	info["PhysicalMemory"] = MapJoin(info["PhysicalMemory"].(MetricGroupValue), MetricGroupValue{"swapTotal": VirtualMemory.SwapTotal})
+	info["PhysicalMemory"] = models.MetricGroupValue{"total": VirtualMemory.Total}
+	info["PhysicalMemory"] = utils.MapJoin(info["PhysicalMemory"].(models.MetricGroupValue), models.MetricGroupValue{"swapTotal": VirtualMemory.SwapTotal})
 
 	//CPU Counts
 	CpuCounts, _ := cpu.Counts(true)
-	info["CPU"] = MetricGroupValue{"Counts": CpuCounts}
+	info["CPU"] = models.MetricGroupValue{"Counts": CpuCounts}
 
 	//OS host info
 	hostInfo, _ := host.Info()
-	hostInfoMap := MapJoin(StructToMap(hostInfo.String()), MetricGroupValue{"InstanceType": "local"})
+	hostInfoMap := utils.MapJoin(StructToMap(hostInfo.String()), models.MetricGroupValue{"InstanceType": "local"})
 	info["Host"] = hostInfoMap
 
 	// IOCounters, _ := disk.IOCounters()
@@ -137,9 +138,9 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 	// OS.logger.Debug("IOCounters ", IOCounters)
 
 	//Get partitions, for each pert get usage and io stat
-	var UsageArray, PartitionsArray, IOCountersArray []MetricGroupValue
+	var UsageArray, PartitionsArray, IOCountersArray []models.MetricGroupValue
 	var readCount, writeCount uint64
-	//:= make(MetricGroupValue)
+	//:= make(models.MetricGroupValue)
 	PartitionCheck := make(map[string]int)
 	Partitions, err := disk.Partitions(false)
 	if err != nil {
@@ -165,7 +166,7 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 				PartitionCheck[part.Device] = 1
 			}
 			OS.logger.Debug("IOCounters ", IOCounters)
-			IOCountersArray = append(IOCountersArray, MetricGroupValue{PartName: StructToMap(IOCounters[PartName].String())})
+			IOCountersArray = append(IOCountersArray, models.MetricGroupValue{PartName: StructToMap(IOCounters[PartName].String())})
 		}
 	}
 	OS.logger.Debug("PartitionCheck ", PartitionCheck)
@@ -184,12 +185,12 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *Metrics) error {
 	metricsMap["CPU"] = StructToMap(Avg.String())
 	OS.logger.Debug("Avg ", Avg)
 
-	// CpuUtilisation := float64(metrics.System.Metrics.CPU["load1"].(float64) / float64(info["CPU"].(MetricGroupValue)["Counts"].(int)))
+	// CpuUtilisation := float64(metrics.System.Metrics.CPU["load1"].(float64) / float64(info["CPU"].(models.MetricGroupValue)["Counts"].(int)))
 	// metrics.System.Metrics.CPU["CpuUtilisation"] = CpuUtilisation
-	// info["Cpu"] = MetricGroupValue{"CpuUtilisation": (info["Avg"].(MetricGroupValue)["load1"].(float64) / float64(info["Cpu"].(MetricGroupValue)["Counts"].(int)))}
+	// info["Cpu"] = models.MetricGroupValue{"CpuUtilisation": (info["Avg"].(models.MetricGroupValue)["load1"].(float64) / float64(info["Cpu"].(models.MetricGroupValue)["Counts"].(int)))}
 
 	//Calc iops read and write as io count / uptime
-	metricsMap["IOP"] = MetricGroupValue{"IOPRead": float64(readCount), "IOPWrite": float64(writeCount)}
+	metricsMap["IOP"] = models.MetricGroupValue{"IOPRead": float64(readCount), "IOPWrite": float64(writeCount)}
 
 	metrics.System.Info = info
 	metrics.System.Metrics = metricsMap

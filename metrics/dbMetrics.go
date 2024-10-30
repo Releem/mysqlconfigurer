@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/Releem/mysqlconfigurer/config"
+	"github.com/Releem/mysqlconfigurer/models"
+	"github.com/Releem/mysqlconfigurer/utils"
 	"github.com/advantageous/go-logback/logging"
 )
 
@@ -28,12 +30,12 @@ func NewDbMetricsGatherer(logger logging.Logger, configuration *config.Config) *
 	}
 }
 
-func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
-	defer HandlePanic(DbMetrics.configuration, DbMetrics.logger)
+func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
+	defer utils.HandlePanic(DbMetrics.configuration, DbMetrics.logger)
 	//Total table
 	{
 		var row int
-		err := config.DB.QueryRow("SELECT COUNT(*) as count FROM information_schema.tables").Scan(&row)
+		err := models.DB.QueryRow("SELECT COUNT(*) as count FROM information_schema.tables").Scan(&row)
 		if err != nil {
 			DbMetrics.logger.Error(err)
 			return err
@@ -44,10 +46,10 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 	{
 		var engine_db, engineenabled string
 		var size, count, dsize, isize int
-		output := make(map[string]MetricGroupValue)
-		engine_elem := make(map[string]MetricGroupValue)
+		output := make(map[string]models.MetricGroupValue)
+		engine_elem := make(map[string]models.MetricGroupValue)
 
-		rows, err := config.DB.Query("SELECT ENGINE,SUPPORT FROM information_schema.ENGINES ORDER BY ENGINE ASC")
+		rows, err := models.DB.Query("SELECT ENGINE,SUPPORT FROM information_schema.ENGINES ORDER BY ENGINE ASC")
 		if err != nil {
 			DbMetrics.logger.Error(err)
 			return err
@@ -58,8 +60,8 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 				DbMetrics.logger.Error(err)
 				return err
 			}
-			output[engine_db] = MetricGroupValue{"Enabled": engineenabled}
-			engine_elem[engine_db] = MetricGroupValue{"Table Number": 0, "Total Size": 0, "Data Size": 0, "Index Size": 0}
+			output[engine_db] = models.MetricGroupValue{"Enabled": engineenabled}
+			engine_elem[engine_db] = models.MetricGroupValue{"Table Number": 0, "Total Size": 0, "Data Size": 0, "Index Size": 0}
 		}
 		rows.Close()
 		i := 0
@@ -67,7 +69,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 			if database == "information_schema" || database == "performance_schema" || database == "mysql" {
 				continue
 			}
-			rows, err = config.DB.Query(`SELECT ENGINE, IFNULL(SUM(DATA_LENGTH+INDEX_LENGTH), 0), IFNULL(COUNT(ENGINE), 0), IFNULL(SUM(DATA_LENGTH), 0), IFNULL(SUM(INDEX_LENGTH), 0) FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND ENGINE IS NOT NULL  GROUP BY ENGINE ORDER BY ENGINE ASC`, database)
+			rows, err = models.DB.Query(`SELECT ENGINE, IFNULL(SUM(DATA_LENGTH+INDEX_LENGTH), 0), IFNULL(COUNT(ENGINE), 0), IFNULL(SUM(DATA_LENGTH), 0), IFNULL(SUM(INDEX_LENGTH), 0) FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND ENGINE IS NOT NULL  GROUP BY ENGINE ORDER BY ENGINE ASC`, database)
 			if err != nil {
 				DbMetrics.logger.Error(err)
 				return err
@@ -79,7 +81,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 					return err
 				}
 				if engine_elem[engine_db]["Table Number"] == nil {
-					engine_elem[engine_db] = MetricGroupValue{"Table Number": 0, "Total Size": 0, "Data Size": 0, "Index Size": 0}
+					engine_elem[engine_db] = models.MetricGroupValue{"Table Number": 0, "Total Size": 0, "Data Size": 0, "Index Size": 0}
 				}
 				engine_elem[engine_db]["Table Number"] = engine_elem[engine_db]["Table Number"].(int) + count
 				engine_elem[engine_db]["Total Size"] = engine_elem[engine_db]["Total Size"].(int) + size
@@ -93,7 +95,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *Metrics) error {
 			}
 		}
 		for k := range output {
-			output[k] = MapJoin(output[k], engine_elem[k])
+			output[k] = utils.MapJoin(output[k], engine_elem[k])
 		}
 
 		metrics.DB.Metrics.Engine = output

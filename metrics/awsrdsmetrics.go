@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/Releem/mysqlconfigurer/config"
+	"github.com/Releem/mysqlconfigurer/models"
+	"github.com/Releem/mysqlconfigurer/utils"
 	"github.com/advantageous/go-logback/logging"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -70,11 +72,11 @@ func NewAWSRDSMetricsGatherer(logger logging.Logger, cwclient *cloudwatch.Client
 	}
 }
 
-func (awsrdsmetrics *AWSRDSMetricsGatherer) GetMetrics(metrics *Metrics) error {
-	defer HandlePanic(awsrdsmetrics.configuration, awsrdsmetrics.logger)
+func (awsrdsmetrics *AWSRDSMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
+	defer utils.HandlePanic(awsrdsmetrics.configuration, awsrdsmetrics.logger)
 
 	MetricDataQueries := []types.MetricDataQuery{}
-	output := make(MetricGroupValue)
+	output := make(models.MetricGroupValue)
 
 	// Prepare request to CloudWatch
 	for _, metric := range rdsMetrics {

@@ -6,6 +6,8 @@ import (
 	"strconv"
 
 	"github.com/Releem/mysqlconfigurer/config"
+	"github.com/Releem/mysqlconfigurer/models"
+	"github.com/Releem/mysqlconfigurer/utils"
 	"github.com/advantageous/go-logback/logging"
 )
 
@@ -30,51 +32,51 @@ func NewDbMetricsBaseGatherer(logger logging.Logger, configuration *config.Confi
 	}
 }
 
-func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *Metrics) error {
-	defer HandlePanic(DbMetricsBase.configuration, DbMetricsBase.logger)
+func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) error {
+	defer utils.HandlePanic(DbMetricsBase.configuration, DbMetricsBase.logger)
 	// Mysql Status
-	output := make(MetricGroupValue)
+	output := make(models.MetricGroupValue)
 	{
-		var row MetricValue
-		rows, err := config.DB.Query("SHOW STATUS")
+		var row models.MetricValue
+		rows, err := models.DB.Query("SHOW STATUS")
 
 		if err != nil {
 			DbMetricsBase.logger.Error(err)
 			return err
 		}
 		for rows.Next() {
-			err := rows.Scan(&row.name, &row.value)
+			err := rows.Scan(&row.Name, &row.Value)
 			if err != nil {
 				DbMetricsBase.logger.Error(err)
 				return err
 			}
-			output[row.name] = row.value
+			output[row.Name] = row.Value
 		}
 		rows.Close()
 
-		rows, err = config.DB.Query("SHOW GLOBAL STATUS")
+		rows, err = models.DB.Query("SHOW GLOBAL STATUS")
 		if err != nil {
 			DbMetricsBase.logger.Error(err)
 			return err
 		}
 		for rows.Next() {
-			err := rows.Scan(&row.name, &row.value)
+			err := rows.Scan(&row.Name, &row.Value)
 			if err != nil {
 				DbMetricsBase.logger.Error(err)
 				return err
 			}
-			output[row.name] = row.value
+			output[row.Name] = row.Value
 		}
 		metrics.DB.Metrics.Status = output
 		rows.Close()
 	}
 	// Latency
 	{
-		var output []MetricGroupValue
+		var output []models.MetricGroupValue
 		var digest string
 		var calls, avg_time_us int
 
-		rows, err := config.DB.Query("SELECT CONCAT(IFNULL(schema_name, 'NULL'), '_', IFNULL(digest, 'NULL')) as queryid, count_star as calls, round(avg_timer_wait/1000000, 0) as avg_time_us FROM performance_schema.events_statements_summary_by_digest")
+		rows, err := models.DB.Query("SELECT CONCAT(IFNULL(schema_name, 'NULL'), '_', IFNULL(digest, 'NULL')) as queryid, count_star as calls, round(avg_timer_wait/1000000, 0) as avg_time_us FROM performance_schema.events_statements_summary_by_digest")
 		if err != nil {
 			if err != sql.ErrNoRows {
 				DbMetricsBase.logger.Error(err)
@@ -86,7 +88,7 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *Metrics) error {
 					DbMetricsBase.logger.Error(err)
 					return err
 				}
-				digest := MetricGroupValue{"queryid": digest, "calls": calls, "avg_time_us": avg_time_us}
+				digest := models.MetricGroupValue{"queryid": digest, "calls": calls, "avg_time_us": avg_time_us}
 				output = append(output, digest)
 			}
 		}
@@ -135,7 +137,7 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *Metrics) error {
 	//status innodb engine
 	{
 		var engine, name, status string
-		err := config.DB.QueryRow("show engine innodb status").Scan(&engine, &name, &status)
+		err := models.DB.QueryRow("show engine innodb status").Scan(&engine, &name, &status)
 		if err != nil {
 			DbMetricsBase.logger.Error(err)
 		} else {
@@ -146,7 +148,7 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *Metrics) error {
 	{
 		var database string
 		var output []string
-		rows, err := config.DB.Query("SELECT table_schema FROM INFORMATION_SCHEMA.tables group BY table_schema")
+		rows, err := models.DB.Query("SELECT table_schema FROM INFORMATION_SCHEMA.tables group BY table_schema")
 		if err != nil {
 			DbMetricsBase.logger.Error(err)
 			return err

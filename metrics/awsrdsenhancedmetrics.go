@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/Releem/mysqlconfigurer/config"
+	"github.com/Releem/mysqlconfigurer/models"
+	"github.com/Releem/mysqlconfigurer/utils"
 	"github.com/advantageous/go-logback/logging"
 
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
@@ -42,7 +44,7 @@ type osMetrics struct {
 	Network           []network         `json:"network"`
 	ProcessList       []processList     `json:"processList"`
 	Swap              swap              `json:"swap"`
-	Tasks             tasks             `json:"tasks"`
+	Tasks             RdsTasks          `json:"tasks"`
 
 	// TODO Handle this: https://jira.percona.com/browse/PMM-3835
 	PhysicalDeviceIO []diskIO `json:"physicalDeviceIO"`
@@ -158,7 +160,7 @@ type swap struct {
 	Out float64 `json:"out" node:"node_vmstat_pswpout" m:"0.25" help:"The total amount of memory, in kilobytes, swapped out to disk."  nodehelp:"/proc/vmstat information field pswpout"`
 }
 
-type tasks struct {
+type RdsTasks struct {
 	Blocked  int `json:"blocked"  help:"The number of tasks that are blocked."`
 	Running  int `json:"running"  help:"The number of tasks that are running."`
 	Sleeping int `json:"sleeping" help:"The number of tasks that are sleeping."`
@@ -200,11 +202,11 @@ func NewAWSRDSEnhancedMetricsGatherer(logger logging.Logger, dbinstance types.DB
 	}
 }
 
-func (awsrdsenhancedmetrics *AWSRDSEnhancedMetricsGatherer) GetMetrics(metrics *Metrics) error {
-	defer HandlePanic(awsrdsenhancedmetrics.configuration, awsrdsenhancedmetrics.logger)
+func (awsrdsenhancedmetrics *AWSRDSEnhancedMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
+	defer utils.HandlePanic(awsrdsenhancedmetrics.configuration, awsrdsenhancedmetrics.logger)
 
-	info := make(MetricGroupValue)
-	metricsMap := make(MetricGroupValue)
+	info := make(models.MetricGroupValue)
+	metricsMap := make(models.MetricGroupValue)
 
 	input := cloudwatchlogs.GetLogEventsInput{
 		Limit:         aws.Int32(1),
@@ -243,22 +245,22 @@ func (awsrdsenhancedmetrics *AWSRDSEnhancedMetricsGatherer) GetMetrics(metrics *
 		writeCount = writeCount + diskio.WriteIOsPS
 	}
 
-	metricsMap["IOP"] = MetricGroupValue{"IOPRead": readCount, "IOPWrite": writeCount}
+	metricsMap["IOP"] = models.MetricGroupValue{"IOPRead": readCount, "IOPWrite": writeCount}
 
 	// Set FileSystem
 	metricsMap["FileSystem"] = osMetrics.FileSys
 
 	// OS RAM
 	metricsMap["PhysicalMemory"] = osMetrics.Memory
-	info["PhysicalMemory"] = MetricGroupValue{"total": osMetrics.Memory.Total}
-	info["PhysicalMemory"] = MapJoin(info["PhysicalMemory"].(MetricGroupValue), MetricGroupValue{"swapTotal": osMetrics.Swap.Total})
+	info["PhysicalMemory"] = models.MetricGroupValue{"total": osMetrics.Memory.Total}
+	info["PhysicalMemory"] = utils.MapJoin(info["PhysicalMemory"].(models.MetricGroupValue), models.MetricGroupValue{"swapTotal": osMetrics.Swap.Total})
 
 	// Swap
 	metricsMap["Swap"] = osMetrics.Swap
 	awsrdsenhancedmetrics.logger.Debug("Swap ", osMetrics.Swap)
 
 	//CPU Counts
-	info["CPU"] = MetricGroupValue{"Counts": osMetrics.NumVCPUs}
+	info["CPU"] = models.MetricGroupValue{"Counts": osMetrics.NumVCPUs}
 
 	// FileSys
 	metricsMap["FileSystem"] = osMetrics.FileSys
@@ -272,7 +274,7 @@ func (awsrdsenhancedmetrics *AWSRDSEnhancedMetricsGatherer) GetMetrics(metrics *
 	metricsMap["CPU"] = osMetrics.LoadAverageMinute //StructToMap(Avg.String())
 	awsrdsenhancedmetrics.logger.Debug("CPU ", osMetrics.LoadAverageMinute)
 
-	info["Host"] = MetricGroupValue{
+	info["Host"] = models.MetricGroupValue{
 		"InstanceType": "aws/rds",
 		"Timestamp":    osMetrics.Timestamp,
 		"Uptime":       osMetrics.Uptime,

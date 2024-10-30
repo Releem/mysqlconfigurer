@@ -1,9 +1,7 @@
 package config
 
 import (
-	"database/sql"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/advantageous/go-logback/logging"
@@ -12,12 +10,6 @@ import (
 
 const (
 	ReleemAgentVersion = "1.19.4.4"
-)
-
-var (
-	DB           *sql.DB
-	SqlText      map[string]map[string]string
-	SqlTextMutex sync.RWMutex
 )
 
 type Config struct {
@@ -43,6 +35,7 @@ type Config struct {
 	InstanceType                          string        `hcl:"instance_type"`
 	AwsRegion                             string        `hcl:"aws_region"`
 	AwsRDSDB                              string        `hcl:"aws_rds_db"`
+	AwsRDSParameterGroup                  string        `hcl:"aws_rds_parametr_group"`
 	QueryOptimization                     bool          `hcl:"query_optimization"`
 }
 

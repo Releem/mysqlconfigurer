@@ -2,7 +2,31 @@ Releem releases
 ---
 Information about releases of the Releem.
 
-Releem 1.17.0, 2024-06-30
+Releem 1.19.0, 2024-09-30 ([What's New At Releem | September 2024](https://releem.com/blog/whats-new-at-releem-september-2024))
+- Added [SQL Query Optimization](https://releem.com/blog/introducing-automatic-sql-query-optimization) tab in the Releem Portal
+- Added collection of Query Examples for Query Optimization for MariaDB
+- Added collection of EXPLAINs for Query Optimization for MariaDB
+- Added support of MariaDB 11.5. Closes #349
+- Fixed incorrect latest version in the Update notification. Closes #346
+- Fixed high resource usage during metric collection on servers with more than 1000 databases. Closes #347
+- Fixed installation failed due incorrect PATH variable. Closes #348
+- Fixed recommendation of innodb_log_buffer_size variable. Closes #352
+- Fixed Query Analytics is showing a database name that does not exist on my db server. Closes #357
+- Fixed Applying recommended configuration without restart doesn't work when mysql_restart_service setting is empty. Closes #350
+
+Releem 1.18.0, 2024-08-31
+- Added EXPLAINs collection for SQL Query Optimization for MySQL 8.x
+- Added collection of InnoDB engine status
+- Added query_optimization parameter to Releem Agent
+- Added query digest monitoring
+- Added collection of database schema for query optimization. Closes #357
+- Added collection of schema information 
+- Added automatics SQL Query Optimization reports
+- Fixed crontab error during installation process. Closes #341
+- Fixed SUM_ROWS_SENT error during loadin Query Analytics. Closes #336
+- Fixed table_definition_cache recommendations. Closes #335
+
+Releem 1.17.0, 2024-06-30 ([What's New At Releem | June 2024](https://releem.com/blog/whats-new-at-releem-june-2024))
 - Improved Weekly Reports
 - Added Alerts on CPU Utilization and Disk space. Closes #147
 - Added applying configuration without restart to Releem Agent.

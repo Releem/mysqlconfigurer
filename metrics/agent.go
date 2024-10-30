@@ -38,6 +38,11 @@ func (Agent *AgentMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 	if len(Agent.configuration.Hostname) > 0 {
 		output["Hostname"] = Agent.configuration.Hostname
 	}
+	output["QueryOptimization"] = Agent.configuration.QueryOptimization
+	models.SqlTextMutex.RLock()
+	output["QueryOptimizationSqlTextCount"] = len(models.SqlText)
+	models.SqlTextMutex.RUnlock()
+
 	metrics.ReleemAgent.Info = output
 
 	Agent.logger.Debug("CollectMetrics  ", output)

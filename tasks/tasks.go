@@ -318,7 +318,6 @@ func ApplyConfAwsRds(metrics *models.Metrics, repeaters models.MetricsRepeater, 
 			}
 			for _, param := range page.Parameters {
 				DbParametrsType[*param.ParameterName] = *param.ApplyType
-				logger.Printf("Parameter Name: %s Apply Type: %s Is Modifiable: %t", *param.ParameterName, *param.ApplyType, *param.IsModifiable)
 			}
 		}
 	}

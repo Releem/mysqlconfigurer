@@ -86,11 +86,10 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 		output["task_output"] = output["task_output"].(string) + task_output
 	} else if TaskTypeID == 4 {
 		if configuration.InstanceType == "aws/rds" {
-			output["task_exit_code"], output["task_status"], task_output = ApplyConfAwsRds(metrics, repeaters, gatherers, logger, configuration, types.ApplyMethodImmediate)
+			output["task_exit_code"], output["task_status"], task_output = ApplyConfAwsRds(repeaters, gatherers, logger, configuration, types.ApplyMethodImmediate)
 			output["task_output"] = output["task_output"].(string) + task_output
-
-			if output["task_exit_code"] == 10 {
-				output["task_exit_code"], output["task_status"], task_output = ApplyConfAwsRds(metrics, repeaters, gatherers, logger, configuration, types.ApplyMethodPendingReboot)
+			if output["task_exit_code"] == 0 {
+				output["task_exit_code"], output["task_status"], task_output = ApplyConfAwsRds(repeaters, gatherers, logger, configuration, types.ApplyMethodPendingReboot)
 				output["task_output"] = output["task_output"].(string) + task_output
 			}
 		} else {
@@ -102,9 +101,10 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 				output["task_output"] = output["task_output"].(string) + task_output
 			}
 		}
+		metrics = utils.CollectMetrics(gatherers, logger, configuration)
 	} else if TaskTypeID == 5 {
 		if configuration.InstanceType == "aws/rds" {
-			output["task_exit_code"], output["task_status"], task_output = ApplyConfAwsRds(metrics, repeaters, gatherers, logger, configuration, types.ApplyMethodPendingReboot)
+			output["task_exit_code"], output["task_status"], task_output = ApplyConfAwsRds(repeaters, gatherers, logger, configuration, types.ApplyMethodPendingReboot)
 			output["task_output"] = output["task_output"].(string) + task_output
 		} else {
 			output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=1"}, logger)
@@ -236,18 +236,19 @@ func ApplyConfLocal(metrics *models.Metrics, repeaters models.MetricsRepeater, g
 		}
 	}
 	time.Sleep(10 * time.Second)
-	metrics = utils.CollectMetrics(gatherers, logger, configuration)
 
 	return task_exit_code, task_status, task_output
 }
 
-func ApplyConfAwsRds(metrics *models.Metrics, repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer,
+func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer,
 	logger logging.Logger, configuration *config.Config, apply_method types.ApplyMethod) (int, int, string) {
 
 	var task_exit_code, task_status int = 0, 1
 	var task_output string
 	var paramGroup types.DBParameterGroupStatus
 	var dbInstance types.DBInstance
+
+	metrics := utils.CollectMetrics(gatherers, logger, configuration)
 
 	// Загрузите конфигурацию AWS по умолчанию
 	cfg, err := config_aws.LoadDefaultConfig(context.TODO(), config_aws.WithRegion(configuration.AwsRegion))
@@ -330,7 +331,6 @@ func ApplyConfAwsRds(metrics *models.Metrics, repeaters models.MetricsRepeater, 
 
 	var Parameters []types.Parameter
 	var value string
-	need_restart := false
 	for key := range result_data {
 		if result_data[key] != metrics.DB.Conf.Variables[key] {
 			logger.Println(key, result_data[key], metrics.DB.Conf.Variables[key])
@@ -348,7 +348,6 @@ func ApplyConfAwsRds(metrics *models.Metrics, repeaters models.MetricsRepeater, 
 			if apply_method == types.ApplyMethodImmediate {
 				val, ok := DbParametrsType[key]
 				if ok && val != "dynamic" {
-					need_restart = true
 					continue
 				}
 			}
@@ -442,19 +441,15 @@ func ApplyConfAwsRds(metrics *models.Metrics, repeaters models.MetricsRepeater, 
 		task_exit_code = 6
 		task_status = 4
 	} else if aws.StringValue(dbInstance.DBInstanceStatus) == "available" && aws.StringValue(paramGroup.ParameterApplyStatus) == "pending-reboot" {
-		task_exit_code = 11
+		task_exit_code = 10
 		task_status = 4
 	} else if aws.StringValue(dbInstance.DBInstanceStatus) == "available" && aws.StringValue(paramGroup.ParameterApplyStatus) == "in-sync" {
 		logger.Println("DB Instance Status available, Parametr Group Status in-sync, No pending modifications")
-		if need_restart {
-			task_exit_code = 10
-			task_status = 4
-		}
 	} else {
 		task_exit_code = 7
 		task_status = 4
 	}
+	time.Sleep(30 * time.Second)
 
-	metrics = utils.CollectMetrics(gatherers, logger, configuration)
 	return task_exit_code, task_status, task_output
 }

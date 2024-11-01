@@ -88,9 +88,19 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 		if configuration.InstanceType == "aws/rds" {
 			output["task_exit_code"], output["task_status"], task_output = ApplyConfAwsRds(metrics, repeaters, gatherers, logger, configuration, types.ApplyMethodImmediate)
 			output["task_output"] = output["task_output"].(string) + task_output
+
+			if output["task_exit_code"] == 10 {
+				output["task_exit_code"], output["task_status"], task_output = ApplyConfAwsRds(metrics, repeaters, gatherers, logger, configuration, types.ApplyMethodPendingReboot)
+				output["task_output"] = output["task_output"].(string) + task_output
+			}
 		} else {
-			output["task_exit_code"], output["task_status"], task_output = ApplyConfLocal(metrics, repeaters, gatherers, logger, configuration)
+			output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=0"}, logger)
 			output["task_output"] = output["task_output"].(string) + task_output
+
+			if output["task_exit_code"] == 0 {
+				output["task_exit_code"], output["task_status"], task_output = ApplyConfLocal(metrics, repeaters, gatherers, logger, configuration)
+				output["task_output"] = output["task_output"].(string) + task_output
+			}
 		}
 	} else if TaskTypeID == 5 {
 		if configuration.InstanceType == "aws/rds" {
@@ -160,78 +170,74 @@ func execCmd(cmd_path string, environment []string, logger logging.Logger) (int,
 
 func ApplyConfLocal(metrics *models.Metrics, repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer, logger logging.Logger, configuration *config.Config) (int, int, string) {
 	var task_exit_code, task_status int
-	var task_output, exec_output string
+	var task_output string
 
-	task_exit_code, task_status, exec_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=0"}, logger)
-	task_output = task_output + exec_output
+	result_data := models.MetricGroupValue{}
+	// flush_queries := []string{"flush status", "flush statistic"}
+	need_restart := false
+	need_privileges := false
+	need_flush := false
+	error_exist := false
 
-	if task_exit_code == 0 {
-		result_data := models.MetricGroupValue{}
-		// flush_queries := []string{"flush status", "flush statistic"}
-		need_restart := false
-		need_privileges := false
-		need_flush := false
-		error_exist := false
-
-		recommend_var := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Configurations", Type: "get-json"})
-		err := json.Unmarshal([]byte(recommend_var.(string)), &result_data)
-		if err != nil {
-			logger.Error(err)
-		}
-
-		for key := range result_data {
-			logger.Println(key, result_data[key], metrics.DB.Conf.Variables[key])
-
-			if result_data[key] != metrics.DB.Conf.Variables[key] {
-				query_set_var := "set global " + key + "=" + result_data[key].(string)
-				_, err := models.DB.Exec(query_set_var)
-				if err != nil {
-					logger.Error(err)
-					task_output = task_output + err.Error()
-					if strings.Contains(err.Error(), "is a read only variable") {
-						need_restart = true
-					} else if strings.Contains(err.Error(), "Access denied") {
-						need_privileges = true
-					} else {
-						error_exist = true
-					}
-				} else {
-					need_flush = true
-				}
-			}
-		}
-		logger.Println(need_flush, need_restart, need_privileges, error_exist)
-		if error_exist {
-			task_exit_code = 8
-			task_status = 4
-		} else {
-			// if need_flush {
-			// 	for _, query := range flush_queries {
-			// 		_, err := config.DB.Exec(query)
-			// 		if err != nil {
-			// 			output["task_output"] = output["task_output"].(string) + err.Error()
-			// 			logger.Error(err)
-			// 			// if exiterr, ok := err.(*exec.ExitError); ok {
-			// 			// 	output["task_exit_code"] = exiterr.ExitCode()
-			// 			// } else {
-			// 			// 	output["task_exit_code"] = 999
-			// 			// }
-			// 		}
-			// 		// } else {
-			// 		// 	output["task_exit_code"] = 0
-			// 		// }
-			// 	}
-			// }
-			if need_privileges {
-				task_exit_code = 9
-				task_status = 4
-			} else if need_restart {
-				task_exit_code = 10
-			}
-		}
-		time.Sleep(10 * time.Second)
-		metrics = utils.CollectMetrics(gatherers, logger, configuration)
+	recommend_var := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Configurations", Type: "get-json"})
+	err := json.Unmarshal([]byte(recommend_var.(string)), &result_data)
+	if err != nil {
+		logger.Error(err)
 	}
+
+	for key := range result_data {
+		logger.Println(key, result_data[key], metrics.DB.Conf.Variables[key])
+
+		if result_data[key] != metrics.DB.Conf.Variables[key] {
+			query_set_var := "set global " + key + "=" + result_data[key].(string)
+			_, err := models.DB.Exec(query_set_var)
+			if err != nil {
+				logger.Error(err)
+				task_output = task_output + err.Error()
+				if strings.Contains(err.Error(), "is a read only variable") {
+					need_restart = true
+				} else if strings.Contains(err.Error(), "Access denied") {
+					need_privileges = true
+				} else {
+					error_exist = true
+				}
+			} else {
+				need_flush = true
+			}
+		}
+	}
+	logger.Println(need_flush, need_restart, need_privileges, error_exist)
+	if error_exist {
+		task_exit_code = 8
+		task_status = 4
+	} else {
+		// if need_flush {
+		// 	for _, query := range flush_queries {
+		// 		_, err := config.DB.Exec(query)
+		// 		if err != nil {
+		// 			output["task_output"] = output["task_output"].(string) + err.Error()
+		// 			logger.Error(err)
+		// 			// if exiterr, ok := err.(*exec.ExitError); ok {
+		// 			// 	output["task_exit_code"] = exiterr.ExitCode()
+		// 			// } else {
+		// 			// 	output["task_exit_code"] = 999
+		// 			// }
+		// 		}
+		// 		// } else {
+		// 		// 	output["task_exit_code"] = 0
+		// 		// }
+		// 	}
+		// }
+		if need_privileges {
+			task_exit_code = 9
+			task_status = 4
+		} else if need_restart {
+			task_exit_code = 10
+		}
+	}
+	time.Sleep(10 * time.Second)
+	metrics = utils.CollectMetrics(gatherers, logger, configuration)
+
 	return task_exit_code, task_status, task_output
 }
 
@@ -272,21 +278,17 @@ func ApplyConfAwsRds(metrics *models.Metrics, repeaters models.MetricsRepeater, 
 	} else {
 		logger.Error("No DB instance found.")
 		task_output = task_output + "No DB instance found.\n"
-		task_status = 4
-		task_exit_code = 1
-		return task_exit_code, task_status, task_output
 	}
-
 	logger.Printf("DB Instance ID: %s, DB Instance Status: %s, Parameter Group Name: %s, Parameter Group Status: %s\n", *dbInstance.DBInstanceIdentifier, *dbInstance.DBInstanceStatus, *paramGroup.DBParameterGroupName, *paramGroup.ParameterApplyStatus)
 	if aws.StringValue(dbInstance.DBInstanceStatus) != "available" {
 		logger.Error("DB Instance Status '" + aws.StringValue(dbInstance.DBInstanceStatus) + "' not available(" + aws.StringValue(dbInstance.DBInstanceStatus) + ")")
 		task_output = task_output + "DB Instance Status '" + aws.StringValue(dbInstance.DBInstanceStatus) + "' not available\n"
 		task_status = 4
-		task_exit_code = 2
+		task_exit_code = 1
 		return task_exit_code, task_status, task_output
-	} else if aws.StringValue(paramGroup.DBParameterGroupName) != configuration.AwsRDSParameterGroup {
-		logger.Error("Parametr group '" + configuration.AwsRDSParameterGroup + "' not found in DB Instance " + configuration.AwsRDSDB + "(" + aws.StringValue(paramGroup.DBParameterGroupName) + ")")
-		task_output = task_output + "Parametr group '" + configuration.AwsRDSParameterGroup + "' not found in DB Instance " + configuration.AwsRDSDB + "(" + aws.StringValue(paramGroup.DBParameterGroupName) + ")\n"
+	} else if configuration.AwsRDSParameterGroup == "" || aws.StringValue(paramGroup.DBParameterGroupName) != configuration.AwsRDSParameterGroup {
+		logger.Error("Parametr group '" + configuration.AwsRDSParameterGroup + "' not found or empty in DB Instance " + configuration.AwsRDSDB + "(" + aws.StringValue(paramGroup.DBParameterGroupName) + ")")
+		task_output = task_output + "Parametr group '" + configuration.AwsRDSParameterGroup + "' not found or empty in DB Instance " + configuration.AwsRDSDB + "(" + aws.StringValue(paramGroup.DBParameterGroupName) + ")\n"
 		task_status = 4
 		task_exit_code = 3
 		return task_exit_code, task_status, task_output
@@ -312,9 +314,6 @@ func ApplyConfAwsRds(metrics *models.Metrics, repeaters models.MetricsRepeater, 
 			if err != nil {
 				logger.Errorf("Failed to retrieve parameters: %v", err)
 				task_output = task_output + err.Error()
-				task_status = 4
-				task_exit_code = 4
-				return task_exit_code, task_status, task_output
 			}
 			for _, param := range page.Parameters {
 				DbParametrsType[*param.ParameterName] = *param.ApplyType
@@ -327,9 +326,6 @@ func ApplyConfAwsRds(metrics *models.Metrics, repeaters models.MetricsRepeater, 
 	if err != nil {
 		logger.Error(err)
 		task_output = task_output + err.Error()
-		task_status = 4
-		task_exit_code = 4
-		return task_exit_code, task_status, task_output
 	}
 
 	var Parameters []types.Parameter
@@ -432,9 +428,6 @@ func ApplyConfAwsRds(metrics *models.Metrics, repeaters models.MetricsRepeater, 
 		} else {
 			logger.Error("No DB instance found.")
 			task_output = task_output + "No DB instance found.\n"
-			task_status = 4
-			task_exit_code = 1
-			return task_exit_code, task_status, task_output
 		}
 		logger.Printf("DB Instance ID: %s, DB Instance Status: %s, Parameter Group Name: %s, Parameter Group Status: %s\n", *dbInstance.DBInstanceIdentifier, *dbInstance.DBInstanceStatus, *paramGroup.DBParameterGroupName, *paramGroup.ParameterApplyStatus)
 
@@ -453,15 +446,15 @@ func ApplyConfAwsRds(metrics *models.Metrics, repeaters models.MetricsRepeater, 
 		task_status = 4
 	} else if aws.StringValue(dbInstance.DBInstanceStatus) == "available" && aws.StringValue(paramGroup.ParameterApplyStatus) == "in-sync" {
 		logger.Println("DB Instance Status available, Parametr Group Status in-sync, No pending modifications")
+		if need_restart {
+			task_exit_code = 10
+			task_status = 4
+		}
 	} else {
 		task_exit_code = 7
 		task_status = 4
 	}
-	if need_restart {
-		task_exit_code = 10
-		task_status = 4
-	}
+
 	metrics = utils.CollectMetrics(gatherers, logger, configuration)
 	return task_exit_code, task_status, task_output
-
 }

@@ -31,14 +31,17 @@ With Releem we are trying to bring top-notch experience in database performance 
 ## Why Releem?
 - **Clutter Free**: Releem provides simple dashboard and it cuts through the noise. No layers of menus, no need for custom reports. Get all the important metrics on one single page. No training necessary.
 - **Hassle free**: Simple one-step Installation on most popular Linux platforms and Support of all MySQL/MariaDB/Percona versions.
-- **Performance Booster**: Recommended configuration delivers a [30% boost](#Tests) to MySQL performance compare to the default configuration.
+- **Performance Booster**: Recommended configuration delivers up to [290% boost](#Tests) to MySQL performance compare to the default configuration.
 - **Simplified Monitoring**: [MySQL Health Checks](https://releem.com/blog/mysql-health-checks?utm_source=github&utm_medium=social&utm_campaign=mysql-health-checks&utm_content=post) greatly simplifies the process of monitoring and maintaining a healthy database by focusing on key aspects that describe the efficiency and "best practices" of using Memory, Connections, Logs, Cache, Disk, Indexes, and Threads. Releem Score metric calculates by summarizing Health Checks statuses.
 - **Automatic SQL Query Optimization and Index suggestions**: Releem automatically identifies inefficient queries and offers missed indexes, enabling database administrators to boost query performance without extensive manual analysis.
 - **Security**: Security is our top priority. Releem does not use your database data. It uses only MySQL metrics and system information, and HTTPS to transfer them.
 Releem Agent is open-source and can be reviewed to ensure it meets your security requirements.
 - **Email report**: Keep an eye on your servers with weekly email reports.
-- **Simple Applying**: Releem Agent allows simply apply recommended MySQL configuration just in one click.
-  
+- **Simple Applying**: Releem Agent allows simply apply recommended MySQL configuration just in one click or in one command.
+<p align="center">
+<img src="https://raw.githubusercontent.com/releem/docs/master/assets/images/releem-applying-click.gif" width="80%">
+</p>
+
 <p align="center">
 <img src="https://raw.githubusercontent.com/releem/docs/master/assets/images/releem-applying.gif" width="80%">
 </p>

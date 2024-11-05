@@ -3,7 +3,7 @@ module github.com/Releem/mysqlconfigurer
 go 1.22.0
 
 require (
-	github.com/Releem/daemon v0.0.0-20221103142627-2a82cf09ac69
+	github.com/Releem/daemon v0.0.0-20241028135502-b7f24658ba58
 	github.com/advantageous/go-logback v0.0.0-20161215180304-6db19679ca3e
 	github.com/aws/aws-sdk-go v1.53.7
 	github.com/aws/aws-sdk-go-v2 v1.27.0

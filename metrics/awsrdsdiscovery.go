@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/Releem/mysqlconfigurer/config"
+	"github.com/Releem/mysqlconfigurer/models"
+	"github.com/Releem/mysqlconfigurer/utils"
 	"github.com/advantageous/go-logback/logging"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -40,11 +42,11 @@ func NewAWSRDSInstanceGatherer(logger logging.Logger, rdsclient *rds.Client, ec2
 	}
 }
 
-func (awsrdsinstance *AWSRDSInstanceGatherer) GetMetrics(metrics *Metrics) error {
-	defer HandlePanic(awsrdsinstance.configuration, awsrdsinstance.logger)
+func (awsrdsinstance *AWSRDSInstanceGatherer) GetMetrics(metrics *models.Metrics) error {
+	defer utils.HandlePanic(awsrdsinstance.configuration, awsrdsinstance.logger)
 
-	//output := make(MetricGroupValue)
-	info := make(MetricGroupValue)
+	//output := make(models.MetricGroupValue)
+	info := make(models.MetricGroupValue)
 
 	// Prepare request to RDS
 	input := &rds.DescribeDBInstancesInput{
@@ -99,11 +101,11 @@ func (awsrdsinstance *AWSRDSInstanceGatherer) GetMetrics(metrics *Metrics) error
 			}
 
 			if len(typeinfo.InstanceTypes) > 0 {
-				info["CPU"] = MetricGroupValue{"Counts": typeinfo.InstanceTypes[0].VCpuInfo.DefaultVCpus}
-				info["PhysicalMemory"] = MetricGroupValue{"total": *typeinfo.InstanceTypes[0].MemoryInfo.SizeInMiB * 1024 * 1024}
+				info["CPU"] = models.MetricGroupValue{"Counts": typeinfo.InstanceTypes[0].VCpuInfo.DefaultVCpus}
+				info["PhysicalMemory"] = models.MetricGroupValue{"total": *typeinfo.InstanceTypes[0].MemoryInfo.SizeInMiB * 1024 * 1024}
 			}
 
-			info["Host"] = MetricGroupValue{"InstanceType": "aws/rds"}
+			info["Host"] = models.MetricGroupValue{"InstanceType": "aws/rds"}
 
 		} else if len(result.DBInstances) > 1 {
 			awsrdsinstance.logger.Println("RDS.DescribeDBInstances: Database has %d instances. Clusters are not supported", len(result.DBInstances))

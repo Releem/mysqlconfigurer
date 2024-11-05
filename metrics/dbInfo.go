@@ -5,6 +5,8 @@ import (
 	"regexp"
 
 	"github.com/Releem/mysqlconfigurer/config"
+	"github.com/Releem/mysqlconfigurer/models"
+	"github.com/Releem/mysqlconfigurer/utils"
 	"github.com/advantageous/go-logback/logging"
 )
 
@@ -29,25 +31,25 @@ func NewDbInfoGatherer(logger logging.Logger, configuration *config.Config) *DbI
 	}
 }
 
-func (DbInfo *DbInfoGatherer) GetMetrics(metrics *Metrics) error {
-	defer HandlePanic(DbInfo.configuration, DbInfo.logger)
+func (DbInfo *DbInfoGatherer) GetMetrics(metrics *models.Metrics) error {
+	defer utils.HandlePanic(DbInfo.configuration, DbInfo.logger)
 
-	var row MetricValue
+	var row models.MetricValue
 	var mysql_version string
 
-	info := make(MetricGroupValue)
+	info := make(models.MetricGroupValue)
 	// Mysql version
-	err := config.DB.QueryRow("select VERSION()").Scan(&row.value)
+	err := models.DB.QueryRow("select VERSION()").Scan(&row.Value)
 	if err != nil {
 		DbInfo.logger.Error(err)
 		return nil
 	}
 	re := regexp.MustCompile(`(.*?)\-.*`)
-	version := re.FindStringSubmatch(row.value)
+	version := re.FindStringSubmatch(row.Value)
 	if len(version) > 0 {
 		mysql_version = version[1]
 	} else {
-		mysql_version = row.value
+		mysql_version = row.Value
 	}
 	info["Version"] = mysql_version
 	err = os.WriteFile(DbInfo.configuration.ReleemConfDir+"/mysql_version", []byte(mysql_version), 0644)

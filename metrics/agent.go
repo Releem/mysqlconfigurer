@@ -2,6 +2,8 @@ package metrics
 
 import (
 	"github.com/Releem/mysqlconfigurer/config"
+	"github.com/Releem/mysqlconfigurer/models"
+	"github.com/Releem/mysqlconfigurer/utils"
 	"github.com/advantageous/go-logback/logging"
 )
 
@@ -28,14 +30,19 @@ func NewAgentMetricsGatherer(logger logging.Logger, configuration *config.Config
 	}
 }
 
-func (Agent *AgentMetricsGatherer) GetMetrics(metrics *Metrics) error {
-	defer HandlePanic(Agent.configuration, Agent.logger)
+func (Agent *AgentMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
+	defer utils.HandlePanic(Agent.configuration, Agent.logger)
 
 	output := make(map[string]interface{})
 	output["Version"] = config.ReleemAgentVersion
 	if len(Agent.configuration.Hostname) > 0 {
 		output["Hostname"] = Agent.configuration.Hostname
 	}
+	output["QueryOptimization"] = Agent.configuration.QueryOptimization
+	models.SqlTextMutex.RLock()
+	output["QueryOptimizationSqlTextCount"] = len(models.SqlText)
+	models.SqlTextMutex.RUnlock()
+
 	metrics.ReleemAgent.Info = output
 
 	Agent.logger.Debug("CollectMetrics  ", output)

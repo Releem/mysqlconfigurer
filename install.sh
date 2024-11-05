@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 1.19.4.4
+# install.sh - Version 1.19.5
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -9,7 +9,7 @@ export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/
 # using the package manager.
 
 set -e -E
-install_script_version=1.19.4.4
+install_script_version=1.19.5
 logfile="/var/log/releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -30,7 +30,7 @@ exec 1>&-
 exec 1>$npipe 2>&1
 
 function on_exit() {
-    curl -s -L -d @$logfile -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v2/events/saving_log
+    curl -s -L -d @$logfile -H "x-releem-api-key: $apikey" -H "Content-Type: application/json" -X POST https://api.releem.com/v2/events/saving_log
     rm -f $npipe
 }
 
@@ -175,7 +175,13 @@ fi
 #Enable Query Optimitsation
 if [ "$0" == "enable_query_optimization" ];
 then
-    $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON *.* TO 'releem'@'${mysql_user_host}';"
+    grant_privileges_sql=$($mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -NBe 'select Concat("GRANT SELECT on *.* to `",User,"`@`", Host,"`;") from mysql.user where User="releem"')
+    for query in  "${grant_privileges_sql[@]}";
+    do
+        echo "${query}"
+        $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "${query}"
+    done
+
     if [ -z "$query_optimization" ]; then
         echo "query_optimization=true" | $sudo_cmd tee -a $CONF
     fi    

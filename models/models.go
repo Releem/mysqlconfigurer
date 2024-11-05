@@ -1,26 +1,22 @@
-package metrics
+package models
 
 import (
-	"fmt"
-
-	"github.com/Releem/mysqlconfigurer/config"
-	e "github.com/Releem/mysqlconfigurer/errors"
-	"github.com/advantageous/go-logback/logging"
-	"github.com/pkg/errors"
+	"database/sql"
+	"sync"
 )
 
 type MetricType byte
 type MetricIntervalType byte
 
 type MetricValue struct {
-	name  string
-	value string
+	Name  string
+	Value string
 }
 type MetricGroupValue map[string]interface{}
 
-type ModeT struct {
-	Name     string
-	ModeType string
+type ModeType struct {
+	Name string
+	Type string
 }
 type Metrics struct {
 	System struct {
@@ -78,23 +74,7 @@ type MetricsGatherer interface {
 }
 
 type MetricsRepeater interface {
-	ProcessMetrics(context MetricContext, metrics Metrics, Mode ModeT) (interface{}, error)
-}
-
-func MapJoin(map1, map2 MetricGroupValue) MetricGroupValue {
-	for k, v := range map2 {
-		map1[k] = v
-	}
-	return map1
-}
-
-func HandlePanic(configuration *config.Config, logger logging.Logger) {
-	if r := recover(); r != nil {
-		err := errors.WithStack(fmt.Errorf("%v", r))
-		logger.Printf("%+v", err)
-		sender := e.NewReleemErrorsRepeater(configuration)
-		sender.ProcessErrors(fmt.Sprintf("%+v", err))
-	}
+	ProcessMetrics(context MetricContext, metrics Metrics, Mode ModeType) (interface{}, error)
 }
 
 type SqlTextType struct {
@@ -102,3 +82,9 @@ type SqlTextType struct {
 	DIGEST         string
 	SQL_TEXT       string
 }
+
+var (
+	DB           *sql.DB
+	SqlText      map[string]map[string]string
+	SqlTextMutex sync.RWMutex
+)

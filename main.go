@@ -9,9 +9,10 @@ import (
 
 	"github.com/Releem/daemon"
 	"github.com/Releem/mysqlconfigurer/config"
-	m "github.com/Releem/mysqlconfigurer/metrics"
+	"github.com/Releem/mysqlconfigurer/metrics"
+	"github.com/Releem/mysqlconfigurer/models"
 	r "github.com/Releem/mysqlconfigurer/repeater"
-	u "github.com/Releem/mysqlconfigurer/utils"
+	"github.com/Releem/mysqlconfigurer/utils"
 
 	"github.com/advantageous/go-logback/logging"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -47,12 +48,12 @@ type Service struct {
 
 // Manage by daemon commands or run the daemon
 func (service *Service) Manage(logger logging.Logger, configFile string, command []string, TypeConfiguration string, AgentEvent string, AgentTask string) (string, error) {
-	var gatherers, gatherers_configuration, gatherers_query_optimization []m.MetricsGatherer
-	var Mode m.ModeT
+	var gatherers, gatherers_configuration, gatherers_query_optimization []models.MetricsGatherer
+	var Mode models.ModeType
 	var configuration *config.Config
 	usage := "Usage: myservice install | remove | start | stop | status"
 
-	defer m.HandlePanic(configuration, logger)
+	defer utils.HandlePanic(configuration, logger)
 
 	// if received any kind of command, do it
 	if len(command) >= 1 {
@@ -82,13 +83,13 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 
 	if len(AgentEvent) > 0 {
 		Mode.Name = "Event"
-		Mode.ModeType = AgentEvent
+		Mode.Type = AgentEvent
 	} else if len(AgentTask) > 0 {
 		Mode.Name = "TaskSet"
-		Mode.ModeType = AgentTask
+		Mode.Type = AgentTask
 	} else {
 		Mode.Name = "Configurations"
-		Mode.ModeType = TypeConfiguration
+		Mode.Type = TypeConfiguration
 	}
 	// if Mode.Name != "Event" {
 	// Select how we collect instance metrics depending on InstanceType
@@ -134,11 +135,11 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 
 		// Request detailed instance info
 		if result != nil && len(result.DBInstances) == 1 {
-			//	gatherers = append(gatherers, m.NewAWSRDSMetricsGatherer(nil, cwclient, configuration))
-			//	gatherers = append(gatherers, m.NewAWSRDSInstanceGatherer(nil, rdsclient, ec2client, configuration))
+			//	gatherers = append(gatherers, models.NewAWSRDSMetricsGatherer(nil, cwclient, configuration))
+			//	gatherers = append(gatherers, models.NewAWSRDSInstanceGatherer(nil, rdsclient, ec2client, configuration))
 			configuration.Hostname = configuration.AwsRDSDB
 			configuration.MysqlHost = *result.DBInstances[0].Endpoint.Address
-			gatherers = append(gatherers, m.NewAWSRDSEnhancedMetricsGatherer(nil, result.DBInstances[0], cwlogsclient, configuration))
+			gatherers = append(gatherers, metrics.NewAWSRDSEnhancedMetricsGatherer(nil, result.DBInstances[0], cwlogsclient, configuration))
 		} else if result != nil && len(result.DBInstances) > 1 {
 			logger.Println("RDS.DescribeDBInstances: Database has %d instances. Clusters are not supported", len(result.DBInstances))
 			return "Error", fmt.Errorf("RDS.DescribeDBInstances: Database has %d instances. Clusters are not supported", len(result.DBInstances))
@@ -148,37 +149,37 @@ func (service *Service) Manage(logger logging.Logger, configFile string, command
 		}
 	default:
 		logger.Println("InstanceType is Local")
-		gatherers = append(gatherers, m.NewOSMetricsGatherer(nil, configuration))
+		gatherers = append(gatherers, metrics.NewOSMetricsGatherer(nil, configuration))
 
 	}
 
-	config.DB = u.ConnectionDatabase(configuration, logger, "mysql")
-	defer config.DB.Close()
+	models.DB = utils.ConnectionDatabase(configuration, logger, "mysql")
+	defer models.DB.Close()
 
 	//Init repeaters
-	// repeaters := make(map[string]m.MetricsRepeater)
-	// repeaters["Metrics"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "Metrics", ModeType: ""}))
-	// repeaters["Configurations"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
-	// repeaters["Event"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
-	// repeaters["TaskGet"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "TaskGet", ModeType: ""}))
-	// repeaters["TaskStatus"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "TaskStatus", ModeType: ""}))
-	// repeaters["TaskSet"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
-	// repeaters["GetConfigurationJson"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "Configurations", ModeType: "get-json"}))
-	// repeaters["QueryOptimization"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "Metrics", ModeType: "QuerysOptimization"}))
-	// repeaters["QueriesOptimization"] = m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, m.Mode{Name: "TaskSet", ModeType: "queries_optimization"}))
-	//var repeaters m.MetricsRepeater
-	repeaters := m.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration))
+	// repeaters := make(map[string]models.MetricsRepeater)
+	// repeaters["Metrics"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, models.Mode{Name: "Metrics", Type: ""}))
+	// repeaters["Configurations"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
+	// repeaters["Event"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
+	// repeaters["TaskGet"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, models.Mode{Name: "TaskGet", Type: ""}))
+	// repeaters["TaskStatus"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, models.Mode{Name: "TaskStatus", Type: ""}))
+	// repeaters["TaskSet"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
+	// repeaters["GetConfigurationJson"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, models.Mode{Name: "Configurations", Type: "get-json"}))
+	// repeaters["QueryOptimization"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, models.Mode{Name: "Metrics", Type: "QuerysOptimization"}))
+	// repeaters["QueriesOptimization"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, models.Mode{Name: "TaskSet", Type: "queries_optimization"}))
+	//var repeaters models.MetricsRepeater
+	repeaters := models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration))
 
 	//Init gatherers
 	gatherers = append(gatherers,
-		m.NewDbConfGatherer(nil, configuration),
-		m.NewDbInfoGatherer(nil, configuration),
-		m.NewDbMetricsBaseGatherer(nil, configuration),
-		m.NewAgentMetricsGatherer(nil, configuration))
-	gatherers_configuration = append(gatherers_configuration, m.NewDbMetricsGatherer(nil, configuration))
-	gatherers_query_optimization = append(gatherers_query_optimization, m.NewDbCollectQueriesOptimization(nil, configuration))
+		metrics.NewDbConfGatherer(nil, configuration),
+		metrics.NewDbInfoGatherer(nil, configuration),
+		metrics.NewDbMetricsBaseGatherer(nil, configuration),
+		metrics.NewAgentMetricsGatherer(nil, configuration))
+	gatherers_configuration = append(gatherers_configuration, metrics.NewDbMetricsGatherer(nil, configuration))
+	gatherers_query_optimization = append(gatherers_query_optimization, metrics.NewDbCollectQueriesOptimization(nil, configuration))
 
-	m.RunWorker(gatherers, gatherers_configuration, gatherers_query_optimization, repeaters, nil, configuration, configFile, Mode)
+	metrics.RunWorker(gatherers, gatherers_configuration, gatherers_query_optimization, repeaters, nil, configuration, configFile, Mode)
 
 	// never happen, but need to complete code
 	return usage, nil

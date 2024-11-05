@@ -9,7 +9,8 @@ import (
 	"encoding/json"
 
 	"github.com/Releem/mysqlconfigurer/config"
-	m "github.com/Releem/mysqlconfigurer/metrics"
+	"github.com/Releem/mysqlconfigurer/models"
+	"github.com/Releem/mysqlconfigurer/utils"
 	"github.com/advantageous/go-logback/logging"
 
 	"time"
@@ -20,9 +21,9 @@ type ReleemConfigurationsRepeater struct {
 	configuration *config.Config
 }
 
-func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricContext, metrics m.Metrics, Mode m.ModeT) (interface{}, error) {
-	defer m.HandlePanic(repeater.configuration, repeater.logger)
-	repeater.logger.Debug(Mode.Name, Mode.ModeType)
+func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.MetricContext, metrics models.Metrics, Mode models.ModeType) (interface{}, error) {
+	defer utils.HandlePanic(repeater.configuration, repeater.logger)
+	repeater.logger.Debug(Mode.Name, Mode.Type)
 	e, _ := json.Marshal(metrics)
 	bodyReader := strings.NewReader(string(e))
 	repeater.logger.Debug("Result Send data: ", string(e))
@@ -39,20 +40,20 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricCont
 		subdomain = ""
 	}
 
-	if Mode.Name == "TaskSet" && Mode.ModeType == "queries_optimization" {
+	if Mode.Name == "TaskSet" && Mode.Type == "queries_optimization" {
 		api_domain = "https://api.queries." + subdomain + "releem.com/v2/"
-	} else if Mode.Name == "Metrics" && Mode.ModeType == "QueryOptimization" {
+	} else if Mode.Name == "Metrics" && Mode.Type == "QueryOptimization" {
 		api_domain = "https://api.queries." + subdomain + "releem.com/v2/"
 	} else {
 		api_domain = "https://api." + subdomain + "releem.com/v2/"
 	}
 
 	if Mode.Name == "Configurations" {
-		if Mode.ModeType == "set" {
+		if Mode.Type == "set" {
 			api_domain = api_domain + "mysql"
-		} else if Mode.ModeType == "get" {
+		} else if Mode.Type == "get" {
 			api_domain = api_domain + "config"
-		} else if Mode.ModeType == "get-json" {
+		} else if Mode.Type == "get-json" {
 			api_domain = api_domain + "config?json=1"
 		} else {
 			api_domain = api_domain + "mysql"
@@ -60,11 +61,11 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricCont
 	} else if Mode.Name == "Metrics" {
 		api_domain = api_domain + "metrics"
 	} else if Mode.Name == "Event" {
-		api_domain = api_domain + "event/" + Mode.ModeType
+		api_domain = api_domain + "event/" + Mode.Type
 	} else if Mode.Name == "TaskGet" {
 		api_domain = api_domain + "task/task_get"
 	} else if Mode.Name == "TaskSet" {
-		api_domain = api_domain + "task/" + Mode.ModeType
+		api_domain = api_domain + "task/" + Mode.Type
 	} else if Mode.Name == "TaskStatus" {
 		api_domain = api_domain + "task/task_status"
 	}
@@ -112,7 +113,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context m.MetricCont
 		} else if Mode.Name == "Event" {
 			return nil, err
 		} else if Mode.Name == "TaskGet" {
-			result_data := m.Task{}
+			result_data := models.Task{}
 			err := json.Unmarshal(body_res, &result_data)
 			return result_data, err
 		} else if Mode.Name == "TaskSet" {

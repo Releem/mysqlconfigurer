@@ -4,3 +4,4 @@ test-project/test.sh
 releem-install.log
 releem-agent-*
 releem1.conf
+releem_rds.conf

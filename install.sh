@@ -175,7 +175,13 @@ fi
 #Enable Query Optimitsation
 if [ "$0" == "enable_query_optimization" ];
 then
-    $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON *.* TO 'releem'@'${mysql_user_host}';"
+    grant_privileges_sql=$($mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -NBe 'select Concat("GRANT SELECT on *.* to `",User,"`@`", Host,"`;") from mysql.user where User="releem"')
+    for query in  "${grant_privileges_sql[@]}";
+    do
+        echo "${query}"
+        $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "${query}"
+    done
+
     if [ -z "$query_optimization" ]; then
         echo "query_optimization=true" | $sudo_cmd tee -a $CONF
     fi    

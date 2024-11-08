@@ -4,6 +4,7 @@ package utils
 import (
 	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/Releem/mysqlconfigurer/config"
@@ -96,4 +97,27 @@ func ConnectionDatabase(configuration *config.Config, logger logging.Logger, DBn
 		}
 	}
 	return db
+}
+
+func EnableEventsStatementsConsumers(configuration *config.Config, logger logging.Logger, uptime_str string) {
+	uptime, err := strconv.Atoi(uptime_str)
+	if err != nil {
+		logger.Error(err)
+	}
+	if uptime < 120 {
+		var count_setup_consumers int
+		err := models.DB.QueryRow("SELECT count(name) FROM performance_schema.setup_consumers WHERE enabled = 'YES' AND name LIKE 'events_statements_%' AND name != 'events_statements_cpu'").Scan(&count_setup_consumers)
+		if err != nil {
+			logger.Error(err)
+		}
+		logger.Println("Found enabled performance_schema statements consumers: ", count_setup_consumers)
+		if count_setup_consumers < 3 {
+			_, err := models.DB.Query("CALL releem.enable_events_statements_consumers()")
+			if err != nil {
+				logger.Error("Failed to enable events_statements consumers", err)
+			} else {
+				logger.Println("Enable events_statements_consumers")
+			}
+		}
+	}
 }

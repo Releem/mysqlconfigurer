@@ -72,6 +72,9 @@ func RunWorker(gatherers []models.MetricsGatherer, gatherers_configuration []mod
 						f := tasks.ProcessTaskFunc(metrics, repeaters, gatherers, logger, configuration)
 						time.AfterFunc(5*time.Second, f)
 					}
+					if configuration.QueryOptimization && configuration.InstanceType == "aws/rds" {
+						utils.EnableEventsStatementsConsumers(configuration, logger, metrics.DB.Metrics.Status["Uptime"].(string))
+					}
 				}
 				logger.Println("Saved a metrics...")
 			}()
@@ -93,6 +96,9 @@ func RunWorker(gatherers []models.MetricsGatherer, gatherers_configuration []mod
 					utils.ProcessRepeaters(metrics, repeaters, configuration, logger, Mode)
 					if Mode.Name == "Configurations" {
 						logger.Println("Recommended MySQL configuration downloaded to ", configuration.GetReleemConfDir())
+					}
+					if configuration.QueryOptimization && configuration.InstanceType == "aws/rds" {
+						utils.EnableEventsStatementsConsumers(configuration, logger, "0")
 					}
 				}
 				if (Mode.Name == "Configurations" && Mode.Type != "default") || Mode.Name == "Event" || Mode.Name == "TaskSet" {

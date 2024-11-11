@@ -233,6 +233,10 @@ func ApplyConfLocal(metrics *models.Metrics, repeaters models.MetricsRepeater, g
 			task_status = 4
 		} else if need_restart {
 			task_exit_code = 10
+			task_status = 1
+		} else {
+			task_exit_code = 0
+			task_status = 1
 		}
 	}
 	time.Sleep(10 * time.Second)

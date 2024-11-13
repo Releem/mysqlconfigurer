@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"runtime"
+
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
 	"github.com/Releem/mysqlconfigurer/utils"
@@ -42,6 +44,11 @@ func (Agent *AgentMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 	models.SqlTextMutex.RLock()
 	output["QueryOptimizationSqlTextCount"] = len(models.SqlText)
 	models.SqlTextMutex.RUnlock()
+
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	output["AllocMemory"] = m.Alloc
+	output["TotalAllocMemory"] = m.TotalAlloc
 
 	metrics.ReleemAgent.Info = output
 

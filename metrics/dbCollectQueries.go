@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/Releem/mysqlconfigurer/models"
-	"github.com/Releem/mysqlconfigurer/utils"
 	u "github.com/Releem/mysqlconfigurer/utils"
 
 	"github.com/Releem/mysqlconfigurer/config"
@@ -36,7 +35,7 @@ func NewDbCollectQueriesOptimization(logger logging.Logger, configuration *confi
 }
 
 func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(metrics *models.Metrics) error {
-	defer utils.HandlePanic(DbCollectQueriesOptimization.configuration, DbCollectQueriesOptimization.logger)
+	defer u.HandlePanic(DbCollectQueriesOptimization.configuration, DbCollectQueriesOptimization.logger)
 
 	{
 		var output []models.MetricGroupValue

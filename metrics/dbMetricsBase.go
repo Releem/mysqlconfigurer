@@ -8,7 +8,7 @@ import (
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
 	"github.com/Releem/mysqlconfigurer/utils"
-	"github.com/advantageous/go-logback/logging"
+	logging "github.com/google/logger"
 )
 
 type DbMetricsBaseGatherer struct {
@@ -17,15 +17,6 @@ type DbMetricsBaseGatherer struct {
 }
 
 func NewDbMetricsBaseGatherer(logger logging.Logger, configuration *config.Config) *DbMetricsBaseGatherer {
-
-	if logger == nil {
-		if configuration.Debug {
-			logger = logging.NewSimpleDebugLogger("DbMetricsBase")
-		} else {
-			logger = logging.NewSimpleLogger("DbMetricsBase")
-		}
-	}
-
 	return &DbMetricsBaseGatherer{
 		logger:        logger,
 		configuration: configuration,
@@ -164,7 +155,7 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 		rows.Close()
 		metrics.DB.Metrics.Databases = output
 	}
-	DbMetricsBase.logger.Debug("collectMetrics ", metrics.DB.Metrics)
+	DbMetricsBase.logger.V(5).Info("CollectMetrics DbMetricsBase ", metrics.DB.Metrics)
 	return nil
 }
 

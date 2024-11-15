@@ -6,28 +6,17 @@ import (
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
 	"github.com/Releem/mysqlconfigurer/utils"
-	"github.com/advantageous/go-logback/logging"
+	logging "github.com/google/logger"
 )
 
 type AgentMetricsGatherer struct {
 	logger        logging.Logger
-	debug         bool
 	configuration *config.Config
 }
 
 func NewAgentMetricsGatherer(logger logging.Logger, configuration *config.Config) *AgentMetricsGatherer {
-
-	if logger == nil {
-		if configuration.Debug {
-			logger = logging.NewSimpleDebugLogger("Agent")
-		} else {
-			logger = logging.NewSimpleLogger("Agent")
-		}
-	}
-
 	return &AgentMetricsGatherer{
 		logger:        logger,
-		debug:         configuration.Debug,
 		configuration: configuration,
 	}
 }
@@ -52,7 +41,7 @@ func (Agent *AgentMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 
 	metrics.ReleemAgent.Info = output
 
-	Agent.logger.Debug("CollectMetrics  ", output)
+	Agent.logger.V(5).Info("CollectMetrics Agent ", output)
 	return nil
 
 }

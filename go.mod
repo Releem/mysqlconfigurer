@@ -4,7 +4,6 @@ go 1.22.0
 
 require (
 	github.com/Releem/daemon v0.0.0-20241028135502-b7f24658ba58
-	github.com/advantageous/go-logback v0.0.0-20161215180304-6db19679ca3e
 	github.com/aws/aws-sdk-go v1.53.7
 	github.com/aws/aws-sdk-go-v2 v1.27.0
 	github.com/aws/aws-sdk-go-v2/config v1.27.15
@@ -13,6 +12,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.161.3
 	github.com/aws/aws-sdk-go-v2/service/rds v1.79.1
 	github.com/go-sql-driver/mysql v1.8.1
+	github.com/google/logger v1.1.1
 	github.com/hashicorp/hcl v1.0.0
 	github.com/pkg/errors v0.9.1
 	github.com/shirou/gopsutil/v4 v4.24.10

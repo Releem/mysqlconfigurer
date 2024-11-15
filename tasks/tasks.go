@@ -12,10 +12,10 @@ import (
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
 	"github.com/Releem/mysqlconfigurer/utils"
-	"github.com/advantageous/go-logback/logging"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go/aws"
+	logging "github.com/google/logger"
 
 	config_aws "github.com/aws/aws-sdk-go-v2/config"
 )
@@ -47,7 +47,7 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 
 	metrics.ReleemAgent.Tasks = output
 	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskStatus", Type: ""})
-	logger.Println(" * Task with id -", TaskID, "and type id -", TaskTypeID, "is being started...")
+	logger.Info(" * Task with id -", TaskID, "and type id -", TaskTypeID, "is being started...")
 
 	if TaskTypeID == 0 {
 		output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -a", []string{"RELEEM_RESTART_SERVICE=1"}, logger)
@@ -72,7 +72,7 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 				rollback_exit_code = 0
 			}
 			output["task_output"] = output["task_output"].(string) + stdout.String() + stderr.String()
-			logger.Println(" * Task rollbacked with code", rollback_exit_code)
+			logger.Info(" * Task rollbacked with code", rollback_exit_code)
 		}
 
 	} else if TaskTypeID == 1 {
@@ -128,12 +128,11 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 					rollback_exit_code = 0
 				}
 				output["task_output"] = output["task_output"].(string) + stdout.String() + stderr.String()
-				logger.Println(" * Task rollbacked with code", rollback_exit_code)
+				logger.Info(" * Task rollbacked with code", rollback_exit_code)
 			}
 		}
 	}
-	logger.Debug(output)
-	logger.Println(" * Task with id -", TaskID, "and type id -", TaskTypeID, "completed with code", output["task_exit_code"])
+	logger.Info(" * Task with id -", TaskID, "and type id -", TaskTypeID, "completed with code", output["task_exit_code"])
 	metrics.ReleemAgent.Tasks = output
 	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskStatus", Type: ""})
 
@@ -186,7 +185,7 @@ func ApplyConfLocal(metrics *models.Metrics, repeaters models.MetricsRepeater, g
 	}
 
 	for key := range result_data {
-		logger.Println(key, result_data[key], metrics.DB.Conf.Variables[key])
+		logger.Info(key, result_data[key], metrics.DB.Conf.Variables[key])
 
 		if result_data[key] != metrics.DB.Conf.Variables[key] {
 			query_set_var := "set global " + key + "=" + result_data[key].(string)
@@ -206,7 +205,7 @@ func ApplyConfLocal(metrics *models.Metrics, repeaters models.MetricsRepeater, g
 			}
 		}
 	}
-	logger.Println(need_flush, need_restart, need_privileges, error_exist)
+	logger.Info(need_flush, need_restart, need_privileges, error_exist)
 	if error_exist {
 		task_exit_code = 8
 		task_status = 4
@@ -260,7 +259,7 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 		logger.Errorf("Load AWS configuration FAILED, %v", err)
 		task_output = task_output + err.Error()
 	} else {
-		logger.Println("AWS configuration loaded SUCCESS")
+		logger.Info("AWS configuration loaded SUCCESS")
 	}
 
 	// Создайте клиент RDS
@@ -284,7 +283,7 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 		logger.Error("No DB instance found.")
 		task_output = task_output + "No DB instance found.\n"
 	}
-	logger.Printf("DB Instance ID: %s, DB Instance Status: %s, Parameter Group Name: %s, Parameter Group Status: %s\n", *dbInstance.DBInstanceIdentifier, *dbInstance.DBInstanceStatus, *paramGroup.DBParameterGroupName, *paramGroup.ParameterApplyStatus)
+	logger.Infof("DB Instance ID: %s, DB Instance Status: %s, Parameter Group Name: %s, Parameter Group Status: %s\n", *dbInstance.DBInstanceIdentifier, *dbInstance.DBInstanceStatus, *paramGroup.DBParameterGroupName, *paramGroup.ParameterApplyStatus)
 	if aws.StringValue(dbInstance.DBInstanceStatus) != "available" {
 		logger.Error("DB Instance Status '" + aws.StringValue(dbInstance.DBInstanceStatus) + "' not available(" + aws.StringValue(dbInstance.DBInstanceStatus) + ")")
 		task_output = task_output + "DB Instance Status '" + aws.StringValue(dbInstance.DBInstanceStatus) + "' not available\n"
@@ -337,7 +336,7 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 	var value string
 	for key := range result_data {
 		if result_data[key] != metrics.DB.Conf.Variables[key] {
-			logger.Println(key, result_data[key], metrics.DB.Conf.Variables[key])
+			logger.Info(key, result_data[key], metrics.DB.Conf.Variables[key])
 			if key == "innodb_max_dirty_pages_pct" {
 				i, err := strconv.ParseFloat(result_data[key].(string), 32)
 				if err != nil {
@@ -382,7 +381,7 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 				task_output = task_output + err.Error()
 				return task_exit_code, task_status, task_output
 			} else {
-				logger.Println("Parameter group modified successfully")
+				logger.Info("Parameter group modified successfully")
 			}
 			Parameters = []types.Parameter{}
 		}
@@ -408,7 +407,7 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 			task_output = task_output + err.Error()
 			return task_exit_code, task_status, task_output
 		} else {
-			logger.Println("Parameter group modified successfully")
+			logger.Info("Parameter group modified successfully")
 		}
 	}
 	time.Sleep(15 * time.Second)
@@ -432,7 +431,7 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 			logger.Error("No DB instance found.")
 			task_output = task_output + "No DB instance found.\n"
 		}
-		logger.Printf("DB Instance ID: %s, DB Instance Status: %s, Parameter Group Name: %s, Parameter Group Status: %s\n", *dbInstance.DBInstanceIdentifier, *dbInstance.DBInstanceStatus, *paramGroup.DBParameterGroupName, *paramGroup.ParameterApplyStatus)
+		logger.Infof("DB Instance ID: %s, DB Instance Status: %s, Parameter Group Name: %s, Parameter Group Status: %s\n", *dbInstance.DBInstanceIdentifier, *dbInstance.DBInstanceStatus, *paramGroup.DBParameterGroupName, *paramGroup.ParameterApplyStatus)
 
 		if aws.StringValue(dbInstance.DBInstanceStatus) != "modifying" || aws.StringValue(paramGroup.ParameterApplyStatus) != "applying" {
 			break
@@ -448,7 +447,7 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 		task_exit_code = 10
 		task_status = 4
 	} else if aws.StringValue(dbInstance.DBInstanceStatus) == "available" && aws.StringValue(paramGroup.ParameterApplyStatus) == "in-sync" {
-		logger.Println("DB Instance Status available, Parametr Group Status in-sync, No pending modifications")
+		logger.Info("DB Instance Status available, Parametr Group Status in-sync, No pending modifications")
 	} else {
 		task_exit_code = 7
 		task_status = 4

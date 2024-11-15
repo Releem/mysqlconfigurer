@@ -10,7 +10,7 @@ import (
 	u "github.com/Releem/mysqlconfigurer/utils"
 
 	"github.com/Releem/mysqlconfigurer/config"
-	"github.com/advantageous/go-logback/logging"
+	logging "github.com/google/logger"
 )
 
 type DbCollectQueriesOptimization struct {
@@ -19,15 +19,6 @@ type DbCollectQueriesOptimization struct {
 }
 
 func NewDbCollectQueriesOptimization(logger logging.Logger, configuration *config.Config) *DbCollectQueriesOptimization {
-
-	if logger == nil {
-		if configuration.Debug {
-			logger = logging.NewSimpleDebugLogger("DbCollectQueriesOptimization")
-		} else {
-			logger = logging.NewSimpleLogger("DbCollectQueriesOptimization")
-		}
-	}
-
 	return &DbCollectQueriesOptimization{
 		logger:        logger,
 		configuration: configuration,
@@ -379,8 +370,8 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 
 	metrics.DB.QueriesOptimization = QueriesOptimization
 
-	DbCollectQueriesOptimization.logger.Debug("collectMetrics ", metrics.DB.Queries)
-	DbCollectQueriesOptimization.logger.Debug("collectMetrics ", metrics.DB.QueriesOptimization)
+	DbCollectQueriesOptimization.logger.V(5).Info("collectMetrics ", metrics.DB.Queries)
+	DbCollectQueriesOptimization.logger.V(5).Info("collectMetrics ", metrics.DB.QueriesOptimization)
 
 	return nil
 
@@ -422,13 +413,13 @@ func CollectionExplain(digests map[string]models.MetricGroupValue, field_sorting
 			if (strings.Contains(digests[k]["query_text"].(string), "SELECT") || strings.Contains(digests[k]["query_text"].(string), "select")) &&
 				strings.Contains(digests[k]["query_text"].(string), "SQL_NO_CACHE") &&
 				!(strings.Contains(digests[k]["query_text"].(string), "WHERE") || strings.Contains(digests[k]["query_text"].(string), "where")) {
-				logger.Debug("Query From mysqldump", digests[k]["query_text"].(string))
+				logger.V(5).Info("Query From mysqldump", digests[k]["query_text"].(string))
 				continue
 			}
 
 			if strings.HasSuffix(digests[k]["query_text"].(string), "...") {
 				digests[k]["explain"] = "need_full_query"
-				logger.Debug("need_full_query") //, digests[k]["query_text"].(string))
+				logger.V(5).Info("need_full_query") //, digests[k]["query_text"].(string))
 				continue
 			}
 			if schema_name_conn != digests[k]["schema_name"].(string) {
@@ -443,14 +434,14 @@ func CollectionExplain(digests map[string]models.MetricGroupValue, field_sorting
 			//Try exec EXPLAIN for origin query
 			err := db.QueryRow("EXPLAIN FORMAT=JSON " + digests[k]["query_text"].(string)).Scan(&explain)
 			if err != nil {
-				logger.PrintError("Explain Error", err)
+				logger.Error("Explain Error", err)
 				if strings.Contains(err.Error(), "command denied to user") {
 					continue
 				}
 				logger.Error(digests[k]["query_text"].(string))
 
 			} else {
-				logger.Debug(i, "OK")
+				logger.V(5).Info(i, "OK")
 				digests[k]["explain"] = explain
 				i = i + 1
 				continue
@@ -460,13 +451,13 @@ func CollectionExplain(digests map[string]models.MetricGroupValue, field_sorting
 			query_text = strings.Replace(digests[k]["query_text"].(string), "\"", "'", -1)
 			err_1 := db.QueryRow("EXPLAIN FORMAT=JSON " + query_text).Scan(&explain)
 			if err_1 != nil {
-				logger.PrintError("Explain Error", err_1)
+				logger.Error("Explain Error", err_1)
 				if strings.Contains(err_1.Error(), "command denied to user") {
 					continue
 				}
 				logger.Error(query_text)
 			} else {
-				logger.Debug(i, "OK")
+				logger.V(5).Info(i, "OK")
 				digests[k]["explain"] = explain
 				i = i + 1
 				continue
@@ -476,14 +467,14 @@ func CollectionExplain(digests map[string]models.MetricGroupValue, field_sorting
 			query_text = strings.Replace(digests[k]["query_text"].(string), "\"", "`", -1)
 			err_2 := db.QueryRow("EXPLAIN FORMAT=JSON " + query_text).Scan(&explain)
 			if err_2 != nil {
-				logger.PrintError("Explain Error", err_2)
+				logger.Error("Explain Error", err_2)
 				if strings.Contains(err_2.Error(), "command denied to user") {
 					continue
 				}
 				logger.Error(query_text)
 
 			} else {
-				logger.Debug(i, "OK")
+				logger.V(5).Info(i, "OK")
 				digests[k]["explain"] = explain
 				i = i + 1
 				continue

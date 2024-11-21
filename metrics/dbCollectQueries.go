@@ -33,7 +33,29 @@ func NewDbCollectQueriesOptimization(logger logging.Logger, configuration *confi
 		configuration: configuration,
 	}
 }
-
+func FilterQueryString(DatabasesQueryOptimization string, FieldName string) string {
+	var DatabasesString string
+	if DatabasesQueryOptimization != "" {
+		DatabasesQueryOptimizationSlice := strings.Split(DatabasesQueryOptimization, `,`)
+		for i, DbName := range DatabasesQueryOptimizationSlice {
+			DatabasesString += "'" + DbName + "'"
+			if i < (len(DatabasesQueryOptimizationSlice) - 1) {
+				DatabasesString += ","
+			}
+		}
+		return " WHERE " + FieldName + " IN (" + DatabasesString + ")"
+	} else {
+		return ""
+	}
+}
+func IsSchemaNameExclude(SchemaName string, DatabasesQueryOptimization string) bool {
+	for _, DbName := range strings.Split(DatabasesQueryOptimization, `,`) {
+		if SchemaName == DbName {
+			return false
+		}
+	}
+	return true
+}
 func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(metrics *models.Metrics) error {
 	defer u.HandlePanic(DbCollectQueriesOptimization.configuration, DbCollectQueriesOptimization.logger)
 
@@ -120,6 +142,9 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 	var information_schema_table information_schema_table_type
 	i := 0
 	for _, database := range metrics.DB.Metrics.Databases {
+		if IsSchemaNameExclude(database, DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization) {
+			continue
+		}
 		rows, err := models.DB.Query(`SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(TABLE_TYPE, 'NULL') as TABLE_TYPE,  IFNULL(ENGINE, 'NULL') as ENGINE, IFNULL(ROW_FORMAT, 'NULL') as ROW_FORMAT, IFNULL(TABLE_ROWS, 'NULL') as TABLE_ROWS, IFNULL(AVG_ROW_LENGTH, 'NULL') as AVG_ROW_LENGTH, IFNULL(MAX_DATA_LENGTH, 'NULL') as MAX_DATA_LENGTH,IFNULL(DATA_LENGTH, 'NULL') as DATA_LENGTH, IFNULL(INDEX_LENGTH, 'NULL') as INDEX_LENGTH, IFNULL(TABLE_COLLATION, 'NULL') as TABLE_COLLATION FROM information_schema.tables WHERE TABLE_SCHEMA = ? `, database)
 		if err != nil {
 			DbCollectQueriesOptimization.logger.Error(err)
@@ -159,7 +184,7 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 	}
 	var information_schema_column information_schema_column_type
 
-	rows, err = models.DB.Query("SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(ORDINAL_POSITION, 'NULL') as ORDINAL_POSITION, IFNULL(COLUMN_DEFAULT, 'NULL') as COLUMN_DEFAULT, IFNULL(IS_NULLABLE, 'NULL') as IS_NULLABLE, IFNULL(DATA_TYPE, 'NULL') as DATA_TYPE, IFNULL(CHARACTER_MAXIMUM_LENGTH, 'NULL') as CHARACTER_MAXIMUM_LENGTH, IFNULL(NUMERIC_PRECISION, 'NULL') as NUMERIC_PRECISION, IFNULL(NUMERIC_SCALE, 'NULL') as NUMERIC_SCALE, IFNULL(CHARACTER_SET_NAME, 'NULL') as CHARACTER_SET_NAME, IFNULL(COLLATION_NAME, 'NULL') as COLLATION_NAME, IFNULL(COLUMN_TYPE, 'NULL') as COLUMN_TYPE, IFNULL(COLUMN_KEY, 'NULL') as COLUMN_KEY, IFNULL(EXTRA, 'NULL') as EXTRA FROM information_schema.columns")
+	rows, err = models.DB.Query("SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(ORDINAL_POSITION, 'NULL') as ORDINAL_POSITION, IFNULL(COLUMN_DEFAULT, 'NULL') as COLUMN_DEFAULT, IFNULL(IS_NULLABLE, 'NULL') as IS_NULLABLE, IFNULL(DATA_TYPE, 'NULL') as DATA_TYPE, IFNULL(CHARACTER_MAXIMUM_LENGTH, 'NULL') as CHARACTER_MAXIMUM_LENGTH, IFNULL(NUMERIC_PRECISION, 'NULL') as NUMERIC_PRECISION, IFNULL(NUMERIC_SCALE, 'NULL') as NUMERIC_SCALE, IFNULL(CHARACTER_SET_NAME, 'NULL') as CHARACTER_SET_NAME, IFNULL(COLLATION_NAME, 'NULL') as COLLATION_NAME, IFNULL(COLUMN_TYPE, 'NULL') as COLUMN_TYPE, IFNULL(COLUMN_KEY, 'NULL') as COLUMN_KEY, IFNULL(EXTRA, 'NULL') as EXTRA FROM information_schema.columns" + FilterQueryString(DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "TABLE_SCHEMA"))
 	if err != nil {
 		DbCollectQueriesOptimization.logger.Error(err)
 	} else {
@@ -191,12 +216,12 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 	}
 	var information_schema_index information_schema_index_type
 
-	rows, err = models.DB.Query("SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(INDEX_NAME, 'NULL') as INDEX_NAME, IFNULL(NON_UNIQUE, 'NULL') as NON_UNIQUE, IFNULL(SEQ_IN_INDEX, 'NULL') as SEQ_IN_INDEX, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(COLLATION, 'NULL') as COLLATION, IFNULL(CARDINALITY, 'NULL') as CARDINALITY, IFNULL(SUB_PART, 'NULL') as SUB_PART, IFNULL(PACKED, 'NULL') as PACKED, IFNULL(NULLABLE, 'NULL') as NULLABLE, IFNULL(INDEX_TYPE, 'NULL') as INDEX_TYPE, IFNULL(EXPRESSION, 'NULL') as EXPRESSION FROM information_schema.statistics")
+	rows, err = models.DB.Query("SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(INDEX_NAME, 'NULL') as INDEX_NAME, IFNULL(NON_UNIQUE, 'NULL') as NON_UNIQUE, IFNULL(SEQ_IN_INDEX, 'NULL') as SEQ_IN_INDEX, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(COLLATION, 'NULL') as COLLATION, IFNULL(CARDINALITY, 'NULL') as CARDINALITY, IFNULL(SUB_PART, 'NULL') as SUB_PART, IFNULL(PACKED, 'NULL') as PACKED, IFNULL(NULLABLE, 'NULL') as NULLABLE, IFNULL(INDEX_TYPE, 'NULL') as INDEX_TYPE, IFNULL(EXPRESSION, 'NULL') as EXPRESSION FROM information_schema.statistics" + FilterQueryString(DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "TABLE_SCHEMA"))
 	if err != nil {
 		if err != sql.ErrNoRows && !strings.Contains(err.Error(), "Unknown column") {
 			DbCollectQueriesOptimization.logger.Error(err)
 		}
-		rows, err = models.DB.Query("SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(INDEX_NAME, 'NULL') as INDEX_NAME, IFNULL(NON_UNIQUE, 'NULL') as NON_UNIQUE, IFNULL(SEQ_IN_INDEX, 'NULL') as SEQ_IN_INDEX, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(COLLATION, 'NULL') as COLLATION, IFNULL(CARDINALITY, 'NULL') as CARDINALITY, IFNULL(SUB_PART, 'NULL') as SUB_PART, IFNULL(PACKED, 'NULL') as PACKED, IFNULL(NULLABLE, 'NULL') as NULLABLE, IFNULL(INDEX_TYPE, 'NULL') as INDEX_TYPE FROM information_schema.statistics")
+		rows, err = models.DB.Query("SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(INDEX_NAME, 'NULL') as INDEX_NAME, IFNULL(NON_UNIQUE, 'NULL') as NON_UNIQUE, IFNULL(SEQ_IN_INDEX, 'NULL') as SEQ_IN_INDEX, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(COLLATION, 'NULL') as COLLATION, IFNULL(CARDINALITY, 'NULL') as CARDINALITY, IFNULL(SUB_PART, 'NULL') as SUB_PART, IFNULL(PACKED, 'NULL') as PACKED, IFNULL(NULLABLE, 'NULL') as NULLABLE, IFNULL(INDEX_TYPE, 'NULL') as INDEX_TYPE FROM information_schema.statistics" + FilterQueryString(DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "TABLE_SCHEMA"))
 		if err != nil {
 			DbCollectQueriesOptimization.logger.Error(err)
 		} else {
@@ -265,7 +290,7 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 	}
 	var performance_schema_table_io_waits_summary_by_index_usage performance_schema_table_io_waits_summary_by_index_usage_type
 
-	rows, err = models.DB.Query("SELECT IFNULL(OBJECT_TYPE, 'NULL') as OBJECT_TYPE, IFNULL(OBJECT_SCHEMA, 'NULL') as  OBJECT_SCHEMA, IFNULL(OBJECT_NAME, 'NULL') as  OBJECT_NAME, IFNULL(INDEX_NAME, 'NULL') as  INDEX_NAME, IFNULL(COUNT_STAR, 'NULL') as  COUNT_STAR, IFNULL(SUM_TIMER_WAIT, 'NULL') as  SUM_TIMER_WAIT, IFNULL(MIN_TIMER_WAIT, 'NULL') as  MIN_TIMER_WAIT, IFNULL(AVG_TIMER_WAIT, 'NULL') as  AVG_TIMER_WAIT, IFNULL(MAX_TIMER_WAIT, 'NULL') as  MAX_TIMER_WAIT, IFNULL(COUNT_READ, 'NULL') as  COUNT_READ, IFNULL(SUM_TIMER_READ, 'NULL') as  SUM_TIMER_READ, IFNULL(MIN_TIMER_READ, 'NULL') as  MIN_TIMER_READ, IFNULL(AVG_TIMER_READ, 'NULL') as  AVG_TIMER_READ, IFNULL(MAX_TIMER_READ, 'NULL') as  MAX_TIMER_READ, IFNULL(COUNT_WRITE, 'NULL') as  COUNT_WRITE, IFNULL(SUM_TIMER_WRITE, 'NULL') as  SUM_TIMER_WRITE, IFNULL(MIN_TIMER_WRITE, 'NULL') as  MIN_TIMER_WRITE, IFNULL(AVG_TIMER_WRITE, 'NULL') as  AVG_TIMER_WRITE, IFNULL(MAX_TIMER_WRITE, 'NULL') as  MAX_TIMER_WRITE, IFNULL(COUNT_FETCH, 'NULL') as  COUNT_FETCH, IFNULL(SUM_TIMER_FETCH, 'NULL') as  SUM_TIMER_FETCH, IFNULL(MIN_TIMER_FETCH, 'NULL') as  MIN_TIMER_FETCH, IFNULL(AVG_TIMER_FETCH, 'NULL') as  AVG_TIMER_FETCH, IFNULL(MAX_TIMER_FETCH, 'NULL') as  MAX_TIMER_FETCH, IFNULL(COUNT_INSERT, 'NULL') as  COUNT_INSERT, IFNULL(SUM_TIMER_INSERT, 'NULL') as  SUM_TIMER_INSERT, IFNULL(MIN_TIMER_INSERT, 'NULL') as  MIN_TIMER_INSERT, IFNULL(AVG_TIMER_INSERT, 'NULL') as  AVG_TIMER_INSERT, IFNULL(MAX_TIMER_INSERT, 'NULL') as  MAX_TIMER_INSERT, IFNULL(COUNT_UPDATE, 'NULL') as  COUNT_UPDATE, IFNULL(SUM_TIMER_UPDATE, 'NULL') as  SUM_TIMER_UPDATE, IFNULL(MIN_TIMER_UPDATE, 'NULL') as  MIN_TIMER_UPDATE, IFNULL(AVG_TIMER_UPDATE, 'NULL') as  AVG_TIMER_UPDATE, IFNULL(MAX_TIMER_UPDATE, 'NULL') as  MAX_TIMER_UPDATE, IFNULL(COUNT_DELETE, 'NULL') as  COUNT_DELETE, IFNULL(SUM_TIMER_DELETE, 'NULL') as  SUM_TIMER_DELETE, IFNULL(MIN_TIMER_DELETE, 'NULL') as  MIN_TIMER_DELETE, IFNULL(AVG_TIMER_DELETE, 'NULL') as  AVG_TIMER_DELETE, IFNULL(MAX_TIMER_DELETE, 'NULL') as  MAX_TIMER_DELETE FROM performance_schema.table_io_waits_summary_by_index_usage")
+	rows, err = models.DB.Query("SELECT IFNULL(OBJECT_TYPE, 'NULL') as OBJECT_TYPE, IFNULL(OBJECT_SCHEMA, 'NULL') as  OBJECT_SCHEMA, IFNULL(OBJECT_NAME, 'NULL') as  OBJECT_NAME, IFNULL(INDEX_NAME, 'NULL') as  INDEX_NAME, IFNULL(COUNT_STAR, 'NULL') as  COUNT_STAR, IFNULL(SUM_TIMER_WAIT, 'NULL') as  SUM_TIMER_WAIT, IFNULL(MIN_TIMER_WAIT, 'NULL') as  MIN_TIMER_WAIT, IFNULL(AVG_TIMER_WAIT, 'NULL') as  AVG_TIMER_WAIT, IFNULL(MAX_TIMER_WAIT, 'NULL') as  MAX_TIMER_WAIT, IFNULL(COUNT_READ, 'NULL') as  COUNT_READ, IFNULL(SUM_TIMER_READ, 'NULL') as  SUM_TIMER_READ, IFNULL(MIN_TIMER_READ, 'NULL') as  MIN_TIMER_READ, IFNULL(AVG_TIMER_READ, 'NULL') as  AVG_TIMER_READ, IFNULL(MAX_TIMER_READ, 'NULL') as  MAX_TIMER_READ, IFNULL(COUNT_WRITE, 'NULL') as  COUNT_WRITE, IFNULL(SUM_TIMER_WRITE, 'NULL') as  SUM_TIMER_WRITE, IFNULL(MIN_TIMER_WRITE, 'NULL') as  MIN_TIMER_WRITE, IFNULL(AVG_TIMER_WRITE, 'NULL') as  AVG_TIMER_WRITE, IFNULL(MAX_TIMER_WRITE, 'NULL') as  MAX_TIMER_WRITE, IFNULL(COUNT_FETCH, 'NULL') as  COUNT_FETCH, IFNULL(SUM_TIMER_FETCH, 'NULL') as  SUM_TIMER_FETCH, IFNULL(MIN_TIMER_FETCH, 'NULL') as  MIN_TIMER_FETCH, IFNULL(AVG_TIMER_FETCH, 'NULL') as  AVG_TIMER_FETCH, IFNULL(MAX_TIMER_FETCH, 'NULL') as  MAX_TIMER_FETCH, IFNULL(COUNT_INSERT, 'NULL') as  COUNT_INSERT, IFNULL(SUM_TIMER_INSERT, 'NULL') as  SUM_TIMER_INSERT, IFNULL(MIN_TIMER_INSERT, 'NULL') as  MIN_TIMER_INSERT, IFNULL(AVG_TIMER_INSERT, 'NULL') as  AVG_TIMER_INSERT, IFNULL(MAX_TIMER_INSERT, 'NULL') as  MAX_TIMER_INSERT, IFNULL(COUNT_UPDATE, 'NULL') as  COUNT_UPDATE, IFNULL(SUM_TIMER_UPDATE, 'NULL') as  SUM_TIMER_UPDATE, IFNULL(MIN_TIMER_UPDATE, 'NULL') as  MIN_TIMER_UPDATE, IFNULL(AVG_TIMER_UPDATE, 'NULL') as  AVG_TIMER_UPDATE, IFNULL(MAX_TIMER_UPDATE, 'NULL') as  MAX_TIMER_UPDATE, IFNULL(COUNT_DELETE, 'NULL') as  COUNT_DELETE, IFNULL(SUM_TIMER_DELETE, 'NULL') as  SUM_TIMER_DELETE, IFNULL(MIN_TIMER_DELETE, 'NULL') as  MIN_TIMER_DELETE, IFNULL(AVG_TIMER_DELETE, 'NULL') as  AVG_TIMER_DELETE, IFNULL(MAX_TIMER_DELETE, 'NULL') as  MAX_TIMER_DELETE FROM performance_schema.table_io_waits_summary_by_index_usage" + FilterQueryString(DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "OBJECT_SCHEMA"))
 	if err != nil {
 		DbCollectQueriesOptimization.logger.Error(err)
 	} else {
@@ -337,7 +362,7 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 	}
 	var information_schema_referential_constraints information_schema_referential_constraints_type
 
-	rows, err = models.DB.Query("SELECT IFNULL(CONSTRAINT_SCHEMA, 'NULL') as CONSTRAINT_SCHEMA, IFNULL(CONSTRAINT_NAME, 'NULL') as CONSTRAINT_NAME, IFNULL(UNIQUE_CONSTRAINT_SCHEMA, 'NULL') as UNIQUE_CONSTRAINT_SCHEMA, IFNULL(UNIQUE_CONSTRAINT_NAME, 'NULL') as UNIQUE_CONSTRAINT_NAME, IFNULL(MATCH_OPTION, 'NULL') as MATCH_OPTION, IFNULL(UPDATE_RULE, 'NULL') as UPDATE_RULE, IFNULL(DELETE_RULE, 'NULL') as DELETE_RULE, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(REFERENCED_TABLE_NAME, 'NULL') as REFERENCED_TABLE_NAME FROM information_schema.REFERENTIAL_CONSTRAINTS")
+	rows, err = models.DB.Query("SELECT IFNULL(CONSTRAINT_SCHEMA, 'NULL') as CONSTRAINT_SCHEMA, IFNULL(CONSTRAINT_NAME, 'NULL') as CONSTRAINT_NAME, IFNULL(UNIQUE_CONSTRAINT_SCHEMA, 'NULL') as UNIQUE_CONSTRAINT_SCHEMA, IFNULL(UNIQUE_CONSTRAINT_NAME, 'NULL') as UNIQUE_CONSTRAINT_NAME, IFNULL(MATCH_OPTION, 'NULL') as MATCH_OPTION, IFNULL(UPDATE_RULE, 'NULL') as UPDATE_RULE, IFNULL(DELETE_RULE, 'NULL') as DELETE_RULE, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(REFERENCED_TABLE_NAME, 'NULL') as REFERENCED_TABLE_NAME FROM information_schema.REFERENTIAL_CONSTRAINTS" + FilterQueryString(DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "CONSTRAINT_SCHEMA"))
 	if err != nil {
 		DbCollectQueriesOptimization.logger.Error(err)
 	} else {
@@ -389,6 +414,9 @@ func CollectionExplain(digests map[string]models.MetricGroupValue, field_sorting
 				continue
 			}
 			if strings.Contains(digests[k]["query_text"].(string), "EXPLAIN FORMAT=JSON") {
+				continue
+			}
+			if IsSchemaNameExclude(digests[k]["schema_name"].(string), configuration.DatabasesQueryOptimization) {
 				continue
 			}
 

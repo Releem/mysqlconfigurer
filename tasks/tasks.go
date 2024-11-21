@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -47,7 +48,7 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 
 	metrics.ReleemAgent.Tasks = output
 	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskStatus", Type: ""})
-	logger.Info(" * Task with id -", TaskID, "and type id -", TaskTypeID, "is being started...")
+	logger.Info(" * Task with id - ", TaskID, " and type id - ", TaskTypeID, " is being started...")
 
 	if TaskTypeID == 0 {
 		output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -a", []string{"RELEEM_RESTART_SERVICE=1"}, logger)
@@ -72,7 +73,7 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 				rollback_exit_code = 0
 			}
 			output["task_output"] = output["task_output"].(string) + stdout.String() + stderr.String()
-			logger.Info(" * Task rollbacked with code", rollback_exit_code)
+			logger.Info(" * Task rollbacked with code ", rollback_exit_code)
 		}
 
 	} else if TaskTypeID == 1 {
@@ -93,8 +94,15 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 				output["task_output"] = output["task_output"].(string) + task_output
 			}
 		} else {
-			output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=0"}, logger)
-			output["task_output"] = output["task_output"].(string) + task_output
+			switch runtime.GOOS {
+			case "windows":
+				output["task_exit_code"] = 0
+				output["task_status"] = 1
+				output["task_output"] = output["task_output"].(string) + "Windows is not supported apply configuration.\n"
+			default: // для Linux и других UNIX-подобных систем
+				output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=0"}, logger)
+				output["task_output"] = output["task_output"].(string) + task_output
+			}
 
 			if output["task_exit_code"] == 0 {
 				output["task_exit_code"], output["task_status"], task_output = ApplyConfLocal(metrics, repeaters, gatherers, logger, configuration)
@@ -128,11 +136,11 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 					rollback_exit_code = 0
 				}
 				output["task_output"] = output["task_output"].(string) + stdout.String() + stderr.String()
-				logger.Info(" * Task rollbacked with code", rollback_exit_code)
+				logger.Info(" * Task rollbacked with code ", rollback_exit_code)
 			}
 		}
 	}
-	logger.Info(" * Task with id -", TaskID, "and type id -", TaskTypeID, "completed with code", output["task_exit_code"])
+	logger.Info(" * Task with id - ", TaskID, " and type id - ", TaskTypeID, " completed with code ", output["task_exit_code"])
 	metrics.ReleemAgent.Tasks = output
 	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskStatus", Type: ""})
 

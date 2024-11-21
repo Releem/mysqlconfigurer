@@ -26,7 +26,7 @@ func makeTerminateChannel() <-chan os.Signal {
 }
 
 func RunWorker(gatherers []models.MetricsGatherer, gatherers_configuration []models.MetricsGatherer, gatherers_query_optimization []models.MetricsGatherer, repeaters models.MetricsRepeater, logger logging.Logger,
-	configuration *config.Config, configFile string, Mode models.ModeType) {
+	configuration *config.Config, Mode models.ModeType) {
 	var GenerateTimer, timer, QueryOptimizationTimer *time.Timer
 	defer utils.HandlePanic(configuration, logger)
 
@@ -37,7 +37,7 @@ func RunWorker(gatherers []models.MetricsGatherer, gatherers_configuration []mod
 		GenerateTimer = time.NewTimer(configuration.GenerateConfigPeriod * time.Second)
 		timer = time.NewTimer(1 * time.Second)
 	}
-	QueryOptimizationTimer = time.NewTimer(60 * time.Second)
+	QueryOptimizationTimer = time.NewTimer(5 * time.Minute)
 	QueryOptimizationCollectSqlText := time.NewTimer(1 * time.Second)
 	models.SqlText = make(map[string]map[string]string)
 	models.SqlTextMutex = sync.RWMutex{}
@@ -47,11 +47,13 @@ func RunWorker(gatherers []models.MetricsGatherer, gatherers_configuration []mod
 		QueryOptimizationCollectSqlText.Stop()
 	}
 	terminator := makeTerminateChannel()
+
+loop:
 	for {
 		select {
 		case <-terminator:
 			logger.Info("Exiting")
-			os.Exit(0)
+			break loop
 		case <-timer.C:
 			logger.Info("Starting collection of data for saving a metrics...")
 			timer.Reset(configuration.MetricsPeriod * time.Second)

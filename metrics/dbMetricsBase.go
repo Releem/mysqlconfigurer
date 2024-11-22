@@ -74,24 +74,26 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 	{
 		var output []models.MetricGroupValue
 		var digest string
-		var calls, avg_time_us int
+		var calls, avg_time_us, sum_time_us int
 
-		rows, err := models.DB.Query("SELECT CONCAT(IFNULL(schema_name, 'NULL'), '_', IFNULL(digest, 'NULL')) as queryid, count_star as calls, round(avg_timer_wait/1000000, 0) as avg_time_us FROM performance_schema.events_statements_summary_by_digest")
+		rows, err := models.DB.Query("SELECT CONCAT(IFNULL(schema_name, 'NULL'), '_', IFNULL(digest, 'NULL')) as queryid, count_star as calls, round(avg_timer_wait/1000000, 0) as avg_time_us, round(sum_timer_wait/1000000, 0) as sum_time_us FROM performance_schema.events_statements_summary_by_digest")
 		if err != nil {
 			if err != sql.ErrNoRows {
 				DbMetricsBase.logger.Error(err)
 			}
 		} else {
 			for rows.Next() {
-				err := rows.Scan(&digest, &calls, &avg_time_us)
+				err := rows.Scan(&digest, &calls, &avg_time_us, &sum_time_us)
 				if err != nil {
 					DbMetricsBase.logger.Error(err)
 					return err
 				}
-				digest := models.MetricGroupValue{"queryid": digest, "calls": calls, "avg_time_us": avg_time_us}
-				output = append(output, digest)
+				statements := models.MetricGroupValue{"queryid": digest, "calls": calls, "avg_time_us": avg_time_us, "sum_time_us": sum_time_us}
+				output = append(output, statements)
 			}
 		}
+		metrics.DB.Metrics.QueriesForLatency = output
+
 		if len(output) != 0 {
 			totalQueryCount := len(output)
 			dictQueryCount := make(map[int]int)

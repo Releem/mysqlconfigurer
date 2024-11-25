@@ -49,6 +49,9 @@ func FilterQueryString(DatabasesQueryOptimization string, FieldName string) stri
 	}
 }
 func IsSchemaNameExclude(SchemaName string, DatabasesQueryOptimization string) bool {
+	if DatabasesQueryOptimization == "" {
+		return false
+	}
 	for _, DbName := range strings.Split(DatabasesQueryOptimization, `,`) {
 		if SchemaName == DbName {
 			return false

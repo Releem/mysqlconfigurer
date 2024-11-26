@@ -51,6 +51,7 @@ func (Agent *AgentMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 	output["TotalAllocMemory"] = m.TotalAlloc
 
 	metrics.ReleemAgent.Info = output
+	metrics.ReleemAgent.Conf = *Agent.configuration
 
 	Agent.logger.Debug("CollectMetrics  ", output)
 	return nil

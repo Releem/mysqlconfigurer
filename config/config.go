@@ -37,6 +37,7 @@ type Config struct {
 	AwsRDSDB                              string        `hcl:"aws_rds_db"`
 	AwsRDSParameterGroup                  string        `hcl:"aws_rds_parametr_group"`
 	QueryOptimization                     bool          `hcl:"query_optimization"`
+	DatabasesQueryOptimization            string        `hcl:"databases_query_optimization"`
 }
 
 func LoadConfig(filename string, logger logging.Logger) (*Config, error) {

@@ -477,10 +477,10 @@ printf "\033[37m\n * Saving variables to Releem Agent configuration\033[0m\n"
 
 printf "\033[37m\n - Adding API key to the Releem Agent configuration: $CONF\n\033[0m"
 echo "apikey=\"$apikey\"" | $sudo_cmd tee -a $CONF >/dev/null
-
-printf "\033[37m - Adding Releem Configuration Directory $WORKDIR/conf to Releem Agent configuration: $CONF\n\033[0m"
-echo "releem_cnf_dir=\"$WORKDIR/conf\"" | $sudo_cmd tee -a $CONF >/dev/null
-
+if [ -d "$WORKDIR/conf" ]; then
+    printf "\033[37m - Adding Releem Configuration Directory $WORKDIR/conf to Releem Agent configuration: $CONF\n\033[0m"
+    echo "releem_cnf_dir=\"$WORKDIR/conf\"" | $sudo_cmd tee -a $CONF >/dev/null
+fi
 if [ -n "$MYSQL_LOGIN" ] && [ -n "$MYSQL_PASSWORD" ]; then
     printf "\033[37m - Adding user and password mysql to the Releem Agent configuration: $CONF\n\033[0m"
 	echo "mysql_user=\"$MYSQL_LOGIN\"" | $sudo_cmd tee -a $CONF >/dev/null

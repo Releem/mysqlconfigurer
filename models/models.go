@@ -31,7 +31,6 @@ type Metrics struct {
 			TotalMyisamIndexes int
 			Engine             map[string]MetricGroupValue
 			Latency            string
-			QueriesForLatency  []MetricGroupValue
 			Databases          []string
 			InnoDBEngineStatus string
 		}

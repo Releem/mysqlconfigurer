@@ -35,7 +35,7 @@ type Config struct {
 	InstanceType                          string        `hcl:"instance_type"`
 	AwsRegion                             string        `hcl:"aws_region"`
 	AwsRDSDB                              string        `hcl:"aws_rds_db"`
-	AwsRDSParameterGroup                  string        `hcl:"aws_rds_parametr_group"`
+	AwsRDSParameterGroup                  string        `hcl:"aws_rds_parameter_group"`
 	QueryOptimization                     bool          `hcl:"query_optimization"`
 	DatabasesQueryOptimization            string        `hcl:"databases_query_optimization"`
 }

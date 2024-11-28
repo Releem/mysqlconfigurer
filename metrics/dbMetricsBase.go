@@ -91,7 +91,7 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 				output = append(output, models.MetricGroupValue{"schema_name": schema_name, "query_id": query_id, "calls": calls, "avg_time_us": avg_time_us, "sum_time_us": sum_time_us})
 			}
 		}
-		metrics.DB.Queries = output
+		metrics.DB.Metrics.QueriesLatency = output
 
 		if len(output) != 0 {
 			totalQueryCount := len(output)

@@ -64,9 +64,9 @@ aws_region="${AWS_REGION:-us-east-1}"
 # RDS database name.
 aws_rds_db="${AWS_RDS_DB}"
 
-# AWS_RDS_PARAMETR_GROUP string `hcl:"aws_rds_parametr_group"`
-# RDS database parametr group name.
-aws_rds_parametr_group="${AWS_RDS_PARAMETR_GROUP}"
+# AWS_RDS_PARAMETER_GROUP string `hcl:"aws_rds_parameter_group"`
+# RDS database parameter group name.
+aws_rds_parameter_group="${AWS_RDS_PARAMETER_GROUP}"
 
 # Env string `hcl:"env"`
 # Releem Environment.

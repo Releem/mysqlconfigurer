@@ -1,12 +1,11 @@
 package repeater
 
 import (
+	"bytes"
+	"encoding/json"
 	"io"
 	"net/http"
 	"os"
-	"strings"
-
-	"encoding/json"
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
@@ -24,9 +23,12 @@ type ReleemConfigurationsRepeater struct {
 func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.MetricContext, metrics models.Metrics, Mode models.ModeType) (interface{}, error) {
 	defer utils.HandlePanic(repeater.configuration, repeater.logger)
 	repeater.logger.V(5).Info(Mode.Name, Mode.Type)
-	e, _ := json.Marshal(metrics)
-	bodyReader := strings.NewReader(string(e))
-	repeater.logger.V(5).Info("Result Send data: ", string(e))
+	var buffer bytes.Buffer
+	encoder := json.NewEncoder(&buffer)
+	if err := encoder.Encode(metrics); err != nil {
+		repeater.logger.Error("Failed to encode metrics: ", err)
+	}
+	repeater.logger.V(5).Info("Result Send data: ", buffer.String())
 	var api_domain, subdomain string
 	env := context.GetEnv()
 
@@ -71,7 +73,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	}
 	repeater.logger.V(5).Info(api_domain)
 
-	req, err := http.NewRequest(http.MethodPost, api_domain, bodyReader)
+	req, err := http.NewRequest(http.MethodPost, api_domain, &buffer)
 	if err != nil {
 		repeater.logger.Error("Request: could not create request: ", err)
 		return nil, err

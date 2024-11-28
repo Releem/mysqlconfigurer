@@ -299,19 +299,19 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 		task_exit_code = 1
 		return task_exit_code, task_status, task_output
 	} else if configuration.AwsRDSParameterGroup == "" || aws.StringValue(paramGroup.DBParameterGroupName) != configuration.AwsRDSParameterGroup {
-		logger.Error("Parametr group '" + configuration.AwsRDSParameterGroup + "' not found or empty in DB Instance " + configuration.AwsRDSDB + "(" + aws.StringValue(paramGroup.DBParameterGroupName) + ")")
-		task_output = task_output + "Parametr group '" + configuration.AwsRDSParameterGroup + "' not found or empty in DB Instance " + configuration.AwsRDSDB + "(" + aws.StringValue(paramGroup.DBParameterGroupName) + ")\n"
+		logger.Error("Parameter group '" + configuration.AwsRDSParameterGroup + "' not found or empty in DB Instance " + configuration.AwsRDSDB + "(" + aws.StringValue(paramGroup.DBParameterGroupName) + ")")
+		task_output = task_output + "Parameter group '" + configuration.AwsRDSParameterGroup + "' not found or empty in DB Instance " + configuration.AwsRDSDB + "(" + aws.StringValue(paramGroup.DBParameterGroupName) + ")\n"
 		task_status = 4
 		task_exit_code = 3
 		return task_exit_code, task_status, task_output
 	} else if aws.StringValue(paramGroup.ParameterApplyStatus) != "in-sync" {
-		logger.Error("Parametr group status '" + configuration.AwsRDSParameterGroup + "' not in-sync(" + aws.StringValue(paramGroup.ParameterApplyStatus) + ")")
-		task_output = task_output + "Parametr group status '" + configuration.AwsRDSParameterGroup + "' not in-sync(" + aws.StringValue(paramGroup.ParameterApplyStatus) + ")\n"
+		logger.Error("Parameter group status '" + configuration.AwsRDSParameterGroup + "' not in-sync(" + aws.StringValue(paramGroup.ParameterApplyStatus) + ")")
+		task_output = task_output + "Parameter group status '" + configuration.AwsRDSParameterGroup + "' not in-sync(" + aws.StringValue(paramGroup.ParameterApplyStatus) + ")\n"
 		task_status = 4
 		task_exit_code = 2
 		return task_exit_code, task_status, task_output
 	}
-	DbParametrsType := make(models.MetricGroupValue)
+	DbParametersType := make(models.MetricGroupValue)
 
 	if apply_method == types.ApplyMethodImmediate {
 		// Вызов DescribeDBParameters для получения параметров группы
@@ -328,7 +328,7 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 				task_output = task_output + err.Error()
 			}
 			for _, param := range page.Parameters {
-				DbParametrsType[*param.ParameterName] = *param.ApplyType
+				DbParametersType[*param.ParameterName] = *param.ApplyType
 			}
 		}
 	}
@@ -357,7 +357,7 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 			}
 
 			if apply_method == types.ApplyMethodImmediate {
-				val, ok := DbParametrsType[key]
+				val, ok := DbParametersType[key]
 				if ok && val != "dynamic" {
 					continue
 				}
@@ -455,7 +455,7 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 		task_exit_code = 10
 		task_status = 4
 	} else if aws.StringValue(dbInstance.DBInstanceStatus) == "available" && aws.StringValue(paramGroup.ParameterApplyStatus) == "in-sync" {
-		logger.Info("DB Instance Status available, Parametr Group Status in-sync, No pending modifications")
+		logger.Info("DB Instance Status available, Parameter Group Status in-sync, No pending modifications")
 	} else {
 		task_exit_code = 7
 		task_status = 4

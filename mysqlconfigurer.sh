@@ -258,6 +258,7 @@ function releem_ps_mysql() {
     then
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m The MySQL service failed to restart with error! Check the MySQL error log! \033[0m\n" 
     fi
+    $sudo_cmd /opt/releem/releem-agent -f
     exit "${RESTART_CODE}"
 }
 

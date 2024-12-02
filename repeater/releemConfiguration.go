@@ -81,7 +81,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	req.Header.Set("x-releem-api-key", context.GetApiKey())
 
 	client := http.Client{
-		Timeout: 180 * time.Second,
+		Timeout: 10 * time.Minute,
 	}
 	res, err := client.Do(req)
 	if err != nil {

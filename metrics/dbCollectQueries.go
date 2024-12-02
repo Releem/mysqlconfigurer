@@ -118,6 +118,10 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 	} else {
 		metrics.DB.Queries = nil
 	}
+
+	if !DbCollectQueriesOptimization.configuration.QueryOptimization {
+		return nil
+	}
 	metrics.DB.QueriesOptimization = make(map[string][]models.MetricGroupValue)
 
 	type information_schema_table_type struct {

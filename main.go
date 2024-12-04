@@ -68,7 +68,7 @@ func (programm *Programm) Run() {
 	configuration, err := config.LoadConfig(*ConfigFile, logger)
 	if err != nil {
 		logger.Error("Config load failed", err)
-		os.Exit(0)
+		return
 	}
 	defer utils.HandlePanic(configuration, logger)
 
@@ -98,7 +98,7 @@ func (programm *Programm) Run() {
 		awscfg, err := awsconfig.LoadDefaultConfig(context.TODO(), awsconfig.WithRegion(configuration.AwsRegion))
 		if err != nil {
 			logger.Error("Load AWS configuration FAILED", err)
-			os.Exit(1)
+			return
 		} else {
 			logger.Info("AWS configuration loaded SUCCESS")
 		}
@@ -119,12 +119,12 @@ func (programm *Programm) Run() {
 		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok {
 				logger.Error(aerr.Error())
-				os.Exit(1)
+				return
 			} else {
 				// Print the error, cast err to awserr.Error to get the Code and
 				// Message from an error.
 				logger.Error(err.Error())
-				os.Exit(1)
+				return
 			}
 		}
 
@@ -139,10 +139,10 @@ func (programm *Programm) Run() {
 			gatherers = append(gatherers, metrics.NewAWSRDSEnhancedMetricsGatherer(logger, result.DBInstances[0], cwlogsclient, configuration))
 		} else if result != nil && len(result.DBInstances) > 1 {
 			logger.Infof("RDS.DescribeDBInstances: Database has %d instances. Clusters are not supported", len(result.DBInstances))
-			os.Exit(1)
+			return
 		} else {
 			logger.Info("RDS.DescribeDBInstances: No instances")
-			os.Exit(1)
+			return
 		}
 	default:
 		logger.Info("InstanceType is Local")

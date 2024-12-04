@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Version 1.19.6.3
+# install.sh - Version 1.19.7
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -9,7 +9,7 @@ export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/
 # using the package manager.
 
 set -e -E
-install_script_version=1.19.6.3
+install_script_version=1.19.7
 logfile="/var/log/releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -477,10 +477,10 @@ printf "\033[37m\n * Saving variables to Releem Agent configuration\033[0m\n"
 
 printf "\033[37m\n - Adding API key to the Releem Agent configuration: $CONF\n\033[0m"
 echo "apikey=\"$apikey\"" | $sudo_cmd tee -a $CONF >/dev/null
-
-printf "\033[37m - Adding Releem Configuration Directory $WORKDIR/conf to Releem Agent configuration: $CONF\n\033[0m"
-echo "releem_cnf_dir=\"$WORKDIR/conf\"" | $sudo_cmd tee -a $CONF >/dev/null
-
+if [ -d "$WORKDIR/conf" ]; then
+    printf "\033[37m - Adding Releem Configuration Directory $WORKDIR/conf to Releem Agent configuration: $CONF\n\033[0m"
+    echo "releem_cnf_dir=\"$WORKDIR/conf\"" | $sudo_cmd tee -a $CONF >/dev/null
+fi
 if [ -n "$MYSQL_LOGIN" ] && [ -n "$MYSQL_PASSWORD" ]; then
     printf "\033[37m - Adding user and password mysql to the Releem Agent configuration: $CONF\n\033[0m"
 	echo "mysql_user=\"$MYSQL_LOGIN\"" | $sudo_cmd tee -a $CONF >/dev/null

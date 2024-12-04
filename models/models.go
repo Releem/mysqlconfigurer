@@ -3,6 +3,8 @@ package models
 import (
 	"database/sql"
 	"sync"
+
+	"github.com/Releem/mysqlconfigurer/config"
 )
 
 type MetricType byte
@@ -45,6 +47,7 @@ type Metrics struct {
 	ReleemAgent struct {
 		Info  MetricGroupValue
 		Tasks MetricGroupValue
+		Conf  config.Config
 	}
 }
 

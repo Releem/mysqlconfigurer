@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ReleemAgentVersion = "1.19.6.3"
+	ReleemAgentVersion = "1.19.7"
 )
 
 type Config struct {
@@ -22,7 +22,7 @@ type Config struct {
 	GenerateConfigPeriod                  time.Duration `hcl:"interval_generate_config_seconds"`
 	QueryOptimizationPeriod               time.Duration `hcl:"interval_query_optimization_seconds"`
 	QueryOptimizationCollectSqlTextPeriod time.Duration `hcl:"interval_query_optimization_collect_sqltext_seconds"`
-	MysqlPassword                         string        `hcl:"mysql_password"`
+	MysqlPassword                         string        `hcl:"mysql_password" json:"-"`
 	MysqlUser                             string        `hcl:"mysql_user"`
 	MysqlHost                             string        `hcl:"mysql_host"`
 	MysqlPort                             string        `hcl:"mysql_port"`

@@ -8,7 +8,7 @@ import (
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
 	"github.com/Releem/mysqlconfigurer/utils"
-	"github.com/advantageous/go-logback/logging"
+	logging "github.com/google/logger"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
@@ -55,15 +55,6 @@ var rdsMetrics = []rdsMetric{
 }
 
 func NewAWSRDSMetricsGatherer(logger logging.Logger, cwclient *cloudwatch.Client, configuration *config.Config) *AWSRDSMetricsGatherer {
-
-	if logger == nil {
-		if configuration.Debug {
-			logger = logging.NewSimpleDebugLogger("AWSMetrics")
-		} else {
-			logger = logging.NewSimpleLogger("AWSMetrics")
-		}
-	}
-
 	return &AWSRDSMetricsGatherer{
 		logger:        logger,
 		debug:         configuration.Debug,
@@ -119,24 +110,24 @@ func (awsrdsmetrics *AWSRDSMetricsGatherer) GetMetrics(metrics *models.Metrics) 
 			awsrdsmetrics.logger.Error(err.Error())
 		}
 	} else {
-		awsrdsmetrics.logger.Println("CloudWatch.GetMetricData SUCCESS")
+		awsrdsmetrics.logger.Info("CloudWatch.GetMetricData SUCCESS")
 	}
 
 	// Prepare results
 	for _, r := range result.MetricDataResults {
-		awsrdsmetrics.logger.Debug("Metric ID ", *r.Id)
-		awsrdsmetrics.logger.Debug("Metric Label ", *r.Label)
+		awsrdsmetrics.logger.V(5).Info("Metric ID ", *r.Id)
+		awsrdsmetrics.logger.V(5).Info("Metric Label ", *r.Label)
 
 		if len(r.Values) > 0 {
 			output[*r.Label] = fmt.Sprintf("%f", r.Values[0])
-			awsrdsmetrics.logger.Debug("Metric Timestamp ", r.Timestamps[0])
+			awsrdsmetrics.logger.V(5).Info("Metric Timestamp ", r.Timestamps[0])
 		} else {
-			awsrdsmetrics.logger.Debug("CloudWatch.GetMetricData no Values for ", *r.Label)
+			awsrdsmetrics.logger.V(5).Info("CloudWatch.GetMetricData no Values for ", *r.Label)
 		}
 	}
 	// temperary
 	metrics.System.Metrics = output
-	awsrdsmetrics.logger.Debug("collectMetrics ", metrics.System.Metrics)
+	awsrdsmetrics.logger.V(5).Info("CollectMetrics awsrdsmetrics", output)
 	return nil
 
 }

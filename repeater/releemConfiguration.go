@@ -10,7 +10,7 @@ import (
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
 	"github.com/Releem/mysqlconfigurer/utils"
-	"github.com/advantageous/go-logback/logging"
+	logging "github.com/google/logger"
 
 	"time"
 )
@@ -22,13 +22,13 @@ type ReleemConfigurationsRepeater struct {
 
 func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.MetricContext, metrics models.Metrics, Mode models.ModeType) (interface{}, error) {
 	defer utils.HandlePanic(repeater.configuration, repeater.logger)
-	repeater.logger.Debug(Mode.Name, Mode.Type)
+	repeater.logger.V(5).Info(Mode.Name, Mode.Type)
 	var buffer bytes.Buffer
 	encoder := json.NewEncoder(&buffer)
 	if err := encoder.Encode(metrics); err != nil {
 		repeater.logger.Error("Failed to encode metrics: ", err)
 	}
-	repeater.logger.Debug("Result Send data: ", buffer.String())
+	repeater.logger.V(5).Info("Result Send data: ", buffer.String())
 	var api_domain, subdomain string
 	env := context.GetEnv()
 
@@ -71,7 +71,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	} else if Mode.Name == "TaskStatus" {
 		api_domain = api_domain + "task/task_status"
 	}
-	repeater.logger.Debug(api_domain)
+	repeater.logger.V(5).Info(api_domain)
 
 	req, err := http.NewRequest(http.MethodPost, api_domain, &buffer)
 	if err != nil {
@@ -99,8 +99,8 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 		repeater.logger.Error("Response: status code: ", res.StatusCode)
 		repeater.logger.Error("Response: body:\n", string(body_res))
 	} else {
-		repeater.logger.Debug("Response: status code: ", res.StatusCode)
-		repeater.logger.Debug("Response: body:\n", string(body_res))
+		repeater.logger.V(5).Info("Response: status code: ", res.StatusCode)
+		repeater.logger.V(5).Info("Response: body:\n", string(body_res))
 
 		if Mode.Name == "Configurations" {
 			err = os.WriteFile(context.GetReleemConfDir()+"/z_aiops_mysql.cnf", body_res, 0644)
@@ -127,12 +127,6 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	return nil, err
 }
 
-func NewReleemConfigurationsRepeater(configuration *config.Config) ReleemConfigurationsRepeater {
-	var logger logging.Logger
-	if configuration.Debug {
-		logger = logging.NewSimpleDebugLogger("ReleemRepeaterConfigurations")
-	} else {
-		logger = logging.NewSimpleLogger("ReleemRepeaterConfigurations")
-	}
+func NewReleemConfigurationsRepeater(configuration *config.Config, logger logging.Logger) ReleemConfigurationsRepeater {
 	return ReleemConfigurationsRepeater{logger, configuration}
 }

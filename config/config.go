@@ -4,7 +4,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/advantageous/go-logback/logging"
+	logging "github.com/google/logger"
 	"github.com/hashicorp/hcl"
 )
 
@@ -41,10 +41,7 @@ type Config struct {
 }
 
 func LoadConfig(filename string, logger logging.Logger) (*Config, error) {
-	if logger == nil {
-		logger = logging.NewSimpleLogger("config")
-	}
-	logger.Printf("Loading config %s", filename)
+	logger.Infof("Loading config %s", filename)
 	configBytes, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err

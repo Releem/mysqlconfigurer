@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/Releem/mysqlconfigurer/config"
-	"github.com/advantageous/go-logback/logging"
+	logging "github.com/google/logger"
 
 	"time"
 )
@@ -19,7 +19,7 @@ func (repeater ReleemErrorsRepeater) ProcessErrors(message string) interface{} {
 	var env string
 	bodyReader := strings.NewReader(message)
 
-	repeater.logger.Debug("Result Send data: ", message)
+	repeater.logger.V(5).Info("Result Send data: ", message)
 	var api_domain string
 	if repeater.configuration != nil {
 		env = repeater.configuration.Env
@@ -53,11 +53,10 @@ func (repeater ReleemErrorsRepeater) ProcessErrors(message string) interface{} {
 		repeater.logger.Error("Request: error making http request: ", err)
 		return nil
 	}
-	repeater.logger.Debug("Response: status code: ", res.StatusCode)
-	return nil
+	repeater.logger.V(5).Info("Response: status code: ", res.StatusCode)
+	return res
 }
 
-func NewReleemErrorsRepeater(configuration *config.Config) ReleemErrorsRepeater {
-	logger := logging.NewSimpleLogger("ReleemRepeaterMetrics")
+func NewReleemErrorsRepeater(configuration *config.Config, logger logging.Logger) ReleemErrorsRepeater {
 	return ReleemErrorsRepeater{logger, configuration}
 }

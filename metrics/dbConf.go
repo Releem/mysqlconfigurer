@@ -4,7 +4,7 @@ import (
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
 	"github.com/Releem/mysqlconfigurer/utils"
-	"github.com/advantageous/go-logback/logging"
+	logging "github.com/google/logger"
 )
 
 type DbConfGatherer struct {
@@ -13,15 +13,6 @@ type DbConfGatherer struct {
 }
 
 func NewDbConfGatherer(logger logging.Logger, configuration *config.Config) *DbConfGatherer {
-
-	if logger == nil {
-		if configuration.Debug {
-			logger = logging.NewSimpleDebugLogger("DbConf")
-		} else {
-			logger = logging.NewSimpleLogger("DbConf")
-		}
-	}
-
 	return &DbConfGatherer{
 		logger:        logger,
 		configuration: configuration,
@@ -36,7 +27,6 @@ func (DbConf *DbConfGatherer) GetMetrics(metrics *models.Metrics) error {
 	rows, err := models.DB.Query("SHOW VARIABLES")
 	if err != nil {
 		DbConf.logger.Error(err)
-		DbConf.logger.Debug("collectMetrics ", output)
 		return nil
 	}
 	defer rows.Close()
@@ -54,7 +44,6 @@ func (DbConf *DbConfGatherer) GetMetrics(metrics *models.Metrics) error {
 	rows, err = models.DB.Query("SHOW GLOBAL VARIABLES")
 	if err != nil {
 		DbConf.logger.Error(err)
-		DbConf.logger.Debug("collectMetrics ", output)
 		return nil
 	}
 	defer rows.Close()
@@ -67,7 +56,7 @@ func (DbConf *DbConfGatherer) GetMetrics(metrics *models.Metrics) error {
 		output[row.Name] = row.Value
 	}
 	metrics.DB.Conf.Variables = output
-	DbConf.logger.Debug("collectMetrics ", output)
+	DbConf.logger.V(5).Info("CollectMetrics DbConf ", output)
 
 	return nil
 

@@ -10,8 +10,8 @@ import (
 	"github.com/Releem/mysqlconfigurer/config"
 	e "github.com/Releem/mysqlconfigurer/errors"
 	"github.com/Releem/mysqlconfigurer/models"
-	"github.com/advantageous/go-logback/logging"
 	_ "github.com/go-sql-driver/mysql"
+	logging "github.com/google/logger"
 	"github.com/pkg/errors"
 )
 
@@ -21,7 +21,7 @@ func ProcessRepeaters(metrics *models.Metrics, repeaters models.MetricsRepeater,
 
 	result, err := repeaters.ProcessMetrics(configuration, *metrics, Mode)
 	if err != nil {
-		logger.PrintError("Repeater failed", err)
+		logger.Error("Repeater failed", err)
 	}
 	return result
 }
@@ -42,8 +42,8 @@ func CollectMetrics(gatherers []models.MetricsGatherer, logger logging.Logger, c
 func HandlePanic(configuration *config.Config, logger logging.Logger) {
 	if r := recover(); r != nil {
 		err := errors.WithStack(fmt.Errorf("%v", r))
-		logger.Printf("%+v", err)
-		sender := e.NewReleemErrorsRepeater(configuration)
+		logger.Infof("%+v", err)
+		sender := e.NewReleemErrorsRepeater(configuration, logger)
 		sender.ProcessErrors(fmt.Sprintf("%+v", err))
 	}
 }
@@ -83,17 +83,17 @@ func ConnectionDatabase(configuration *config.Config, logger logging.Logger, DBn
 		TypeConnection = "tcp"
 	}
 	if err != nil {
-		logger.PrintError("Connection opening to failed", err)
+		logger.Error("Connection opening to failed", err)
 	}
 
 	err = db.Ping()
 	if err != nil {
-		logger.PrintError("Connection failed", err)
+		logger.Error("Connection failed", err)
 	} else {
 		if TypeConnection == "unix" {
-			logger.Println("Connect Success to DB ", DBname, " via unix socket", configuration.MysqlHost)
+			logger.Info("Connect Success to DB ", DBname, " via unix socket ", configuration.MysqlHost)
 		} else if TypeConnection == "tcp" {
-			logger.Println("Connect Success to DB ", DBname, " via tcp", configuration.MysqlHost)
+			logger.Info("Connect Success to DB ", DBname, " via tcp ", configuration.MysqlHost)
 		}
 	}
 	return db
@@ -110,13 +110,13 @@ func EnableEventsStatementsConsumers(configuration *config.Config, logger loggin
 		if err != nil {
 			logger.Error(err)
 		}
-		logger.Println("Found enabled performance_schema statements consumers: ", count_setup_consumers)
+		logger.Info("Found enabled performance_schema statements consumers: ", count_setup_consumers)
 		if count_setup_consumers < 3 {
 			_, err := models.DB.Query("CALL releem.enable_events_statements_consumers()")
 			if err != nil {
 				logger.Error("Failed to enable events_statements consumers", err)
 			} else {
-				logger.Println("Enable events_statements_consumers")
+				logger.Info("Enable events_statements_consumers")
 			}
 		}
 	}

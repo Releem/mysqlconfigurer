@@ -6,7 +6,7 @@ import (
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
 	"github.com/Releem/mysqlconfigurer/utils"
-	"github.com/advantageous/go-logback/logging"
+	logging "github.com/google/logger"
 )
 
 type DbMetricsGatherer struct {
@@ -15,15 +15,6 @@ type DbMetricsGatherer struct {
 }
 
 func NewDbMetricsGatherer(logger logging.Logger, configuration *config.Config) *DbMetricsGatherer {
-
-	if logger == nil {
-		if configuration.Debug {
-			logger = logging.NewSimpleDebugLogger("DbMetrics")
-		} else {
-			logger = logging.NewSimpleLogger("DbMetrics")
-		}
-	}
-
 	return &DbMetricsGatherer{
 		logger:        logger,
 		configuration: configuration,
@@ -105,8 +96,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 			metrics.DB.Metrics.TotalMyisamIndexes = metrics.DB.Metrics.Engine["MyISAM"]["Index Size"].(int)
 		}
 	}
-
-	DbMetrics.logger.Debug("collectMetrics ", metrics.DB.Metrics)
+	DbMetrics.logger.V(5).Info("CollectMetrics DbMetrics ", metrics.DB.Metrics)
 	return nil
 
 }

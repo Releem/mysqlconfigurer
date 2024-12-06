@@ -7,7 +7,7 @@ import (
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
 	"github.com/Releem/mysqlconfigurer/utils"
-	"github.com/advantageous/go-logback/logging"
+	logging "github.com/google/logger"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
 	"github.com/shirou/gopsutil/v4/host"
@@ -22,15 +22,6 @@ type OSMetricsGatherer struct {
 }
 
 func NewOSMetricsGatherer(logger logging.Logger, configuration *config.Config) *OSMetricsGatherer {
-
-	if logger == nil {
-		if configuration.Debug {
-			logger = logging.NewSimpleDebugLogger("OS")
-		} else {
-			logger = logging.NewSimpleLogger("OS")
-		}
-	}
-
 	return &OSMetricsGatherer{
 		logger:        logger,
 		debug:         configuration.Debug,
@@ -119,10 +110,13 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 
 	// OS RAM
 	VirtualMemory, _ := mem.VirtualMemory()
-	//info["VirtualMemory"] = StructToMap(VirtualMemory.String())
 	metricsMap["PhysicalMemory"] = StructToMap(VirtualMemory.String())
 	info["PhysicalMemory"] = models.MetricGroupValue{"total": VirtualMemory.Total}
-	info["PhysicalMemory"] = utils.MapJoin(info["PhysicalMemory"].(models.MetricGroupValue), models.MetricGroupValue{"swapTotal": VirtualMemory.SwapTotal})
+
+	// OS SwapMemory
+	SwapMemory, _ := mem.SwapMemory()
+	metricsMap["SwapMemory"] = StructToMap(SwapMemory.String())
+	info["PhysicalMemory"] = utils.MapJoin(info["PhysicalMemory"].(models.MetricGroupValue), models.MetricGroupValue{"swapTotal": SwapMemory.Total})
 
 	//CPU Counts
 	CpuCounts, _ := cpu.Counts(true)
@@ -132,10 +126,6 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 	hostInfo, _ := host.Info()
 	hostInfoMap := utils.MapJoin(StructToMap(hostInfo.String()), models.MetricGroupValue{"InstanceType": "local"})
 	info["Host"] = hostInfoMap
-
-	// IOCounters, _ := disk.IOCounters()
-	// //info["IOCounters"] = StructToMap(IOCounters.String())
-	// OS.logger.Debug("IOCounters ", IOCounters)
 
 	//Get partitions, for each pert get usage and io stat
 	var UsageArray, PartitionsArray, IOCountersArray []models.MetricGroupValue
@@ -165,25 +155,25 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 				writeCount = writeCount + IOCounters[PartName].WriteCount
 				PartitionCheck[part.Device] = 1
 			}
-			OS.logger.Debug("IOCounters ", IOCounters)
+			OS.logger.V(5).Info("IOCounters ", IOCounters)
 			IOCountersArray = append(IOCountersArray, models.MetricGroupValue{PartName: StructToMap(IOCounters[PartName].String())})
 		}
 	}
-	OS.logger.Debug("PartitionCheck ", PartitionCheck)
+	OS.logger.V(5).Info("PartitionCheck ", PartitionCheck)
 	info["Partitions"] = PartitionsArray
-	OS.logger.Debug("Partitions ", PartitionsArray)
+	OS.logger.V(5).Info("Partitions ", PartitionsArray)
 
 	// info["Usage"] = UsageArray
 	metricsMap["FileSystem"] = UsageArray
-	OS.logger.Debug("Usage ", UsageArray)
+	OS.logger.V(5).Info("Usage ", UsageArray)
 
 	metricsMap["DiskIO"] = IOCountersArray
-	OS.logger.Debug("IOCountersArray ", IOCountersArray)
+	OS.logger.V(5).Info("IOCountersArray ", IOCountersArray)
 
 	// CPU load avarage
 	Avg, _ := load.Avg()
 	metricsMap["CPU"] = StructToMap(Avg.String())
-	OS.logger.Debug("Avg ", Avg)
+	OS.logger.V(5).Info("Avg ", Avg)
 
 	// CpuUtilisation := float64(metrics.System.Metrics.CPU["load1"].(float64) / float64(info["CPU"].(models.MetricGroupValue)["Counts"].(int)))
 	// metrics.System.Metrics.CPU["CpuUtilisation"] = CpuUtilisation
@@ -194,7 +184,7 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 
 	metrics.System.Info = info
 	metrics.System.Metrics = metricsMap
-	OS.logger.Debug("collectMetrics ", metrics.System)
+	OS.logger.V(5).Info("CollectMetrics OS ", metrics.System)
 	return nil
 
 }

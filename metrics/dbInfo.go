@@ -3,11 +3,12 @@ package metrics
 import (
 	"os"
 	"regexp"
+	"runtime"
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
 	"github.com/Releem/mysqlconfigurer/utils"
-	"github.com/advantageous/go-logback/logging"
+	logging "github.com/google/logger"
 )
 
 type DbInfoGatherer struct {
@@ -16,15 +17,6 @@ type DbInfoGatherer struct {
 }
 
 func NewDbInfoGatherer(logger logging.Logger, configuration *config.Config) *DbInfoGatherer {
-
-	if logger == nil {
-		if configuration.Debug {
-			logger = logging.NewSimpleDebugLogger("DbInfo")
-		} else {
-			logger = logging.NewSimpleLogger("DbInfo")
-		}
-	}
-
 	return &DbInfoGatherer{
 		logger:        logger,
 		configuration: configuration,
@@ -52,7 +44,7 @@ func (DbInfo *DbInfoGatherer) GetMetrics(metrics *models.Metrics) error {
 		mysql_version = row.Value
 	}
 	info["Version"] = mysql_version
-	err = os.WriteFile(DbInfo.configuration.ReleemConfDir+"/mysql_version", []byte(mysql_version), 0644)
+	err = os.WriteFile(DbInfo.configuration.ReleemConfDir+MysqlVersionFile(), []byte(mysql_version), 0644)
 	if err != nil {
 		DbInfo.logger.Error("WriteFile: Error write to file: ", err)
 	}
@@ -60,7 +52,15 @@ func (DbInfo *DbInfoGatherer) GetMetrics(metrics *models.Metrics) error {
 	info["MemoryLimit"] = DbInfo.configuration.GetMemoryLimit()
 	metrics.DB.Info = info
 
-	DbInfo.logger.Debug("collectMetrics ", metrics.DB.Info)
+	DbInfo.logger.V(5).Info("CollectMetrics DbInfo ", info)
 	return nil
 
+}
+func MysqlVersionFile() string {
+	switch runtime.GOOS {
+	case "windows":
+		return "\\MysqlVersion.txt"
+	default: // для Linux и других UNIX-подобных систем
+		return "/mysql_version"
+	}
 }

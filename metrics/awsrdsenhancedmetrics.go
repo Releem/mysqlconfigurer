@@ -10,7 +10,7 @@ import (
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
 	"github.com/Releem/mysqlconfigurer/utils"
-	"github.com/advantageous/go-logback/logging"
+	logging "github.com/google/logger"
 
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go-v2/service/rds/types"
@@ -184,15 +184,6 @@ func parseOSMetrics(b []byte, disallowUnknownFields bool) (*osMetrics, error) {
 }
 
 func NewAWSRDSEnhancedMetricsGatherer(logger logging.Logger, dbinstance types.DBInstance, cwlogsclient *cloudwatchlogs.Client, configuration *config.Config) *AWSRDSEnhancedMetricsGatherer {
-
-	if logger == nil {
-		if configuration.Debug {
-			logger = logging.NewSimpleDebugLogger("AWSEnhancedMetrics")
-		} else {
-			logger = logging.NewSimpleLogger("AWSEnhancedMetrics")
-		}
-	}
-
 	return &AWSRDSEnhancedMetricsGatherer{
 		logger:        logger,
 		debug:         configuration.Debug,
@@ -218,18 +209,17 @@ func (awsrdsenhancedmetrics *AWSRDSEnhancedMetricsGatherer) GetMetrics(metrics *
 	result, err := awsrdsenhancedmetrics.cwlogsclient.GetLogEvents(context.TODO(), &input)
 
 	if err != nil {
-		awsrdsenhancedmetrics.logger.Critical("failed to read log stream %s:%s: %s", rdsMetricsLogGroupName, aws.StringValue(awsrdsenhancedmetrics.dbinstance.DbiResourceId), err)
+		awsrdsenhancedmetrics.logger.Fatalf("failed to read log stream %s:%s: %s", rdsMetricsLogGroupName, aws.StringValue(awsrdsenhancedmetrics.dbinstance.DbiResourceId), err)
 		return err
 	}
 
-	awsrdsenhancedmetrics.logger.Debug("CloudWatchLogs.GetLogEvents SUCCESS")
+	awsrdsenhancedmetrics.logger.V(5).Info("CloudWatchLogs.GetLogEvents SUCCESS")
 
 	if len(result.Events) < 1 {
-		awsrdsenhancedmetrics.logger.Warn("CloudWatchLogs.GetLogEvents No data")
+		awsrdsenhancedmetrics.logger.Warning("CloudWatchLogs.GetLogEvents No data")
 		return errors.New("CloudWatchLogs.GetLogEvents No data")
 	}
 
-	// l.Debugf("Message:\n%s", *event.Message)
 	osMetrics, err := parseOSMetrics([]byte(*result.Events[0].Message), true)
 
 	if err != nil {
@@ -257,22 +247,22 @@ func (awsrdsenhancedmetrics *AWSRDSEnhancedMetricsGatherer) GetMetrics(metrics *
 
 	// Swap
 	metricsMap["Swap"] = osMetrics.Swap
-	awsrdsenhancedmetrics.logger.Debug("Swap ", osMetrics.Swap)
+	awsrdsenhancedmetrics.logger.V(5).Info("Swap ", osMetrics.Swap)
 
 	//CPU Counts
 	info["CPU"] = models.MetricGroupValue{"Counts": osMetrics.NumVCPUs}
 
 	// FileSys
 	metricsMap["FileSystem"] = osMetrics.FileSys
-	awsrdsenhancedmetrics.logger.Debug("FileSystem ", osMetrics.FileSys)
+	awsrdsenhancedmetrics.logger.V(5).Info("FileSystem ", osMetrics.FileSys)
 
 	//DiskIO
 	metricsMap["DiskIO"] = osMetrics.DiskIO
-	awsrdsenhancedmetrics.logger.Debug("DiskIO ", osMetrics.DiskIO)
+	awsrdsenhancedmetrics.logger.V(5).Info("DiskIO ", osMetrics.DiskIO)
 
 	// CPU load avarage
 	metricsMap["CPU"] = osMetrics.LoadAverageMinute //StructToMap(Avg.String())
-	awsrdsenhancedmetrics.logger.Debug("CPU ", osMetrics.LoadAverageMinute)
+	awsrdsenhancedmetrics.logger.V(5).Info("CPU ", osMetrics.LoadAverageMinute)
 
 	info["Host"] = models.MetricGroupValue{
 		"InstanceType": "aws/rds",
@@ -284,8 +274,7 @@ func (awsrdsenhancedmetrics *AWSRDSEnhancedMetricsGatherer) GetMetrics(metrics *
 
 	metrics.System.Info = info
 	metrics.System.Metrics = metricsMap
-	awsrdsenhancedmetrics.logger.Debug("collectMetrics ", metrics.System)
+	awsrdsenhancedmetrics.logger.V(5).Info("CollectMetrics awsrdsenhancedmetrics ", metrics.System)
 
 	return nil
-
 }

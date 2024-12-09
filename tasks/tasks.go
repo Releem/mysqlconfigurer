@@ -201,7 +201,7 @@ func ApplyConfLocal(metrics *models.Metrics, repeaters models.MetricsRepeater, g
 			if err != nil {
 				logger.Error(err)
 				task_output = task_output + err.Error()
-				if strings.Contains(err.Error(), "is a read only variable") {
+				if strings.Contains(err.Error(), "is a read only variable") || strings.Contains(err.Error(), "innodb_log_file_size must be at least") {
 					need_restart = true
 				} else if strings.Contains(err.Error(), "Access denied") {
 					need_privileges = true

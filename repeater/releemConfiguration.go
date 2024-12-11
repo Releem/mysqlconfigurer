@@ -44,7 +44,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 
 	if Mode.Name == "TaskSet" && Mode.Type == "queries_optimization" {
 		api_domain = "https://api.queries." + subdomain + "releem.com/v2/"
-	} else if Mode.Name == "Metrics" && Mode.Type == "QueryOptimization" {
+	} else if Mode.Name == "Metrics" {
 		api_domain = "https://api.queries." + subdomain + "releem.com/v2/"
 	} else {
 		api_domain = "https://api." + subdomain + "releem.com/v2/"
@@ -61,7 +61,11 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 			api_domain = api_domain + "mysql"
 		}
 	} else if Mode.Name == "Metrics" {
-		api_domain = api_domain + "metrics"
+		if Mode.Type == "QueryOptimization" {
+			api_domain = api_domain + "queries/metrics"
+		} else {
+			api_domain = api_domain + "mysql/metrics"
+		}
 	} else if Mode.Name == "Event" {
 		api_domain = api_domain + "event/" + Mode.Type
 	} else if Mode.Name == "TaskGet" {

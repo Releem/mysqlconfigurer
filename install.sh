@@ -35,7 +35,7 @@ function on_exit() {
 }
 
 function on_error() {
-    printf "\033[31m$ERROR_MESSAGE
+    printf "\033[31m $ERROR_MESSAGE
 It looks like you hit an issue when trying to install the Releem.
 
 If you're still having problems, please send an email to hello@releem.com
@@ -110,6 +110,7 @@ fi
 
 if [ ! "$apikey" ]; then
     printf "\033[31mReleem API key is not available in RELEEM_API_KEY environment variable. Please sigh up at https://releem.com\033[0m\n"
+    on_error
     exit 1;
 fi
 
@@ -121,6 +122,7 @@ fi
 if [ -z $mysqladmincmd ];
 then
     printf "\033[31m Couldn't find mysqladmin/mariadb-admin in your \$PATH. Is MySQL installed? \033[0m\n"
+    on_error
     exit 1
 fi
 
@@ -132,6 +134,7 @@ fi
 if [ -z $mysqlcmd ];
 then
     printf "\033[31m Couldn't find mysql/mariadb in your \$PATH. Is MySQL installed? \033[0m\n"
+    on_error
     exit 1
 fi
 
@@ -257,7 +260,7 @@ elif [ "$OS" = "Debian" ]; then
     which crontab &> /dev/null || ($sudo_cmd apt-get update ; $sudo_cmd apt-get install -y --force-yes cron)
 else
     printf "\033[31mYour OS or distribution are not supported by this install script.\033[0m\n"
-    exit;
+    exit 0
 fi
 
 $sudo_cmd rm -rf $WORKDIR
@@ -414,6 +417,7 @@ else
         printf "\033[31m\n MySQL connection failed with user root with error:\033[0m\n"
         $mysqladmincmd ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping || true
         printf "\033[31m\n%s\033[0m\n" "Check that the password is correct, the execution of the command \`${mysqladmincmd} ${root_connection_string} --user=root --password=<MYSQL_ROOT_PASSWORD> ping\` and reinstall the agent."
+        on_error
         exit 1
     fi
 #else
@@ -431,6 +435,7 @@ if [ "$FLAG_SUCCESS" == "1" ]; then
         printf "\033[31m\n Connect to mysql failed with user \`${RELEEM_MYSQL_LOGIN}\` with error:\033[0m\n"
         $mysqladmincmd ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping || true
         printf "\033[31m\n%s\033[0m\n" "Check that the user and password is correct, the execution of the command \`${mysqladmin} ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping\` and reinstall the agent."
+        on_error
         exit 1
     fi
 fi

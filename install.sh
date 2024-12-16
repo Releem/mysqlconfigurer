@@ -556,6 +556,13 @@ if [ -z "$RELEEM_CRON_ENABLE" ]; then
     fi
 elif [ "$RELEEM_CRON_ENABLE" -gt 0 ]; then
     releem_set_cron
+    if [ `$sudo_cmd crontab -l 2>/dev/null | grep -c "$WORKDIR/mysqlconfigurer.sh" || true` -eq 0 ]; then
+        printf "\033[31m\nConfiguration of crontab executed with an error. Automatic updates are disabled.\033[0m\n"
+    else
+        printf "\033[32m\nConfiguration of crontab is done. Automatic updates are enabled.\033[0m\n"
+    fi
+else
+    printf "\033[31m\nConfiguration of crontab failed. Automatic updates are disabled.\033[0m\n"
 fi
 
 set +e

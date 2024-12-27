@@ -2,6 +2,28 @@ Releem releases
 ---
 Information about releases of the Releem.
 
+Releem 1.19.8, 2024-12-31 ([What's New At Releem | December 2024](https://releem.com/blog/whats-new-at-releem-december-2024))
+- Added automatic index detection and impact tracking.
+- Added one-click configuration updates for AWS RDS. Closes #320
+- Released Releem Agent for Windows. Closes #207
+- Improved latency calculation by recalculating latency every minute based on the latest queries. Closes #266
+- Improved InnoDB log file size recommendations. Closes #312
+- Fixed formatting errors in SQL query recommendations. Closes #358
+- Fixed `innodb_log_file_size` being too large. Closes #367
+- Fixed high memory usage of Releem Agent on servers with thousands of tables. Closes #376
+- Fixed the `query_optimization` parameter not affecting the collection of query optimization information using the "Load Data" button. Closes #379
+- Fixed adjusting suggestions to new memory limit faster. Closes #232
+
+Releem 1.19.5, 2024-10-31
+- Added [Schema Checks](https://releem.com/mysql-schema-optimization). Closes #324
+- Added security check for database end-of-life (EOL).
+- Improved SQL query optimization reports.
+- Fixed MySQL root user password being stored in web cache. Closes #321
+- Fixed MySQL restart termination. Closed #330
+- Fixed changed logs path. Closes #337
+- Fixed SQL query optimization error due to `sql_mode=only_full_group_by`. Closes #363
+- Fixed index creation error. Closes #362
+
 Releem 1.19.0, 2024-09-30 ([What's New At Releem | September 2024](https://releem.com/blog/whats-new-at-releem-september-2024))
 - Added [SQL Query Optimization](https://releem.com/blog/introducing-automatic-sql-query-optimization) tab in the Releem Portal
 - Added collection of Query Examples for Query Optimization for MariaDB

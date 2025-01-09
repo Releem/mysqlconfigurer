@@ -79,3 +79,7 @@ debug=${RELEEM_DEBUG:-false}
 # Collect Explain string `hcl:"query_optimization"`
 # Releem collect explain for query
 query_optimization=${RELEEM_QUERY_OPTIMIZATION:-false}
+
+# databases_query_optimization string `hcl:"databases_query_optimization"`
+# List of databases for query optimization
+databases_query_optimization="${RELEEM_DATABASES_QUERY_OPTIMIZATION}"

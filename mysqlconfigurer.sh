@@ -214,8 +214,7 @@ function releem_ps_mysql() {
         fi        
         chmod 644 $RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf
     else
-        printf "\033[31m\n MySQL configuration directory is not found.\033[0m"
-        printf "\033[31m\n Try to reinstall Releem Agent.\033[0m"
+        printf "\033[31m\n MySQL configuration directory is not found.\n Try to reinstall Releem Agent.\033[0m"
         exit 3;
     fi
     if [ "$FLAG_CONFIGURE" -eq 1 ]; then
@@ -236,8 +235,7 @@ function releem_ps_mysql() {
         FLAG_RESTART_SERVICE=0
     fi
     if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
-        printf "\033[31m\n * For appling change in configuration mysql need restart service.\n\033[0m"
-        printf "\033[31m Run the command \`bash /opt/releem/mysqlconfigurer.sh -p\` when it is possible to restart the service.\033[0m\n"
+        printf "\033[31m\n * For appling change in configuration mysql need restart service.\n   Run the command \`bash /opt/releem/mysqlconfigurer.sh -p\` when it is possible to restart the service.\033[0m\n"
         exit 0
     fi
     #echo "-------Test config-------"
@@ -249,8 +247,7 @@ function releem_ps_mysql() {
     #if [[ $($mysqladmincmd  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     if [ $RESTART_CODE -eq 0 ];
     then
-        printf "\033[32m\n The MySQL service restarted successfully!\033[0m\n"
-        printf "\033[32m\n Performance schema and Slow Log are enabled.\033[0m\n"
+        printf "\033[32m\n The MySQL service restarted successfully!\n Performance schema and Slow Log are enabled.\033[0m\n"
     elif [ $RESTART_CODE -eq 6 ];
     then
         printf "\033[31m\n The MySQL service failed to restart in 1200 seconds! Check the MySQL error log!\033[0m\n"

@@ -414,9 +414,8 @@ else
         printf "\033[32m\n Created new user \`${RELEEM_MYSQL_LOGIN}\`\033[0m\n"
         FLAG_SUCCESS=1
     else
-        printf "\033[31m\n MySQL connection failed with user root with error:\033[0m\n"
+        printf "\033[31m\n%s\n%s\033[0m\n" "MySQL connection failed with user root with error." "Check that the password is correct, the execution of the command \`${mysqladmincmd} ${root_connection_string} --user=root --password=<MYSQL_ROOT_PASSWORD> ping\` and reinstall the agent."
         $mysqladmincmd ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping || true
-        printf "\033[31m\n%s\033[0m\n" "Check that the password is correct, the execution of the command \`${mysqladmincmd} ${root_connection_string} --user=root --password=<MYSQL_ROOT_PASSWORD> ping\` and reinstall the agent."
         on_error
         exit 1
     fi
@@ -432,9 +431,8 @@ if [ "$FLAG_SUCCESS" == "1" ]; then
         MYSQL_LOGIN=$RELEEM_MYSQL_LOGIN
         MYSQL_PASSWORD=$RELEEM_MYSQL_PASSWORD
     else
-        printf "\033[31m\n Connect to mysql failed with user \`${RELEEM_MYSQL_LOGIN}\` with error:\033[0m\n"
+        printf "\033[31m\n%s\n%s\033[0m\n" "Connect to mysql failed with user \`${RELEEM_MYSQL_LOGIN}\` with error." "Check that the user and password is correct, the execution of the command \`${mysqladmin} ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping\` and reinstall the agent."
         $mysqladmincmd ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping || true
-        printf "\033[31m\n%s\033[0m\n" "Check that the user and password is correct, the execution of the command \`${mysqladmin} ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping\` and reinstall the agent."
         on_error
         exit 1
     fi

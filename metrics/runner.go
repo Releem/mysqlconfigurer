@@ -43,7 +43,6 @@ func RunWorker(gatherers []models.MetricsGatherer, gatherers_configuration []mod
 	models.SqlTextMutex = sync.RWMutex{}
 
 	if !configuration.QueryOptimization {
-		QueryOptimizationTimer.Stop()
 		QueryOptimizationCollectSqlText.Stop()
 	}
 	terminator := makeTerminateChannel()

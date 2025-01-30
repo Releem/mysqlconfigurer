@@ -48,7 +48,8 @@ jobs:
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
-      platforms: linux/amd64,linux/386, linux/arm64, linux/arm64,linux/arm/v7
+      with:
+        platforms: linux/amd64,linux/386, linux/arm64, linux/arm64,linux/arm/v7
 
     - name: Extract metadata (tags, labels) for Docker
       id: meta

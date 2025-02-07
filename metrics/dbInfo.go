@@ -50,8 +50,25 @@ func (DbInfo *DbInfoGatherer) GetMetrics(metrics *models.Metrics) error {
 	}
 	// Mysql force memory limit
 	info["MemoryLimit"] = DbInfo.configuration.GetMemoryLimit()
-	metrics.DB.Info = info
 
+	var output []string
+	rows, err := models.DB.Query("SHOW GRANTS")
+	if err != nil {
+		DbInfo.logger.Error(err)
+		return err
+	}
+	for rows.Next() {
+		err := rows.Scan(&row.Value)
+		if err != nil {
+			DbInfo.logger.Error(err)
+			return err
+		}
+		output = append(output, row.Value)
+	}
+	rows.Close()
+	info["Grants"] = output
+
+	metrics.DB.Info = info
 	DbInfo.logger.V(5).Info("CollectMetrics DbInfo ", info)
 	return nil
 

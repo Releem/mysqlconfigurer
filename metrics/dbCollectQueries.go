@@ -426,7 +426,7 @@ func CollectionExplain(digests map[string]models.MetricGroupValue, field_sorting
 			}
 
 			if strings.HasSuffix(digests[k]["query_text"].(string), "...") {
-				digests[k]["explain"] = "need_full_query"
+				digests[k]["explain_error"] = "need_full_query"
 				logger.V(5).Info("need_full_query") //, digests[k]["query_text"].(string))
 				continue
 			}
@@ -442,12 +442,14 @@ func CollectionExplain(digests map[string]models.MetricGroupValue, field_sorting
 			//Try exec EXPLAIN for origin query
 			err := db.QueryRow("EXPLAIN FORMAT=JSON " + digests[k]["query_text"].(string)).Scan(&explain)
 			if err != nil {
-				logger.Error("Explain Error", err)
+				logger.Error("Explain Error: ", err)
 				if strings.Contains(err.Error(), "command denied to user") {
+					digests[k]["explain_error"] = "need_grant_permission"
 					continue
+				} else {
+					digests[k]["explain_error"] = err.Error()
+					logger.Error(digests[k]["query_text"].(string))
 				}
-				logger.Error(digests[k]["query_text"].(string))
-
 			} else {
 				logger.V(5).Info(i, "OK")
 				digests[k]["explain"] = explain
@@ -459,11 +461,14 @@ func CollectionExplain(digests map[string]models.MetricGroupValue, field_sorting
 			query_text = strings.Replace(digests[k]["query_text"].(string), "\"", "'", -1)
 			err_1 := db.QueryRow("EXPLAIN FORMAT=JSON " + query_text).Scan(&explain)
 			if err_1 != nil {
-				logger.Error("Explain Error", err_1)
+				logger.Error("Explain Error: ", err_1)
 				if strings.Contains(err_1.Error(), "command denied to user") {
+					digests[k]["explain_error"] = "need_grant_permission"
 					continue
+				} else {
+					digests[k]["explain_error"] = err_1.Error()
+					logger.Error(query_text)
 				}
-				logger.Error(query_text)
 			} else {
 				logger.V(5).Info(i, "OK")
 				digests[k]["explain"] = explain
@@ -475,12 +480,14 @@ func CollectionExplain(digests map[string]models.MetricGroupValue, field_sorting
 			query_text = strings.Replace(digests[k]["query_text"].(string), "\"", "`", -1)
 			err_2 := db.QueryRow("EXPLAIN FORMAT=JSON " + query_text).Scan(&explain)
 			if err_2 != nil {
-				logger.Error("Explain Error", err_2)
+				logger.Error("Explain Error: ", err_2)
 				if strings.Contains(err_2.Error(), "command denied to user") {
+					digests[k]["explain_error"] = "need_grant_permission"
 					continue
+				} else {
+					digests[k]["explain_error"] = err_2.Error()
+					logger.Error(query_text)
 				}
-				logger.Error(query_text)
-
 			} else {
 				logger.V(5).Info(i, "OK")
 				digests[k]["explain"] = explain

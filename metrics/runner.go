@@ -37,7 +37,7 @@ func RunWorker(gatherers []models.MetricsGatherer, gatherers_configuration []mod
 		GenerateTimer = time.NewTimer(configuration.GenerateConfigPeriod * time.Second)
 		timer = time.NewTimer(1 * time.Second)
 	}
-	QueryOptimizationTimer = time.NewTimer(5 * time.Minute)
+	QueryOptimizationTimer = time.NewTimer(1 * time.Minute)
 	QueryOptimizationCollectSqlText := time.NewTimer(1 * time.Second)
 	models.SqlText = make(map[string]map[string]string)
 	models.SqlTextMutex = sync.RWMutex{}

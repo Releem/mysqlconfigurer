@@ -51,6 +51,8 @@ function releem_set_cron() {
 
 function releem_update() {
     printf "\033[37m\n * Downloading latest version of Releem Agent...\033[0m\n"
+    $sudo_cmd find /usr/ -name 'mysqladmin'
+    $sudo_cmd find /usr/ -name 'mysql'
     $sudo_cmd curl -w "%{http_code}" -L -o $WORKDIR/releem-agent.new https://releem.s3.amazonaws.com/v2/releem-agent-$(arch)
     $sudo_cmd curl -w "%{http_code}" -L -o $WORKDIR/mysqlconfigurer.sh.new https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh
     $sudo_cmd $WORKDIR/releem-agent  stop || true

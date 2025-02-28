@@ -59,8 +59,8 @@ loop:
 			go func() {
 				defer utils.HandlePanic(configuration, logger)
 				metrics := utils.CollectMetrics(gatherers, logger, configuration)
-				metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, metrics.DB.Metrics.Status["Uptime"].(string))
 				if metrics != nil {
+					metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, metrics.DB.Metrics.Status["Uptime"].(string))
 					task := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: ""})
 					if task == "Task" {
 						logger.Info(" * A task has been found for the agent...")
@@ -83,8 +83,8 @@ loop:
 				} else {
 					metrics = utils.CollectMetrics(append(gatherers, gatherers_configuration...), logger, configuration)
 				}
-				metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, "0")
 				if metrics != nil {
+					metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, "0")
 					logger.Info(" * Sending metrics to Releem Cloud Platform...")
 					utils.ProcessRepeaters(metrics, repeaters, configuration, logger, Mode)
 					if Mode.Name == "Configurations" {

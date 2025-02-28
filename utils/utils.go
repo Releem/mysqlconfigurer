@@ -99,19 +99,20 @@ func ConnectionDatabase(configuration *config.Config, logger logging.Logger, DBn
 	return db
 }
 
-func EnableEventsStatementsConsumers(configuration *config.Config, logger logging.Logger, uptime_str string) {
+func EnableEventsStatementsConsumers(configuration *config.Config, logger logging.Logger, uptime_str string) int {
 	uptime, err := strconv.Atoi(uptime_str)
 	if err != nil {
 		logger.Error(err)
 	}
-	if uptime < 120 {
-		var count_setup_consumers int
+	count_setup_consumers := 0
+	if configuration.QueryOptimization && uptime < 120 {
 		err := models.DB.QueryRow("SELECT count(name) FROM performance_schema.setup_consumers WHERE enabled = 'YES' AND name LIKE 'events_statements_%' AND name != 'events_statements_cpu'").Scan(&count_setup_consumers)
 		if err != nil {
 			logger.Error(err)
+			count_setup_consumers = 0
 		}
 		logger.Info("Found enabled performance_schema statements consumers: ", count_setup_consumers)
-		if count_setup_consumers < 3 {
+		if count_setup_consumers < 3 && configuration.InstanceType == "aws/rds" {
 			_, err := models.DB.Query("CALL releem.enable_events_statements_consumers()")
 			if err != nil {
 				logger.Error("Failed to enable events_statements consumers", err)
@@ -120,4 +121,5 @@ func EnableEventsStatementsConsumers(configuration *config.Config, logger loggin
 			}
 		}
 	}
+	return count_setup_consumers
 }

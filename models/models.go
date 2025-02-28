@@ -28,14 +28,15 @@ type Metrics struct {
 	}
 	DB struct {
 		Metrics struct {
-			Status             MetricGroupValue
-			TotalTables        int
-			TotalMyisamIndexes int
-			Engine             map[string]MetricGroupValue
-			Latency            string
-			QueriesLatency     []MetricGroupValue
-			Databases          []string
-			InnoDBEngineStatus string
+			Status                               MetricGroupValue
+			TotalTables                          int
+			TotalMyisamIndexes                   int
+			Engine                               map[string]MetricGroupValue
+			Latency                              string
+			QueriesLatency                       []MetricGroupValue
+			Databases                            []string
+			InnoDBEngineStatus                   string
+			CountEnableEventsStatementsConsumers int
 		}
 		Conf struct {
 			Variables MetricGroupValue

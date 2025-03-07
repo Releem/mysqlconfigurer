@@ -2,6 +2,25 @@ Releem releases
 ---
 Information about releases of the Releem.
 
+Releem 1.19.9, 2025-01-31 ([What's New At Releem | January 2025](https://releem.com/blog/whats-new-at-releem-january-2025))
+- Added automatic SQL Query Analytics collection
+- Added threshold for how large the changes need to be to be recommended to the user. Closes #188
+- Added additional periods to monitoring
+- Added support of arm64 for Releem Agent
+- Added support of Percona XtraDB Cluster
+- Added New Health Check Query Truncation status which identifies truncated queries in Query analytics.
+- Added checks for duplicated servers to prevent mixing metrics from servers with the same name.
+- Added export of query analytics to CSV. Closes #384
+- Added special screen to teach new users how to use product features
+- Improved query analytics and now it depends on selected period, users can see queries executed in selected period. Closes #318
+- Improved Releem Expert System that checks consistency of configuration before recommendation to prevent incorrect recommendations
+- Improved analysis for queries including functions on indexed columns
+- Improved detection of conditions comparing two columns of the same table
+- Fixed Latency calculation. Closes #391
+- Fixed health check"Table Definition Cache Hit Rate" drops to 0%. Closes #390
+- Improved open_files_limit recommendation for AWS RDS. Closes #389
+- Fixed Releem Agent was stopped unexpectedly. Closes #368
+
 Releem 1.19.8, 2024-12-31 ([What's New At Releem | December 2024](https://releem.com/blog/whats-new-at-releem-december-2024))
 - Added automatic index detection and impact tracking.
 - Added one-click configuration updates for AWS RDS. Closes #320

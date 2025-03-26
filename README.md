@@ -9,7 +9,8 @@
   </a>
 </p>
 <p align="center">
-    <a href="https://releem.com/docs/getstarted">Docs<a> | 
+    <a href="https://docs.releem.com">Docs</a> | 
+    <a href="#security">Security</a> |
     <a href="https://releem.com/compare/mysqltuner">Compare MySQLTuner</a> |
     <a href="https://releem.com/sql-query-optimization">SQL Query Optimization</a> |
     <a href="https://releem.com/blog">Blog</a>
@@ -34,8 +35,7 @@ With Releem we are trying to bring top-notch experience in database performance 
 - **Performance Booster**: Recommended configuration delivers up to [290% boost](#Tests) to MySQL performance compare to the default configuration.
 - **Simplified Monitoring**: [MySQL Health Checks](https://releem.com/blog/mysql-health-checks?utm_source=github&utm_medium=social&utm_campaign=mysql-health-checks&utm_content=post) greatly simplifies the process of monitoring and maintaining a healthy database by focusing on key aspects that describe the efficiency and "best practices" of using Memory, Connections, Logs, Cache, Disk, Indexes, and Threads. Releem Score metric calculates by summarizing Health Checks statuses.
 - **Automatic SQL Query Optimization and Index suggestions**: Releem automatically identifies inefficient queries and offers missed indexes, enabling database administrators to boost query performance without extensive manual analysis.
-- **Security**: Security is our top priority. Releem does not use your database data. It uses only MySQL metrics and system information, and HTTPS to transfer them.
-Releem Agent is open-source and can be reviewed to ensure it meets your security requirements.
+- **Security**: Releem Agent is open-source and does not collect your database data. [Learn more](#security)
 - **Email report**: Keep an eye on your servers with weekly email reports.
 - **Simple Applying**: Releem Agent allows simply apply recommended MySQL configuration just in one click or in one command.
 <p align="center">
@@ -58,6 +58,20 @@ Releem Agent is open-source and can be reviewed to ensure it meets your security
 The easiest way to get started with Releem is with [our  managed service in the cloud](https://releem.com) and one step installation command. It takes up to 5 minutes to start monitoring your MySQL servers and get recommendations to improve performance.
 
 To start using Releem just sign up at [https://releem.com](https://releem.com/?utm_source=github&utm_medium=link&utm_campaign=signup#) and install Releem Agent on your server.
+
+## Security
+
+Releem does not collect any user data.
+
+The Releem agent is open-source and does not require opening ports.
+
+The Releem agent collects the following data:
+- Memory, CPU, and disk usage statistics
+- MySQL system variables & status information
+- Data size statistics from information_schema
+- Table & schema names (but not actual table content)
+- Table structure details, indexes, and usage statistics for schema optimization
+- Query execution statistics with placeholders from performance_schema, including execution counts, average execution time, query example, and EXPLAIN plans for the top queries
 
 ## Support
 Join the Releem Community on [Slack](https://join.slack.com/t/releem-community/shared_invite/zt-1j3d0vosh-AJHbDiQrzVDvLat5eqQorQ). 

@@ -136,26 +136,6 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 			metrics.DB.Metrics.InnoDBEngineStatus = status
 		}
 	}
-	//list of databases
-	{
-		var database string
-		var output []string
-		rows, err := models.DB.Query("SELECT table_schema FROM INFORMATION_SCHEMA.tables group BY table_schema")
-		if err != nil {
-			DbMetricsBase.logger.Error(err)
-			return err
-		}
-		for rows.Next() {
-			err := rows.Scan(&database)
-			if err != nil {
-				DbMetricsBase.logger.Error(err)
-				return err
-			}
-			output = append(output, database)
-		}
-		rows.Close()
-		metrics.DB.Metrics.Databases = output
-	}
 	DbMetricsBase.logger.V(5).Info("CollectMetrics DbMetricsBase ", metrics.DB.Metrics)
 	return nil
 }

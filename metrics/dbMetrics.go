@@ -23,6 +23,26 @@ func NewDbMetricsGatherer(logger logging.Logger, configuration *config.Config) *
 
 func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 	defer utils.HandlePanic(DbMetrics.configuration, DbMetrics.logger)
+	//list of databases
+	{
+		var database string
+		var output []string
+		rows, err := models.DB.Query("SELECT table_schema FROM INFORMATION_SCHEMA.tables group BY table_schema")
+		if err != nil {
+			DbMetrics.logger.Error(err)
+			return err
+		}
+		for rows.Next() {
+			err := rows.Scan(&database)
+			if err != nil {
+				DbMetrics.logger.Error(err)
+				return err
+			}
+			output = append(output, database)
+		}
+		rows.Close()
+		metrics.DB.Metrics.Databases = output
+	}
 	//Total table
 	{
 		var row int
@@ -57,9 +77,6 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 		rows.Close()
 		i := 0
 		for _, database := range metrics.DB.Metrics.Databases {
-			if database == "information_schema" || database == "performance_schema" || database == "mysql" {
-				continue
-			}
 			rows, err = models.DB.Query(`SELECT ENGINE, IFNULL(SUM(DATA_LENGTH+INDEX_LENGTH), 0), IFNULL(COUNT(ENGINE), 0), IFNULL(SUM(DATA_LENGTH), 0), IFNULL(SUM(INDEX_LENGTH), 0) FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND ENGINE IS NOT NULL  GROUP BY ENGINE ORDER BY ENGINE ASC`, database)
 			if err != nil {
 				DbMetrics.logger.Error(err)

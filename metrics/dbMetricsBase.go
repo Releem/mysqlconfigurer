@@ -136,6 +136,37 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 			metrics.DB.Metrics.InnoDBEngineStatus = status
 		}
 	}
+	// ProcessList
+	{
+
+		type information_schema_processlist_type struct {
+			ID      string
+			USER    string
+			HOST    string
+			DB      string
+			COMMAND string
+			TIME    string
+			STATE   string
+			INFO    string
+		}
+		var information_schema_processlist information_schema_processlist_type
+
+		rows, err := models.DB.Query("SELECT IFNULL(ID, 'NULL') as ID, IFNULL(USER, 'NULL') as USER, IFNULL(HOST, 'NULL') as HOST, IFNULL(DB, 'NULL') as DB, IFNULL(COMMAND, 'NULL') as COMMAND, IFNULL(TIME, 'NULL') as TIME, IFNULL(STATE, 'NULL') as STATE, IFNULL(INFO, 'NULL') as INFO FROM information_schema.PROCESSLIST ORDER BY ID")
+		if err != nil {
+			DbMetricsBase.logger.Error(err)
+		} else {
+			for rows.Next() {
+				err := rows.Scan(&information_schema_processlist.ID, &information_schema_processlist.USER, &information_schema_processlist.HOST, &information_schema_processlist.DB, &information_schema_processlist.COMMAND, &information_schema_processlist.TIME, &information_schema_processlist.STATE, &information_schema_processlist.INFO)
+				if err != nil {
+					DbMetricsBase.logger.Error(err)
+					return err
+				}
+				metrics.DB.Metrics.ProcessList = append(metrics.DB.Metrics.ProcessList, models.MetricGroupValue{"ID": information_schema_processlist.ID, "USER": information_schema_processlist.USER, "HOST": information_schema_processlist.HOST, "DB": information_schema_processlist.DB, "COMMAND": information_schema_processlist.COMMAND, "TIME": information_schema_processlist.TIME, "STATE": information_schema_processlist.STATE, "INFO": information_schema_processlist.INFO})
+			}
+			rows.Close()
+		}
+	}
+
 	DbMetricsBase.logger.V(5).Info("CollectMetrics DbMetricsBase ", metrics.DB.Metrics)
 	return nil
 }

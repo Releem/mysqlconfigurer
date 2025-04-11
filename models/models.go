@@ -37,6 +37,7 @@ type Metrics struct {
 			Databases                            []string
 			InnoDBEngineStatus                   string
 			CountEnableEventsStatementsConsumers int
+			ProcessList                          []MetricGroupValue
 		}
 		Conf struct {
 			Variables MetricGroupValue

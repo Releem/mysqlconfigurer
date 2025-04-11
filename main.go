@@ -221,8 +221,18 @@ func defaultDependencies() []string {
 		return []string{"network.target"}
 	}
 }
+
+func defaultSystemLogFlag() bool {
+	switch runtime.GOOS {
+	case "windows":
+		return true
+	default: // для Linux и других UNIX-подобных систем
+		return false
+	}
+}
+
 func main() {
-	logger = *logging.Init("releem-agent", true, false, io.Discard)
+	logger = *logging.Init("releem-agent", true, defaultSystemLogFlag(), io.Discard)
 	defer logger.Close()
 	logging.SetFlags(log.LstdFlags | log.Lshortfile)
 

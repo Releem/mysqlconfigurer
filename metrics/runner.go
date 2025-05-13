@@ -54,7 +54,7 @@ loop:
 			logger.Info("Exiting")
 			break loop
 		case <-timer.C:
-			logger.Info("Starting collection of data for saving a metrics...")
+			logger.Info(" * Starting collection of data for saving a metrics...")
 			timer.Reset(configuration.MetricsPeriod * time.Second)
 			go func() {
 				defer utils.HandlePanic(configuration, logger)
@@ -70,9 +70,8 @@ loop:
 				}
 				logger.Info("Saved a metrics...")
 			}()
-			logger.Info("End collection of metrics for saving a metrics...")
 		case <-GenerateTimer.C:
-			logger.Info("Starting collection of data for generating a config...")
+			logger.Info(" * Starting collection of data for generating a config...")
 			GenerateTimer.Reset(configuration.GenerateConfigPeriod * time.Second)
 			go func() {
 				var metrics *models.Metrics
@@ -97,7 +96,6 @@ loop:
 				}
 				logger.Info("Saved a config...")
 			}()
-			logger.Info("End collection of metrics for saving a metrics...")
 		case <-QueryOptimizationTimer.C:
 			logger.Info("Starting collection of data for queries optimization...")
 			QueryOptimizationTimer.Reset(configuration.QueryOptimizationPeriod * time.Second)

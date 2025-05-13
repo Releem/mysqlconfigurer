@@ -13,6 +13,7 @@
     <a href="#security">Security</a> |
     <a href="https://releem.com/compare/mysqltuner">Compare MySQLTuner</a> |
     <a href="https://releem.com/sql-query-optimization">SQL Query Optimization</a> |
+    <a href="https://releem.com/mysql-optimization-center">MySQL Optimization Center</a> |
     <a href="https://releem.com/blog">Blog</a>
     <br /><br />
 </p>
@@ -21,7 +22,7 @@
 
 The present repository contains the source code of the **Releem Agent**.
 
-[Releem](https://releem.com) is a MySQL Performance Management tool that makes managing and tuning database servers easy. Releem will assist you in MySQL configuration tuning, SQL query optimization and index management, query analytics and root cause analysis.
+[Releem](https://releem.com) is a MySQL performance monitoring tool that delivers consistent performance through continuous database profiling, configuration tuning, and SQL query optimization.
 
 With Releem we are trying to bring top-notch experience in database performance management and save thousands of software engineers hours.
 
@@ -55,7 +56,7 @@ With Releem we are trying to bring top-notch experience in database performance 
 **Releem Customer Portal** - Web interface displays recommended configurations and current information about all MySQL servers with installed Releem Agent. It looks like this on the screenshot.
 
 ## Getting started with Releem
-The easiest way to get started with Releem is with [our  managed service in the cloud](https://releem.com) and one step installation command. It takes up to 5 minutes to start monitoring your MySQL servers and get recommendations to improve performance.
+The easiest way to get started with Releem is with [our managed service in the cloud](https://releem.com) and one step installation command. It takes up to 5 minutes to start monitoring your MySQL servers and get recommendations to improve performance.
 
 To start using Releem just sign up at [https://releem.com](https://releem.com/?utm_source=github&utm_medium=link&utm_campaign=signup#) and install Releem Agent on your server.
 
@@ -110,4 +111,7 @@ You can help us by reporting problems, suggestions or contributing to the code.
 
 ### Report a problem or suggestion
 
-Go to our [issue tracker](https://github.com/releem/mysqlconfigurer/issues) and check if your problem/suggestion is already reported. If not, create a new issue with a descriptive title and detail your suggestion or steps to reproduce the problem.
+Go to our [issue tracker](https://github.com/releem/mysqlconfigurer/issues) and check if your problem is already reported. If not, create a new issue with a descriptive title and detail your suggestion or steps to reproduce the problem.
+
+If you have suggestions or want to discuss potential improvements, please visit our [Discussions](https://github.com/releem/mysqlconfigurer/discussions) page. We value your input and look forward to engaging with the community to enhance our product.
+

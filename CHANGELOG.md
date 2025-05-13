@@ -2,7 +2,19 @@ Releem releases
 ---
 Information about releases of the Releem.
 
-Releem 1.19.9, 2025-01-31 ([What's New At Releem | January 2025](https://releem.com/blog/whats-new-at-releem-january-2025))
+Releem 1.20.0, 2025-03-30 ([What's New At Releem | April 2025](https://releem.com/blog/whats-new-at-releem-april-2025))
+- Added new New Events Section to track key MySQL events
+- Added MySQL Process List to spot long-running queries. Closes #332
+- Added Configuration History to compare different configurations. Closes #257
+- Added Index Incompatibility Detection for SQL Query Optimization
+- Added Embedded SQL Warnings for SQL Query Optimization
+- Added Fragmented Table Detection to the [Schema Checks](https://releem.com/blog/mysql-database-schema-checks#rec907599082). Closes #185
+- Fixed innodb_flush_method settings were incompatible with Windows servers. Closes #401
+- Fixed index corruption issue when using innodb_change_buffering with MariaDB. Closes #393
+- Improved performance on servers with many databases by optimizing how Releem queries database information. Closes #398
+- Improved Releem Score Calculation to make performance metrics more intuitive. Added documentation. Closes #198
+
+Releem 1.19.9, 2025-01-31 ([What's New At Releem | February 2025](https://releem.com/blog/whats-new-at-releem-february-2025))
 - Added automatic SQL Query Analytics collection
 - Added threshold for how large the changes need to be to be recommended to the user. Closes #188
 - Added additional periods to monitoring

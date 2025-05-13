@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh - Version 1.21.0
+# install.sh - Version 1.21.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -9,7 +9,7 @@ export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/
 # using the package manager.
 
 set -e -E
-install_script_version=1.21.0
+install_script_version=1.21.1
 logfile="/var/log/releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -374,6 +374,7 @@ else
         $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT PROCESS ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
         $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT REPLICATION CLIENT ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
         $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"        
+        $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON mysql.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"        
 
         if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON performance_schema.events_statements_summary_by_digest TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
         then
@@ -536,6 +537,10 @@ fi
 if [ -n "$RELEEM_QUERY_OPTIMIZATION" ]; then
 	echo "query_optimization=$RELEEM_QUERY_OPTIMIZATION" | $sudo_cmd tee -a $CONF >/dev/null
 fi
+if [ -n "$RELEEM_DATABASES_QUERY_OPTIMIZATION" ]; then
+	echo "databases_query_optimization=\"$RELEEM_DATABASES_QUERY_OPTIMIZATION\"" | $sudo_cmd tee -a $CONF >/dev/null
+fi
+
 echo "interval_seconds=60" | $sudo_cmd tee -a $CONF >/dev/null
 echo "interval_read_config_seconds=3600" | $sudo_cmd tee -a $CONF >/dev/null
 

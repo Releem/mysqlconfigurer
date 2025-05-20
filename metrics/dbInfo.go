@@ -72,10 +72,14 @@ func security_recommendations(DbInfo *DbInfoGatherer) []models.MetricGroupValue 
 	var Username, User, Host, Password_As_User string
 	rows_users, err := models.DB.Query("SELECT CONCAT(QUOTE(user), '@', QUOTE(host)), user, host, (CAST(" + PASS_COLUMN_NAME + " as Binary) = PASSWORD(user) OR CAST(" + PASS_COLUMN_NAME + " as Binary) = PASSWORD(UPPER(user)) ) as Password_As_User FROM mysql.user")
 	if err != nil || !rows_users.Next() {
-		if strings.Contains(err.Error(), "Error 1064 (42000): You have an error in your SQL syntax") {
-			DbInfo.logger.Info("PASSWORD() function is not supported. Try another query...")
+		if err != nil {
+			if strings.Contains(err.Error(), "Error 1064 (42000): You have an error in your SQL syntax") {
+				DbInfo.logger.Info("PASSWORD() function is not supported. Try another query...")
+			} else {
+				DbInfo.logger.Error(err)
+			}
 		} else {
-			DbInfo.logger.Error(err)
+			DbInfo.logger.Info("Plugin validate_password is activated. Try another query...")
 		}
 		rows_users, err = models.DB.Query("SELECT CONCAT(QUOTE(user), '@', QUOTE(host)), user, host, (CAST(" + PASS_COLUMN_NAME + " as Binary) = CONCAT('*',UPPER(SHA1(UNHEX(SHA1(user))))) OR CAST(" + PASS_COLUMN_NAME + " as Binary) = CONCAT('*',UPPER(SHA1(UNHEX(SHA1(UPPER(user)))))) ) as Password_As_User FROM mysql.user")
 		if err != nil {

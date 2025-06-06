@@ -83,3 +83,8 @@ query_optimization=${RELEEM_QUERY_OPTIMIZATION:-false}
 # databases_query_optimization string `hcl:"databases_query_optimization"`
 # List of databases for query optimization
 databases_query_optimization="${RELEEM_DATABASES_QUERY_OPTIMIZATION}"
+
+# releem_region string `hcl:"releem_region"`
+# Server data storage region - EU or empty.
+releem_region="${RELEEM_REGION}"
+

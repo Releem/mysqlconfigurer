@@ -20,20 +20,25 @@ func (repeater ReleemErrorsRepeater) ProcessErrors(message string) interface{} {
 	bodyReader := strings.NewReader(message)
 
 	repeater.logger.V(5).Info("Result Send data: ", message)
-	var api_domain string
+	var api_domain, domain string
 	if repeater.configuration != nil {
 		env = repeater.configuration.Env
 	} else {
 		env = "prod"
 	}
-	if env == "dev2" {
-		api_domain = "https://api.dev2.releem.com/v2/events/agent_errors_log"
-	} else if env == "dev" {
-		api_domain = "https://api.dev.releem.com/v2/events/agent_errors_log"
-	} else if env == "stage" {
-		api_domain = "https://api.stage.releem.com/v2/events/agent_errors_log"
+	if repeater.configuration.ReleemRegion == "EU" {
+		domain = "eu.releem.com"
 	} else {
-		api_domain = "https://api.releem.com/v2/events/agent_errors_log"
+		domain = "releem.com"
+	}
+	if env == "dev2" {
+		api_domain = "https://api.dev2." + domain + "/v2/events/agent_errors_log"
+	} else if env == "dev" {
+		api_domain = "https://api.dev." + domain + "/v2/events/agent_errors_log"
+	} else if env == "stage" {
+		api_domain = "https://api.stage." + domain + "/v2/events/agent_errors_log"
+	} else {
+		api_domain = "https://api." + domain + "/v2/events/agent_errors_log"
 	}
 	req, err := http.NewRequest(http.MethodPost, api_domain, bodyReader)
 	if err != nil {

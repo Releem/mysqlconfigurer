@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh - Version 1.21.3
+# install.sh - Version 1.21.3.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -9,7 +9,7 @@ export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/
 # using the package manager.
 
 set -e -E
-install_script_version=1.21.3
+install_script_version=1.21.3.1
 logfile="/var/log/releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -18,7 +18,6 @@ MYSQL_CONF_DIR="/etc/mysql/releem.conf.d"
 RELEEM_COMMAND="/bin/bash $WORKDIR/mysqlconfigurer.sh"
 
 # Read configuration
-
 
 # Set up a named pipe for logging
 npipe=/tmp/$$.install.tmp
@@ -30,7 +29,12 @@ exec 1>&-
 exec 1>$npipe 2>&1
 
 function on_exit() {
-    curl -s -L -d @$logfile -H "x-releem-api-key: $apikey" -H "Content-Type: application/json" -X POST https://api.releem.com/v2/events/saving_log
+    if [[ "${RELEEM_REGION}" == "EU" ]]; then
+        API_DOMAIN="api.eu.releem.com"
+    else
+        API_DOMAIN="api.releem.com"
+    fi    
+    curl -s -L -d @$logfile -H "x-releem-api-key: $apikey" -H "Content-Type: application/json" -X POST https://${API_DOMAIN}/v2/events/saving_log
     rm -f $npipe
 }
 
@@ -539,6 +543,9 @@ if [ -n "$RELEEM_QUERY_OPTIMIZATION" ]; then
 fi
 if [ -n "$RELEEM_DATABASES_QUERY_OPTIMIZATION" ]; then
 	echo "databases_query_optimization=\"$RELEEM_DATABASES_QUERY_OPTIMIZATION\"" | $sudo_cmd tee -a $CONF >/dev/null
+fi
+if [ -n "$RELEEM_REGION" ]; then
+	echo "releem_region=\"$RELEEM_REGION\"" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 
 echo "interval_seconds=60" | $sudo_cmd tee -a $CONF >/dev/null

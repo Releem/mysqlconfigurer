@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ReleemAgentVersion = "1.21.3"
+	ReleemAgentVersion = "1.21.3.1"
 )
 
 type Config struct {
@@ -38,6 +38,7 @@ type Config struct {
 	AwsRDSParameterGroup                  string        `hcl:"aws_rds_parameter_group"`
 	QueryOptimization                     bool          `hcl:"query_optimization"`
 	DatabasesQueryOptimization            string        `hcl:"databases_query_optimization"`
+	ReleemRegion                          string        `hcl:"releem_region"`
 }
 
 func LoadConfig(filename string, logger logging.Logger) (*Config, error) {

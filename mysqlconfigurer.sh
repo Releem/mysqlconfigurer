@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mysqlconfigurer.sh - Version 1.21.3
+# mysqlconfigurer.sh - Version 1.21.3.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -15,7 +15,7 @@ MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 RELEEM_MYSQL_VERSION=$MYSQLCONFIGURER_PATH"mysql_version"
 MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
 MYSQL_MEMORY_LIMIT=0
-VERSION="1.21.3"
+VERSION="1.21.3.1"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 logfile="/var/log/releem-mysqlconfigurer.log"
 
@@ -29,7 +29,12 @@ exec 1>&-
 exec 1>$npipe 2>&1
 
 function on_exit() {
-    curl -s -L -d @$logfile -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v2/events/configurer_log
+    if [[ "${RELEEM_REGION}" == "EU" ]]; then
+        API_DOMAIN="api.eu.releem.com"
+    else
+        API_DOMAIN="api.releem.com"
+    fi
+    curl -s -L -d @$logfile -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://${API_DOMAIN}/v2/events/configurer_log
     rm -f $npipe
 }
 
@@ -452,137 +457,137 @@ function releem_apply_automatic() {
     exit "${RESTART_CODE}"
 }
 
-function releem_runnig_cron() {
-  HOUR=$(date +%I)
-  MINUTE=$(date +%M)
-  send_metrics
-  if [ "${HOUR}" == "12" ] && [ "${MINUTE}" == "10" ];
-  then
-    get_config
-    update_agent
-  fi
-  exit 0
-}
+# function releem_runnig_cron() {
+#   HOUR=$(date +%I)
+#   MINUTE=$(date +%M)
+#   send_metrics
+#   if [ "${HOUR}" == "12" ] && [ "${MINUTE}" == "10" ];
+#   then
+#     get_config
+#     update_agent
+#   fi
+#   exit 0
+# }
 
-function send_metrics() {
-  #echo -e "\033[37m\n * Checking the environment...\033[0m"
-  check_env
-  ##### PARAMETERS #####
-  CACHE_TTL="55"
-  CACHE_FILE_STATUS="/tmp/releem.mysql.status.`echo $MYSQLCONFIGURER_CONFIGFILE | md5sum | cut -d" " -f1`.cache"
-  CACHE_FILE_VARIABLES="/tmp/releem.mysql.variables.`echo $MYSQLCONFIGURER_CONFIGFILE | md5sum | cut -d" " -f1`.cache"
-  EXEC_TIMEOUT="1"
-  NOW_TIME=`date '+%s'`
-  ##### RUN #####
-  # Collect MySQL metrics
-  #echo -e "\033[37m\n * Collecting metrics...\033[0m"
+# function send_metrics() {
+#   #echo -e "\033[37m\n * Checking the environment...\033[0m"
+#   check_env
+#   ##### PARAMETERS #####
+#   CACHE_TTL="55"
+#   CACHE_FILE_STATUS="/tmp/releem.mysql.status.`echo $MYSQLCONFIGURER_CONFIGFILE | md5sum | cut -d" " -f1`.cache"
+#   CACHE_FILE_VARIABLES="/tmp/releem.mysql.variables.`echo $MYSQLCONFIGURER_CONFIGFILE | md5sum | cut -d" " -f1`.cache"
+#   EXEC_TIMEOUT="1"
+#   NOW_TIME=`date '+%s'`
+#   ##### RUN #####
+#   # Collect MySQL metrics
+#   #echo -e "\033[37m\n * Collecting metrics...\033[0m"
 
-  if [ -s "${CACHE_FILE_STATUS}" ]; then
-    CACHE_TIME=`stat -c"%Y" "${CACHE_FILE_STATUS}"`
-  else
-    CACHE_TIME=0
-  fi
-  DELTA_TIME=$((${NOW_TIME} - ${CACHE_TIME}))
-  #
-  if [ ${DELTA_TIME} -lt ${EXEC_TIMEOUT} ]; then
-    sleep $((${EXEC_TIMEOUT} - ${DELTA_TIME}))
-  elif [ ${DELTA_TIME} -gt ${CACHE_TTL} ]; then
-    echo "" >> "${CACHE_FILE_STATUS}" # !!!
-    DATACACHE=`mysql -sNe "show global status;"`
-    echo "${DATACACHE}" > "${CACHE_FILE_STATUS}" # !!!
-    chmod 640 "${CACHE_FILE_STATUS}"
-  fi
+#   if [ -s "${CACHE_FILE_STATUS}" ]; then
+#     CACHE_TIME=`stat -c"%Y" "${CACHE_FILE_STATUS}"`
+#   else
+#     CACHE_TIME=0
+#   fi
+#   DELTA_TIME=$((${NOW_TIME} - ${CACHE_TIME}))
+#   #
+#   if [ ${DELTA_TIME} -lt ${EXEC_TIMEOUT} ]; then
+#     sleep $((${EXEC_TIMEOUT} - ${DELTA_TIME}))
+#   elif [ ${DELTA_TIME} -gt ${CACHE_TTL} ]; then
+#     echo "" >> "${CACHE_FILE_STATUS}" # !!!
+#     DATACACHE=`mysql -sNe "show global status;"`
+#     echo "${DATACACHE}" > "${CACHE_FILE_STATUS}" # !!!
+#     chmod 640 "${CACHE_FILE_STATUS}"
+#   fi
 
-  if [ -s "${CACHE_FILE_VARIABLES}" ]; then
-    CACHE_TIME=`stat -c"%Y" "${CACHE_FILE_VARIABLES}"`
-  else
-    CACHE_TIME=0
-  fi
-  DELTA_TIME=$((${NOW_TIME} - ${CACHE_TIME}))
-  #
-  if [ ${DELTA_TIME} -lt ${EXEC_TIMEOUT} ]; then
-    sleep $((${EXEC_TIMEOUT} - ${DELTA_TIME}))
-  elif [ ${DELTA_TIME} -gt ${CACHE_TTL} ]; then
-    echo "" >> "${CACHE_FILE_VARIABLES}" # !!!
-    DATACACHE=`mysql -sNe "show global variables;"`
-    echo "${DATACACHE}" > "${CACHE_FILE_VARIABLES}" # !!!
-    chmod 640 "${CACHE_FILE_VARIABLES}"
-  fi
+#   if [ -s "${CACHE_FILE_VARIABLES}" ]; then
+#     CACHE_TIME=`stat -c"%Y" "${CACHE_FILE_VARIABLES}"`
+#   else
+#     CACHE_TIME=0
+#   fi
+#   DELTA_TIME=$((${NOW_TIME} - ${CACHE_TIME}))
+#   #
+#   if [ ${DELTA_TIME} -lt ${EXEC_TIMEOUT} ]; then
+#     sleep $((${EXEC_TIMEOUT} - ${DELTA_TIME}))
+#   elif [ ${DELTA_TIME} -gt ${CACHE_TTL} ]; then
+#     echo "" >> "${CACHE_FILE_VARIABLES}" # !!!
+#     DATACACHE=`mysql -sNe "show global variables;"`
+#     echo "${DATACACHE}" > "${CACHE_FILE_VARIABLES}" # !!!
+#     chmod 640 "${CACHE_FILE_VARIABLES}"
+#   fi
 
-  QUESTIONS=`cat ${CACHE_FILE_STATUS} | grep -w 'Questions' | awk '{print $2}'`
-  TIMESTAMP=`stat -c"%Y" "${CACHE_FILE_STATUS}"`
-  HOSTNAME=`cat ${CACHE_FILE_VARIABLES} | grep -w 'hostname' | awk '{print $2}'`
+#   QUESTIONS=`cat ${CACHE_FILE_STATUS} | grep -w 'Questions' | awk '{print $2}'`
+#   TIMESTAMP=`stat -c"%Y" "${CACHE_FILE_STATUS}"`
+#   HOSTNAME=`cat ${CACHE_FILE_VARIABLES} | grep -w 'hostname' | awk '{print $2}'`
 
-  JSON_STRING='{"Hostname": "'${HOSTNAME}'", "Timestamp":"'${TIMESTAMP}'", "ReleemMetrics": {"Questions": "'${QUESTIONS}'"}}'
-  #echo -e "\033[37m\n * Sending metrics to Releem Cloud Platform...\033[0m"
-  # Send metrics to Releem Platform. The answer is the configuration file for MySQL
-  curl -s -d "$JSON_STRING" -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v1/mysql
-}
+#   JSON_STRING='{"Hostname": "'${HOSTNAME}'", "Timestamp":"'${TIMESTAMP}'", "ReleemMetrics": {"Questions": "'${QUESTIONS}'"}}'
+#   #echo -e "\033[37m\n * Sending metrics to Releem Cloud Platform...\033[0m"
+#   # Send metrics to Releem Platform. The answer is the configuration file for MySQL
+#   curl -s -d "$JSON_STRING" -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v1/mysql
+# }
 
-function check_env() {
-  # Check RELEEM_API_KEY is not empty
-  if [ -z "$RELEEM_API_KEY" ]; then
-      echo >&2 "RELEEM_API_KEY is empty please sign up at https://releem.com/appsignup to get your Releem API key. Aborting."
-      exit 1;
-  fi
-  command -v curl >/dev/null 2>&1 || { echo >&2 "Curl is not installed. Please install Curl. Aborting."; exit 1; }
+# function check_env() {
+#   # Check RELEEM_API_KEY is not empty
+#   if [ -z "$RELEEM_API_KEY" ]; then
+#       echo >&2 "RELEEM_API_KEY is empty please sign up at https://releem.com/appsignup to get your Releem API key. Aborting."
+#       exit 1;
+#   fi
+#   command -v curl >/dev/null 2>&1 || { echo >&2 "Curl is not installed. Please install Curl. Aborting."; exit 1; }
 
-}
+# }
 
-function get_config() {
-  echo -e "\033[37m\n * Checking the environment...\033[0m"
-  check_env
+# function get_config() {
+#   echo -e "\033[37m\n * Checking the environment...\033[0m"
+#   check_env
 
-  command -v perl >/dev/null 2>&1 || { echo >&2 "Perl is not installed. Please install Perl. Aborting."; exit 1; }
-  perl -e "use JSON;" >/dev/null 2>&1 || { echo >&2 "Perl module JSON is not installed. Please install Perl module JSON. Aborting."; exit 1; }
+#   command -v perl >/dev/null 2>&1 || { echo >&2 "Perl is not installed. Please install Perl. Aborting."; exit 1; }
+#   perl -e "use JSON;" >/dev/null 2>&1 || { echo >&2 "Perl module JSON is not installed. Please install Perl module JSON. Aborting."; exit 1; }
 
-  # Check if the tmp folder exists
-  if [ -d "$MYSQLCONFIGURER_PATH" ]; then
-      # Clear tmp directory
-      rm $MYSQLCONFIGURER_PATH/*
-  else
-      # Create tmp directory
-      mkdir $MYSQLCONFIGURER_PATH
-  fi
+#   # Check if the tmp folder exists
+#   if [ -d "$MYSQLCONFIGURER_PATH" ]; then
+#       # Clear tmp directory
+#       rm $MYSQLCONFIGURER_PATH/*
+#   else
+#       # Create tmp directory
+#       mkdir $MYSQLCONFIGURER_PATH
+#   fi
 
-  # Check if MySQLTuner already downloaded and download if it doesn't exist
-  if [ ! -f "$MYSQLTUNER_FILENAME" ]; then
-      # Download latest version of the MySQLTuner
-      curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/fdd42e76857532002b8037cafddec3e38983dde8/mysqltuner.pl
-      chmod +x $MYSQLTUNER_FILENAME
-  fi
+#   # Check if MySQLTuner already downloaded and download if it doesn't exist
+#   if [ ! -f "$MYSQLTUNER_FILENAME" ]; then
+#       # Download latest version of the MySQLTuner
+#       curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/fdd42e76857532002b8037cafddec3e38983dde8/mysqltuner.pl
+#       chmod +x $MYSQLTUNER_FILENAME
+#   fi
 
-  echo -e "\033[37m\n * Collecting metrics to recommend a config...\033[0m"
+#   echo -e "\033[37m\n * Collecting metrics to recommend a config...\033[0m"
 
-  # Collect MySQL metrics
-  if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --nocolstat --noidxstat --nopfstat --forcemem=$MYSQL_MEMORY_LIMIT --outputfile="$MYSQLTUNER_REPORT" --user=${MYSQL_LOGIN} --pass=${MYSQL_PASSWORD}  ${connection_string}  > /dev/null; then
+#   # Collect MySQL metrics
+#   if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --nocolstat --noidxstat --nopfstat --forcemem=$MYSQL_MEMORY_LIMIT --outputfile="$MYSQLTUNER_REPORT" --user=${MYSQL_LOGIN} --pass=${MYSQL_PASSWORD}  ${connection_string}  > /dev/null; then
 
-      echo -e "\033[37m\n * Sending metrics to Releem Cloud Platform...\033[0m"
+#       echo -e "\033[37m\n * Sending metrics to Releem Cloud Platform...\033[0m"
 
-      # Send metrics to Releem Platform. The answer is the configuration file for MySQL
-      curl -s -d @$MYSQLTUNER_REPORT -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v1/mysql -o "$MYSQLCONFIGURER_CONFIGFILE"
+#       # Send metrics to Releem Platform. The answer is the configuration file for MySQL
+#       curl -s -d @$MYSQLTUNER_REPORT -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v1/mysql -o "$MYSQLCONFIGURER_CONFIGFILE"
 
-      echo -e "\033[37m\n * Downloading recommended MySQL configuration from Releem Cloud Platform...\033[0m"
+#       echo -e "\033[37m\n * Downloading recommended MySQL configuration from Releem Cloud Platform...\033[0m"
 
-      # Show recommended configuration and exit
-      msg="\n\n#---------------Releem Agent Report-------------\n\n"
-      printf "${msg}"
+#       # Show recommended configuration and exit
+#       msg="\n\n#---------------Releem Agent Report-------------\n\n"
+#       printf "${msg}"
 
-      echo -e "1. Recommended MySQL configuration downloaded to ${MYSQLCONFIGURER_CONFIGFILE}"
-      echo
-      echo -e "2. To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics"
-      echo
-      echo -e "3. To apply the recommended configuration please read documentation https://app.releem.com/dashboard"
-  else
-      # If error then show report and exit
-      errormsg="    \
-      \n\n\n\n--------Releem Agent completed with error--------\n   \
-      \nCheck $MYSQLTUNER_REPORT for details \n \
-      \n--------Please fix the error and run Releem Agent again--------\n"
-      printf "${errormsg}" >&2
-  fi
+#       echo -e "1. Recommended MySQL configuration downloaded to ${MYSQLCONFIGURER_CONFIGFILE}"
+#       echo
+#       echo -e "2. To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics"
+#       echo
+#       echo -e "3. To apply the recommended configuration please read documentation https://app.releem.com/dashboard"
+#   else
+#       # If error then show report and exit
+#       errormsg="    \
+#       \n\n\n\n--------Releem Agent completed with error--------\n   \
+#       \nCheck $MYSQLTUNER_REPORT for details \n \
+#       \n--------Please fix the error and run Releem Agent again--------\n"
+#       printf "${errormsg}" >&2
+#   fi
 
-}
+# }
 
 mysqladmincmd=$(which  mariadb-admin 2>/dev/null || true)
 if [ -z $mysqladmincmd ];
@@ -645,6 +650,9 @@ if test -f $RELEEM_CONF_FILE ; then
     if [ ! -z "$query_optimization" ]; then
         RELEEM_QUERY_OPTIMIZATION=$query_optimization
     fi    
+    if [ ! -z "$releem_region" ]; then
+        RELEEM_REGION=$releem_region
+    fi
 fi
 
 # Parse parameters

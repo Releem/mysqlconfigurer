@@ -29,7 +29,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 		repeater.logger.Error("Failed to encode metrics: ", err)
 	}
 	repeater.logger.V(5).Info("Result Send data: ", buffer.String())
-	var api_domain, subdomain string
+	var api_domain, subdomain, domain string
 	env := context.GetEnv()
 
 	if env == "dev2" {
@@ -41,13 +41,17 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	} else {
 		subdomain = ""
 	}
-
-	if Mode.Name == "TaskSet" && Mode.Type == "queries_optimization" {
-		api_domain = "https://api.queries." + subdomain + "releem.com/v2/"
-	} else if Mode.Name == "Metrics" {
-		api_domain = "https://api.queries." + subdomain + "releem.com/v2/"
+	if repeater.configuration.ReleemRegion == "EU" {
+		domain = "eu.releem.com"
 	} else {
-		api_domain = "https://api." + subdomain + "releem.com/v2/"
+		domain = "releem.com"
+	}
+	if Mode.Name == "TaskSet" && Mode.Type == "queries_optimization" {
+		api_domain = "https://api.queries." + subdomain + domain + "/v2/"
+	} else if Mode.Name == "Metrics" {
+		api_domain = "https://api.queries." + subdomain + domain + "/v2/"
+	} else {
+		api_domain = "https://api." + subdomain + domain + "/v2/"
 	}
 
 	if Mode.Name == "Configurations" {

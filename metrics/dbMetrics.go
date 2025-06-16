@@ -45,7 +45,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 	}
 	//Total table
 	{
-		var row int
+		var row uint64
 		err := models.DB.QueryRow("SELECT COUNT(*) as count FROM information_schema.tables").Scan(&row)
 		if err != nil {
 			DbMetrics.logger.Error(err)
@@ -56,7 +56,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 	//Stat mysql Engine
 	{
 		var engine_db, engineenabled string
-		var size, count, dsize, isize int
+		var size, count, dsize, isize uint64
 		output := make(map[string]models.MetricGroupValue)
 		engine_elem := make(map[string]models.MetricGroupValue)
 
@@ -72,7 +72,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 				return err
 			}
 			output[engine_db] = models.MetricGroupValue{"Enabled": engineenabled}
-			engine_elem[engine_db] = models.MetricGroupValue{"Table Number": 0, "Total Size": 0, "Data Size": 0, "Index Size": 0}
+			engine_elem[engine_db] = models.MetricGroupValue{"Table Number": uint64(0), "Total Size": uint64(0), "Data Size": uint64(0), "Index Size": uint64(0)}
 		}
 		rows.Close()
 		i := 0
@@ -86,15 +86,15 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 				err := rows.Scan(&engine_db, &size, &count, &dsize, &isize)
 				if err != nil {
 					DbMetrics.logger.Error(err)
-					return err
+					continue
 				}
 				if engine_elem[engine_db]["Table Number"] == nil {
-					engine_elem[engine_db] = models.MetricGroupValue{"Table Number": 0, "Total Size": 0, "Data Size": 0, "Index Size": 0}
+					engine_elem[engine_db] = models.MetricGroupValue{"Table Number": uint64(0), "Total Size": uint64(0), "Data Size": uint64(0), "Index Size": uint64(0)}
 				}
-				engine_elem[engine_db]["Table Number"] = engine_elem[engine_db]["Table Number"].(int) + count
-				engine_elem[engine_db]["Total Size"] = engine_elem[engine_db]["Total Size"].(int) + size
-				engine_elem[engine_db]["Data Size"] = engine_elem[engine_db]["Data Size"].(int) + dsize
-				engine_elem[engine_db]["Index Size"] = engine_elem[engine_db]["Index Size"].(int) + isize
+				engine_elem[engine_db]["Table Number"] = engine_elem[engine_db]["Table Number"].(uint64) + count
+				engine_elem[engine_db]["Total Size"] = engine_elem[engine_db]["Total Size"].(uint64) + size
+				engine_elem[engine_db]["Data Size"] = engine_elem[engine_db]["Data Size"].(uint64) + dsize
+				engine_elem[engine_db]["Index Size"] = engine_elem[engine_db]["Index Size"].(uint64) + isize
 			}
 			rows.Close()
 			i += 1
@@ -110,7 +110,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 		if metrics.DB.Metrics.Engine["MyISAM"] == nil {
 			metrics.DB.Metrics.TotalMyisamIndexes = 0
 		} else {
-			metrics.DB.Metrics.TotalMyisamIndexes = metrics.DB.Metrics.Engine["MyISAM"]["Index Size"].(int)
+			metrics.DB.Metrics.TotalMyisamIndexes = metrics.DB.Metrics.Engine["MyISAM"]["Index Size"].(uint64)
 		}
 	}
 	DbMetrics.logger.V(5).Info("CollectMetrics DbMetrics ", metrics.DB.Metrics)

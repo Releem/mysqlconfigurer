@@ -7,6 +7,7 @@ import (
 	"github.com/Releem/mysqlconfigurer/models"
 	"github.com/Releem/mysqlconfigurer/utils"
 	logging "github.com/google/logger"
+	"github.com/hashicorp/go-version"
 )
 
 type DbInfoGatherer struct {
@@ -42,14 +43,14 @@ func (DbInfo *DbInfoGatherer) GetMetrics(metrics *models.Metrics) error {
 	rows.Close()
 	metrics.DB.Info["Grants"] = output
 
-	metrics.DB.Info["Users"] = security_recommendations(DbInfo)
+	metrics.DB.Info["Users"] = security_recommendations(DbInfo, metrics)
 
 	DbInfo.logger.V(5).Info("CollectMetrics DbInfo ", metrics.DB.Info)
 	return nil
 
 }
 
-func security_recommendations(DbInfo *DbInfoGatherer) []models.MetricGroupValue {
+func security_recommendations(DbInfo *DbInfoGatherer, metrics *models.Metrics) []models.MetricGroupValue {
 	var output_users []models.MetricGroupValue
 
 	var password_column_exists, authstring_column_exists int
@@ -59,13 +60,19 @@ func security_recommendations(DbInfo *DbInfoGatherer) []models.MetricGroupValue 
 	models.DB.QueryRow("SELECT 1 FROM information_schema.columns WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user' AND COLUMN_NAME = 'password'").Scan(&password_column_exists)
 	models.DB.QueryRow("SELECT 1 FROM information_schema.columns WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user' AND COLUMN_NAME = 'authentication_string'").Scan(&authstring_column_exists)
 	PASS_COLUMN_NAME := "password"
-	if password_column_exists == 1 && authstring_column_exists == 1 {
-		PASS_COLUMN_NAME = "IF(plugin='mysql_native_password', authentication_string, password)"
-	} else if authstring_column_exists == 1 {
-		PASS_COLUMN_NAME = "authentication_string"
-	} else if password_column_exists != 1 {
-		DbInfo.logger.Info("Skipped due to none of known auth columns exists")
-		return output_users
+	ver_current, _ := version.NewVersion(metrics.DB.Info["Version"].(string))
+	ver_mariadb, _ := version.NewVersion("10.2.0")
+	ver_mysql, _ := version.NewVersion("5.7.0")
+
+	if (strings.Contains(metrics.DB.Conf.Variables["version"].(string), "MariaDB") && ver_current.GreaterThan(ver_mariadb)) || (!strings.Contains(metrics.DB.Conf.Variables["version"].(string), "MariaDB") && ver_current.GreaterThan(ver_mysql)) {
+		if password_column_exists == 1 && authstring_column_exists == 1 {
+			PASS_COLUMN_NAME = "IF(plugin='mysql_native_password', authentication_string, password)"
+		} else if authstring_column_exists == 1 {
+			PASS_COLUMN_NAME = "authentication_string"
+		} else if password_column_exists != 1 {
+			DbInfo.logger.Info("Skipped due to none of known auth columns exists")
+			return output_users
+		}
 	}
 	DbInfo.logger.Info("Password column = ", PASS_COLUMN_NAME)
 

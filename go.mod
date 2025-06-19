@@ -13,6 +13,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/rds v1.79.1
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/google/logger v1.1.1
+	github.com/hashicorp/go-version v1.7.0
 	github.com/hashicorp/hcl v1.0.0
 	github.com/pkg/errors v0.9.1
 	github.com/shirou/gopsutil/v4 v4.24.10

@@ -31,8 +31,12 @@ func (Agent *AgentMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 	}
 	output["QueryOptimization"] = Agent.configuration.QueryOptimization
 	models.SqlTextMutex.RLock()
-	output["QueryOptimizationSqlTextCount"] = len(models.SqlText)
+	total := 0
+	for _, row := range models.SqlText {
+		total += len(row)
+	}
 	models.SqlTextMutex.RUnlock()
+	output["QueryOptimizationSqlTextCount"] = total
 
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)

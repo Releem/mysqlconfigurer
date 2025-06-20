@@ -91,14 +91,15 @@ func security_recommendations(DbInfo *DbInfoGatherer, metrics *models.Metrics) [
 		rows_users, err = models.DB.Query("SELECT CONCAT(QUOTE(user), '@', QUOTE(host)), user, host, (CAST(" + PASS_COLUMN_NAME + " as Binary) = CONCAT('*',UPPER(SHA1(UNHEX(SHA1(user))))) OR CAST(" + PASS_COLUMN_NAME + " as Binary) = CONCAT('*',UPPER(SHA1(UNHEX(SHA1(UPPER(user)))))) ) as Password_As_User FROM mysql.user")
 		if err != nil {
 			DbInfo.logger.Error(err)
-		}
-		defer rows_users.Close()
-		for rows_users.Next() {
-			err := rows_users.Scan(&Username, &User, &Host, &Password_As_User)
-			if err != nil {
-				DbInfo.logger.Error(err)
-			} else {
-				output_users = append(output_users, models.MetricGroupValue{"Username": Username, "User": User, "Host": Host, "Password_As_User": Password_As_User})
+		} else {
+			defer rows_users.Close()
+			for rows_users.Next() {
+				err := rows_users.Scan(&Username, &User, &Host, &Password_As_User)
+				if err != nil {
+					DbInfo.logger.Error(err)
+				} else {
+					output_users = append(output_users, models.MetricGroupValue{"Username": Username, "User": User, "Host": Host, "Password_As_User": Password_As_User})
+				}
 			}
 		}
 	} else {
@@ -130,14 +131,15 @@ func security_recommendations(DbInfo *DbInfoGatherer, metrics *models.Metrics) [
 		rows_users, err = models.DB.Query("SELECT CONCAT(QUOTE(user), '@', QUOTE(host)) FROM mysql.user WHERE (" + PASS_COLUMN_NAME + " = '' OR " + PASS_COLUMN_NAME + " IS NULL) AND user != '' /*!50501 AND plugin NOT IN ('auth_socket', 'unix_socket', 'win_socket', 'auth_pam_compat') */  /*!80000 AND account_locked = 'N' AND password_expired = 'N' */")
 		if err != nil {
 			DbInfo.logger.Error(err)
-		}
-		defer rows_users.Close()
-		for rows_users.Next() {
-			err := rows_users.Scan(&Username)
-			if err != nil {
-				DbInfo.logger.Error(err)
-			} else {
-				output_user_blank_password[Username] = 1
+		} else {
+			defer rows_users.Close()
+			for rows_users.Next() {
+				err := rows_users.Scan(&Username)
+				if err != nil {
+					DbInfo.logger.Error(err)
+				} else {
+					output_user_blank_password[Username] = 1
+				}
 			}
 		}
 	} else {

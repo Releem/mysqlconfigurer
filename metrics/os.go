@@ -185,6 +185,6 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 	metrics.System.Info = info
 	metrics.System.Metrics = metricsMap
 	OS.logger.V(5).Info("CollectMetrics OS ", metrics.System)
-	return nil
 
+	return nil
 }

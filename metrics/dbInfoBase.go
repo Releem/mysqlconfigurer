@@ -53,8 +53,8 @@ func (DbInfoBase *DbInfoBaseGatherer) GetMetrics(metrics *models.Metrics) error 
 
 	metrics.DB.Info = info
 	DbInfoBase.logger.V(5).Info("CollectMetrics DbInfoBase ", info)
-	return nil
 
+	return nil
 }
 func MysqlVersionFile() string {
 	switch runtime.GOOS {

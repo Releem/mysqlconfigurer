@@ -121,5 +121,6 @@ func EnableEventsStatementsConsumers(configuration *config.Config, logger loggin
 			}
 		}
 	}
+
 	return count_setup_consumers
 }

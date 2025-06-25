@@ -168,6 +168,7 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 	}
 
 	DbMetricsBase.logger.V(5).Info("CollectMetrics DbMetricsBase ", metrics.DB.Metrics)
+
 	return nil
 }
 

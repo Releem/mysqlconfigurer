@@ -539,12 +539,15 @@ if [ -n "$RELEEM_MYSQL_SSL_MODE" ]; then
 	echo "mysql_ssl_mode=$RELEEM_MYSQL_SSL_MODE" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 if [ -n "$RELEEM_QUERY_OPTIMIZATION" ]; then
+    printf "\033[37m - Enabling query optimization to the Releem Agent configuration: $CONF\n\033[0m"
 	echo "query_optimization=$RELEEM_QUERY_OPTIMIZATION" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 if [ -n "$RELEEM_DATABASES_QUERY_OPTIMIZATION" ]; then
+    printf "\033[37m - Adding list databases for query optimization ${RELEEM_DATABASES_QUERY_OPTIMIZATION} to the Releem Agent configuration: $CONF\n\033[0m"
 	echo "databases_query_optimization=\"$RELEEM_DATABASES_QUERY_OPTIMIZATION\"" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 if [ -n "$RELEEM_REGION" ]; then
+    printf "\033[37m - Adding releem region ${RELEEM_REGION} to the Releem Agent configuration: $CONF\n\033[0m"
 	echo "releem_region=\"$RELEEM_REGION\"" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 

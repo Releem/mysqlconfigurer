@@ -54,7 +54,7 @@ loop:
 			logger.Info("Exiting")
 			break loop
 		case <-timer.C:
-			logger.Info(" * Starting collection of data for saving a metrics...")
+			logger.Info("* Starting collection of data for saving a metrics...")
 			timer.Reset(configuration.MetricsPeriod * time.Second)
 			go func() {
 				defer utils.HandlePanic(configuration, logger)
@@ -63,19 +63,19 @@ loop:
 					metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, metrics.DB.Metrics.Status["Uptime"].(string))
 					task := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: ""})
 					if task == "Task" {
-						logger.Info(" * A task has been found for the agent...")
+						logger.Info("* A task has been found for the agent...")
 						f := tasks.ProcessTaskFunc(metrics, repeaters, gatherers, logger, configuration)
 						time.AfterFunc(5*time.Second, f)
 					}
 				}
-				logger.Info("Saved a metrics...")
+				logger.Info("* Saved a metrics...")
 			}()
 		case <-GenerateTimer.C:
-			logger.Info(" * Starting collection of data for generating a config...")
+			logger.Info("* Starting collection of data...")
 			GenerateTimer.Reset(configuration.GenerateConfigPeriod * time.Second)
 			go func() {
 				var metrics *models.Metrics
-				logger.Info(" * Collecting metrics to recommend a config...")
+				logger.Info("* Collecting metrics. Please wait while agent collects the data...")
 				defer utils.HandlePanic(configuration, logger)
 				if Mode.Name == "TaskSet" && Mode.Type == "queries_optimization" {
 					metrics = utils.CollectMetrics(append(gatherers, gatherers_query_optimization...), logger, configuration)
@@ -84,10 +84,10 @@ loop:
 				}
 				if metrics != nil {
 					metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, "0")
-					logger.Info(" * Sending metrics to Releem Cloud Platform...")
+					logger.Info("* Sending metrics to Releem Cloud Platform...")
 					utils.ProcessRepeaters(metrics, repeaters, configuration, logger, Mode)
 					if Mode.Name == "Configurations" {
-						logger.Info("Recommended MySQL configuration downloaded to ", configuration.GetReleemConfDir())
+						logger.Info("* Recommended MySQL configuration downloaded to ", configuration.GetReleemConfDir())
 					}
 				}
 				if (Mode.Name == "Configurations" && Mode.Type != "default") || Mode.Name == "Event" || Mode.Name == "TaskSet" {
@@ -97,16 +97,15 @@ loop:
 				logger.Info("Saved a config...")
 			}()
 		case <-QueryOptimizationTimer.C:
-			logger.Info("Starting collection of data for queries optimization...")
+			logger.Info("* Starting collection of data for queries analytics...")
 			QueryOptimizationTimer.Reset(configuration.QueryOptimizationPeriod * time.Second)
 			go func() {
 				defer utils.HandlePanic(configuration, logger)
-				logger.Info("QueryOptimization")
 				metrics := utils.CollectMetrics(append(gatherers, gatherers_query_optimization...), logger, configuration)
 				if metrics != nil {
 					utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: "QueryOptimization"})
 				}
-				logger.Info("Saved a queries...")
+				logger.Info("* Saved a queries analytics...")
 			}()
 		case <-QueryOptimizationCollectSqlText.C:
 			QueryOptimizationCollectSqlText.Reset(configuration.QueryOptimizationCollectSqlTextPeriod * time.Second)

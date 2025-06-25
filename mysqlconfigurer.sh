@@ -18,6 +18,7 @@ MYSQL_MEMORY_LIMIT=0
 VERSION="1.21.3.4"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 logfile="/var/log/releem-mysqlconfigurer.log"
+MYSQL_CONF_DIR="/etc/mysql/releem.conf.d"
 
 # Set up a named pipe for logging
 npipe=/tmp/$$.mysqlconfigurer.tmp
@@ -202,32 +203,47 @@ function releem_ps_mysql() {
         FLAG_CONFIGURE=0
     fi
 
-    if [ -n "$RELEEM_MYSQL_CONFIG_DIR" -a -d "$RELEEM_MYSQL_CONFIG_DIR" ]; then
-        printf "\033[37m\n * Enabling Performance schema and SlowLog to collect metrics...\n\033[0m\n"
-        echo "### This configuration was recommended by Releem. https://releem.com" | $sudo_cmd tee "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
-        echo "[mysqld]" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
-        echo "performance_schema = 1" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
-        echo "slow_query_log = 1" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
-        if [ -n "$RELEEM_QUERY_OPTIMIZATION" -a "$RELEEM_QUERY_OPTIMIZATION" = true ]; then
-            if ! check_mysql_version; then
-                printf "\033[31m\n * MySQL version is lower than 5.6.7. Query optimization is not supported. Please reinstall the agent with query optimization disabled. \033[0m\n"
-            else           
-                performance_schema_history_size=$($mysqlcmd  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'performance_schema_events_statements_history_size'" 2>/dev/null | awk '{print $2}')
-                if [ "$performance_schema_history_size" != "500" ]; then
-                    FLAG_CONFIGURE=0
-                fi         
-                echo "performance-schema-consumer-events-statements-history = ON" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
-                echo "performance-schema-consumer-events-statements-current = ON" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
-                echo "performance_schema_events_statements_history_size = 500" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
-            fi
-        fi        
-        chmod 644 $RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf
-    else
+    if [ -z "$RELEEM_MYSQL_CONFIG_DIR" ] || [ ! -d "$RELEEM_MYSQL_CONFIG_DIR" ]; then
         printf "\033[31m\n MySQL configuration directory is not found.\n Try to reinstall Releem Agent.\033[0m"
         exit 3;
     fi
+    if [ -f "$MYSQL_MY_CNF_PATH" ]; then
+        if [ `$sudo_cmd grep -cE "!includedir $MYSQL_CONF_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ]; then
+            printf "\033[31m\n Directive includedir is not found in the MySQL configuration file $MYSQL_MY_CNF_PATH.\n Try to reinstall Releem Agent.\n\033[0m"
+            exit 11;
+        fi
+    fi
+    printf "\033[37m\n * Enabling and configuring Performance schema and SlowLog to collect metrics...\n\033[0m\n"
+    echo "### This configuration was recommended by Releem. https://releem.com" | $sudo_cmd tee "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+    echo "[mysqld]" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+    echo "performance_schema = 1" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+    echo "slow_query_log = 1" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+    if [ -n "$RELEEM_QUERY_OPTIMIZATION" -a "$RELEEM_QUERY_OPTIMIZATION" = true ]; then
+        if ! check_mysql_version; then
+            printf "\033[31m\n * MySQL version is lower than 5.6.7. Query optimization is not supported. Please reinstall the agent with query optimization disabled. \033[0m\n"
+        else
+            performance_schema_setup_consumers_events_statements_current=$($mysqlcmd ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "SELECT ENABLED FROM performance_schema.setup_consumers WHERE NAME = 'events_statements_current';" 2>/dev/null )
+            performance_schema_setup_consumers_events_statements_history=$($mysqlcmd ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "SELECT ENABLED FROM performance_schema.setup_consumers WHERE NAME = 'events_statements_history';" 2>/dev/null )
+            # performance_schema_events_statements_history_size=$($mysqlcmd  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'performance_schema_events_statements_history_size'" 2>/dev/null | awk '{print $2}')
+
+            if [ "$performance_schema_setup_consumers_events_statements_current" != "YES" ]; then
+                FLAG_CONFIGURE=0
+            fi
+            if [ "$performance_schema_setup_consumers_events_statements_history" != "YES" ]; then
+                FLAG_CONFIGURE=0
+            fi
+            # if [ "$performance_schema_events_statements_history_size" != "150" ]; then
+            #     FLAG_CONFIGURE=0
+            # fi         
+            echo "performance-schema-consumer-events-statements-history = ON" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+            echo "performance-schema-consumer-events-statements-current = ON" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+            # echo "performance_schema_events_statements_history_size = 500" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+        fi
+    fi        
+    chmod 644 $RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf
+
     if [ "$FLAG_CONFIGURE" -eq 1 ]; then
-        printf "\033[37m\n * Performance schema and SlowLog are enabled for metrics collection.\033[0m\n"
+        printf "\033[37m\n * Performance schema and SlowLog are enabled and configured for metrics collection.\033[0m\n"
         exit 0
     fi
     printf "\033[37m To apply changes to the mysql configuration, you need to restart the service\n\033[0m\n"
@@ -244,7 +260,7 @@ function releem_ps_mysql() {
         FLAG_RESTART_SERVICE=0
     fi
     if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
-        printf "\033[31m\n * For appling change in configuration mysql need restart service.\n   Run the command \`bash /opt/releem/mysqlconfigurer.sh -p\` when it is possible to restart the service.\033[0m\n"
+        printf "\033[31m\n   For appling change in configuration mysql need restart service.\n   Run the command \`bash /opt/releem/mysqlconfigurer.sh -p\` when it is possible to restart the service.\033[0m\n"
         exit 0
     fi
     #echo "-------Test config-------"
@@ -288,10 +304,6 @@ function releem_apply_auto() {
 }
 
 function releem_apply_manual() {
-    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended MySQL configuration...\033[0m\n"
-    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the latest up-to-date configuration...\033[0m\n"
-    /opt/releem/releem-agent -c >/dev/null 2>&1 || true
-
     if [ ! -f $MYSQLCONFIGURER_CONFIGFILE ]; then
         printf "\033[37m\n * Recommended MySQL configuration is not found.\033[0m"
         printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"
@@ -307,6 +319,17 @@ function releem_apply_manual() {
         printf "\033[37m\n * Try to reinstall Releem Agent, and please set the my.cnf location.\033[0m"
         exit 3;
     fi
+    if [ -f "$MYSQL_MY_CNF_PATH" ]; then
+        if [ `$sudo_cmd grep -cE "!includedir $MYSQL_CONF_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ]; then
+            printf "\033[31m\n Directive includedir is not found in the MySQL configuration file $MYSQL_MY_CNF_PATH.\n Try to reinstall Releem Agent.\n\033[0m"
+            exit 11;
+        fi
+    fi
+
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended MySQL configuration...\033[0m\n"
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the latest up-to-date configuration...\033[0m\n"
+    /opt/releem/releem-agent -c >/dev/null 2>&1 || true
+
     diff_cmd=$(which diff || true)
     if [ -n "$diff_cmd" ];then
         diff "${RELEEM_MYSQL_CONFIG_DIR}/${MYSQLCONFIGURER_FILE_NAME}" "$MYSQLCONFIGURER_CONFIGFILE" > /dev/null 2>&1
@@ -377,10 +400,6 @@ function releem_apply_manual() {
 }
 
 function releem_apply_automatic() {
-    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended MySQL configuration...\033[0m\n"
-    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the latest up-to-date configuration...\033[0m\n"
-    /opt/releem/releem-agent -c >/dev/null 2>&1 || true
-
     if [ ! -f $MYSQLCONFIGURER_CONFIGFILE ]; then
         printf "\033[37m\n * Recommended MySQL configuration is not found.\033[0m"
         printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"
@@ -396,6 +415,16 @@ function releem_apply_automatic() {
         printf "\033[37m\n * Try to reinstall Releem Agent, and please set the my.cnf location.\033[0m"
         exit 3;
     fi
+    if [ -f "$MYSQL_MY_CNF_PATH" ]; then
+        if [ `$sudo_cmd grep -cE "!includedir $MYSQL_CONF_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ]; then
+            printf "\033[31m\n Directive includedir is not found in the MySQL configuration file $MYSQL_MY_CNF_PATH.\n Try to reinstall Releem Agent.\n\033[0m"
+            exit 11;
+        fi
+    fi
+
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended MySQL configuration...\033[0m\n"
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the latest up-to-date configuration...\033[0m\n"
+    /opt/releem/releem-agent -c >/dev/null 2>&1 || true
 
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
@@ -654,6 +683,14 @@ if test -f $RELEEM_CONF_FILE ; then
         RELEEM_REGION=$releem_region
     fi
 fi
+
+if [ -f "/etc/my.cnf" ]; then
+    MYSQL_MY_CNF_PATH="/etc/my.cnf"
+elif [ -f "/etc/mysql/my.cnf" ]; then
+    MYSQL_MY_CNF_PATH="/etc/mysql/my.cnf"
+else
+    MYSQL_MY_CNF_PATH=""
+fi 
 
 # Parse parameters
 while getopts "k:m:s:arcpu" option

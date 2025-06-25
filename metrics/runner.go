@@ -31,13 +31,14 @@ func RunWorker(gatherers []models.MetricsGatherer, gatherers_configuration []mod
 	defer utils.HandlePanic(configuration, logger)
 
 	if (Mode.Name == "Configurations" && Mode.Type != "default") || Mode.Name == "Event" || Mode.Name == "TaskSet" {
-		GenerateTimer = time.NewTimer(0 * time.Second)
-		timer = time.NewTimer(3600 * time.Second)
+		GenerateTimer = time.NewTimer(1 * time.Second)
+		timer = time.NewTimer(1 * time.Hour)
+		QueryOptimizationTimer = time.NewTimer(1 * time.Hour)
 	} else {
 		GenerateTimer = time.NewTimer(configuration.GenerateConfigPeriod * time.Second)
 		timer = time.NewTimer(1 * time.Second)
+		QueryOptimizationTimer = time.NewTimer(1 * time.Minute)
 	}
-	QueryOptimizationTimer = time.NewTimer(1 * time.Minute)
 	QueryOptimizationCollectSqlText := time.NewTimer(1 * time.Second)
 	models.SqlText = make(map[string]map[string]string)
 	models.SqlTextMutex = sync.RWMutex{}

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh - Version 1.21.3.4
+# install.sh - Version 1.21.4
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -9,7 +9,7 @@ export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/
 # using the package manager.
 
 set -e -E
-install_script_version=1.21.3.4
+install_script_version=1.21.4
 logfile="/var/log/releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -40,11 +40,10 @@ function on_exit() {
 
 function on_error() {
     printf "\033[31m $ERROR_MESSAGE
-It looks like you hit an issue when trying to install the Releem.
+It looks like you encountered an issue while installing the Releem.
 
-If you're still having problems, please send an email to hello@releem.com
-with the contents of $logfile and we'll do our very best to help you
-solve your problem.\n\033[0m\n"
+If you are still experiencing problems, please send an email to hello@releem.com 
+with the contents of the $logfile. We will do our best to resolve the issue.\n\033[0m\n"
 }
 trap on_error ERR
 trap on_exit EXIT
@@ -127,7 +126,7 @@ then
 fi
 if [ -z $mysqladmincmd ];
 then
-    printf "\033[31m Couldn't find mysqladmin/mariadb-admin in your \$PATH. Is MySQL installed? \033[0m\n"
+    printf "\033[31m Couldn't find mysqladmin/mariadb-admin in your \$PATH. Correct the path to mysqladmin/mariadb-admin in a \$PATH variable \033[0m\n"
     on_error
     exit 1
 fi
@@ -139,7 +138,7 @@ then
 fi
 if [ -z $mysqlcmd ];
 then
-    printf "\033[31m Couldn't find mysql/mariadb in your \$PATH. Is MySQL installed? \033[0m\n"
+    printf "\033[31m Couldn't find mysql/mariadb in your \$PATH. Correct the path to mysql/mariadb in a \$PATH variable \033[0m\n"
     on_error
     exit 1
 fi
@@ -384,7 +383,7 @@ else
         then
             echo "Successfully GRANT" > /dev/null
         else
-            printf "\033[31m\n This database version is too old, and it doesn’t collect SQL Queries Latency metrics. You couldn’t see Latency in the Dashboard.\033[0m\n"
+            printf "\033[31m\n This database version is too old, and it doesn’t collect SQL Queries Latency metrics. You will not see Latency on the Dashboard.\033[0m\n"
         fi
         if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON performance_schema.table_io_waits_summary_by_index_usage TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
         then
@@ -421,7 +420,7 @@ else
         printf "\033[32m\n Created new user \`${RELEEM_MYSQL_LOGIN}\`\033[0m\n"
         FLAG_SUCCESS=1
     else
-        printf "\033[31m\n%s\n%s\033[0m\n" "MySQL connection failed with user root with error." "Check that the password is correct, the execution of the command \`${mysqladmincmd} ${root_connection_string} --user=root --password=<MYSQL_ROOT_PASSWORD> ping\` and reinstall the agent."
+        printf "\033[31m\n%s\n%s\033[0m\n" "MySQL connection failed with user root." "Check that the password is correct, the execution of the command \`${mysqladmincmd} ${root_connection_string} --user=root --password=<MYSQL_ROOT_PASSWORD> ping\` and reinstall the agent."
         $mysqladmincmd ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping || true
         on_error
         exit 1
@@ -438,7 +437,7 @@ if [ "$FLAG_SUCCESS" == "1" ]; then
         MYSQL_LOGIN=$RELEEM_MYSQL_LOGIN
         MYSQL_PASSWORD=$RELEEM_MYSQL_PASSWORD
     else
-        printf "\033[31m\n%s\n%s\033[0m\n" "Connect to mysql failed with user \`${RELEEM_MYSQL_LOGIN}\` with error." "Check that the user and password is correct, the execution of the command \`${mysqladmin} ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping\` and reinstall the agent."
+        printf "\033[31m\n%s\n%s\033[0m\n" "MySQL connection failed with user \`${RELEEM_MYSQL_LOGIN}\`." "Check that the user and password is correct, the execution of the command \`${mysqladmin} ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping\` and reinstall the agent."
         $mysqladmincmd ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping || true
         on_error
         exit 1
@@ -464,7 +463,7 @@ fi
 # fi
 
 
-printf "\033[37m\n * Configure mysql memory limit\033[0m\n"
+printf "\033[37m\n * Configure MySQL memory limit\033[0m\n"
 if [ -n "$RELEEM_MYSQL_MEMORY_LIMIT" ]; then
 
     if [ "$RELEEM_MYSQL_MEMORY_LIMIT" -gt 0 ]; then
@@ -473,7 +472,7 @@ if [ -n "$RELEEM_MYSQL_MEMORY_LIMIT" ]; then
 else
     echo
     printf "\033[37m\n In case you are using MySQL in Docker or it isn't dedicated server for MySQL.\033[0m\n"
-    read -p "Should we limit MySQL memory? (Y/N) " -n 1 -r
+    read -p "Should we limit memory for MySQL database? (Y/N) " -n 1 -r
     echo    # move to a new line
     if [[ $REPLY =~ ^[Yy]$ ]]
     then
@@ -539,12 +538,15 @@ if [ -n "$RELEEM_MYSQL_SSL_MODE" ]; then
 	echo "mysql_ssl_mode=$RELEEM_MYSQL_SSL_MODE" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 if [ -n "$RELEEM_QUERY_OPTIMIZATION" ]; then
+    printf "\033[37m - Enabling query optimization to the Releem Agent configuration: $CONF\n\033[0m"
 	echo "query_optimization=$RELEEM_QUERY_OPTIMIZATION" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 if [ -n "$RELEEM_DATABASES_QUERY_OPTIMIZATION" ]; then
+    printf "\033[37m - Adding list databases for query optimization ${RELEEM_DATABASES_QUERY_OPTIMIZATION} to the Releem Agent configuration: $CONF\n\033[0m"
 	echo "databases_query_optimization=\"$RELEEM_DATABASES_QUERY_OPTIMIZATION\"" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 if [ -n "$RELEEM_REGION" ]; then
+    printf "\033[37m - Adding releem region ${RELEEM_REGION} to the Releem Agent configuration: $CONF\n\033[0m"
 	echo "releem_region=\"$RELEEM_REGION\"" | $sudo_cmd tee -a $CONF >/dev/null
 fi
 
@@ -581,7 +583,7 @@ set +e
 trap - ERR
 if [ -z "$RELEEM_AGENT_DISABLE" ]; then
     # First run of Releem Agent to check MySQL Performance Score
-    printf "\033[37m\n * Executing Releem Agent for first time...\033[0m\n"
+    printf "\033[37m\n * Executing Releem Agent for the first time...\033[0m\n"
     $sudo_cmd $WORKDIR/releem-agent -f
     $sudo_cmd timeout 3 $WORKDIR/releem-agent
 fi

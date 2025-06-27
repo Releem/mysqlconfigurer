@@ -70,23 +70,23 @@ func security_recommendations(DbInfo *DbInfoGatherer, metrics *models.Metrics) [
 		} else if authstring_column_exists == 1 {
 			PASS_COLUMN_NAME = "authentication_string"
 		} else if password_column_exists != 1 {
-			DbInfo.logger.Info("Skipped due to none of known auth columns exists")
+			DbInfo.logger.Info("DEBUG: Skipped due to none of known auth columns exists")
 			return output_users
 		}
 	}
-	DbInfo.logger.Info("Password column = ", PASS_COLUMN_NAME)
+	DbInfo.logger.Info("DEBUG: Password column = ", PASS_COLUMN_NAME)
 
 	var Username, User, Host, Password_As_User string
 	rows_users, err := models.DB.Query("SELECT CONCAT(QUOTE(user), '@', QUOTE(host)), user, host, (CAST(" + PASS_COLUMN_NAME + " as Binary) = PASSWORD(user) OR CAST(" + PASS_COLUMN_NAME + " as Binary) = PASSWORD(UPPER(user)) ) as Password_As_User FROM mysql.user")
 	if err != nil || !rows_users.Next() {
 		if err != nil {
 			if strings.Contains(err.Error(), "Error 1064 (42000): You have an error in your SQL syntax") {
-				DbInfo.logger.Info("PASSWORD() function is not supported. Try another query...")
+				DbInfo.logger.Info("DEBUG: PASSWORD() function is not supported. Try another query...")
 			} else {
 				DbInfo.logger.Error(err)
 			}
 		} else {
-			DbInfo.logger.Info("Plugin validate_password is activated. Try another query...")
+			DbInfo.logger.Info("DEBUG: Plugin validate_password is activated. Try another query...")
 		}
 		rows_users, err = models.DB.Query("SELECT CONCAT(QUOTE(user), '@', QUOTE(host)), user, host, (CAST(" + PASS_COLUMN_NAME + " as Binary) = CONCAT('*',UPPER(SHA1(UNHEX(SHA1(user))))) OR CAST(" + PASS_COLUMN_NAME + " as Binary) = CONCAT('*',UPPER(SHA1(UNHEX(SHA1(UPPER(user)))))) ) as Password_As_User FROM mysql.user")
 		if err != nil {
@@ -124,7 +124,7 @@ func security_recommendations(DbInfo *DbInfoGatherer, metrics *models.Metrics) [
 	rows_users, err = models.DB.Query("SELECT CONCAT(QUOTE(user), '@', QUOTE(host)) FROM mysql.global_priv WHERE ( user != '' AND JSON_CONTAINS(Priv, '\"mysql_native_password\"', '$.plugin') AND JSON_CONTAINS(Priv, '\"\"', '$.authentication_string') AND NOT JSON_CONTAINS(Priv, 'true', '$.account_locked'))")
 	if err != nil {
 		if strings.Contains(err.Error(), "Error 1146 (42S02): Table 'mysql.global_priv' doesn't exist") {
-			DbInfo.logger.Info("Not MariaDB, try another query...")
+			DbInfo.logger.Info("DEBUG: Not MariaDB, try another query...")
 		} else {
 			DbInfo.logger.Error(err)
 		}

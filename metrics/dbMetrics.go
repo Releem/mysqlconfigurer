@@ -114,6 +114,6 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 		}
 	}
 	DbMetrics.logger.V(5).Info("CollectMetrics DbMetrics ", metrics.DB.Metrics)
-	return nil
 
+	return nil
 }

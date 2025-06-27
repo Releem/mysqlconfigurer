@@ -59,5 +59,4 @@ func (DbConf *DbConfGatherer) GetMetrics(metrics *models.Metrics) error {
 	DbConf.logger.V(5).Info("CollectMetrics DbConf ", output)
 
 	return nil
-
 }

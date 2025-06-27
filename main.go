@@ -64,7 +64,7 @@ func (programm *Programm) Run() {
 	}
 
 	// Do something, call your goroutines, etc
-	logger.Info("Starting releem-agent of version is ", config.ReleemAgentVersion)
+	logger.Info("Releem-agent version is ", config.ReleemAgentVersion) //
 	configuration, err := config.LoadConfig(*ConfigFile, logger)
 	if err != nil {
 		logger.Error("Config load failed", err)
@@ -209,7 +209,7 @@ func defaultConfigPath() string {
 	switch runtime.GOOS {
 	case "windows":
 		return "C:\\ProgramData\\ReleemAgent\\releem.conf"
-	default: // для Linux и других UNIX-подобных систем
+	default: // for Linux and other UNIX-like systems
 		return "/opt/releem/releem.conf"
 	}
 }
@@ -217,7 +217,7 @@ func defaultDependencies() []string {
 	switch runtime.GOOS {
 	case "windows":
 		return []string{}
-	default: // для Linux и других UNIX-подобных систем
+	default: // for Linux and other UNIX-like systems
 		return []string{"network.target"}
 	}
 }
@@ -226,7 +226,7 @@ func defaultSystemLogFlag() bool {
 	switch runtime.GOOS {
 	case "windows":
 		return true
-	default: // для Linux и других UNIX-подобных систем
+	default: // for Linux and other UNIX-like systems
 		return false
 	}
 }

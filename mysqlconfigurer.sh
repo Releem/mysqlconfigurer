@@ -135,18 +135,18 @@ function releem_rollback_config() {
         exit 2
     fi
     if [ -z "$RELEEM_MYSQL_CONFIG_DIR" -o ! -d "$RELEEM_MYSQL_CONFIG_DIR" ]; then
-        printf "\033[37m\n * MySQL configuration directory is not found.\033[0m"
-        printf "\033[37m\n * Try to reinstall Releem Agent, and please set the my.cnf location.\033[0m"
+        printf "\033[37m\n * MySQL configuration directory not found.\033[0m"
+        printf "\033[37m\n * Try to reinstall Releem Agent, and set the my.cnf location.\033[0m"
         exit 3;
     fi
 
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
-    	read -p "Please confirm restart MySQL service? (Y/N) " -n 1 -r
+    	read -p "Restart MySQL service now? (Y/N) " -n 1 -r
       echo    # move to a new line
       if [[ ! $REPLY =~ ^[Yy]$ ]]
       then
-        printf "\033[37m\n * A confirmation to restart the service has not been received. Releem recommended configuration has not been roll back.\033[0m\n"
+        printf "\033[37m\n * A confirmation to restart the service has not been received. Releem recommended configuration has not been rolled back.\033[0m\n"
         FLAG_RESTART_SERVICE=0
       fi
     elif [ "$RELEEM_RESTART_SERVICE" -eq 0 ]; then
@@ -180,10 +180,10 @@ function releem_rollback_config() {
         rm -f "${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}.bkp"
     elif [ $RESTART_CODE -eq 6 ];
     then
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m The MySQL service failed to restart in 1200 seconds! Check the MySQL error log! \033[0m\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m The MySQL service failed to restart in 1200 seconds. Check the MySQL error log. \033[0m\n"
     elif [ $RESTART_CODE -eq 7 ];
     then
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m The MySQL service failed to restart with error! Check the MySQL error log! \033[0m\n" 
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m The MySQL service failed to restart. Check the MySQL error log. \033[0m\n" 
     fi
     /opt/releem/releem-agent --event=config_rollback > /dev/null
     exit "${RESTART_CODE}"
@@ -246,10 +246,10 @@ function releem_ps_mysql() {
         printf "\033[37m\n * Performance schema and SlowLog are enabled and configured for metrics collection.\033[0m\n"
         exit 0
     fi
-    printf "\033[37m To apply changes to the mysql configuration, you need to restart the service\n\033[0m\n"
+    printf "\033[37m To apply changes to the MySQL configuration, you need to restart the service\n\033[0m\n"
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
-        read -p "Please confirm restart MySQL service? (Y/N) " -n 1 -r
+        read -p "Restart MySQL service? (Y/N) " -n 1 -r
         echo    # move to a new line
         if [[ ! $REPLY =~ ^[Yy]$ ]]
         then
@@ -260,7 +260,7 @@ function releem_ps_mysql() {
         FLAG_RESTART_SERVICE=0
     fi
     if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
-        printf "\033[31m\n   For appling change in configuration mysql need restart service.\n   Run the command \`bash /opt/releem/mysqlconfigurer.sh -p\` when it is possible to restart the service.\033[0m\n"
+        printf "\033[31m\n   For appling change in configuration MySQL need to restart service.\n   Run the command \`bash /opt/releem/mysqlconfigurer.sh -p\` when it is possible to restart the service.\033[0m\n"
         exit 0
     fi
     #echo "-------Test config-------"
@@ -275,10 +275,10 @@ function releem_ps_mysql() {
         printf "\033[32m\n The MySQL service restarted successfully!\n Performance schema and Slow Log are enabled.\033[0m\n"
     elif [ $RESTART_CODE -eq 6 ];
     then
-        printf "\033[31m\n The MySQL service failed to restart in 1200 seconds! Check the MySQL error log!\033[0m\n"
+        printf "\033[31m\n The MySQL service failed to restart in 1200 seconds. Check the MySQL error log.\033[0m\n"
     elif [ $RESTART_CODE -eq 7 ];
     then
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m The MySQL service failed to restart with error! Check the MySQL error log! \033[0m\n" 
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m The MySQL service failed to restart with error. Check the MySQL error log. \033[0m\n" 
     fi
     $sudo_cmd /opt/releem/releem-agent -f
     exit "${RESTART_CODE}"
@@ -299,7 +299,7 @@ function releem_apply_config() {
  
 function releem_apply_auto() {
     /opt/releem/releem-agent --task=apply_config > /dev/null
-    printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Request to create a task to apply the configuration was sended!\033[0m\n"
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Request to create a job to apply the configuration has been sent.\033[0m\n"
     exit 0
 }
 
@@ -315,13 +315,13 @@ function releem_apply_manual() {
         exit 2
     fi
     if [ -z "$RELEEM_MYSQL_CONFIG_DIR" -o ! -d "$RELEEM_MYSQL_CONFIG_DIR" ]; then
-        printf "\033[37m\n * MySQL configuration directory is not found.\033[0m"
+        printf "\033[37m\n * MySQL configuration directory was not found.\033[0m"
         printf "\033[37m\n * Try to reinstall Releem Agent, and please set the my.cnf location.\033[0m"
         exit 3;
     fi
     if [ -f "$MYSQL_MY_CNF_PATH" ]; then
         if [ `$sudo_cmd grep -cE "!includedir $MYSQL_CONF_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ]; then
-            printf "\033[31m\n Directive includedir is not found in the MySQL configuration file $MYSQL_MY_CNF_PATH.\n Try to reinstall Releem Agent.\n\033[0m"
+            printf "\033[31m\n Directive includedir was not found in the MySQL configuration file $MYSQL_MY_CNF_PATH.\n Try to reinstall Releem Agent.\n\033[0m"
             exit 11;
         fi
     fi
@@ -336,14 +336,14 @@ function releem_apply_manual() {
         retVal=$?
         if [ $retVal -eq 0 ];
         then
-            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m The new configuration does not differ from the current one applied. No restart is required.!\033[0m\n"
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m The new configuration is no different from the current configuration. No restart is required.!\033[0m\n"
             exit 0
         fi
     fi
 
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
-      read -p "Please confirm the MySQL service restart? (Y/N) " -n 1 -r
+      read -p "Restart MySQL service? (Y/N) " -n 1 -r
       echo    # move to a new line
       if [[ ! $REPLY =~ ^[Yy]$ ]]
       then
@@ -382,8 +382,8 @@ function releem_apply_manual() {
         rm -f "${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}.bkp"
     elif [ $RESTART_CODE -eq 6 ];
     then
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to restart in 1200 seconds! \033[0m\n"
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Wait for the MySQL service to start and Check the MySQL error log!\033[0m\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to restart in 1200 seconds. \033[0m\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Wait for the MySQL service to start and Check the MySQL error log.\033[0m\n"
 
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
@@ -412,7 +412,7 @@ function releem_apply_automatic() {
     fi
     if [ -z "$RELEEM_MYSQL_CONFIG_DIR" -o ! -d "$RELEEM_MYSQL_CONFIG_DIR" ]; then
         printf "\033[37m\n * MySQL configuration directory is not found.\033[0m"
-        printf "\033[37m\n * Try to reinstall Releem Agent, and please set the my.cnf location.\033[0m"
+        printf "\033[37m\n * Try to reinstall Releem Agent, and set the my.cnf location.\033[0m"
         exit 3;
     fi
     if [ -f "$MYSQL_MY_CNF_PATH" ]; then
@@ -428,7 +428,7 @@ function releem_apply_automatic() {
 
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
-      read -p "Please confirm the MySQL service restart? (Y/N) " -n 1 -r
+      read -p "Restart MySQL service? (Y/N) " -n 1 -r
       echo    # move to a new line
       if [[ ! $REPLY =~ ^[Yy]$ ]]
       then
@@ -466,14 +466,14 @@ function releem_apply_automatic() {
             rm -f "${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}.bkp"
         elif [ $RESTART_CODE -eq 6 ];
         then
-            printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to restart in 1200 seconds! \033[0m\n"
-            printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Wait for the MySQL service to start and Check the MySQL error log!\033[0m\n"
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to restart in 1200 seconds. \033[0m\n"
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Wait for the MySQL service to start and Check the MySQL error log.\033[0m\n"
 
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
         elif [ $RESTART_CODE -eq 7 ];
         then
-            printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to restart! Check the MySQL error log! \033[0m\n"
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to restart. Check the MySQL error log. \033[0m\n"
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
         fi
@@ -625,7 +625,7 @@ then
 fi
 if [ -z $mysqladmincmd ];
 then
-    printf "\033[31m Couldn't find mysqladmin/mariadb-admin in your \$PATH. Is MySQL installed? \033[0m\n"
+    printf "\033[31m Couldn't find mysqladmin/mariadb-admin in your \$PATH. Correct the path to mysqladmin/mariadb-admin in a \$PATH variable \033[0m\n"
     exit 1
 fi
 
@@ -636,7 +636,7 @@ then
 fi
 if [ -z $mysqlcmd ];
 then
-    printf "\033[31m Couldn't find mysql/mariadb in your \$PATH. Is MySQL installed? \033[0m\n"
+    printf "\033[31m Couldn't find mysql/mariadb in your \$PATH. Correct the path to mysql/mariadb in a \$PATH variable \033[0m\n"
     exit 1
 fi
 

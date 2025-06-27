@@ -135,14 +135,14 @@ function releem_rollback_config() {
         exit 2
     fi
     if [ -z "$RELEEM_MYSQL_CONFIG_DIR" -o ! -d "$RELEEM_MYSQL_CONFIG_DIR" ]; then
-        printf "\033[37m\n * MySQL configuration directory not found.\033[0m"
+        printf "\033[37m\n * MySQL configuration directory was not found.\033[0m"
         printf "\033[37m\n * Try to reinstall Releem Agent, and set the my.cnf location.\033[0m"
         exit 3;
     fi
 
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
-    	read -p "Restart MySQL service now? (Y/N) " -n 1 -r
+    	read -p "Restart MySQL service? (Y/N) " -n 1 -r
       echo    # move to a new line
       if [[ ! $REPLY =~ ^[Yy]$ ]]
       then
@@ -204,16 +204,16 @@ function releem_ps_mysql() {
     fi
 
     if [ -z "$RELEEM_MYSQL_CONFIG_DIR" ] || [ ! -d "$RELEEM_MYSQL_CONFIG_DIR" ]; then
-        printf "\033[31m\n MySQL configuration directory is not found.\n Try to reinstall Releem Agent.\033[0m"
+        printf "\033[31m\n MySQL configuration directory was not found.\n Try to reinstall Releem Agent.\033[0m"
         exit 3;
     fi
     if [ -f "$MYSQL_MY_CNF_PATH" ]; then
         if [ `$sudo_cmd grep -cE "!includedir $MYSQL_CONF_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ]; then
-            printf "\033[31m\n Directive includedir is not found in the MySQL configuration file $MYSQL_MY_CNF_PATH.\n Try to reinstall Releem Agent.\n\033[0m"
+            printf "\033[31m\n Directive includedir was not found in the MySQL configuration file $MYSQL_MY_CNF_PATH.\n Try to reinstall Releem Agent.\n\033[0m"
             exit 11;
         fi
     fi
-    printf "\033[37m\n * Enabling and configuring Performance schema and SlowLog to collect metrics...\n\033[0m\n"
+    printf "\033[37m\n * Enabling and configuring Performance schema and SlowLog to collect metrics and queries...\n\033[0m\n"
     echo "### This configuration was recommended by Releem. https://releem.com" | $sudo_cmd tee "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
     echo "[mysqld]" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
     echo "performance_schema = 1" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
@@ -243,7 +243,7 @@ function releem_ps_mysql() {
     chmod 644 $RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf
 
     if [ "$FLAG_CONFIGURE" -eq 1 ]; then
-        printf "\033[37m\n * Performance schema and SlowLog are enabled and configured for metrics collection.\033[0m\n"
+        printf "\033[37m\n * Performance schema and SlowLog are enabled and configured to collect metrics and queries.\033[0m\n"
         exit 0
     fi
     printf "\033[37m To apply changes to the MySQL configuration, you need to restart the service\n\033[0m\n"
@@ -272,7 +272,7 @@ function releem_ps_mysql() {
     #if [[ $($mysqladmincmd  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     if [ $RESTART_CODE -eq 0 ];
     then
-        printf "\033[32m\n The MySQL service restarted successfully!\n Performance schema and Slow Log are enabled.\033[0m\n"
+        printf "\033[32m\n The MySQL service restarted successfully!\n Performance schema and SlowLog are enabled and configured to collect metrics and queries.\033[0m\n"
     elif [ $RESTART_CODE -eq 6 ];
     then
         printf "\033[31m\n The MySQL service failed to restart in 1200 seconds. Check the MySQL error log.\033[0m\n"
@@ -305,7 +305,7 @@ function releem_apply_auto() {
 
 function releem_apply_manual() {
     if [ ! -f $MYSQLCONFIGURER_CONFIGFILE ]; then
-        printf "\033[37m\n * Recommended MySQL configuration is not found.\033[0m"
+        printf "\033[37m\n * Recommended MySQL configuration was not found.\033[0m"
         printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"
         printf "\033[32m\n /opt/releem/releem-agent -f \033[0m\n\n"
         exit 1;
@@ -394,14 +394,14 @@ function releem_apply_manual() {
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
     fi
     /opt/releem/releem-agent --event=config_applied > /dev/null
-    printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Notification to Releem Platform was sent successfully!\033[0m\n"
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Notification to Releem Platform was sent. \033[0m\n"
 
     exit "${RESTART_CODE}"
 }
 
 function releem_apply_automatic() {
     if [ ! -f $MYSQLCONFIGURER_CONFIGFILE ]; then
-        printf "\033[37m\n * Recommended MySQL configuration is not found.\033[0m"
+        printf "\033[37m\n * Recommended MySQL configuration was not found.\033[0m"
         printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"
         printf "\033[32m\n /opt/releem/releem-agent -f \033[0m\n\n"
         exit 1;
@@ -411,13 +411,13 @@ function releem_apply_automatic() {
         exit 2
     fi
     if [ -z "$RELEEM_MYSQL_CONFIG_DIR" -o ! -d "$RELEEM_MYSQL_CONFIG_DIR" ]; then
-        printf "\033[37m\n * MySQL configuration directory is not found.\033[0m"
+        printf "\033[37m\n * MySQL configuration directory was not found.\033[0m"
         printf "\033[37m\n * Try to reinstall Releem Agent, and set the my.cnf location.\033[0m"
         exit 3;
     fi
     if [ -f "$MYSQL_MY_CNF_PATH" ]; then
         if [ `$sudo_cmd grep -cE "!includedir $MYSQL_CONF_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ]; then
-            printf "\033[31m\n Directive includedir is not found in the MySQL configuration file $MYSQL_MY_CNF_PATH.\n Try to reinstall Releem Agent.\n\033[0m"
+            printf "\033[31m\n Directive includedir was not found in the MySQL configuration file $MYSQL_MY_CNF_PATH.\n Try to reinstall Releem Agent.\n\033[0m"
             exit 11;
         fi
     fi
@@ -481,7 +481,7 @@ function releem_apply_automatic() {
         RESTART_CODE=0
     fi
     /opt/releem/releem-agent --event=config_applied > /dev/null
-    printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Notification to Releem Platform was sent successfully!\033[0m\n"
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Notification to Releem Platform was sent. \033[0m\n"
 
     exit "${RESTART_CODE}"
 }

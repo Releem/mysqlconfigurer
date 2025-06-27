@@ -69,7 +69,7 @@ loop:
 						time.AfterFunc(5*time.Second, f)
 					}
 				}
-				logger.Info("* Metrics are saved...")
+				logger.Info("* MySQL Metrics are saved...")
 			}()
 		case <-GenerateTimer.C:
 			logger.Info("* Starting to collect metrics...")
@@ -95,7 +95,7 @@ loop:
 					logger.Info("Exiting")
 					os.Exit(0)
 				}
-				logger.Info("* Metrics are saved on the platform...")
+				logger.Info("* MySQL Metrics are saved...")
 			}()
 		case <-QueryOptimizationTimer.C:
 			logger.Info("* Starting to collect data for Query Analytics...")
@@ -106,7 +106,7 @@ loop:
 				if metrics != nil {
 					utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: "QueryOptimization"})
 				}
-				logger.Info("* Query analytics data are saved on the platform...")
+				logger.Info("* Query analytics data are saved...")
 			}()
 		case <-QueryOptimizationCollectSqlText.C:
 			QueryOptimizationCollectSqlText.Reset(configuration.QueryOptimizationCollectSqlTextPeriod * time.Second)

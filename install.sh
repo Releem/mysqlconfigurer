@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh - Version 1.21.4
+# install.sh - Version 1.21.4.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -9,7 +9,7 @@ export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/
 # using the package manager.
 
 set -e -E
-install_script_version=1.21.4
+install_script_version=1.21.4.1
 logfile="/var/log/releem-install.log"
 
 WORKDIR="/opt/releem"
@@ -53,7 +53,7 @@ function releem_set_cron() {
 }
 
 function releem_update() {
-    printf "\033[37m\n * Downloading latest version of Releem Agent...\033[0m\n"
+    printf "\033[37m\n * Downloading latest version of Releem Agent.\033[0m\n"
     $sudo_cmd find /usr/ -name 'mysqladmin' || true
     $sudo_cmd find /usr/ -name 'mysql' || true
     $sudo_cmd curl -w "%{http_code}" -L -o $WORKDIR/releem-agent.new https://releem.s3.amazonaws.com/v2/releem-agent-$(arch)
@@ -81,25 +81,25 @@ if [ "$0" == "uninstall" ];
 then
     trap - EXIT
     $WORKDIR/releem-agent --event=agent_uninstall > /dev/null
-    printf "\033[37m\n * Configure crontab\033[0m\n"
+    printf "\033[37m\n * Configuring crontab\033[0m\n"
     ($sudo_cmd crontab -l 2>/dev/null | grep -v "$WORKDIR/mysqlconfigurer.sh" || true) | $sudo_cmd crontab -
-    printf "\033[37m\n * Stoping Releem Agent service...\033[0m\n"
+    printf "\033[37m\n * Stopping Releem Agent service.\033[0m\n"
     releem_agent_stop=$($sudo_cmd $WORKDIR/releem-agent  stop)
     if [ $? -eq 0 ]; then
-        printf "\033[32m\n Stop Releem Agent successfuly\033[0m\n"
+        printf "\033[32m\n Releem Agent stopped successfully.\033[0m\n"
     else
         echo $releem_agent_stop
-        printf "\033[31m\n Restart Releem Agent failed\033[0m\n"
+        printf "\033[31m\n Releem Agent failed to stop.\033[0m\n"
     fi
-    printf "\033[37m\n * Uninstalling Releem Agent service...\033[0m\n"
+    printf "\033[37m\n * Uninstalling Releem Agent service.\033[0m\n"
     releem_agent_remove=$($sudo_cmd $WORKDIR/releem-agent remove)
     if [ $? -eq 0 ]; then
-        printf "\033[32m\n Uninstall Releem Agent successfuly\033[0m\n"
+        printf "\033[32m\n Releem Agent uninstalled successfully.\033[0m\n"
     else
         echo $releem_agent_remove
-        printf "\033[31m\n Reinstall Releem Agent failed\033[0m\n"
+        printf "\033[31m\n Releem Agent failed to  uninstall.\033[0m\n"
     fi
-    printf "\033[37m\n * Remove files Releem Agent\033[0m\n"
+    printf "\033[37m\n * Removing files Releem Agent\033[0m\n"
     $sudo_cmd rm -rf $WORKDIR
     exit 0
 fi
@@ -114,7 +114,7 @@ else
 fi
 
 if [ ! "$apikey" ]; then
-    printf "\033[31mReleem API key is not available in RELEEM_API_KEY environment variable. Please sigh up at https://releem.com\033[0m\n"
+    printf "\033[31mReleem API key is not available in RELEEM_API_KEY environment variable. Please sign up at https://releem.com\033[0m\n"
     on_error
     exit 1;
 fi
@@ -250,7 +250,7 @@ fi
 
 # Install the necessary package sources
 if [ "$OS" = "RedHat" ]; then
-    echo -e "\033[37m\n * Installing dependencies...\n\033[0m"
+    echo -e "\033[37m\n * Installing dependencies.\n\033[0m"
 
     if [ -x "/usr/bin/dnf" ]; then
         package_manager='dnf'
@@ -260,7 +260,7 @@ if [ "$OS" = "RedHat" ]; then
     which curl &> /dev/null || $sudo_cmd $package_manager -y install curl
     which crontab &> /dev/null || $sudo_cmd $package_manager -y install cronie
 elif [ "$OS" = "Debian" ]; then
-    printf "\033[37m\n * Installing dependences...\n\033[0m\n"
+    printf "\033[37m\n * Installing dependencies.\n\033[0m\n"
     which curl &> /dev/null || ($sudo_cmd apt-get update ; $sudo_cmd apt-get install -y --force-yes curl)
     which crontab &> /dev/null || ($sudo_cmd apt-get update ; $sudo_cmd apt-get install -y --force-yes cron)
 else
@@ -275,7 +275,7 @@ if [ ! -e $CONF ]; then
     $sudo_cmd mkdir -p $WORKDIR/conf
 fi
 
-printf "\033[37m\n * Downloading Releem Agent, architecture $(arch)...\033[0m\n"
+printf "\033[37m\n * Downloading Releem Agent, architecture $(arch).\033[0m\n"
 $sudo_cmd curl -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh
 $sudo_cmd curl -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent-$(arch)
 
@@ -283,8 +283,8 @@ $sudo_cmd curl -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/re
 $sudo_cmd chmod 755 $WORKDIR/mysqlconfigurer.sh $WORKDIR/releem-agent
 
 
-printf "\033[37m\n * Configure the application...\033[0m\n"
-printf "\033[37m\n * Detected service name for appling config\033[0m\n"
+printf "\033[37m\n * Configuring the application.\033[0m\n"
+printf "\033[37m\n * Detecting service name for database server restart\033[0m\n"
 systemctl_cmd=$(which systemctl || true)
 if [ -n "$systemctl_cmd" ];then
     # Check if MySQL is running
@@ -310,7 +310,7 @@ else
     fi
 fi
 
-printf "\033[37m\n * Configure catalog for copy recommend config\033[0m\n"
+printf "\033[37m\n * Configuring the directory for recommended configuration\033[0m\n"
 if [[ -n $RELEEM_MYSQL_MY_CNF_PATH ]];
 then
 	MYSQL_MY_CNF_PATH=$RELEEM_MYSQL_MY_CNF_PATH
@@ -346,7 +346,7 @@ else
 	# if [ $FLAG_APPLY_CHANGE -eq 1 ];
 	# then
 
-    printf "\033[37m\n * The $MYSQL_MY_CNF_PATH file is used for automatic Releem settings. \n\033[0m"
+    printf "\033[37m\n * The $MYSQL_MY_CNF_PATH file is being used to apply Releem is recommended settings.\n\033[0m"
 	printf "\033[37m\n * Adding directive includedir to the MySQL configuration $MYSQL_MY_CNF_PATH.\n\033[0m"
 	$sudo_cmd mkdir -p $MYSQL_CONF_DIR
     $sudo_cmd chmod 755 $MYSQL_CONF_DIR
@@ -359,17 +359,17 @@ else
 fi
 
 
-printf "\033[37m\n * Configure MySQL user for collect data\033[0m\n"
+printf "\033[37m\n * Configuring the MySQL user for metrics collection.\033[0m\n"
 FLAG_SUCCESS=0
 if [ -n "$RELEEM_MYSQL_PASSWORD" ] && [ -n "$RELEEM_MYSQL_LOGIN" ]; then
     printf "\033[37m\n * Using MySQL login and password from environment variables\033[0m\n"
     FLAG_SUCCESS=1
 #elif [ -n "$RELEEM_MYSQL_ROOT_PASSWORD" ]; then
 else
-    printf "\033[37m\n * Using MySQL root user\033[0m\n"
+    printf "\033[37m\n * Using MySQL root user.\033[0m\n"
     if [[ $($mysqladmincmd ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     then
-        printf "\033[37m\n Connect to MySQL - successful \033[0m\n"
+        printf "\033[37m\n MySQL connection successful.\033[0m\n"
         RELEEM_MYSQL_LOGIN="releem"
         RELEEM_MYSQL_PASSWORD=$(cat /dev/urandom | tr -cd '%*)?@#~' | head -c2 ; cat /dev/urandom | tr -cd '%*)?@#~A-Za-z0-9%*)?@#~' | head -c16 ; cat /dev/urandom | tr -cd '%*)?@#~' | head -c2 )
         $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "DROP USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' ;" 2>/dev/null || true
@@ -383,7 +383,7 @@ else
         then
             echo "Successfully GRANT" > /dev/null
         else
-            printf "\033[31m\n This database version is too old, and it doesn’t collect SQL Queries Latency metrics. You will not see Latency on the Dashboard.\033[0m\n"
+            printf "\033[31m\n This database version is too old, and it doesn't collect SQL Queries Latency metrics. You will not see Latency on the Dashboard.\033[0m\n"
         fi
         if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON performance_schema.table_io_waits_summary_by_index_usage TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
         then
@@ -433,7 +433,7 @@ fi
 if [ "$FLAG_SUCCESS" == "1" ]; then
     if [[ $($mysqladmincmd ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     then
-        printf "\033[32m\n Connecting to MySQL with user \`${RELEEM_MYSQL_LOGIN}\` - successfull \033[0m\n"
+        printf "\033[32m\n MySQL connection with user \`${RELEEM_MYSQL_LOGIN}\` - successful. \033[0m\n"
         MYSQL_LOGIN=$RELEEM_MYSQL_LOGIN
         MYSQL_PASSWORD=$RELEEM_MYSQL_PASSWORD
     else
@@ -446,7 +446,7 @@ fi
 
 
 
-# printf "\033[37m\n * Checking ~/.my.cnf...\033[0m\n"
+# printf "\033[37m\n * Checking ~/.my.cnf.\033[0m\n"
 # if [ ! -e ~/.my.cnf ]; then
 #     printf "\033[37m\n * Please create ~/.my.cnf file with the following content:\033[0m\n"
 #     echo -e ""
@@ -463,7 +463,7 @@ fi
 # fi
 
 
-printf "\033[37m\n * Configure MySQL memory limit\033[0m\n"
+printf "\033[37m\n * Configuring MySQL memory limit\033[0m\n"
 if [ -n "$RELEEM_MYSQL_MEMORY_LIMIT" ]; then
 
     if [ "$RELEEM_MYSQL_MEMORY_LIMIT" -gt 0 ]; then
@@ -557,7 +557,7 @@ echo "interval_read_config_seconds=3600" | $sudo_cmd tee -a $CONF >/dev/null
 $sudo_cmd chmod 640 $CONF
 
 
-printf "\033[37m\n * Configure crontab...\033[0m\n"
+printf "\033[37m\n * Configuring crontab.\033[0m\n"
 RELEEM_CRON="00 00 * * * PATH=/bin:/sbin:/usr/bin:/usr/sbin $RELEEM_COMMAND -u"
 if [ -z "$RELEEM_CRON_ENABLE" ]; then
     printf "\033[37m Please add the following string in crontab to get recommendations:\033[0m\n"
@@ -571,19 +571,20 @@ if [ -z "$RELEEM_CRON_ENABLE" ]; then
 elif [ "$RELEEM_CRON_ENABLE" -gt 0 ]; then
     releem_set_cron
     if [ `$sudo_cmd crontab -l 2>/dev/null | grep -c "$WORKDIR/mysqlconfigurer.sh" || true` -eq 0 ]; then
-        printf "\033[31m\nConfiguration of crontab executed with an error. Automatic updates are disabled.\033[0m\n"
+        printf "\033[31m\nCrontab configuration failed. Automatic updates are disabled.\033[0m\n"
     else
-        printf "\033[32m\nConfiguration of crontab is done. Automatic updates are enabled.\033[0m\n"
+        printf "\033[32m\nCrontab configuration complete. Automatic updates are enabled.\033[0m\n"
     fi
 else
-    printf "\033[31m\nConfiguration of crontab failed. Automatic updates are disabled.\033[0m\n"
+    printf "\033[31m\nCrontab configuration failed. Automatic updates are disabled.\033[0m\n"
 fi
 
 set +e
 trap - ERR
 if [ -z "$RELEEM_AGENT_DISABLE" ]; then
     # First run of Releem Agent to check MySQL Performance Score
-    printf "\033[37m\n * Executing Releem Agent for the first time...\033[0m\n"
+    printf "\033[37m\n * Executing Releem Agent for the first time.\033[0m\n"
+    printf "\033[37m This may take up to 15 minutes on servers with many databases.\033[0m\n\n"
     $sudo_cmd $WORKDIR/releem-agent -f
     $sudo_cmd timeout 3 $WORKDIR/releem-agent
 fi
@@ -591,20 +592,20 @@ printf "\033[37m\n * Installing and starting Releem Agent service to collect met
 releem_agent_remove=$($sudo_cmd $WORKDIR/releem-agent remove)
 releem_agent_install=$($sudo_cmd $WORKDIR/releem-agent install)
 if [ $? -eq 0 ]; then
-    printf "\033[32m\n Installing Releem Agent - successful\033[0m\n"
+    printf "\033[32m\n The Releem Agent installation successful.\033[0m\n"
 else
     echo $releem_agent_remove
     echo $releem_agent_install
-    printf "\033[31m\n Installing Releem Agent - failed\033[0m\n"
+    printf "\033[31m\n The Releem Agent installation failed.\033[0m\n"
 fi
 releem_agent_stop=$($sudo_cmd $WORKDIR/releem-agent  stop)
 releem_agent_start=$($sudo_cmd $WORKDIR/releem-agent  start)
 if [ $? -eq 0 ]; then
-    printf "\033[32m\n Restarting Releem Agent - successful\033[0m\n"
+    printf "\033[32m\n The Releem Agent restart successful.\033[0m\n"
 else
     echo $releem_agent_stop
     echo $releem_agent_start
-    printf "\033[31m\n Restarting Releem Agent - failed\033[0m\n"
+    printf "\033[31m\n The Releem Agent restart failed.\033[0m\n"
 fi
 # $sudo_cmd $WORKDIR/releem-agent  status
 # if [ $? -eq 0 ]; then
@@ -625,7 +626,7 @@ fi
 $sudo_cmd $RELEEM_COMMAND -p
 
 printf "\033[37m\n\033[0m"
-printf "\033[37m * Releem Agent is successfully installed.\033[0m\n"
+printf "\033[37m * Releem Agent has been successfully installed.\033[0m\n"
 printf "\033[37m\n\033[0m"
 printf "\033[37m * To view Releem recommendations and MySQL metrics, visit https://app.releem.com/dashboard\033[0m"
 printf "\033[37m\n\033[0m"

@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ReleemAgentVersion = "1.21.4"
+	ReleemAgentVersion = "1.21.4.1"
 )
 
 type Config struct {
@@ -42,7 +42,7 @@ type Config struct {
 }
 
 func LoadConfig(filename string, logger logging.Logger) (*Config, error) {
-	logger.Infof("Loading config %s", filename)
+	logger.Infof("Loading configuration %s", filename)
 	configBytes, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err

@@ -76,7 +76,7 @@ loop:
 			GenerateTimer.Reset(configuration.GenerateConfigPeriod * time.Second)
 			go func() {
 				var metrics *models.Metrics
-				logger.Info("* Collecting metrics... Please wait while the agent collects the data.")
+				logger.Info("* Collecting metrics...")
 				defer utils.HandlePanic(configuration, logger)
 				if Mode.Name == "TaskSet" && Mode.Type == "queries_optimization" {
 					metrics = utils.CollectMetrics(append(gatherers, gatherers_query_optimization...), logger, configuration)
@@ -98,7 +98,7 @@ loop:
 				logger.Info("* MySQL Metrics are saved...")
 			}()
 		case <-QueryOptimizationTimer.C:
-			logger.Info("* Starting to collect data for Query Analytics...")
+			logger.Info("* Starting to collect MySQL metrics for Query Analytics...")
 			QueryOptimizationTimer.Reset(configuration.QueryOptimizationPeriod * time.Second)
 			go func() {
 				defer utils.HandlePanic(configuration, logger)
@@ -106,7 +106,7 @@ loop:
 				if metrics != nil {
 					utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: "QueryOptimization"})
 				}
-				logger.Info("* Query analytics data are saved...")
+				logger.Info("* MySQL metrics for Query Analytics are saved...")
 			}()
 		case <-QueryOptimizationCollectSqlText.C:
 			QueryOptimizationCollectSqlText.Reset(configuration.QueryOptimizationCollectSqlTextPeriod * time.Second)

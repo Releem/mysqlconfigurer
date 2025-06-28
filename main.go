@@ -67,7 +67,7 @@ func (programm *Programm) Run() {
 	logger.Info("Releem-agent version is ", config.ReleemAgentVersion) //
 	configuration, err := config.LoadConfig(*ConfigFile, logger)
 	if err != nil {
-		logger.Error("Config load failed", err)
+		logger.Error("The agent configuration failed to load", err)
 		return
 	}
 	defer utils.HandlePanic(configuration, logger)
@@ -237,11 +237,11 @@ func main() {
 	logging.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	defaultPath := defaultConfigPath()
-	SetConfigRun = flag.Bool("f", false, "Releem agent generate config")
-	GetConfigRun = flag.Bool("c", false, "Releem agent get config")
-	ConfigFile = flag.String("config", defaultPath, "Releem agent config")
-	AgentEvent = flag.String("event", "", "Releem agent type event")
-	AgentTask = flag.String("task", "", "Releem agent task name")
+	SetConfigRun = flag.Bool("f", false, "Run Releem agent to generate configuration")
+	GetConfigRun = flag.Bool("c", false, "Run Releem agent to download configuration")
+	ConfigFile = flag.String("config", defaultPath, "Path to the configuration file (default: \""+defaultPath+"\")")
+	AgentEvent = flag.String("event", "", "Run Releem agent to handle event")
+	AgentTask = flag.String("task", "", "Run Releem agent to execute task")
 	flag.Parse()
 	command := flag.Args()
 

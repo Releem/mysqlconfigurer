@@ -43,15 +43,15 @@ func (DbInfo *DbInfoGatherer) GetMetrics(metrics *models.Metrics) error {
 	rows.Close()
 	metrics.DB.Info["Grants"] = output
 
-	metrics.DB.Info["Users"] = security_recommendations(DbInfo, metrics)
+	metrics.DB.Info["UsersSecurityCheck"] = users_security_check(DbInfo, metrics)
 
 	DbInfo.logger.V(5).Info("CollectMetrics DbInfo ", metrics.DB.Info)
 	return nil
 
 }
 
-func security_recommendations(DbInfo *DbInfoGatherer, metrics *models.Metrics) []models.MetricGroupValue {
-	var output_users []models.MetricGroupValue
+func users_security_check(DbInfo *DbInfoGatherer, metrics *models.Metrics) []models.MetricGroupValue {
+	var output_users, users_check []models.MetricGroupValue
 
 	var password_column_exists, authstring_column_exists int
 
@@ -155,12 +155,26 @@ func security_recommendations(DbInfo *DbInfoGatherer, metrics *models.Metrics) [
 	}
 
 	for i, user := range output_users {
-		if _, ok := output_user_blank_password[user["Username"].(string)]; ok {
+		_, ok := output_user_blank_password[user["Username"].(string)]
+
+		if ok && user["User"].(string) != "mariadb.sys" && user["User"].(string) != "rdsadmin" {
 			output_users[i]["Blank_Password"] = 1
 		} else {
 			output_users[i]["Blank_Password"] = 0
 		}
 	}
 
-	return output_users
+	for _, user := range output_users {
+		remoteConnRoot := 0
+		anonymousUser := 0
+		if user["User"].(string) == "root" && user["Host"].(string) != "localhost" && user["Host"].(string) != "127.0.0.1" && user["Host"].(string) != "::1" {
+			remoteConnRoot = 1
+		}
+
+		if strings.TrimSpace(user["User"].(string)) == "" {
+			anonymousUser = 1
+		}
+		users_check = append(users_check, models.MetricGroupValue{"Blank_Password": user["Blank_Password"], "Password_As_User": user["Password_As_User"], "Remote_Conn_Root": remoteConnRoot, "Anonymous_User": anonymousUser})
+	}
+	return users_check
 }

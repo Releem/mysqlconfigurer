@@ -2,6 +2,14 @@ Releem releases
 ---
 Information about releases of the Releem.
 
+Releem 1.21.0, 2025-05-31 ([What's New At Releem | May 2025](https://releem.com/blog/whats-new-at-releem-may-2025))
+- Added a configuration metrics comparison interface to monitor performance across various configurations. 
+- Added severity levels for security checks.
+- Enhanced the dashboard design for a clearer display of the Releem Score, health checks, and security checks status.
+- Added new security checks for anonymous users, blank passwords, username as passwords, and remote root login.
+- Added MySQL variables type (dynamic or static) to indicate if a restart is required to apply configuration changes. Closed #385
+- Added detection of recommended indexes with different names for query optimization.
+
 Releem 1.20.0, 2025-03-30 ([What's New At Releem | April 2025](https://releem.com/blog/whats-new-at-releem-april-2025))
 - Added new New Events Section to track key MySQL events
 - Added MySQL Process List to spot long-running queries. Closes #332

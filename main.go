@@ -52,7 +52,7 @@ func (programm *Programm) Start() {
 func (programm *Programm) Run() {
 
 	var TypeConfiguration string
-	var gatherers, gatherers_configuration, gatherers_query_optimization []models.MetricsGatherer
+	var gatherers, gatherers_metrics, gatherers_configuration, gatherers_query_optimization []models.MetricsGatherer
 	var Mode models.ModeType
 
 	if *SetConfigRun {
@@ -173,10 +173,11 @@ func (programm *Programm) Run() {
 		metrics.NewDbInfoBaseGatherer(logger, configuration),
 		metrics.NewDbMetricsBaseGatherer(logger, configuration),
 		metrics.NewAgentMetricsGatherer(logger, configuration))
+	gatherers_metrics = append(gatherers_metrics, metrics.NewDbMetricsMetricsBaseGatherer(logger, configuration))
 	gatherers_configuration = append(gatherers_configuration, metrics.NewDbMetricsGatherer(logger, configuration), metrics.NewDbInfoGatherer(logger, configuration))
 	gatherers_query_optimization = append(gatherers_query_optimization, metrics.NewDbCollectQueriesOptimization(logger, configuration))
 
-	metrics.RunWorker(gatherers, gatherers_configuration, gatherers_query_optimization, repeaters, logger, configuration, Mode)
+	metrics.RunWorker(gatherers, gatherers_metrics, gatherers_configuration, gatherers_query_optimization, repeaters, logger, configuration, Mode)
 
 }
 

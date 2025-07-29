@@ -425,7 +425,7 @@ func CollectionExplain(digests map[string]models.MetricGroupValue, field_sorting
 
 		if digests[k]["schema_name"].(string) != "mysql" && digests[k]["schema_name"].(string) != "information_schema" &&
 			digests[k]["schema_name"].(string) != "performance_schema" && digests[k]["schema_name"].(string) != "NULL" &&
-			(strings.HasPrefix(digests[k]["query_text"].(string), "SELECT ") || strings.HasPrefix(digests[k]["query_text"].(string), "select ")) &&
+			(strings.Contains(digests[k]["query_text"].(string), "SELECT ") || strings.Contains(digests[k]["query_text"].(string), "select ")) &&
 			digests[k]["explain"] == nil {
 
 			if digests[k]["query_text"].(string) == "" {

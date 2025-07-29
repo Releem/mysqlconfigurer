@@ -25,7 +25,7 @@ func makeTerminateChannel() <-chan os.Signal {
 	return ch
 }
 
-func RunWorker(gatherers []models.MetricsGatherer, gatherers_configuration []models.MetricsGatherer, gatherers_query_optimization []models.MetricsGatherer, repeaters models.MetricsRepeater, logger logging.Logger,
+func RunWorker(gatherers []models.MetricsGatherer, gatherers_metrics []models.MetricsGatherer, gatherers_configuration []models.MetricsGatherer, gatherers_query_optimization []models.MetricsGatherer, repeaters models.MetricsRepeater, logger logging.Logger,
 	configuration *config.Config, Mode models.ModeType) {
 	var GenerateTimer, timer, QueryOptimizationTimer *time.Timer
 	defer utils.HandlePanic(configuration, logger)
@@ -59,7 +59,7 @@ loop:
 			timer.Reset(configuration.MetricsPeriod * time.Second)
 			go func() {
 				defer utils.HandlePanic(configuration, logger)
-				metrics := utils.CollectMetrics(gatherers, logger, configuration)
+				metrics := utils.CollectMetrics(append(gatherers, gatherers_metrics...), logger, configuration)
 				if metrics != nil {
 					metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, metrics.DB.Metrics.Status["Uptime"].(string))
 					task := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: ""})

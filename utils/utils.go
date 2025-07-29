@@ -90,21 +90,23 @@ func ConnectionDatabase(configuration *config.Config, logger logging.Logger, DBn
 	if err != nil {
 		logger.Error("Connection failed", err)
 	} else {
-		if TypeConnection == "unix" {
+		switch TypeConnection {
+		case "unix":
 			logger.Info("Connect Success to DB ", DBname, " via unix socket ", configuration.MysqlHost)
-		} else if TypeConnection == "tcp" {
+		case "tcp":
 			logger.Info("Connect Success to DB ", DBname, " via tcp ", configuration.MysqlHost)
 		}
 	}
 	return db
 }
 
-func EnableEventsStatementsConsumers(configuration *config.Config, logger logging.Logger, uptime_str string) int {
+func EnableEventsStatementsConsumers(configuration *config.Config, logger logging.Logger, uptime_str string) uint64 {
+	var count_setup_consumers uint64
 	uptime, err := strconv.Atoi(uptime_str)
 	if err != nil {
 		logger.Error(err)
 	}
-	count_setup_consumers := 0
+	count_setup_consumers = 0
 	if configuration.QueryOptimization && uptime < 120 {
 		err := models.DB.QueryRow("SELECT count(name) FROM performance_schema.setup_consumers WHERE enabled = 'YES' AND name LIKE 'events_statements_%' AND name != 'events_statements_cpu'").Scan(&count_setup_consumers)
 		if err != nil {

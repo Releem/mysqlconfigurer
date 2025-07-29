@@ -32,11 +32,11 @@ type Metrics struct {
 			TotalTables                          uint64
 			TotalMyisamIndexes                   uint64
 			Engine                               map[string]MetricGroupValue
-			Latency                              string
 			QueriesLatency                       []MetricGroupValue
+			CountQueriesLatency                  uint64
 			Databases                            []string
 			InnoDBEngineStatus                   string
-			CountEnableEventsStatementsConsumers int
+			CountEnableEventsStatementsConsumers uint64
 			ProcessList                          []MetricGroupValue
 		}
 		Conf struct {

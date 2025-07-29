@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh - Version 1.21.5
+# install.sh - Version 1.21.6
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -9,7 +9,7 @@ export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/
 # using the package manager.
 
 set -e -E
-install_script_version=1.21.5
+install_script_version=1.21.6
 logfile="/var/log/releem-install.log"
 
 WORKDIR="/opt/releem"

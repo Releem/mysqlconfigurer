@@ -103,6 +103,8 @@ func (DbMetricsMetricsBase *DbMetricsMetricsBaseGatherer) GetMetrics(metrics *mo
 			INFO    string
 		}
 		var information_schema_processlist information_schema_processlist_type
+		var total_info_length uint64
+		total_info_length = 0
 
 		rows, err := models.DB.Query("SELECT IFNULL(ID, 'NULL') as ID, IFNULL(USER, 'NULL') as USER, IFNULL(HOST, 'NULL') as HOST, IFNULL(DB, 'NULL') as DB, IFNULL(COMMAND, 'NULL') as COMMAND, IFNULL(TIME, 'NULL') as TIME, IFNULL(STATE, 'NULL') as STATE, IFNULL(INFO, 'NULL') as INFO FROM information_schema.PROCESSLIST ORDER BY ID")
 		if err != nil {
@@ -114,9 +116,34 @@ func (DbMetricsMetricsBase *DbMetricsMetricsBaseGatherer) GetMetrics(metrics *mo
 					DbMetricsMetricsBase.logger.Error(err)
 					return err
 				}
+				total_info_length = total_info_length + uint64(len(information_schema_processlist.INFO))
 				metrics.DB.Metrics.ProcessList = append(metrics.DB.Metrics.ProcessList, models.MetricGroupValue{"ID": information_schema_processlist.ID, "USER": information_schema_processlist.USER, "HOST": information_schema_processlist.HOST, "DB": information_schema_processlist.DB, "COMMAND": information_schema_processlist.COMMAND, "TIME": information_schema_processlist.TIME, "STATE": information_schema_processlist.STATE, "INFO": information_schema_processlist.INFO})
 			}
 			rows.Close()
+
+			// Limit total INFO field size to prevent memory issues
+			const maxTotalSize = 32 * 1024 * 1024 // 32MB
+			const minInfoLength = 64              // Minimum INFO length to preserve
+			process_list_info_limit_length := 65536
+
+			for total_info_length > maxTotalSize && process_list_info_limit_length >= minInfoLength {
+				total_info_length = 0
+				for i := range metrics.DB.Metrics.ProcessList {
+					infoStr := metrics.DB.Metrics.ProcessList[i]["INFO"].(string)
+					if len(infoStr) > process_list_info_limit_length {
+						metrics.DB.Metrics.ProcessList[i]["INFO"] = infoStr[:process_list_info_limit_length]
+					}
+					total_info_length += uint64(len(metrics.DB.Metrics.ProcessList[i]["INFO"].(string)))
+				}
+				process_list_info_limit_length = process_list_info_limit_length / 2
+
+				// Safety check to prevent infinite loop
+				if process_list_info_limit_length < minInfoLength {
+					DbMetricsMetricsBase.logger.Warning("INFO truncation reached minimum length, stopping truncation")
+					break
+				}
+			}
+
 		}
 	}
 

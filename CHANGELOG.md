@@ -2,6 +2,17 @@ Releem releases
 ---
 Information about releases of the Releem.
 
+Releem 1.21.6, 2025-07-31 ([What's New At Releem | July 2025](https://releem.com/blog/whats-new-at-releem-july-2025))
+- Added EXPLAIN and Example Query to the Query Analytics. [Learn more](https://releem.com/blog/query-examples-and-explain-added)
+- Improved and simplified the installation process.
+- Enhanced recommended index detection, even when created with a different name.
+- Added baseline metrics collection for initial server configuration to compare with tuning results.
+- Improved MySQL/MariaDB memory tuning.
+- Added infrastructure to collect metrics in the EU.
+- Enhanced weekly reports with Schema Checks
+- Added AI-powered report on configuration impact.
+- Introduced a new schema check for redundant indexes. [Learn more](https://releem.com/blog/mysql-database-schema-checks#rec816410020)
+
 Releem 1.21.0, 2025-05-31 ([What's New At Releem | May 2025](https://releem.com/blog/whats-new-at-releem-may-2025))
 - Added a configuration metrics comparison interface to monitor performance across various configurations. 
 - Added severity levels for security checks.

@@ -463,7 +463,7 @@ func CollectionExplain(digests map[string]models.MetricGroupValue, field_sorting
 			err := db.QueryRow("EXPLAIN FORMAT=JSON " + digests[k]["query_text"].(string)).Scan(&explain)
 			if err != nil {
 				logger.Error("Explain Error: ", err)
-				if strings.Contains(err.Error(), "command denied to user") {
+				if strings.Contains(err.Error(), "SELECT command denied to user") {
 					digests[k]["explain_error"] = "need_grant_permission"
 					continue
 				} else {
@@ -482,7 +482,7 @@ func CollectionExplain(digests map[string]models.MetricGroupValue, field_sorting
 			err_1 := db.QueryRow("EXPLAIN FORMAT=JSON " + query_text).Scan(&explain)
 			if err_1 != nil {
 				logger.Error("Explain Error: ", err_1)
-				if strings.Contains(err_1.Error(), "command denied to user") {
+				if strings.Contains(err_1.Error(), "SELECT command denied to user") {
 					digests[k]["explain_error"] = "need_grant_permission"
 					continue
 				} else {
@@ -501,7 +501,7 @@ func CollectionExplain(digests map[string]models.MetricGroupValue, field_sorting
 			err_2 := db.QueryRow("EXPLAIN FORMAT=JSON " + query_text).Scan(&explain)
 			if err_2 != nil {
 				logger.Error("Explain Error: ", err_2)
-				if strings.Contains(err_2.Error(), "command denied to user") {
+				if strings.Contains(err_2.Error(), "SELECT command denied to user") {
 					digests[k]["explain_error"] = "need_grant_permission"
 					continue
 				} else {

@@ -113,23 +113,41 @@ loop:
 			go func() {
 				defer utils.HandlePanic(configuration, logger)
 				Ready = false
-				var SqlText_elem models.SqlTextType
-				rows, err := models.DB.Query("SELECT CURRENT_SCHEMA, DIGEST, SQL_TEXT FROM performance_schema.events_statements_history WHERE DIGEST IS NOT NULL AND CURRENT_SCHEMA IS NOT NULL GROUP BY CURRENT_SCHEMA, DIGEST, SQL_TEXT")
+				rows, err := models.DB.Query("SELECT t2.`CURRENT_SCHEMA`, t2.`DIGEST`, t2.`SQL_TEXT` FROM (SELECT `CURRENT_SCHEMA`, `DIGEST`, MAX(`TIMER_START`) AS MAX_TIMER_START FROM `performance_schema`.`events_statements_history` WHERE `DIGEST` IS NOT NULL AND `CURRENT_SCHEMA` IS NOT NULL GROUP BY `CURRENT_SCHEMA`, `DIGEST` ) t1 JOIN `performance_schema`.`events_statements_history` t2 ON t2.`TIMER_START`=t1.`MAX_TIMER_START` AND t2.`CURRENT_SCHEMA`=t1.`CURRENT_SCHEMA` AND t2.`DIGEST`=t1.`DIGEST`")
 				if err != nil {
 					logger.Error(err)
 				} else {
+					defer rows.Close()
+
+					// Batch collect data to reduce mutex contention
+					tempData := make(map[string]map[string]string)
+					var schema, digest, sqlText string
+
 					for rows.Next() {
-						err := rows.Scan(&SqlText_elem.CURRENT_SCHEMA, &SqlText_elem.DIGEST, &SqlText_elem.SQL_TEXT)
+						err := rows.Scan(&schema, &digest, &sqlText)
 						if err != nil {
 							logger.Error(err)
-						} else {
-							models.SqlTextMutex.Lock()
-							if models.SqlText[SqlText_elem.CURRENT_SCHEMA] == nil {
-								models.SqlText[SqlText_elem.CURRENT_SCHEMA] = make(map[string]string)
-							}
-							models.SqlText[SqlText_elem.CURRENT_SCHEMA][SqlText_elem.DIGEST] = SqlText_elem.SQL_TEXT
-							models.SqlTextMutex.Unlock()
+							continue
 						}
+
+						if tempData[schema] == nil {
+							tempData[schema] = make(map[string]string)
+						}
+						tempData[schema][digest] = sqlText
+					}
+
+					// Single mutex lock for batch update
+					if len(tempData) > 0 {
+						models.SqlTextMutex.Lock()
+						for schema, digestMap := range tempData {
+							if models.SqlText[schema] == nil {
+								models.SqlText[schema] = make(map[string]string)
+							}
+							for digest, sqlText := range digestMap {
+								models.SqlText[schema][digest] = sqlText
+							}
+						}
+						models.SqlTextMutex.Unlock()
 					}
 				}
 

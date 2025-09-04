@@ -69,7 +69,7 @@ func LoadConfigFromString(data string, logger logging.Logger) (*Config, error) {
 		config.QueryOptimizationPeriod = 3600
 	}
 	if config.QueryOptimizationCollectSqlTextPeriod == 0 {
-		config.QueryOptimizationCollectSqlTextPeriod = 1
+		config.QueryOptimizationCollectSqlTextPeriod = 5
 	}
 	if config.MysqlHost == "" {
 		config.MysqlHost = "127.0.0.1"

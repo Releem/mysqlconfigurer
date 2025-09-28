@@ -22,6 +22,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	_ "github.com/go-sql-driver/mysql"
 	logging "github.com/google/logger"
+
+	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
+	"google.golang.org/api/sqladmin/v1"
 )
 
 const (
@@ -144,6 +147,66 @@ func (programm *Programm) Run() {
 			logger.Info("RDS.DescribeDBInstances: No instances")
 			return
 		}
+	case "gcp/cloudsql":
+		logger.Info("InstanceType is gcp/cloudsql")
+		logger.Info("Loading GCP configuration")
+
+		// Initialize GCP clients with Application Default Credentials
+		ctx := context.Background()
+
+		// Create monitoring client
+		monitoringClient, err := monitoring.NewMetricClient(ctx)
+		if err != nil {
+			logger.Error("Failed to create GCP monitoring client", err)
+			return
+		}
+		defer monitoringClient.Close()
+
+		// Create SQL Admin client
+		sqlAdminService, err := sqladmin.NewService(ctx)
+		if err != nil {
+			logger.Error("Failed to create GCP SQL Admin client", err)
+			return
+		}
+
+		// Get instance details
+		instance, err := sqlAdminService.Instances.Get(configuration.GcpProjectId, configuration.GcpCloudSqlInstance).Do()
+		if err != nil {
+			logger.Error("Failed to get Cloud SQL instance details", err)
+			return
+		}
+
+		logger.Info("GCP Cloud SQL instance found: ", instance.Name)
+
+		// Set connection details
+		configuration.Hostname = configuration.GcpCloudSqlInstance
+
+		// Find private IP address for connection
+		var privateIP string
+		for _, ipAddr := range instance.IpAddresses {
+			if ipAddr.Type == "PRIVATE" {
+				privateIP = ipAddr.IpAddress
+				break
+			}
+		}
+
+		if privateIP != "" {
+			configuration.MysqlHost = privateIP
+			logger.Info("Using private IP for Cloud SQL connection: ", privateIP)
+		} else {
+			// Fallback to first available IP if no private IP found
+			if len(instance.IpAddresses) > 0 {
+				configuration.MysqlHost = instance.IpAddresses[0].IpAddress
+				logger.Warning("No private IP found, using first available IP: ", instance.IpAddresses[0].IpAddress)
+			} else {
+				logger.Error("No IP addresses found for Cloud SQL instance")
+				return
+			}
+		}
+
+		// Add GCP gatherer
+		gatherers = append(gatherers, metrics.NewGCPCloudSQLEnhancedMetricsGatherer(logger, monitoringClient, sqlAdminService, configuration))
+
 	default:
 		logger.Info("InstanceType is Local")
 		gatherers = append(gatherers, metrics.NewOSMetricsGatherer(logger, configuration))

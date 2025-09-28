@@ -36,6 +36,9 @@ type Config struct {
 	AwsRegion                             string        `hcl:"aws_region"`
 	AwsRDSDB                              string        `hcl:"aws_rds_db"`
 	AwsRDSParameterGroup                  string        `hcl:"aws_rds_parameter_group"`
+	GcpProjectId                          string        `hcl:"gcp_project_id"`
+	GcpRegion                             string        `hcl:"gcp_region"`
+	GcpCloudSqlInstance                   string        `hcl:"gcp_cloudsql_instance"`
 	QueryOptimization                     bool          `hcl:"query_optimization"`
 	DatabasesQueryOptimization            string        `hcl:"databases_query_optimization"`
 	ReleemRegion                          string        `hcl:"releem_region"`

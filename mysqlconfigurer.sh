@@ -50,7 +50,7 @@ function update_agent() {
         then
             printf "\033[37m\n * Updating script \e[31;1m%s\e[0m -> \e[32;1m%s\e[0m\n" "$VERSION" "$NEW_VER"
             curl -s -L https://releem.s3.amazonaws.com/v2/install.sh > "$RELEEM_INSTALL_PATH"
-            RELEEM_API_KEY=$RELEEM_API_KEY exec bash "$RELEEM_INSTALL_PATH" -u
+            RELEEM_INSTANCE_TYPE=$RELEEM_INSTANCE_TYPE RELEEM_API_KEY=$RELEEM_API_KEY exec bash "$RELEEM_INSTALL_PATH" -u
             /opt/releem/releem-agent --event=agent_updated > /dev/null
         fi
     fi
@@ -620,28 +620,6 @@ function releem_apply_automatic() {
 
 # }
 
-mysqladmincmd=$(which  mariadb-admin 2>/dev/null || true)
-if [ -z $mysqladmincmd ];
-then
-    mysqladmincmd=$(which  mysqladmin 2>/dev/null || true)
-fi
-if [ -z $mysqladmincmd ];
-then
-    printf "\033[31m Couldn't find mysqladmin/mariadb-admin in your \$PATH. Correct the path to mysqladmin/mariadb-admin in a \$PATH variable \033[0m\n"
-    exit 1
-fi
-
-mysqlcmd=$(which  mariadb 2>/dev/null || true)
-if [ -z $mysqlcmd ];
-then
-    mysqlcmd=$(which  mysql 2>/dev/null || true)
-fi
-if [ -z $mysqlcmd ];
-then
-    printf "\033[31m Couldn't find mysql/mariadb in your \$PATH. Correct the path to mysql/mariadb in a \$PATH variable \033[0m\n"
-    exit 1
-fi
-
 connection_string=""
 if test -f $RELEEM_CONF_FILE ; then
     . $RELEEM_CONF_FILE
@@ -684,6 +662,11 @@ if test -f $RELEEM_CONF_FILE ; then
     if [ ! -z "$releem_region" ]; then
         RELEEM_REGION=$releem_region
     fi
+    if [ ! -z "$instance_type" ]; then
+        RELEEM_INSTANCE_TYPE=$instance_type
+    else
+        RELEEM_INSTANCE_TYPE="local"
+    fi    
 fi
 
 if [ -f "/etc/my.cnf" ]; then
@@ -694,6 +677,29 @@ else
     MYSQL_MY_CNF_PATH=""
 fi 
 
+if [ "$RELEEM_INSTANCE_TYPE" == "local" ]; then
+    mysqladmincmd=$(which  mariadb-admin 2>/dev/null || true)
+    if [ -z $mysqladmincmd ];
+    then
+        mysqladmincmd=$(which  mysqladmin 2>/dev/null || true)
+    fi
+    if [ -z $mysqladmincmd ];
+    then
+        printf "\033[31m Couldn't find mysqladmin/mariadb-admin in your \$PATH. Correct the path to mysqladmin/mariadb-admin in a \$PATH variable \033[0m\n"
+        exit 1
+    fi
+
+    mysqlcmd=$(which  mariadb 2>/dev/null || true)
+    if [ -z $mysqlcmd ];
+    then
+        mysqlcmd=$(which  mysql 2>/dev/null || true)
+    fi
+    if [ -z $mysqlcmd ];
+    then
+        printf "\033[31m Couldn't find mysql/mariadb in your \$PATH. Correct the path to mysql/mariadb in a \$PATH variable \033[0m\n"
+        exit 1
+    fi
+fi
 # Parse parameters
 while getopts "k:m:s:arcpu" option
 do

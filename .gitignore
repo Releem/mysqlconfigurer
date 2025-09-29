@@ -5,3 +5,4 @@ releem-install.log
 releem-agent*
 releem1.conf
 releem_rds.conf
+!releem-agent-cloudformation.yml

@@ -40,6 +40,10 @@ mysql_host="${DB_HOST:-127.0.0.1}"
 # Mysql port for collection metrics.
 mysql_port="${DB_PORT:-3306}"
 
+#MysqlSslMode bool `hcl:"mysql_ssl_mode"`
+# Enable SSL connection to MySQL
+mysql_ssl_mode=${DB_SSL:-false}
+
 # CommandRestartService string `hcl:"mysql_restart_service"`
 # Defaults to 3600 seconds, command to restart service mysql.
 mysql_restart_service=" /bin/systemctl restart mysql"

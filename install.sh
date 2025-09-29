@@ -125,38 +125,56 @@ else
     instance_type="local"
 fi
 
-if [ "$instance_type" == "local" ]; then
-    mysqladmincmd=$(which  mariadb-admin 2>/dev/null || true)
-    if [ -z $mysqladmincmd ];
-    then
-        mysqladmincmd=$(which  mysqladmin 2>/dev/null || true)
-    fi
-    if [ -z $mysqladmincmd ];
-    then
+# Root user detection
+if [ "$(echo "$UID")" = "0" ]; then
+    sudo_cmd=''
+else
+    sudo_cmd='sudo'
+fi
+
+# ================================================================================
+# FUNCTIONS FOR LOCAL INSTANCE CONFIGURATION
+# ================================================================================
+
+function detect_mysql_commands() {
+    local mysqladmin_cmd=""
+    local mysql_cmd=""
+    
+    printf "\033[37m\n * Detecting MySQL/MariaDB commands.\033[0m\n"
+    
+    # Detect mysqladmin/mariadb-admin
+    mysqladmin_cmd=$(which mariadb-admin 2>/dev/null || which mysqladmin 2>/dev/null || true)
+    if [ -z "$mysqladmin_cmd" ]; then
         printf "\033[31m Couldn't find mysqladmin/mariadb-admin in your \$PATH. Correct the path to mysqladmin/mariadb-admin in a \$PATH variable \033[0m\n"
         on_error
         exit 1
     fi
-
-    mysqlcmd=$(which  mariadb 2>/dev/null || true)
-    if [ -z $mysqlcmd ];
-    then
-        mysqlcmd=$(which  mysql 2>/dev/null || true)
-    fi
-    if [ -z $mysqlcmd ];
-    then
+    
+    # Detect mysql/mariadb
+    mysql_cmd=$(which mariadb 2>/dev/null || which mysql 2>/dev/null || true)
+    if [ -z "$mysql_cmd" ]; then
         printf "\033[31m Couldn't find mysql/mariadb in your \$PATH. Correct the path to mysql/mariadb in a \$PATH variable \033[0m\n"
         on_error
         exit 1
     fi
+    
+    # Export as global variables
+    mysqladmincmd="$mysqladmin_cmd"
+    mysqlcmd="$mysql_cmd"
+}
 
+function setup_mysql_connection_string() {
+    printf "\033[37m\n * Setting up MySQL connection parameters.\033[0m\n"
+    
     connection_string=""  
     root_connection_string=""
+    
     if [ -n "$RELEEM_MYSQL_HOST" ]; then
         if [ -S "$RELEEM_MYSQL_HOST" ]; then
             mysql_user_host="localhost"
             connection_string="${connection_string} --socket=${RELEEM_MYSQL_HOST}"
             root_connection_string="${root_connection_string} --socket=${RELEEM_MYSQL_HOST}"
+            printf "\033[37m   Using socket: %s\033[0m\n" "$RELEEM_MYSQL_HOST"
         else
             if [ "$RELEEM_MYSQL_HOST" == "127.0.0.1" ]; then
                 mysql_user_host="127.0.0.1"
@@ -164,12 +182,13 @@ if [ "$instance_type" == "local" ]; then
                 mysql_user_host="%"
             fi
             connection_string="${connection_string} --host=${RELEEM_MYSQL_HOST}"
-
+            
             if [ -n "$RELEEM_MYSQL_PORT" ]; then
                 connection_string="${connection_string} --port=${RELEEM_MYSQL_PORT}"
             else
                 connection_string="${connection_string} --port=3306"
-            fi        
+            fi
+            printf "\033[37m   Using host: %s, port: %s\033[0m\n" "$RELEEM_MYSQL_HOST" "${RELEEM_MYSQL_PORT:-3306}"
         fi
     else
         mysql_user_host="127.0.0.1"
@@ -179,15 +198,177 @@ if [ "$instance_type" == "local" ]; then
             connection_string="${connection_string} --port=${RELEEM_MYSQL_PORT}"
         else
             connection_string="${connection_string} --port=3306"
-        fi    
+        fi
+        printf "\033[37m   Using default: 127.0.0.1:%s\033[0m\n" "${RELEEM_MYSQL_PORT:-3306}"
     fi
-fi
-# Root user detection
-if [ "$(echo "$UID")" = "0" ]; then
-    sudo_cmd=''
-else
-    sudo_cmd='sudo'
-fi
+}
+
+function detect_mysql_service() {
+    printf "\033[37m\n * Detecting MySQL service name for database server restart.\033[0m\n"
+
+    local systemctl_cmd
+    systemctl_cmd=$(which systemctl 2>/dev/null || true)
+
+    if [ -n "$systemctl_cmd" ]; then
+        # Check if MySQL is running
+        if $sudo_cmd $systemctl_cmd status mariadb >/dev/null 2>&1; then
+            service_name_cmd="$sudo_cmd $systemctl_cmd restart mariadb"
+        elif $sudo_cmd $systemctl_cmd status mysql >/dev/null 2>&1; then
+            service_name_cmd="$sudo_cmd $systemctl_cmd restart mysql"
+        elif $sudo_cmd $systemctl_cmd status mysqld >/dev/null 2>&1; then
+            service_name_cmd="$sudo_cmd $systemctl_cmd restart mysqld"
+        else
+            printf "\033[31m\n * Failed to determine systemd service to restart.\033[0m"
+        fi
+    else
+        # Check if MySQL is running
+        if [ -f /etc/init.d/mysql ]; then
+            service_name_cmd="$sudo_cmd /etc/init.d/mysql restart"
+        elif [ -f /etc/init.d/mysqld ]; then
+            service_name_cmd="$sudo_cmd /etc/init.d/mysqld restart"
+        elif [ -f /etc/init.d/mariadb ]; then
+            service_name_cmd="$sudo_cmd /etc/init.d/mariadb restart"
+        else
+            printf "\033[31m\n * Failed to determine init.d service to restart.\033[0m"
+        fi
+    fi
+    
+    if [ -z "$service_name_cmd" ]; then
+        printf "\033[31m\n   The automatic applying configuration will not work. \n\033[0m"
+    fi
+}
+
+function setup_mysql_config_directory() {
+    printf "\033[37m\n * Setting up MySQL configuration directory.\033[0m\n"
+    if [ -n "$RELEEM_MYSQL_MY_CNF_PATH" ]; then
+        MYSQL_MY_CNF_PATH=$RELEEM_MYSQL_MY_CNF_PATH
+        printf "\033[37m   Using provided my.cnf path: %s\033[0m\n" "$MYSQL_MY_CNF_PATH"
+    else
+        if [ -f "/etc/my.cnf" ]; then
+            MYSQL_MY_CNF_PATH="/etc/my.cnf"
+        elif [ -f "/etc/mysql/my.cnf" ]; then
+            MYSQL_MY_CNF_PATH="/etc/mysql/my.cnf"
+        else
+            read -p "File my.cnf not found in default path. Please set the current location of the configuration file: " -r
+            echo    # move to a new line
+            MYSQL_MY_CNF_PATH=$REPLY
+        fi
+    fi
+    if [ ! -f "$MYSQL_MY_CNF_PATH" ]; then
+        printf "\033[31m * File $MYSQL_MY_CNF_PATH not found. The automatic applying configuration is disabled. Please, reinstall the Releem Agent.\033[0m\n"
+    else
+        printf "\033[37m\n * The $MYSQL_MY_CNF_PATH file is being used to apply Releem is recommended settings.\n\033[0m"
+        printf "\033[37m\n * Adding directive includedir to the MySQL configuration $MYSQL_MY_CNF_PATH.\n\033[0m"
+        $sudo_cmd mkdir -p $MYSQL_CONF_DIR
+        $sudo_cmd chmod 755 $MYSQL_CONF_DIR
+        #Исключить дублирование
+        if [ `$sudo_cmd grep -cE "!includedir $MYSQL_CONF_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ];
+        then
+            echo -e "\n!includedir $MYSQL_CONF_DIR" | $sudo_cmd tee -a $MYSQL_MY_CNF_PATH >/dev/null
+        fi
+    fi    
+}
+
+function create_mysql_user() {
+    printf "\033[37m\n * Configuring the MySQL user for metrics collection.\033[0m\n"
+    FLAG_SUCCESS=0
+    if [ -n "$RELEEM_MYSQL_PASSWORD" ] && [ -n "$RELEEM_MYSQL_LOGIN" ]; then
+        printf "\033[37m\n * Using MySQL login and password from environment variables\033[0m\n"
+        FLAG_SUCCESS=1
+    #elif [ -n "$RELEEM_MYSQL_ROOT_PASSWORD" ]; then
+    else
+        printf "\033[37m\n * Using MySQL root user.\033[0m\n"
+        if [[ $($mysqladmincmd ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
+        then
+            printf "\033[37m\n MySQL connection successful.\033[0m\n"
+            RELEEM_MYSQL_LOGIN="releem"
+            RELEEM_MYSQL_PASSWORD=$(cat /dev/urandom | tr -cd '%*)?@#~' | head -c2 ; cat /dev/urandom | tr -cd '%*)?@#~A-Za-z0-9%*)?@#~' | head -c16 ; cat /dev/urandom | tr -cd '%*)?@#~' | head -c2 )
+            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "DROP USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' ;" 2>/dev/null || true
+            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "CREATE USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' identified by '${RELEEM_MYSQL_PASSWORD}';"
+            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT PROCESS ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
+            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT REPLICATION CLIENT ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
+            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"        
+            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON mysql.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"        
+
+            if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON performance_schema.events_statements_summary_by_digest TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
+            then
+                echo "Successfully GRANT" > /dev/null
+            else
+                printf "\033[31m\n This database version is too old, and it doesn't collect SQL Queries Latency metrics. You will not see Latency on the Dashboard.\033[0m\n"
+            fi
+            if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON performance_schema.table_io_waits_summary_by_index_usage TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
+            then
+                echo "Successfully GRANT" > /dev/null
+            else
+                printf "\033[31m\n This database version is too old.\033[0m\n"
+            fi   
+
+            if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON performance_schema.file_summary_by_instance TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
+            then
+                echo "Successfully GRANT" > /dev/null
+            else
+                printf "\033[31m\n This database version is too old.\033[0m\n"
+            fi      
+
+            if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SYSTEM_VARIABLES_ADMIN ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 2>/dev/null
+            then
+                echo "Successfully GRANT" > /dev/null
+            else
+                if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SUPER ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
+                then
+                    echo "Successfully GRANT" > /dev/null
+                else
+                    printf "\033[31m\n Error granting privileges to apply without restarting.\033[0m\n"
+                fi         
+            fi 
+
+            if [ -n $RELEEM_QUERY_OPTIMIZATION ]; 
+            then
+                $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
+            fi        
+
+            #$mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT, PROCESS,EXECUTE, REPLICATION CLIENT,SHOW DATABASES,SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
+            printf "\033[32m\n Created new user \`${RELEEM_MYSQL_LOGIN}\`\033[0m\n"
+            FLAG_SUCCESS=1
+        else
+            printf "\033[31m\n%s\n%s\033[0m\n" "MySQL connection failed with user root." "Check that the password is correct, the execution of the command \`${mysqladmincmd} ${root_connection_string} --user=root --password=<MYSQL_ROOT_PASSWORD> ping\` and reinstall the agent."
+            $mysqladmincmd ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping || true
+            on_error
+            exit 1
+        fi
+    fi
+    if [ "$FLAG_SUCCESS" == "1" ]; then
+        if [[ $($mysqladmincmd ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
+        then
+            printf "\033[32m\n MySQL connection with user \`${RELEEM_MYSQL_LOGIN}\` - successful. \033[0m\n"
+            MYSQL_LOGIN=$RELEEM_MYSQL_LOGIN
+            MYSQL_PASSWORD=$RELEEM_MYSQL_PASSWORD
+        else
+            printf "\033[31m\n%s\n%s\033[0m\n" "MySQL connection failed with user \`${RELEEM_MYSQL_LOGIN}\`." "Check that the user and password is correct, the execution of the command \`${mysqladmincmd} ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password='${RELEEM_MYSQL_PASSWORD}' ping\` and reinstall the agent."
+            $mysqladmincmd ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping || true
+            on_error
+            exit 1
+        fi
+    fi
+}
+
+
+function configure_local_instance() {   
+    # Step 1: Detect MySQL commands
+    detect_mysql_commands
+    
+    # Step 2: Setup connection parameters
+    setup_mysql_connection_string
+    
+    # Step 3: Detect MySQL service
+    detect_mysql_service
+    
+    # Step 4: Setup configuration directory
+    setup_mysql_config_directory
+    
+    # Step 5: Create MySQL user
+    create_mysql_user
+}
 
 #Enable Query Optimitsation
 if [ "$0" == "enable_query_optimization" ];
@@ -289,144 +470,9 @@ $sudo_cmd curl -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/re
 
 $sudo_cmd chmod 755 $WORKDIR/mysqlconfigurer.sh $WORKDIR/releem-agent
 
+# Configure local instance using dedicated function
 if [ "$instance_type" == "local" ]; then
-    printf "\033[37m\n * Configuring the application.\033[0m\n"
-    printf "\033[37m\n * Detecting service name for database server restart\033[0m\n"
-    systemctl_cmd=$(which systemctl || true)
-    if [ -n "$systemctl_cmd" ];then
-        # Check if MySQL is running
-        if $sudo_cmd $systemctl_cmd status mariadb >/dev/null 2>&1; then
-            service_name_cmd="$sudo_cmd $systemctl_cmd restart mariadb"    
-        elif $sudo_cmd $systemctl_cmd status mysql >/dev/null 2>&1; then
-            service_name_cmd="$sudo_cmd $systemctl_cmd restart mysql"
-        elif $sudo_cmd $systemctl_cmd status mysqld >/dev/null 2>&1; then
-            service_name_cmd="$sudo_cmd $systemctl_cmd restart mysqld"
-        else
-            printf "\033[31m\n * Failed to determine service to restart. The automatic applying configuration will not work. \n\033[0m"
-        fi
-    else
-        # Check if MySQL is running
-        if [ -f /etc/init.d/mysql ]; then
-            service_name_cmd="$sudo_cmd /etc/init.d/mysql restart"
-        elif [ -f /etc/init.d/mysqld ]; then
-            service_name_cmd="$sudo_cmd /etc/init.d/mysqld restart"
-        elif [ -f /etc/init.d/mariadb ]; then
-            service_name_cmd="$sudo_cmd /etc/init.d/mariadb restart"
-        else
-            printf "\033[31m\n * Failed to determine service to restart. The automatic applying configuration will not work. \n\033[0m"
-        fi
-    fi
-
-    printf "\033[37m\n * Configuring the directory for recommended configuration\033[0m\n"
-    if [[ -n $RELEEM_MYSQL_MY_CNF_PATH ]];
-    then
-        MYSQL_MY_CNF_PATH=$RELEEM_MYSQL_MY_CNF_PATH
-    else
-        if [ -f "/etc/my.cnf" ]; then
-            MYSQL_MY_CNF_PATH="/etc/my.cnf"
-        elif [ -f "/etc/mysql/my.cnf" ]; then
-            MYSQL_MY_CNF_PATH="/etc/mysql/my.cnf"
-        else
-            read -p "File my.cnf not found in default path. Please set the current location of the configuration file: " -r
-            echo    # move to a new line
-            MYSQL_MY_CNF_PATH=$REPLY
-        fi
-    fi
-    if [ ! -f "$MYSQL_MY_CNF_PATH" ]; then
-        printf "\033[31m * File $MYSQL_MY_CNF_PATH not found. The automatic applying configuration is disabled. Please, reinstall the Releem Agent.\033[0m\n"
-    else
-        printf "\033[37m\n * The $MYSQL_MY_CNF_PATH file is being used to apply Releem is recommended settings.\n\033[0m"
-        printf "\033[37m\n * Adding directive includedir to the MySQL configuration $MYSQL_MY_CNF_PATH.\n\033[0m"
-        $sudo_cmd mkdir -p $MYSQL_CONF_DIR
-        $sudo_cmd chmod 755 $MYSQL_CONF_DIR
-        #Исключить дублирование
-        if [ `$sudo_cmd grep -cE "!includedir $MYSQL_CONF_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ];
-        then
-            echo -e "\n!includedir $MYSQL_CONF_DIR" | $sudo_cmd tee -a $MYSQL_MY_CNF_PATH >/dev/null
-        fi
-    fi
-
-
-    printf "\033[37m\n * Configuring the MySQL user for metrics collection.\033[0m\n"
-    FLAG_SUCCESS=0
-    if [ -n "$RELEEM_MYSQL_PASSWORD" ] && [ -n "$RELEEM_MYSQL_LOGIN" ]; then
-        printf "\033[37m\n * Using MySQL login and password from environment variables\033[0m\n"
-        FLAG_SUCCESS=1
-    #elif [ -n "$RELEEM_MYSQL_ROOT_PASSWORD" ]; then
-    else
-        printf "\033[37m\n * Using MySQL root user.\033[0m\n"
-        if [[ $($mysqladmincmd ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
-        then
-            printf "\033[37m\n MySQL connection successful.\033[0m\n"
-            RELEEM_MYSQL_LOGIN="releem"
-            RELEEM_MYSQL_PASSWORD=$(cat /dev/urandom | tr -cd '%*)?@#~' | head -c2 ; cat /dev/urandom | tr -cd '%*)?@#~A-Za-z0-9%*)?@#~' | head -c16 ; cat /dev/urandom | tr -cd '%*)?@#~' | head -c2 )
-            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "DROP USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' ;" 2>/dev/null || true
-            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "CREATE USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' identified by '${RELEEM_MYSQL_PASSWORD}';"
-            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT PROCESS ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
-            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT REPLICATION CLIENT ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
-            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"        
-            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON mysql.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"        
-
-            if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON performance_schema.events_statements_summary_by_digest TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
-            then
-                echo "Successfully GRANT" > /dev/null
-            else
-                printf "\033[31m\n This database version is too old, and it doesn't collect SQL Queries Latency metrics. You will not see Latency on the Dashboard.\033[0m\n"
-            fi
-            if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON performance_schema.table_io_waits_summary_by_index_usage TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
-            then
-                echo "Successfully GRANT" > /dev/null
-            else
-                printf "\033[31m\n This database version is too old.\033[0m\n"
-            fi   
-
-            if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON performance_schema.file_summary_by_instance TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
-            then
-                echo "Successfully GRANT" > /dev/null
-            else
-                printf "\033[31m\n This database version is too old.\033[0m\n"
-            fi      
-
-            if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SYSTEM_VARIABLES_ADMIN ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 2>/dev/null
-            then
-                echo "Successfully GRANT" > /dev/null
-            else
-                if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SUPER ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
-                then
-                    echo "Successfully GRANT" > /dev/null
-                else
-                    printf "\033[31m\n Error granting privileges to apply without restarting.\033[0m\n"
-                fi         
-            fi 
-
-            if [ -n $RELEEM_QUERY_OPTIMIZATION ]; 
-            then
-                $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
-            fi        
-
-            #$mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT, PROCESS,EXECUTE, REPLICATION CLIENT,SHOW DATABASES,SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
-            printf "\033[32m\n Created new user \`${RELEEM_MYSQL_LOGIN}\`\033[0m\n"
-            FLAG_SUCCESS=1
-        else
-            printf "\033[31m\n%s\n%s\033[0m\n" "MySQL connection failed with user root." "Check that the password is correct, the execution of the command \`${mysqladmincmd} ${root_connection_string} --user=root --password=<MYSQL_ROOT_PASSWORD> ping\` and reinstall the agent."
-            $mysqladmincmd ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping || true
-            on_error
-            exit 1
-        fi
-    fi
-    if [ "$FLAG_SUCCESS" == "1" ]; then
-        if [[ $($mysqladmincmd ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
-        then
-            printf "\033[32m\n MySQL connection with user \`${RELEEM_MYSQL_LOGIN}\` - successful. \033[0m\n"
-            MYSQL_LOGIN=$RELEEM_MYSQL_LOGIN
-            MYSQL_PASSWORD=$RELEEM_MYSQL_PASSWORD
-        else
-            printf "\033[31m\n%s\n%s\033[0m\n" "MySQL connection failed with user \`${RELEEM_MYSQL_LOGIN}\`." "Check that the user and password is correct, the execution of the command \`${mysqladmin} ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping\` and reinstall the agent."
-            $mysqladmincmd ${connection_string} --user=${RELEEM_MYSQL_LOGIN} --password=${RELEEM_MYSQL_PASSWORD} ping || true
-            on_error
-            exit 1
-        fi
-    fi
+    configure_local_instance
 else
     printf "\033[37m\n * Using MySQL login and password from environment variables\033[0m\n"
     MYSQL_LOGIN=$RELEEM_MYSQL_LOGIN
@@ -453,7 +499,6 @@ fi
 
 printf "\033[37m\n * Configuring MySQL memory limit\033[0m\n"
 if [ -n "$RELEEM_MYSQL_MEMORY_LIMIT" ]; then
-
     if [ "$RELEEM_MYSQL_MEMORY_LIMIT" -gt 0 ]; then
         MYSQL_LIMIT=$RELEEM_MYSQL_MEMORY_LIMIT
     fi
@@ -553,14 +598,8 @@ if [ "$instance_type" == "aws/rds" ]; then
         exit 1
     fi
 fi
-
-
-echo "interval_seconds=60" | $sudo_cmd tee -a $CONF >/dev/null
-echo "interval_read_config_seconds=3600" | $sudo_cmd tee -a $CONF >/dev/null
-
 # Secure the configuration file
 $sudo_cmd chmod 640 $CONF
-
 
 printf "\033[37m\n * Configuring crontab.\033[0m\n"
 RELEEM_CRON="00 00 * * * PATH=/bin:/sbin:/usr/bin:/usr/sbin $RELEEM_COMMAND -u"
@@ -627,6 +666,7 @@ if [ -z "$releem_agent_pid" ]; then
     on_error
     exit 1;
 fi
+# Enable performance schema for local instances
 if [ "$instance_type" == "local" ]; then
     $sudo_cmd $RELEEM_COMMAND -p
 fi

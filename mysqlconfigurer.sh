@@ -249,7 +249,7 @@ function releem_ps_mysql() {
     printf "\033[37m To apply changes to the MySQL configuration, you need to restart the service\n\033[0m\n"
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
-        read -p "Restart MySQL service? (Y/N) " -n 1 -r
+        read -p " Restart MySQL service? (Y/N) " -n 1 -r
         echo    # move to a new line
         if [[ ! $REPLY =~ ^[Yy]$ ]]
         then

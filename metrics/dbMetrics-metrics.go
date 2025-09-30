@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"database/sql"
+	"strings"
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
@@ -92,34 +93,64 @@ func (DbMetricsMetricsBase *DbMetricsMetricsBaseGatherer) GetMetrics(metrics *mo
 	// ProcessList
 	{
 
-		type information_schema_processlist_type struct {
-			ID      string
-			USER    string
-			HOST    string
-			DB      string
-			COMMAND string
-			TIME    string
-			STATE   string
-			INFO    string
-		}
-		var information_schema_processlist information_schema_processlist_type
 		var total_info_length uint64
 		total_info_length = 0
+		information_schema_processlist_fields := []string{"ID", "USER", "HOST", "DB", "COMMAND", "TIME", "STATE", "INFO"}
+		rows, err := models.DB.Query("SHOW FULL PROCESSLIST")
 
-		rows, err := models.DB.Query("SELECT IFNULL(ID, 'NULL') as ID, IFNULL(USER, 'NULL') as USER, IFNULL(HOST, 'NULL') as HOST, IFNULL(DB, 'NULL') as DB, IFNULL(COMMAND, 'NULL') as COMMAND, IFNULL(TIME, 'NULL') as TIME, IFNULL(STATE, 'NULL') as STATE, IFNULL(INFO, 'NULL') as INFO FROM information_schema.PROCESSLIST ORDER BY ID")
 		if err != nil {
 			DbMetricsMetricsBase.logger.Error(err)
 		} else {
+			defer rows.Close()
+
+			cols, err := rows.Columns()
+			if err != nil {
+				DbMetricsMetricsBase.logger.Error(err)
+			}
+			var out []map[string]any
+
 			for rows.Next() {
-				err := rows.Scan(&information_schema_processlist.ID, &information_schema_processlist.USER, &information_schema_processlist.HOST, &information_schema_processlist.DB, &information_schema_processlist.COMMAND, &information_schema_processlist.TIME, &information_schema_processlist.STATE, &information_schema_processlist.INFO)
+				// Готовим приёмники под каждую колонку
+				values := make([]any, len(cols))
+				ptrs := make([]any, len(cols))
+				for i := range values {
+					ptrs[i] = &values[i]
+				}
+				err := rows.Scan(ptrs...)
 				if err != nil {
 					DbMetricsMetricsBase.logger.Error(err)
 					return err
 				}
-				total_info_length = total_info_length + uint64(len(information_schema_processlist.INFO))
-				metrics.DB.Metrics.ProcessList = append(metrics.DB.Metrics.ProcessList, models.MetricGroupValue{"ID": information_schema_processlist.ID, "USER": information_schema_processlist.USER, "HOST": information_schema_processlist.HOST, "DB": information_schema_processlist.DB, "COMMAND": information_schema_processlist.COMMAND, "TIME": information_schema_processlist.TIME, "STATE": information_schema_processlist.STATE, "INFO": information_schema_processlist.INFO})
+
+				row := make(map[string]any, len(cols))
+				for i, col := range cols {
+					col_upper := strings.ToUpper(col)
+					if str_contains(information_schema_processlist_fields, col_upper) {
+						v := values[i]
+
+						// Драйвер MySQL часто отдаёт []byte для текстов и чисел.
+						// Преобразуем []byte → string для удобства (если нужно).
+						switch vv := v.(type) {
+						case []byte:
+							row[col_upper] = string(vv)
+						case nil:
+							row[col_upper] = "NULL"
+						default:
+							row[col_upper] = vv // может быть nil, time.Time, int64, float64, bool и т.д.
+						}
+						if col_upper == "INFO" {
+							total_info_length = total_info_length + uint64(len(row[col_upper].(string)))
+						}
+					}
+				}
+				out = append(out, row)
 			}
-			rows.Close()
+			// Convert []map[string]any to []models.MetricGroupValue
+			processListConverted := make([]models.MetricGroupValue, len(out))
+			for i, row := range out {
+				processListConverted[i] = models.MetricGroupValue(row)
+			}
+			metrics.DB.Metrics.ProcessList = processListConverted
 
 			// Limit total INFO field size to prevent memory issues
 			const maxTotalSize = 32 * 1024 * 1024 // 32MB
@@ -160,3 +191,12 @@ func (DbMetricsMetricsBase *DbMetricsMetricsBaseGatherer) GetMetrics(metrics *mo
 // 	}
 // 	return false
 // }
+
+func str_contains(slice []string, element string) bool {
+	for _, v := range slice {
+		if v == element {
+			return true
+		}
+	}
+	return false
+}

@@ -39,6 +39,7 @@ type Config struct {
 	GcpProjectId                          string        `hcl:"gcp_project_id"`
 	GcpRegion                             string        `hcl:"gcp_region"`
 	GcpCloudSqlInstance                   string        `hcl:"gcp_cloudsql_instance"`
+	GcpCloudSqlPublicConnection           bool          `hcl:"gcp_cloudsql_public_connection"`
 	QueryOptimization                     bool          `hcl:"query_optimization"`
 	DatabasesQueryOptimization            string        `hcl:"databases_query_optimization"`
 	ReleemRegion                          string        `hcl:"releem_region"`
@@ -82,6 +83,9 @@ func LoadConfigFromString(data string, logger logging.Logger) (*Config, error) {
 	}
 	if config.ReleemDir == "" {
 		config.ReleemDir = "/opt/releem"
+	}
+	if config.InstanceType == "" {
+		config.InstanceType = "local"
 	}
 	return config, nil
 }

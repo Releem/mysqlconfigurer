@@ -131,15 +131,12 @@ func (programm *Programm) Run() {
 			}
 		}
 
-		logger.Info("RDS.DescribeDBInstances SUCCESS")
-
 		// Request detailed instance info
 		if result != nil && len(result.DBInstances) == 1 {
-			//	gatherers = append(gatherers, models.NewAWSRDSMetricsGatherer(logger, cwclient, configuration))
-			//	gatherers = append(gatherers, models.NewAWSRDSInstanceGatherer(logger, rdsclient, ec2client, configuration))
 			configuration.Hostname = configuration.AwsRDSDB
 			configuration.MysqlHost = *result.DBInstances[0].Endpoint.Address
 			gatherers = append(gatherers, metrics.NewAWSRDSEnhancedMetricsGatherer(logger, result.DBInstances[0], cwlogsclient, configuration))
+			logger.Info("AWS RDS DB instance found: ", configuration.AwsRDSDB)
 		} else if result != nil && len(result.DBInstances) > 1 {
 			logger.Infof("RDS.DescribeDBInstances: Database has %d instances. Clusters are not supported", len(result.DBInstances))
 			return
@@ -168,7 +165,7 @@ func (programm *Programm) Run() {
 			logger.Error("Failed to create GCP SQL Admin client", err)
 			return
 		}
-
+		logger.Info("GSP configuration loaded SUCCESS")
 		// Get instance details
 		instance, err := sqlAdminService.Instances.Get(configuration.GcpProjectId, configuration.GcpCloudSqlInstance).Do()
 		if err != nil {
@@ -178,30 +175,28 @@ func (programm *Programm) Run() {
 
 		logger.Info("GCP Cloud SQL instance found: ", instance.Name)
 
-		// Set connection details
-		configuration.Hostname = configuration.GcpCloudSqlInstance
-
 		// Find private IP address for connection
-		var privateIP string
+		var connectionIP, typeIP string
+		if configuration.GcpCloudSqlPublicConnection {
+			typeIP = "PRIMARY"
+		} else {
+			typeIP = "PRIVATE"
+		}
 		for _, ipAddr := range instance.IpAddresses {
-			if ipAddr.Type == "PRIVATE" {
-				privateIP = ipAddr.IpAddress
+			if ipAddr.Type == typeIP {
+				connectionIP = ipAddr.IpAddress
 				break
 			}
 		}
 
-		if privateIP != "" {
-			configuration.MysqlHost = privateIP
-			logger.Info("Using private IP for Cloud SQL connection: ", privateIP)
+		if connectionIP != "" {
+			// Set connection details
+			configuration.Hostname = configuration.GcpCloudSqlInstance
+			configuration.MysqlHost = connectionIP
+			logger.Info("Using following IP for Cloud SQL connection: ", connectionIP)
 		} else {
-			// Fallback to first available IP if no private IP found
-			if len(instance.IpAddresses) > 0 {
-				configuration.MysqlHost = instance.IpAddresses[0].IpAddress
-				logger.Warning("No private IP found, using first available IP: ", instance.IpAddresses[0].IpAddress)
-			} else {
-				logger.Error("No IP addresses found for Cloud SQL instance")
-				return
-			}
+			logger.Error("No IP addresses found for Cloud SQL instance")
+			return
 		}
 
 		// Add GCP gatherer

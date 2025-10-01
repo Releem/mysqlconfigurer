@@ -62,7 +62,7 @@ instance_type="${INSTANCE_TYPE:-local}"
 
 # AwsRegion string `hcl:"aws_region"`
 # Defaults to us-east-1, AWS region for RDS
-aws_region="${AWS_REGION:-us-east-1}"
+aws_region="${AWS_REGION}"
 
 # AwsRDSDB string `hcl:"aws_rds_db"`
 # RDS database name.
@@ -71,6 +71,22 @@ aws_rds_db="${AWS_RDS_DB}"
 # AWS_RDS_PARAMETER_GROUP string `hcl:"aws_rds_parameter_group"`
 # RDS database parameter group name.
 aws_rds_parameter_group="${AWS_RDS_PARAMETER_GROUP}"
+
+#GcpProjectId string `hcl:"gcp_project_id"`
+#GCP project ID for Cloud SQL instance
+gcp_project_id="${RELEEM_GCP_PROJECT_ID}"
+
+#GcpRegion string `hcl:"gcp_region"`
+#GCP region for Cloud SQL instance
+gcp_region="${RELEEM_GCP_REGION}"
+
+#GcpCloudSqlInstance string `hcl:"gcp_cloudsql_instance"`
+#Name of Cloud SQL instance
+gcp_cloudsql_instance="${RELEEM_GCP_CLOUDSQL_INSTANCE}"
+
+#GcpCloudSqlPublicConnection bool `hcl:"gcp_cloudsql_public_connection"`
+#Enable public connection to Cloud SQL instance
+gcp_cloudsql_public_connection=${RELEEM_GCP_CLOUDSQL_PUBLIC_CONNECTION:-false}
 
 # Env string `hcl:"env"`
 # Releem Environment.

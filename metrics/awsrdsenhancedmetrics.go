@@ -237,9 +237,6 @@ func (awsrdsenhancedmetrics *AWSRDSEnhancedMetricsGatherer) GetMetrics(metrics *
 
 	metricsMap["IOP"] = models.MetricGroupValue{"IOPRead": readCount, "IOPWrite": writeCount}
 
-	// Set FileSystem
-	metricsMap["FileSystem"] = osMetrics.FileSys
-
 	// OS RAM
 	metricsMap["PhysicalMemory"] = osMetrics.Memory
 	info["PhysicalMemory"] = models.MetricGroupValue{"total": osMetrics.Memory.Total}

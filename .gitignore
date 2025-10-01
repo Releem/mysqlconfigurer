@@ -1,6 +1,6 @@
 .devcontainer/*
 .claude/*
-test-project/test.sh
+test-project/
 .DS_Store
 releem-install.log
 releem-agent*

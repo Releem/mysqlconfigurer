@@ -114,7 +114,7 @@ func EnableEventsStatementsConsumers(configuration *config.Config, logger loggin
 			count_setup_consumers = 0
 		}
 		logger.Info("DEBUG: Found enabled performance_schema statements consumers: ", count_setup_consumers)
-		if count_setup_consumers < 3 && (configuration.InstanceType == "aws/rds" || configuration.InstanceType == "gcp/cloudsql") {
+		if count_setup_consumers < 3 && configuration.InstanceType == "aws/rds" {
 			_, err := models.DB.Query("CALL releem.enable_events_statements_consumers()")
 			if err != nil {
 				logger.Error("Failed to enable events_statements consumers", err)

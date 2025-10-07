@@ -22,6 +22,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	_ "github.com/go-sql-driver/mysql"
 	logging "github.com/google/logger"
+
+	monitoring "cloud.google.com/go/monitoring/apiv3/v2"
+	"google.golang.org/api/sqladmin/v1"
 )
 
 const (
@@ -128,15 +131,12 @@ func (programm *Programm) Run() {
 			}
 		}
 
-		logger.Info("RDS.DescribeDBInstances SUCCESS")
-
 		// Request detailed instance info
 		if result != nil && len(result.DBInstances) == 1 {
-			//	gatherers = append(gatherers, models.NewAWSRDSMetricsGatherer(logger, cwclient, configuration))
-			//	gatherers = append(gatherers, models.NewAWSRDSInstanceGatherer(logger, rdsclient, ec2client, configuration))
 			configuration.Hostname = configuration.AwsRDSDB
 			configuration.MysqlHost = *result.DBInstances[0].Endpoint.Address
 			gatherers = append(gatherers, metrics.NewAWSRDSEnhancedMetricsGatherer(logger, result.DBInstances[0], cwlogsclient, configuration))
+			logger.Info("AWS RDS DB instance found: ", configuration.AwsRDSDB)
 		} else if result != nil && len(result.DBInstances) > 1 {
 			logger.Infof("RDS.DescribeDBInstances: Database has %d instances. Clusters are not supported", len(result.DBInstances))
 			return
@@ -144,6 +144,64 @@ func (programm *Programm) Run() {
 			logger.Info("RDS.DescribeDBInstances: No instances")
 			return
 		}
+	case "gcp/cloudsql":
+		logger.Info("InstanceType is gcp/cloudsql")
+		logger.Info("Loading GCP configuration")
+
+		// Initialize GCP clients with Application Default Credentials
+		ctx := context.Background()
+
+		// Create monitoring client
+		monitoringClient, err := monitoring.NewMetricClient(ctx)
+		if err != nil {
+			logger.Error("Failed to create GCP monitoring client", err)
+			return
+		}
+		defer monitoringClient.Close()
+
+		// Create SQL Admin client
+		sqlAdminService, err := sqladmin.NewService(ctx)
+		if err != nil {
+			logger.Error("Failed to create GCP SQL Admin client", err)
+			return
+		}
+		logger.Info("GSP configuration loaded SUCCESS")
+		// Get instance details
+		instance, err := sqlAdminService.Instances.Get(configuration.GcpProjectId, configuration.GcpCloudSqlInstance).Do()
+		if err != nil {
+			logger.Error("Failed to get Cloud SQL instance details", err)
+			return
+		}
+
+		logger.Info("GCP Cloud SQL instance found: ", instance.Name)
+
+		// Find private IP address for connection
+		var connectionIP, typeIP string
+		if configuration.GcpCloudSqlPublicConnection {
+			typeIP = "PRIMARY"
+		} else {
+			typeIP = "PRIVATE"
+		}
+		for _, ipAddr := range instance.IpAddresses {
+			if ipAddr.Type == typeIP {
+				connectionIP = ipAddr.IpAddress
+				break
+			}
+		}
+
+		if connectionIP != "" {
+			// Set connection details
+			configuration.Hostname = configuration.GcpCloudSqlInstance
+			configuration.MysqlHost = connectionIP
+			logger.Info("Using following IP for Cloud SQL connection: ", connectionIP)
+		} else {
+			logger.Error("No IP addresses found for Cloud SQL instance")
+			return
+		}
+
+		// Add GCP gatherer
+		gatherers = append(gatherers, metrics.NewGCPCloudSQLEnhancedMetricsGatherer(logger, monitoringClient, sqlAdminService, configuration))
+
 	default:
 		logger.Info("InstanceType is Local")
 		gatherers = append(gatherers, metrics.NewOSMetricsGatherer(logger, configuration))

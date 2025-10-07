@@ -21,7 +21,7 @@ func ProcessRepeaters(metrics *models.Metrics, repeaters models.MetricsRepeater,
 
 	result, err := repeaters.ProcessMetrics(configuration, *metrics, Mode)
 	if err != nil {
-		logger.Error("Repeater failed", err)
+		logger.Error("Repeater failed ", err)
 	}
 	return result
 }

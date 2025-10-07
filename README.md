@@ -84,6 +84,7 @@ Join the Releem Community on [Slack](https://join.slack.com/t/releem-community/s
 - Centos, CloudLinux, Debian, Ubuntu, RockyLinux
 - Windows Server 2012, Windows Server 2016, Windows Server 2019, Windows Server 2022, Windows Server 2025
 - Amazon RDS MySQL, Amazon RDS Aurora, Amazon RDS MariaDB
+- Google Cloud SQL MySQL, Google Cloud SQL PostgreSQL
 
 *** MINIMAL REQUIREMENTS ***
 - Unix/Linux based operating system (tested on Linux, BSD variants, and Solaris variants)

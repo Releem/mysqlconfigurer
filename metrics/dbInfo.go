@@ -157,7 +157,14 @@ func users_security_check(DbInfo *DbInfoGatherer, metrics *models.Metrics) []mod
 	for i, user := range output_users {
 		_, ok := output_user_blank_password[user["Username"].(string)]
 
-		if ok && user["User"].(string) != "mariadb.sys" && user["User"].(string) != "rdsadmin" {
+		if ok &&
+			user["User"].(string) != "mariadb.sys" &&
+			!(DbInfo.configuration.InstanceType == "aws/rds" &&
+				user["User"].(string) == "rdsadmin") &&
+			!(DbInfo.configuration.InstanceType == "gcp/cloudsql" &&
+				(strings.Contains(user["User"].(string), "cloudsql") ||
+					user["User"].(string) == "root")) {
+
 			output_users[i]["Blank_Password"] = 1
 		} else {
 			output_users[i]["Blank_Password"] = 0
@@ -167,7 +174,12 @@ func users_security_check(DbInfo *DbInfoGatherer, metrics *models.Metrics) []mod
 	for _, user := range output_users {
 		remoteConnRoot := 0
 		anonymousUser := 0
-		if user["User"].(string) == "root" && user["Host"].(string) != "localhost" && user["Host"].(string) != "127.0.0.1" && user["Host"].(string) != "::1" {
+		if DbInfo.configuration.InstanceType == "local" &&
+			user["User"].(string) == "root" &&
+			user["Host"].(string) != "localhost" &&
+			user["Host"].(string) != "127.0.0.1" &&
+			user["Host"].(string) != "::1" {
+
 			remoteConnRoot = 1
 		}
 

@@ -597,6 +597,22 @@ if [ "$instance_type" == "aws/rds" ]; then
         printf "\033[31m - AWS region, AWS RDS DB or AWS RDS Parameter Group is not set. Please set the variables RELEEM_AWS_REGION, RELEEM_AWS_RDS_DB and RELEEM_AWS_RDS_PARAMETER_GROUP\033[0m\n"
         exit 1
     fi
+elif [ "$instance_type" == "gcp/cloudsql" ]; then
+    if [ -n "$RELEEM_GCP_PROJECT_ID" ] && [ -n "$RELEEM_GCP_REGION" ] && [ -n "$RELEEM_GCP_CLOUDSQL_INSTANCE" ]; then
+        printf "\033[37m - Adding GCP project ID ${RELEEM_GCP_PROJECT_ID} to the Releem Agent configuration: $CONF\n\033[0m"
+        echo "gcp_project_id=\"$RELEEM_GCP_PROJECT_ID\"" | $sudo_cmd tee -a $CONF >/dev/null
+        printf "\033[37m - Adding GCP region ${RELEEM_GCP_REGION} to the Releem Agent configuration: $CONF\n\033[0m"
+        echo "gcp_region=\"$RELEEM_GCP_REGION\"" | $sudo_cmd tee -a $CONF >/dev/null
+        printf "\033[37m - Adding GCP Cloud SQL instance ${RELEEM_GCP_CLOUDSQL_INSTANCE} to the Releem Agent configuration: $CONF\n\033[0m"
+        echo "gcp_cloudsql_instance=\"$RELEEM_GCP_CLOUDSQL_INSTANCE\"" | $sudo_cmd tee -a $CONF >/dev/null        
+        if [ -n "$RELEEM_GCP_CLOUDSQL_PUBLIC_CONNECTION" ]; then
+            printf "\033[37m - Adding GCP Cloud SQL public connection ${RELEEM_GCP_CLOUDSQL_PUBLIC_CONNECTION} to the Releem Agent configuration: $CONF\n\033[0m"
+            echo "gcp_cloudsql_public_connection=$RELEEM_GCP_CLOUDSQL_PUBLIC_CONNECTION" | $sudo_cmd tee -a $CONF >/dev/null
+        fi        
+    else
+        printf "\033[31m - GCP project ID, GCP region or GCP Cloud SQL instance is not set. Please set the variables RELEEM_GCP_PROJECT_ID, RELEEM_GCP_REGION and RELEEM_GCP_CLOUDSQL_INSTANCE\033[0m\n"
+        exit 1
+    fi
 fi
 # Secure the configuration file
 $sudo_cmd chmod 640 $CONF

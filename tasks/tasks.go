@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os/exec"
 	"runtime"
 	"strconv"
@@ -17,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go/aws"
 	logging "github.com/google/logger"
+	"google.golang.org/api/sqladmin/v1"
 
 	config_aws "github.com/aws/aws-sdk-go-v2/config"
 )
@@ -50,7 +52,8 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskStatus", Type: ""})
 	logger.Info(" * Task with id - ", TaskID, " and type id - ", TaskTypeID, " is being started...")
 
-	if TaskTypeID == 0 {
+	switch TaskTypeID {
+	case 0:
 		output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -a", []string{"RELEEM_RESTART_SERVICE=1"}, logger)
 		output["task_output"] = output["task_output"].(string) + task_output
 
@@ -76,24 +79,29 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 			logger.Info(" * Task rollbacked with code ", rollback_exit_code)
 		}
 
-	} else if TaskTypeID == 1 {
+	case 1:
 		output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/releem-agent -f", []string{}, logger)
 		output["task_output"] = output["task_output"].(string) + task_output
-	} else if TaskTypeID == 2 {
+	case 2:
 		output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -u", []string{}, logger)
 		output["task_output"] = output["task_output"].(string) + task_output
-	} else if TaskTypeID == 3 {
+	case 3:
 		output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/releem-agent --task=queries_optimization", []string{}, logger)
 		output["task_output"] = output["task_output"].(string) + task_output
-	} else if TaskTypeID == 4 {
-		if configuration.InstanceType == "aws/rds" {
+	case 4:
+		switch configuration.InstanceType {
+		case "aws/rds":
 			output["task_exit_code"], output["task_status"], task_output = ApplyConfAwsRds(repeaters, gatherers, logger, configuration, types.ApplyMethodImmediate)
 			output["task_output"] = output["task_output"].(string) + task_output
 			if output["task_exit_code"] == 0 {
 				output["task_exit_code"], output["task_status"], task_output = ApplyConfAwsRds(repeaters, gatherers, logger, configuration, types.ApplyMethodPendingReboot)
 				output["task_output"] = output["task_output"].(string) + task_output
 			}
-		} else {
+		case "gcp/cloudsql":
+			output["task_exit_code"], output["task_status"], task_output = ApplyConfGcpCloudSQL(repeaters, gatherers, logger, configuration, types.ApplyMethodPendingReboot)
+			output["task_output"] = output["task_output"].(string) + task_output
+
+		default:
 			switch runtime.GOOS {
 			case "windows":
 				output["task_exit_code"] = 0
@@ -110,11 +118,16 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 			}
 		}
 		metrics = utils.CollectMetrics(gatherers, logger, configuration)
-	} else if TaskTypeID == 5 {
-		if configuration.InstanceType == "aws/rds" {
+	case 5:
+		switch configuration.InstanceType {
+		case "aws/rds":
 			output["task_exit_code"], output["task_status"], task_output = ApplyConfAwsRds(repeaters, gatherers, logger, configuration, types.ApplyMethodPendingReboot)
 			output["task_output"] = output["task_output"].(string) + task_output
-		} else {
+		case "gcp/cloudsql":
+			output["task_exit_code"], output["task_status"], task_output = ApplyConfGcpCloudSQL(repeaters, gatherers, logger, configuration, types.ApplyMethodPendingReboot)
+			output["task_output"] = output["task_output"].(string) + task_output
+
+		default:
 			output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=1"}, logger)
 			output["task_output"] = output["task_output"].(string) + task_output
 			if output["task_exit_code"] == 7 {
@@ -463,4 +476,150 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 	time.Sleep(30 * time.Second)
 
 	return task_exit_code, task_status, task_output
+}
+
+func ApplyConfGcpCloudSQL(repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer,
+	logger logging.Logger, configuration *config.Config, apply_method types.ApplyMethod) (int, int, string) {
+
+	var task_exit_code, task_status int = 0, 1
+	var task_output string
+
+	metrics := utils.CollectMetrics(gatherers, logger, configuration)
+
+	// Initialize GCP clients with Application Default Credentials
+	ctx := context.Background()
+
+	// Create SQL Admin client
+	sqlAdminService, err := sqladmin.NewService(ctx)
+	if err != nil {
+		logger.Error("Failed to create GCP SQL Admin client", err)
+		task_output = task_output + "Failed to create GCP SQL Admin client" + err.Error()
+		task_status = 4
+		task_exit_code = 1
+		return task_exit_code, task_status, task_output
+	}
+	logger.Info("GSP configuration loaded SUCCESS")
+	task_output = task_output + "GSP configuration loaded SUCCESS\n"
+	// Get instance details
+	instance, err := sqlAdminService.Instances.Get(configuration.GcpProjectId, configuration.GcpCloudSqlInstance).Do()
+	if err != nil {
+		logger.Error("Failed to get Cloud SQL instance details", err)
+		task_output = task_output + "Failed to get Cloud SQL instance details" + err.Error()
+		task_status = 4
+		task_exit_code = 1
+		return task_exit_code, task_status, task_output
+	}
+
+	logger.Info("GCP Cloud SQL instance found: ", instance.Name)
+	task_output = task_output + "GCP Cloud SQL instance found: " + instance.Name + "\n"
+
+	// Get current database flags from the instance
+	currentFlags := make(map[string]string)
+	if instance.Settings != nil && instance.Settings.DatabaseFlags != nil {
+		for _, flag := range instance.Settings.DatabaseFlags {
+			currentFlags[flag.Name] = flag.Value
+		}
+		logger.Infof("Current database flags count: %d", len(currentFlags))
+	}
+
+	recommendedVars := models.MetricGroupValue{}
+	recommend_var := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Configurations", Type: "get-json"})
+	err = json.Unmarshal([]byte(recommend_var.(string)), &recommendedVars)
+	if err != nil {
+		logger.Error(err)
+		task_output = task_output + err.Error()
+	}
+
+	// Merge current flags with recommended changes
+	// mergeGcpDatabaseFlags merges current database flags with recommended changes
+	// preserving existing flags that are not being modified
+	var mergedFlags []*sqladmin.DatabaseFlags
+	processedFlags := make(map[string]bool)
+
+	// First, add all recommended changes
+	for key := range recommendedVars {
+		if recommendedVars[key] != metrics.DB.Conf.Variables[key] {
+			logger.Infof("Updating flag %s: current=%v, recommended=%v, db_current=%v",
+				key, currentFlags[key], recommendedVars[key], metrics.DB.Conf.Variables[key])
+			task_output = task_output + fmt.Sprintf("Updating flag %s: current=%v, recommended=%v, db_current=%v\n",
+				key, currentFlags[key], recommendedVars[key], metrics.DB.Conf.Variables[key])
+			value := recommendedVars[key].(string)
+			mergedFlags = append(mergedFlags, &sqladmin.DatabaseFlags{
+				Name:  key,
+				Value: value,
+			})
+			processedFlags[key] = true
+		}
+	}
+
+	// Then, preserve all existing flags that weren't modified
+	for flagName, flagValue := range currentFlags {
+		if !processedFlags[flagName] {
+			logger.Infof("Preserving existing flag %s=%s", flagName, flagValue)
+			task_output = task_output + fmt.Sprintf("Preserving existing flag %s=%s\n", flagName, flagValue)
+			mergedFlags = append(mergedFlags, &sqladmin.DatabaseFlags{
+				Name:  flagName,
+				Value: flagValue,
+			})
+		}
+	}
+
+	logger.Infof("Total flags to apply: %d (recommended changes: %d, preserved: %d)",
+		len(mergedFlags), len(processedFlags), len(mergedFlags)-len(processedFlags))
+	task_output = task_output + fmt.Sprintf("Total flags to apply: %d (recommended changes: %d, preserved: %d)\n",
+		len(mergedFlags), len(processedFlags), len(mergedFlags)-len(processedFlags))
+
+	req := &sqladmin.DatabaseInstance{
+		Settings: &sqladmin.Settings{
+			DatabaseFlags: mergedFlags,
+		},
+	}
+	// A partial update (Patch) is safer than a full update (Update) because we only change the specified fields.
+	op, err := sqlAdminService.Instances.Patch(configuration.GcpProjectId, configuration.GcpCloudSqlInstance, req).Context(ctx).Do()
+	if err != nil {
+		if strings.Contains(err.Error(), "notAuthorized") {
+			task_exit_code = 9
+			task_status = 4
+		} else {
+			task_exit_code = 8
+			task_status = 4
+		}
+		logger.Errorf("Instances.Patch: %v", err)
+		task_output = task_output + err.Error()
+		return task_exit_code, task_status, task_output
+	} else {
+		logger.Info("Instances.Patch modified successfully")
+		task_output = task_output + "Instances.Patch modified successfully.\n"
+	}
+
+	if err := waitForOp(ctx, sqlAdminService, configuration.GcpProjectId, op); err != nil {
+		logger.Fatalf("waitForOp: %v", err)
+		task_exit_code = 8
+		task_status = 4
+		task_output = task_output + err.Error()
+	} else {
+		task_output = task_output + "Cloud SQL instance updated successfully.\n"
+		logger.Info("Cloud SQL instance updated successfully.")
+	}
+
+	return task_exit_code, task_status, task_output
+
+}
+
+// Waiting for long Cloud SQL operations to complete
+func waitForOp(ctx context.Context, sqlAdminService *sqladmin.Service, project string, op *sqladmin.Operation) error {
+	opName := op.Name
+	for {
+		cur, err := sqlAdminService.Operations.Get(project, opName).Context(ctx).Do()
+		if err != nil {
+			return fmt.Errorf("operations.get: %w", err)
+		}
+		if cur.Status == "DONE" {
+			if cur.Error != nil && len(cur.Error.Errors) > 0 {
+				return fmt.Errorf("cloudsql op error: %v", cur.Error.Errors[0].Message)
+			}
+			return nil
+		}
+		time.Sleep(3 * time.Second)
+	}
 }

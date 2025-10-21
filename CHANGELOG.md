@@ -16,15 +16,6 @@ Releem 1.22.0, 2025-09-30 ([What's New At Releem | September 2025](https://relee
 - Fixed Parameter links are returning 404. Closed #417
 - Fixed Alerts High CPU utilization are super late. Closed #424
 
-- Added Servers overview bar.
-- Added tooltips for the Security Check icons on the dashboard. Closed #429 
-- Added Applying recommendations across all servers. Closed #452
-- Added index recommendations for GROUP BY and ORDER BY columns. Closed #441
-- Added GCP Cloud SQL support. Closed #259
-- Fixed Releem can’t identify that database version was upgraded. Closed #408 
-- Fixed the server does not appear in the portal after starting the agent. Closed #411 
-- Optimized queries for collecting query examples, processes
-
 Releem 1.21.6, 2025-07-31 ([What's New At Releem | July 2025](https://releem.com/blog/whats-new-at-releem-july-2025))
 - Added EXPLAIN and Example Query to the Query Analytics. [Learn more](https://releem.com/blog/query-examples-and-explain-added)
 - Improved and simplified the installation process.

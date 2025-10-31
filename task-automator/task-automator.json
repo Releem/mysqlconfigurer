@@ -1,0 +1,7 @@
+{
+  "backup_dir": "/tmp/mybkp",
+  "ptosc_path": "/home/gabriel/pt-online-schema-change",
+  "mysqldump_path": "mysqldump",
+  "xtrabackup_path": "/usr/bin/xtrabackup"
+}
+

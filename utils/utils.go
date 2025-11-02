@@ -57,6 +57,7 @@ func MapJoin(map1, map2 models.MetricGroupValue) models.MetricGroupValue {
 
 func IsPath(path string, logger logging.Logger) bool {
 	result_path := strings.Index(path, "/")
+	logger.Info("DEBUG: IsPath ", path, " ", result_path)
 	if result_path == 0 {
 		return true
 	} else {
@@ -75,7 +76,7 @@ func ConnectionDatabase(configuration *config.Config, logger logging.Logger, DBn
 		MysqlSslMode = ""
 	}
 	if IsPath(configuration.MysqlHost, logger) {
-		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@unix("+configuration.MysqlHost+")/"+DBname+MysqlSslMode)
+		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@unix("+configuration.MysqlHost+")/"+DBname)
 		TypeConnection = "unix"
 
 	} else {

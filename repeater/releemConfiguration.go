@@ -32,13 +32,14 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	var api_domain, subdomain, domain string
 	env := context.GetEnv()
 
-	if env == "dev2" {
+	switch env {
+	case "dev2":
 		subdomain = "dev2."
-	} else if env == "dev" {
+	case "dev":
 		subdomain = "dev."
-	} else if env == "stage" {
+	case "stage":
 		subdomain = "stage."
-	} else {
+	default:
 		subdomain = ""
 	}
 	if repeater.configuration.ReleemRegion == "EU" {
@@ -54,29 +55,34 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 		api_domain = "https://api." + subdomain + domain + "/v2/"
 	}
 
-	if Mode.Name == "Configurations" {
-		if Mode.Type == "set" {
+	switch Mode.Name {
+	case "Configurations":
+		switch Mode.Type {
+		case "ForceSet":
 			api_domain = api_domain + "mysql"
-		} else if Mode.Type == "get" {
+		case "ForceInitial":
+			api_domain = api_domain + "mysql/initial"
+		case "ForceGet":
 			api_domain = api_domain + "config"
-		} else if Mode.Type == "get-json" {
+		case "ForceGetJson":
 			api_domain = api_domain + "config?json=1"
-		} else {
+		default:
 			api_domain = api_domain + "mysql"
 		}
-	} else if Mode.Name == "Metrics" {
-		if Mode.Type == "QueryOptimization" {
+	case "Metrics":
+		switch Mode.Type {
+		case "QueryOptimization":
 			api_domain = api_domain + "queries/metrics"
-		} else {
+		default:
 			api_domain = api_domain + "mysql/metrics"
 		}
-	} else if Mode.Name == "Event" {
+	case "Event":
 		api_domain = api_domain + "event/" + Mode.Type
-	} else if Mode.Name == "TaskGet" {
+	case "TaskGet":
 		api_domain = api_domain + "task/task_get"
-	} else if Mode.Name == "TaskSet" {
+	case "TaskSet":
 		api_domain = api_domain + "task/" + Mode.Type
-	} else if Mode.Name == "TaskStatus" {
+	case "TaskStatus":
 		api_domain = api_domain + "task/task_status"
 	}
 	repeater.logger.V(5).Info(api_domain)
@@ -110,25 +116,32 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 		repeater.logger.V(5).Info("Response: status code: ", res.StatusCode)
 		repeater.logger.V(5).Info("Response: body:\n", string(body_res))
 
-		if Mode.Name == "Configurations" {
-			err = os.WriteFile(context.GetReleemConfDir()+"/z_aiops_mysql.cnf", body_res, 0644)
+		switch Mode.Name {
+		case "Configurations":
+			var config_filename string
+			if Mode.Type == "ForceInitial" {
+				config_filename = "initial_config_mysql.cnf"
+			} else {
+				config_filename = "z_aiops_mysql.cnf"
+			}
+			err = os.WriteFile(context.GetReleemConfDir()+"/"+config_filename, body_res, 0644)
 			if err != nil {
 				repeater.logger.Error("WriteFile: Error write to file: ", err)
 				return nil, err
 			}
 			return string(body_res), err
 
-		} else if Mode.Name == "Metrics" {
+		case "Metrics":
 			return string(body_res), err
-		} else if Mode.Name == "Event" {
+		case "Event":
 			return nil, err
-		} else if Mode.Name == "TaskGet" {
+		case "TaskGet":
 			result_data := models.Task{}
 			err := json.Unmarshal(body_res, &result_data)
 			return result_data, err
-		} else if Mode.Name == "TaskSet" {
+		case "TaskSet":
 			return nil, err
-		} else if Mode.Name == "TaskStatus" {
+		case "TaskStatus":
 			return nil, err
 		}
 	}

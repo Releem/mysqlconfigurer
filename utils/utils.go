@@ -83,18 +83,23 @@ func ConnectionDatabase(configuration *config.Config, logger logging.Logger, DBn
 		TypeConnection = "tcp"
 	}
 	if err != nil {
-		logger.Error("Connection opening to failed", err)
+		logger.Error("Connection opening to failed ", err)
 	}
 
 	err = db.Ping()
 	if err != nil {
-		logger.Error("Connection failed", err)
+		switch TypeConnection {
+		case "unix":
+			logger.Info("Connection failed to DB ", DBname, " via unix socket ", configuration.MysqlHost)
+		case "tcp":
+			logger.Info("Connection failed to DB ", DBname, " via tcp ", configuration.MysqlHost)
+		}
 	} else {
 		switch TypeConnection {
 		case "unix":
-			logger.Info("Connect Success to DB ", DBname, " via unix socket ", configuration.MysqlHost)
+			logger.Info("Connection successful to DB ", DBname, " via unix socket ", configuration.MysqlHost)
 		case "tcp":
-			logger.Info("Connect Success to DB ", DBname, " via tcp ", configuration.MysqlHost)
+			logger.Info("Connection successful to DB ", DBname, " via tcp ", configuration.MysqlHost)
 		}
 	}
 	return db

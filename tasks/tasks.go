@@ -35,7 +35,7 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 	//metrics := collectMetrics(gatherers, logger)
 	var task_output string
 	task := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskGet", Type: ""})
-	if task.(models.Task).TaskTypeID == nil {
+	if task == nil || task.(models.Task).TaskTypeID == nil {
 		return
 	}
 
@@ -199,7 +199,7 @@ func ApplyConfLocal(metrics *models.Metrics, repeaters models.MetricsRepeater, g
 	need_flush := false
 	error_exist := false
 
-	recommend_var := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Configurations", Type: "get-json"})
+	recommend_var := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Configurations", Type: "ForceGetJson"})
 	err := json.Unmarshal([]byte(recommend_var.(string)), &result_data)
 	if err != nil {
 		logger.Error(err)
@@ -346,7 +346,7 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 		}
 	}
 	result_data := models.MetricGroupValue{}
-	recommend_var := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Configurations", Type: "get-json"})
+	recommend_var := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Configurations", Type: "ForceGetJson"})
 	err = json.Unmarshal([]byte(recommend_var.(string)), &result_data)
 	if err != nil {
 		logger.Error(err)
@@ -523,7 +523,7 @@ func ApplyConfGcpCloudSQL(repeaters models.MetricsRepeater, gatherers []models.M
 	}
 
 	recommendedVars := models.MetricGroupValue{}
-	recommend_var := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Configurations", Type: "get-json"})
+	recommend_var := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Configurations", Type: "ForceGetJson"})
 	err = json.Unmarshal([]byte(recommend_var.(string)), &recommendedVars)
 	if err != nil {
 		logger.Error(err)

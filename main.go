@@ -34,7 +34,7 @@ const (
 )
 
 var logger logging.Logger
-var SetConfigRun, GetConfigRun *bool
+var SetConfigRun, GetConfigRun, InitialConfigRun *bool
 var ConfigFile, AgentEvent, AgentTask *string
 
 // Service has embedded daemon
@@ -59,11 +59,13 @@ func (programm *Programm) Run() {
 	var Mode models.ModeType
 
 	if *SetConfigRun {
-		TypeConfiguration = "set"
+		TypeConfiguration = "ForceSet"
+	} else if *InitialConfigRun {
+		TypeConfiguration = "ForceInitial"
 	} else if *GetConfigRun {
-		TypeConfiguration = "get"
+		TypeConfiguration = "ForceGet"
 	} else {
-		TypeConfiguration = "default"
+		TypeConfiguration = "Default"
 	}
 
 	// Do something, call your goroutines, etc
@@ -219,7 +221,7 @@ func (programm *Programm) Run() {
 	// repeaters["TaskGet"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, models.Mode{Name: "TaskGet", Type: ""}))
 	// repeaters["TaskStatus"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, models.Mode{Name: "TaskStatus", Type: ""}))
 	// repeaters["TaskSet"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
-	// repeaters["GetConfigurationJson"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, models.Mode{Name: "Configurations", Type: "get-json"}))
+	// repeaters["GetConfigurationJson"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, models.Mode{Name: "Configurations", Type: "ForceGetJson"}))
 	// repeaters["QueryOptimization"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, models.Mode{Name: "Metrics", Type: "QuerysOptimization"}))
 	// repeaters["QueriesOptimization"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, models.Mode{Name: "TaskSet", Type: "queries_optimization"}))
 	//var repeaters models.MetricsRepeater
@@ -298,6 +300,7 @@ func main() {
 	defaultPath := defaultConfigPath()
 	SetConfigRun = flag.Bool("f", false, "Run Releem agent to generate configuration")
 	GetConfigRun = flag.Bool("c", false, "Run Releem agent to download configuration")
+	InitialConfigRun = flag.Bool("initial", false, "Run Releem agent to generate initial configuration")
 	ConfigFile = flag.String("config", defaultPath, "Path to the configuration file (default: \""+defaultPath+"\")")
 	AgentEvent = flag.String("event", "", "Run Releem agent to handle event")
 	AgentTask = flag.String("task", "", "Run Releem agent to execute task")

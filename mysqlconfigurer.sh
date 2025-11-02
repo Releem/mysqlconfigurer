@@ -10,6 +10,7 @@ export EXTEND_TIMEOUT_USEC=18000000000
 MYSQLCONFIGURER_PATH="/opt/releem/conf/"
 RELEEM_CONF_FILE="/opt/releem/releem.conf"
 MYSQLCONFIGURER_FILE_NAME="z_aiops_mysql.cnf"
+INITIAL_MYSQLCONFIGURER_FILE_NAME="initial_config_mysql.cnf"
 MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH"mysqltuner.pl"
 MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 RELEEM_MYSQL_VERSION=$MYSQLCONFIGURER_PATH"mysql_version"
@@ -365,6 +366,7 @@ function releem_apply_manual() {
     fi    
     yes | cp -fr $MYSQLCONFIGURER_CONFIGFILE $RELEEM_MYSQL_CONFIG_DIR/
     chmod 644 $RELEEM_MYSQL_CONFIG_DIR/*
+
     if [ -z "$RELEEM_MYSQL_RESTART_SERVICE" ]; then
         printf "\033[37m\n * The command to restart the MySQL service was not found. Try to reinstall Releem Agent.\033[0m"
         exit 4;
@@ -391,9 +393,9 @@ function releem_apply_manual() {
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
     elif [ $RESTART_CODE -eq 7 ];
     then
-            printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to restart! Check the MySQL error log! \033[0m\n"
-    printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
-    printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to restart! Check the MySQL error log! \033[0m\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
     fi
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Sending notification to Releem Platform. \033[0m\n"
     /opt/releem/releem-agent --event=config_applied > /dev/null
@@ -402,11 +404,16 @@ function releem_apply_manual() {
 }
 
 function releem_apply_automatic() {
-    if [ ! -f $MYSQLCONFIGURER_CONFIGFILE ]; then
-        printf "\033[37m\n * Recommended MySQL configuration was not found.\033[0m"
-        printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"
-        printf "\033[32m\n /opt/releem/releem-agent -f \033[0m\n\n"
-        exit 1;
+    if [ "$1" == "initial" ]; then
+        MYSQLCONFIGURER_FILE_NAME="${INITIAL_MYSQLCONFIGURER_FILE_NAME}"
+        MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
+    else
+        if [ ! -f $MYSQLCONFIGURER_CONFIGFILE ]; then
+            printf "\033[37m\n * Recommended MySQL configuration was not found.\033[0m"
+            printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"
+            printf "\033[32m\n /opt/releem/releem-agent -f \033[0m\n\n"
+            exit 1;
+        fi
     fi
     if ! check_mysql_version; then
         printf "\033[31m\n * MySQL version is lower than 5.6.7. Check the documentation https://github.com/Releem/mysqlconfigurer#how-to-apply-the-recommended-configuration for applying the configuration. \033[0m\n"
@@ -425,8 +432,13 @@ function releem_apply_automatic() {
     fi
 
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended MySQL configuration.\033[0m\n"
-    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the latest up-to-date configuration.\033[0m\n"
-    /opt/releem/releem-agent -c >/dev/null 2>&1 || true
+    if [ "$1" == "initial" ]; then
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the initial configuration.\033[0m\n"
+        /opt/releem/releem-agent --initial >/dev/null 2>&1 || true
+    else
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the latest up-to-date configuration.\033[0m\n"
+        /opt/releem/releem-agent -c >/dev/null 2>&1 || true
+    fi
 
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
@@ -701,7 +713,7 @@ if [ "$RELEEM_INSTANCE_TYPE" == "local" ]; then
     fi
 fi
 # Parse parameters
-while getopts "k:m:s:arcpu" option
+while getopts "k:m:s:arcpui" option
 do
   case "${option}" in
     k) RELEEM_API_KEY=${OPTARG};;
@@ -712,6 +724,7 @@ do
     c) get_config;;
     p) releem_ps_mysql;;
     u) update_agent; exit 0;;
+    i) releem_apply_automatic initial;;
   esac
 done
 

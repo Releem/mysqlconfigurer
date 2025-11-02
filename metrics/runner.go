@@ -30,7 +30,7 @@ func RunWorker(gatherers []models.MetricsGatherer, gatherers_metrics []models.Me
 	var GenerateTimer, timer, QueryOptimizationTimer *time.Timer
 	defer utils.HandlePanic(configuration, logger)
 
-	if (Mode.Name == "Configurations" && Mode.Type != "default") || Mode.Name == "Event" || Mode.Name == "TaskSet" {
+	if (Mode.Name == "Configurations" && Mode.Type != "Default") || Mode.Name == "Event" || Mode.Name == "TaskSet" {
 		GenerateTimer = time.NewTimer(1 * time.Second)
 		timer = time.NewTimer(1 * time.Hour)
 		QueryOptimizationTimer = time.NewTimer(1 * time.Hour)
@@ -91,7 +91,7 @@ loop:
 						logger.Info("* The recommended MySQL configuration has been downloaded to: ", configuration.GetReleemConfDir())
 					}
 				}
-				if (Mode.Name == "Configurations" && Mode.Type != "default") || Mode.Name == "Event" || Mode.Name == "TaskSet" {
+				if (Mode.Name == "Configurations" && Mode.Type != "Default") || Mode.Name == "Event" || Mode.Name == "TaskSet" {
 					logger.Info("Exiting")
 					os.Exit(0)
 				}

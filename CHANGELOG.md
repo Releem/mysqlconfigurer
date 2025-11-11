@@ -1,5 +1,15 @@
 Releem releases
 ---
+Releem 1.22.0.4, 2025-10-31 ([What's New At Releem | October 2025](https://releem.com/blog/whats-new-at-releem-october-2025))
+- Added Servers overview bar.
+- Added tooltips for the Security Check icons on the dashboard. Closed #429 
+- Added Applying recommendations across all servers. Closed #452
+- Added index recommendations for GROUP BY and ORDER BY columns. Closed #441
+- Added GCP Cloud SQL support. Closed #259
+- Fixed Releem can’t identify that database version was upgraded. Closed #408 
+- Fixed the server does not appear in the portal after starting the agent. Closed #411 
+- Optimized queries for collecting query examples, processes
+- Fixed identifying of optimized queries. Closed #474
 
 Releem 1.22.0, 2025-09-30 ([What's New At Releem | September 2025](https://releem.com/blog/whats-new-at-releem-september-2025))
 - Added Deadlock monitoring. Closed #293

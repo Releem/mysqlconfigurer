@@ -14,9 +14,9 @@ import (
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
 	"github.com/Releem/mysqlconfigurer/utils"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	"github.com/aws/aws-sdk-go-v2/service/rds/types"
-	"github.com/aws/aws-sdk-go/aws"
 	logging "github.com/google/logger"
 	"google.golang.org/api/sqladmin/v1"
 
@@ -305,21 +305,21 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 		task_output = task_output + "No DB instance found.\n"
 	}
 	logger.Infof("DB Instance ID: %s, DB Instance Status: %s, Parameter Group Name: %s, Parameter Group Status: %s\n", *dbInstance.DBInstanceIdentifier, *dbInstance.DBInstanceStatus, *paramGroup.DBParameterGroupName, *paramGroup.ParameterApplyStatus)
-	if aws.StringValue(dbInstance.DBInstanceStatus) != "available" {
-		logger.Error("DB Instance Status '" + aws.StringValue(dbInstance.DBInstanceStatus) + "' not available(" + aws.StringValue(dbInstance.DBInstanceStatus) + ")")
-		task_output = task_output + "DB Instance Status '" + aws.StringValue(dbInstance.DBInstanceStatus) + "' not available\n"
+	if aws.ToString(dbInstance.DBInstanceStatus) != "available" {
+		logger.Error("DB Instance Status '" + aws.ToString(dbInstance.DBInstanceStatus) + "' not available(" + aws.ToString(dbInstance.DBInstanceStatus) + ")")
+		task_output = task_output + "DB Instance Status '" + aws.ToString(dbInstance.DBInstanceStatus) + "' not available\n"
 		task_status = 4
 		task_exit_code = 1
 		return task_exit_code, task_status, task_output
-	} else if configuration.AwsRDSParameterGroup == "" || aws.StringValue(paramGroup.DBParameterGroupName) != configuration.AwsRDSParameterGroup {
-		logger.Error("Parameter group '" + configuration.AwsRDSParameterGroup + "' not found or empty in DB Instance " + configuration.AwsRDSDB + "(" + aws.StringValue(paramGroup.DBParameterGroupName) + ")")
-		task_output = task_output + "Parameter group '" + configuration.AwsRDSParameterGroup + "' not found or empty in DB Instance " + configuration.AwsRDSDB + "(" + aws.StringValue(paramGroup.DBParameterGroupName) + ")\n"
+	} else if configuration.AwsRDSParameterGroup == "" || aws.ToString(paramGroup.DBParameterGroupName) != configuration.AwsRDSParameterGroup {
+		logger.Error("Parameter group '" + configuration.AwsRDSParameterGroup + "' not found or empty in DB Instance " + configuration.AwsRDSDB + "(" + aws.ToString(paramGroup.DBParameterGroupName) + ")")
+		task_output = task_output + "Parameter group '" + configuration.AwsRDSParameterGroup + "' not found or empty in DB Instance " + configuration.AwsRDSDB + "(" + aws.ToString(paramGroup.DBParameterGroupName) + ")\n"
 		task_status = 4
 		task_exit_code = 3
 		return task_exit_code, task_status, task_output
-	} else if aws.StringValue(paramGroup.ParameterApplyStatus) != "in-sync" {
-		logger.Error("Parameter group status '" + configuration.AwsRDSParameterGroup + "' not in-sync(" + aws.StringValue(paramGroup.ParameterApplyStatus) + ")")
-		task_output = task_output + "Parameter group status '" + configuration.AwsRDSParameterGroup + "' not in-sync(" + aws.StringValue(paramGroup.ParameterApplyStatus) + ")\n"
+	} else if aws.ToString(paramGroup.ParameterApplyStatus) != "in-sync" {
+		logger.Error("Parameter group status '" + configuration.AwsRDSParameterGroup + "' not in-sync(" + aws.ToString(paramGroup.ParameterApplyStatus) + ")")
+		task_output = task_output + "Parameter group status '" + configuration.AwsRDSParameterGroup + "' not in-sync(" + aws.ToString(paramGroup.ParameterApplyStatus) + ")\n"
 		task_status = 4
 		task_exit_code = 2
 		return task_exit_code, task_status, task_output
@@ -454,20 +454,20 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 		}
 		logger.Infof("DB Instance ID: %s, DB Instance Status: %s, Parameter Group Name: %s, Parameter Group Status: %s\n", *dbInstance.DBInstanceIdentifier, *dbInstance.DBInstanceStatus, *paramGroup.DBParameterGroupName, *paramGroup.ParameterApplyStatus)
 
-		if aws.StringValue(dbInstance.DBInstanceStatus) != "modifying" || aws.StringValue(paramGroup.ParameterApplyStatus) != "applying" {
+		if aws.ToString(dbInstance.DBInstanceStatus) != "modifying" || aws.ToString(paramGroup.ParameterApplyStatus) != "applying" {
 			break
 		}
 		time.Sleep(3 * time.Second)
 		sum = sum + 1
 	}
 
-	if sum >= wait_seconds && aws.StringValue(dbInstance.DBInstanceStatus) == "modifying" && aws.StringValue(paramGroup.ParameterApplyStatus) == "applying" {
+	if sum >= wait_seconds && aws.ToString(dbInstance.DBInstanceStatus) == "modifying" && aws.ToString(paramGroup.ParameterApplyStatus) == "applying" {
 		task_exit_code = 6
 		task_status = 4
-	} else if aws.StringValue(dbInstance.DBInstanceStatus) == "available" && aws.StringValue(paramGroup.ParameterApplyStatus) == "pending-reboot" {
+	} else if aws.ToString(dbInstance.DBInstanceStatus) == "available" && aws.ToString(paramGroup.ParameterApplyStatus) == "pending-reboot" {
 		task_exit_code = 10
 		task_status = 4
-	} else if aws.StringValue(dbInstance.DBInstanceStatus) == "available" && aws.StringValue(paramGroup.ParameterApplyStatus) == "in-sync" {
+	} else if aws.ToString(dbInstance.DBInstanceStatus) == "available" && aws.ToString(paramGroup.ParameterApplyStatus) == "in-sync" {
 		logger.Info("DB Instance Status available, Parameter Group Status in-sync, No pending modifications")
 	} else {
 		task_exit_code = 7

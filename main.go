@@ -22,7 +22,6 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	_ "github.com/go-sql-driver/mysql"
 	logging "github.com/google/logger"
 
@@ -125,15 +124,8 @@ func (programm *Programm) Run() {
 		result, err := rdsclient.DescribeDBInstances(context.TODO(), input)
 
 		if err != nil {
-			if aerr, ok := err.(awserr.Error); ok {
-				logger.Error(aerr.Error())
-				return
-			} else {
-				// Print the error, cast err to awserr.Error to get the Code and
-				// Message from an error.
-				logger.Error(err.Error())
-				return
-			}
+			logger.Error(err.Error())
+			return
 		}
 
 		// Request detailed instance info

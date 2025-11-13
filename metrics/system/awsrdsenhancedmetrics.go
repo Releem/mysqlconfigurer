@@ -12,9 +12,9 @@ import (
 	"github.com/Releem/mysqlconfigurer/utils"
 	logging "github.com/google/logger"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go-v2/service/rds/types"
-	"github.com/aws/aws-sdk-go/aws"
 )
 
 const rdsMetricsLogGroupName = "RDSOSMetrics"
@@ -209,7 +209,7 @@ func (awsrdsenhancedmetrics *AWSRDSEnhancedMetricsGatherer) GetMetrics(metrics *
 	result, err := awsrdsenhancedmetrics.cwlogsclient.GetLogEvents(context.TODO(), &input)
 
 	if err != nil {
-		awsrdsenhancedmetrics.logger.Fatalf("failed to read log stream %s:%s: %s", rdsMetricsLogGroupName, aws.StringValue(awsrdsenhancedmetrics.dbinstance.DbiResourceId), err)
+		awsrdsenhancedmetrics.logger.Fatalf("failed to read log stream %s:%s: %s", rdsMetricsLogGroupName, aws.ToString(awsrdsenhancedmetrics.dbinstance.DbiResourceId), err)
 		return err
 	}
 

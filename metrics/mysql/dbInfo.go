@@ -1,6 +1,9 @@
-package metrics
+package mysql
 
 import (
+	"os"
+	"regexp"
+	"runtime"
 	"strings"
 
 	"github.com/Releem/mysqlconfigurer/config"
@@ -15,6 +18,18 @@ type DbInfoGatherer struct {
 	configuration *config.Config
 }
 
+type DbInfoBaseGatherer struct {
+	logger        logging.Logger
+	configuration *config.Config
+}
+
+func NewDbInfoBaseGatherer(logger logging.Logger, configuration *config.Config) *DbInfoBaseGatherer {
+	return &DbInfoBaseGatherer{
+		logger:        logger,
+		configuration: configuration,
+	}
+}
+
 func NewDbInfoGatherer(logger logging.Logger, configuration *config.Config) *DbInfoGatherer {
 	return &DbInfoGatherer{
 		logger:        logger,
@@ -22,10 +37,44 @@ func NewDbInfoGatherer(logger logging.Logger, configuration *config.Config) *DbI
 	}
 }
 
+func (DbInfoBase *DbInfoBaseGatherer) GetMetrics(metrics *models.Metrics) error {
+	defer utils.HandlePanic(DbInfoBase.configuration, DbInfoBase.logger)
+
+	var row models.MetricValue
+	var mysql_version string
+
+	info := make(models.MetricGroupValue)
+	// Mysql version
+	err := models.DB.QueryRow("select VERSION()").Scan(&row.Value)
+	if err != nil {
+		DbInfoBase.logger.Error(err)
+		return nil
+	}
+	re := regexp.MustCompile(`(.*?)\-.*`)
+	version := re.FindStringSubmatch(row.Value)
+	if len(version) > 0 {
+		mysql_version = version[1]
+	} else {
+		mysql_version = row.Value
+	}
+	info["Version"] = mysql_version
+	err = os.WriteFile(DbInfoBase.configuration.ReleemConfDir+MysqlVersionFile(), []byte(mysql_version), 0644)
+	if err != nil {
+		DbInfoBase.logger.Error("WriteFile: Error write to file: ", err)
+	}
+	// Mysql force memory limit
+	info["MemoryLimit"] = DbInfoBase.configuration.GetMemoryLimit()
+	info["Type"] = "mysql"
+
+	metrics.DB.Info = info
+	DbInfoBase.logger.V(5).Info("CollectMetrics DbInfoBase ", info)
+
+	return nil
+}
+
 func (DbInfo *DbInfoGatherer) GetMetrics(metrics *models.Metrics) error {
 	defer utils.HandlePanic(DbInfo.configuration, DbInfo.logger)
 	var row models.MetricValue
-
 	var output []string
 	rows, err := models.DB.Query("SHOW GRANTS")
 	if err != nil {
@@ -44,7 +93,6 @@ func (DbInfo *DbInfoGatherer) GetMetrics(metrics *models.Metrics) error {
 	metrics.DB.Info["Grants"] = output
 
 	metrics.DB.Info["UsersSecurityCheck"] = users_security_check(DbInfo, metrics)
-
 	DbInfo.logger.V(5).Info("CollectMetrics DbInfo ", metrics.DB.Info)
 	return nil
 
@@ -189,4 +237,13 @@ func users_security_check(DbInfo *DbInfoGatherer, metrics *models.Metrics) []mod
 		users_check = append(users_check, models.MetricGroupValue{"Blank_Password": user["Blank_Password"], "Password_As_User": user["Password_As_User"], "Remote_Conn_Root": remoteConnRoot, "Anonymous_User": anonymousUser})
 	}
 	return users_check
+}
+
+func MysqlVersionFile() string {
+	switch runtime.GOOS {
+	case "windows":
+		return "\\MysqlVersion.txt"
+	default: // для Linux и других UNIX-подобных систем
+		return "/mysql_version"
+	}
 }

@@ -58,23 +58,21 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	switch Mode.Name {
 	case "Configurations":
 		switch Mode.Type {
-		case "ForceSet":
-			api_domain = api_domain + "mysql"
+		case "ForceSet", "ForceGet":
+			api_domain = api_domain + "db/config"
 		case "ForceInitial":
-			api_domain = api_domain + "mysql/initial"
-		case "ForceGet":
-			api_domain = api_domain + "config"
+			api_domain = api_domain + "db/config/initial"
 		case "ForceGetJson":
-			api_domain = api_domain + "config?json=1"
+			api_domain = api_domain + "db/config?json=1"
 		default:
-			api_domain = api_domain + "mysql"
+			api_domain = api_domain + "db/config"
 		}
 	case "Metrics":
 		switch Mode.Type {
 		case "QueryOptimization":
-			api_domain = api_domain + "queries/metrics"
+			api_domain = api_domain + "db/queries/metrics"
 		default:
-			api_domain = api_domain + "mysql/metrics"
+			api_domain = api_domain + "db/metrics"
 		}
 	case "Event":
 		api_domain = api_domain + "event/" + Mode.Type

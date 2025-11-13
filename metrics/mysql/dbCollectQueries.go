@@ -1,4 +1,4 @@
-package metrics
+package mysql
 
 import (
 	"database/sql"
@@ -39,17 +39,6 @@ func FilterQueryString(DatabasesQueryOptimization string, FieldName string) stri
 		return ""
 	}
 }
-func IsSchemaNameExclude(SchemaName string, DatabasesQueryOptimization string) bool {
-	if DatabasesQueryOptimization == "" {
-		return false
-	}
-	for _, DbName := range strings.Split(DatabasesQueryOptimization, `,`) {
-		if SchemaName == DbName {
-			return false
-		}
-	}
-	return true
-}
 func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(metrics *models.Metrics) error {
 	defer u.HandlePanic(DbCollectQueriesOptimization.configuration, DbCollectQueriesOptimization.logger)
 
@@ -58,12 +47,12 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 	var calls, avg_time_us, sum_time_us int
 	output_digest := make(map[string]models.MetricGroupValue)
 
-	rows, err := models.DB.Query("SELECT IFNULL(schema_name, 'NULL') as schema_name, IFNULL(digest, 'NULL') as query_id, IFNULL(digest_text, 'NULL') as query, IFNULL(QUERY_SAMPLE_TEXT, 'NULL') as query_text, count_star as calls, round(avg_timer_wait/1000000, 0) as avg_time_us, round(SUM_TIMER_WAIT/1000000, 0) as sum_time_us, IFNULL(SUM_LOCK_TIME, 'NULL') as SUM_LOCK_TIME, IFNULL(SUM_ERRORS, 'NULL') as SUM_ERRORS, IFNULL(SUM_WARNINGS, 'NULL') as SUM_WARNINGS, IFNULL(SUM_ROWS_AFFECTED, 'NULL') as SUM_ROWS_AFFECTED, IFNULL(SUM_ROWS_SENT, 'NULL') as SUM_ROWS_SENT, IFNULL(SUM_ROWS_EXAMINED, 'NULL') as SUM_ROWS_EXAMINED, IFNULL(SUM_CREATED_TMP_DISK_TABLES, 'NULL') as SUM_CREATED_TMP_DISK_TABLES, IFNULL(SUM_CREATED_TMP_TABLES, 'NULL') as SUM_CREATED_TMP_TABLES, IFNULL(SUM_SELECT_FULL_JOIN, 'NULL') as SUM_SELECT_FULL_JOIN, IFNULL(SUM_SELECT_FULL_RANGE_JOIN, 'NULL') as SUM_SELECT_FULL_RANGE_JOIN, IFNULL(SUM_SELECT_RANGE, 'NULL') as SUM_SELECT_RANGE, IFNULL(SUM_SELECT_RANGE_CHECK, 'NULL') as SUM_SELECT_RANGE_CHECK, IFNULL(SUM_SELECT_SCAN, 'NULL') as SUM_SELECT_SCAN, IFNULL(SUM_SORT_MERGE_PASSES, 'NULL') as SUM_SORT_MERGE_PASSES, IFNULL(SUM_SORT_RANGE, 'NULL') as SUM_SORT_RANGE, IFNULL(SUM_SORT_ROWS, 'NULL') as SUM_SORT_ROWS, IFNULL(SUM_SORT_SCAN, 'NULL') as SUM_SORT_SCAN, IFNULL(SUM_NO_INDEX_USED, 'NULL') as SUM_NO_INDEX_USED, IFNULL(SUM_NO_GOOD_INDEX_USED, 'NULL') as SUM_NO_GOOD_INDEX_USED FROM performance_schema.events_statements_summary_by_digest WHERE `digest_text` NOT LIKE 'EXPLAIN %'")
+	rows, err := models.DB.Query("SELECT IFNULL(schema_name, 'NULL') as schema_name, IFNULL(digest, 'NULL') as query_id, IFNULL(digest_text, 'NULL') as query, IFNULL(QUERY_SAMPLE_TEXT, 'NULL') as query_text, count_star as calls, round(avg_timer_wait/1000000, 0) as avg_time_us, round(SUM_TIMER_WAIT/1000000, 0) as sum_time_us, IFNULL(SUM_LOCK_TIME, 'NULL') as SUM_LOCK_TIME, IFNULL(SUM_ERRORS, 'NULL') as SUM_ERRORS, IFNULL(SUM_WARNINGS, 'NULL') as SUM_WARNINGS, IFNULL(SUM_ROWS_AFFECTED, 'NULL') as SUM_ROWS_AFFECTED, IFNULL(SUM_ROWS_SENT, 'NULL') as SUM_ROWS_SENT, IFNULL(SUM_ROWS_EXAMINED, 'NULL') as SUM_ROWS_EXAMINED, IFNULL(SUM_CREATED_TMP_DISK_TABLES, 'NULL') as SUM_CREATED_TMP_DISK_TABLES, IFNULL(SUM_CREATED_TMP_TABLES, 'NULL') as SUM_CREATED_TMP_TABLES, IFNULL(SUM_SELECT_FULL_JOIN, 'NULL') as SUM_SELECT_FULL_JOIN, IFNULL(SUM_SELECT_FULL_RANGE_JOIN, 'NULL') as SUM_SELECT_FULL_RANGE_JOIN, IFNULL(SUM_SELECT_RANGE, 'NULL') as SUM_SELECT_RANGE, IFNULL(SUM_SELECT_RANGE_CHECK, 'NULL') as SUM_SELECT_RANGE_CHECK, IFNULL(SUM_SELECT_SCAN, 'NULL') as SUM_SELECT_SCAN, IFNULL(SUM_SORT_MERGE_PASSES, 'NULL') as SUM_SORT_MERGE_PASSES, IFNULL(SUM_SORT_RANGE, 'NULL') as SUM_SORT_RANGE, IFNULL(SUM_SORT_ROWS, 'NULL') as SUM_SORT_ROWS, IFNULL(SUM_SORT_SCAN, 'NULL') as SUM_SORT_SCAN, IFNULL(SUM_NO_INDEX_USED, 'NULL') as SUM_NO_INDEX_USED, IFNULL(SUM_NO_GOOD_INDEX_USED, 'NULL') as SUM_NO_GOOD_INDEX_USED FROM performance_schema.events_statements_summary_by_digest")
 	if err != nil {
 		if err != sql.ErrNoRows && !strings.Contains(err.Error(), "Unknown column") {
 			DbCollectQueriesOptimization.logger.Error(err)
 		}
-		rows, err = models.DB.Query("SELECT IFNULL(schema_name, 'NULL') as schema_name, IFNULL(digest, 'NULL') as query_id, IFNULL(digest_text, 'NULL') as query, count_star as calls, round(avg_timer_wait/1000000, 0) as avg_time_us, round(SUM_TIMER_WAIT/1000000, 0) as sum_time_us, IFNULL(SUM_LOCK_TIME, 'NULL') as SUM_LOCK_TIME, IFNULL(SUM_ERRORS, 'NULL') as SUM_ERRORS, IFNULL(SUM_WARNINGS, 'NULL') as SUM_WARNINGS, IFNULL(SUM_ROWS_AFFECTED, 'NULL') as SUM_ROWS_AFFECTED, IFNULL(SUM_ROWS_SENT, 'NULL') as SUM_ROWS_SENT, IFNULL(SUM_ROWS_EXAMINED, 'NULL') as SUM_ROWS_EXAMINED, IFNULL(SUM_CREATED_TMP_DISK_TABLES, 'NULL') as SUM_CREATED_TMP_DISK_TABLES, IFNULL(SUM_CREATED_TMP_TABLES, 'NULL') as SUM_CREATED_TMP_TABLES, IFNULL(SUM_SELECT_FULL_JOIN, 'NULL') as SUM_SELECT_FULL_JOIN, IFNULL(SUM_SELECT_FULL_RANGE_JOIN, 'NULL') as SUM_SELECT_FULL_RANGE_JOIN, IFNULL(SUM_SELECT_RANGE, 'NULL') as SUM_SELECT_RANGE, IFNULL(SUM_SELECT_RANGE_CHECK, 'NULL') as SUM_SELECT_RANGE_CHECK, IFNULL(SUM_SELECT_SCAN, 'NULL') as SUM_SELECT_SCAN, IFNULL(SUM_SORT_MERGE_PASSES, 'NULL') as SUM_SORT_MERGE_PASSES, IFNULL(SUM_SORT_RANGE, 'NULL') as SUM_SORT_RANGE, IFNULL(SUM_SORT_ROWS, 'NULL') as SUM_SORT_ROWS, IFNULL(SUM_SORT_SCAN, 'NULL') as SUM_SORT_SCAN, IFNULL(SUM_NO_INDEX_USED, 'NULL') as SUM_NO_INDEX_USED, IFNULL(SUM_NO_GOOD_INDEX_USED, 'NULL') as SUM_NO_GOOD_INDEX_USED FROM performance_schema.events_statements_summary_by_digest WHERE `digest_text` NOT LIKE 'EXPLAIN %'")
+		rows, err = models.DB.Query("SELECT IFNULL(schema_name, 'NULL') as schema_name, IFNULL(digest, 'NULL') as query_id, IFNULL(digest_text, 'NULL') as query, count_star as calls, round(avg_timer_wait/1000000, 0) as avg_time_us, round(SUM_TIMER_WAIT/1000000, 0) as sum_time_us, IFNULL(SUM_LOCK_TIME, 'NULL') as SUM_LOCK_TIME, IFNULL(SUM_ERRORS, 'NULL') as SUM_ERRORS, IFNULL(SUM_WARNINGS, 'NULL') as SUM_WARNINGS, IFNULL(SUM_ROWS_AFFECTED, 'NULL') as SUM_ROWS_AFFECTED, IFNULL(SUM_ROWS_SENT, 'NULL') as SUM_ROWS_SENT, IFNULL(SUM_ROWS_EXAMINED, 'NULL') as SUM_ROWS_EXAMINED, IFNULL(SUM_CREATED_TMP_DISK_TABLES, 'NULL') as SUM_CREATED_TMP_DISK_TABLES, IFNULL(SUM_CREATED_TMP_TABLES, 'NULL') as SUM_CREATED_TMP_TABLES, IFNULL(SUM_SELECT_FULL_JOIN, 'NULL') as SUM_SELECT_FULL_JOIN, IFNULL(SUM_SELECT_FULL_RANGE_JOIN, 'NULL') as SUM_SELECT_FULL_RANGE_JOIN, IFNULL(SUM_SELECT_RANGE, 'NULL') as SUM_SELECT_RANGE, IFNULL(SUM_SELECT_RANGE_CHECK, 'NULL') as SUM_SELECT_RANGE_CHECK, IFNULL(SUM_SELECT_SCAN, 'NULL') as SUM_SELECT_SCAN, IFNULL(SUM_SORT_MERGE_PASSES, 'NULL') as SUM_SORT_MERGE_PASSES, IFNULL(SUM_SORT_RANGE, 'NULL') as SUM_SORT_RANGE, IFNULL(SUM_SORT_ROWS, 'NULL') as SUM_SORT_ROWS, IFNULL(SUM_SORT_SCAN, 'NULL') as SUM_SORT_SCAN, IFNULL(SUM_NO_INDEX_USED, 'NULL') as SUM_NO_INDEX_USED, IFNULL(SUM_NO_GOOD_INDEX_USED, 'NULL') as SUM_NO_GOOD_INDEX_USED FROM performance_schema.events_statements_summary_by_digest")
 		if err != nil {
 			if err != sql.ErrNoRows {
 				DbCollectQueriesOptimization.logger.Error(err)
@@ -160,7 +149,7 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 	var information_schema_table information_schema_table_type
 	i := 0
 	for _, database := range metrics.DB.Metrics.Databases {
-		if IsSchemaNameExclude(database, DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization) {
+		if u.IsSchemaNameExclude(database, DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization) {
 			continue
 		}
 		rows, err := models.DB.Query(`SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(TABLE_TYPE, 'NULL') as TABLE_TYPE,  IFNULL(ENGINE, 'NULL') as ENGINE, IFNULL(ROW_FORMAT, 'NULL') as ROW_FORMAT, IFNULL(TABLE_ROWS, 'NULL') as TABLE_ROWS, IFNULL(AVG_ROW_LENGTH, 'NULL') as AVG_ROW_LENGTH, IFNULL(MAX_DATA_LENGTH, 'NULL') as MAX_DATA_LENGTH, IFNULL(DATA_LENGTH, 'NULL') as DATA_LENGTH, IFNULL(INDEX_LENGTH, 'NULL') as INDEX_LENGTH, IFNULL(TABLE_COLLATION, 'NULL') as TABLE_COLLATION, IFNULL(DATA_FREE, 'NULL') as DATA_FREE FROM information_schema.tables WHERE TABLE_SCHEMA = ? `, database)
@@ -434,7 +423,7 @@ func CollectionExplain(digests map[string]models.MetricGroupValue, field_sorting
 			if strings.Contains(digests[k]["query_text"].(string), "EXPLAIN FORMAT=JSON") {
 				continue
 			}
-			if IsSchemaNameExclude(digests[k]["schema_name"].(string), configuration.DatabasesQueryOptimization) {
+			if u.IsSchemaNameExclude(digests[k]["schema_name"].(string), configuration.DatabasesQueryOptimization) {
 				continue
 			}
 

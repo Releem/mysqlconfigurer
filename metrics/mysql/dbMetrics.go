@@ -1,14 +1,39 @@
-package metrics
+package mysql
 
 import (
 	"database/sql"
 	"strings"
+	"time"
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
 	"github.com/Releem/mysqlconfigurer/utils"
 	logging "github.com/google/logger"
 )
+
+type DbMetricsGatherer struct {
+	logger        logging.Logger
+	configuration *config.Config
+}
+
+func NewDbMetricsGatherer(logger logging.Logger, configuration *config.Config) *DbMetricsGatherer {
+	return &DbMetricsGatherer{
+		logger:        logger,
+		configuration: configuration,
+	}
+}
+
+type DbMetricsBaseGatherer struct {
+	logger        logging.Logger
+	configuration *config.Config
+}
+
+func NewDbMetricsBaseGatherer(logger logging.Logger, configuration *config.Config) *DbMetricsBaseGatherer {
+	return &DbMetricsBaseGatherer{
+		logger:        logger,
+		configuration: configuration,
+	}
+}
 
 type DbMetricsMetricsBaseGatherer struct {
 	logger        logging.Logger
@@ -20,6 +45,90 @@ func NewDbMetricsMetricsBaseGatherer(logger logging.Logger, configuration *confi
 		logger:        logger,
 		configuration: configuration,
 	}
+}
+
+func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) error {
+	defer utils.HandlePanic(DbMetricsBase.configuration, DbMetricsBase.logger)
+	// Mysql Status
+	output := make(models.MetricGroupValue)
+	{
+		var row models.MetricValue
+		rows, err := models.DB.Query("SHOW STATUS")
+
+		if err != nil {
+			DbMetricsBase.logger.Error(err)
+			return err
+		}
+		for rows.Next() {
+			err := rows.Scan(&row.Name, &row.Value)
+			if err != nil {
+				DbMetricsBase.logger.Error(err)
+				return err
+			}
+			output[row.Name] = row.Value
+		}
+		rows.Close()
+
+		rows, err = models.DB.Query("SHOW GLOBAL STATUS")
+		if err != nil {
+			DbMetricsBase.logger.Error(err)
+			return err
+		}
+		for rows.Next() {
+			err := rows.Scan(&row.Name, &row.Value)
+			if err != nil {
+				DbMetricsBase.logger.Error(err)
+				return err
+			}
+			output[row.Name] = row.Value
+		}
+		metrics.DB.Metrics.Status = output
+		rows.Close()
+	}
+	//status innodb engine
+	{
+		var engine, name, status string
+		err := models.DB.QueryRow("show engine innodb status").Scan(&engine, &name, &status)
+		if err != nil {
+			DbMetricsBase.logger.Error(err)
+		} else {
+			metrics.DB.Metrics.InnoDBEngineStatus = status
+		}
+	}
+	//list of databases
+	{
+		var database string
+		var output []string
+		rows, err := models.DB.Query("SELECT table_schema FROM INFORMATION_SCHEMA.tables group BY table_schema")
+		if err != nil {
+			DbMetricsBase.logger.Error(err)
+			return err
+		}
+		for rows.Next() {
+			err := rows.Scan(&database)
+			if err != nil {
+				DbMetricsBase.logger.Error(err)
+				return err
+			}
+			output = append(output, database)
+		}
+		rows.Close()
+		metrics.DB.Metrics.Databases = output
+	}
+	//Total table
+	{
+		var row uint64
+		err := models.DB.QueryRow("SELECT COUNT(*) as count FROM information_schema.tables").Scan(&row)
+		if err != nil {
+			DbMetricsBase.logger.Error(err)
+			return err
+		}
+		metrics.DB.Metrics.TotalTables = row
+	}
+
+	DbMetricsBase.logger.V(5).Info("CollectMetrics DbMetricsBase ", metrics.DB.Metrics)
+
+	return nil
 }
 
 func (DbMetricsMetricsBase *DbMetricsMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) error {
@@ -199,4 +308,84 @@ func str_contains(slice []string, element string) bool {
 		}
 	}
 	return false
+}
+
+func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
+	defer utils.HandlePanic(DbMetrics.configuration, DbMetrics.logger)
+	// count of queries latency
+	{
+		var count_events_statements_summary_by_digest uint64
+
+		err := models.DB.QueryRow("SELECT count(*) FROM performance_schema.events_statements_summary_by_digest").Scan(&count_events_statements_summary_by_digest)
+		if err != nil {
+			if err != sql.ErrNoRows {
+				DbMetrics.logger.Error(err)
+			}
+		} else {
+			metrics.DB.Metrics.CountQueriesLatency = count_events_statements_summary_by_digest
+		}
+	}
+	//Stat mysql Engine
+	{
+		var engine_db, engineenabled string
+		var size, count, dsize, isize uint64
+		output := make(map[string]models.MetricGroupValue)
+		engine_elem := make(map[string]models.MetricGroupValue)
+
+		rows, err := models.DB.Query("SELECT ENGINE,SUPPORT FROM information_schema.ENGINES ORDER BY ENGINE ASC")
+		if err != nil {
+			DbMetrics.logger.Error(err)
+			return err
+		}
+		for rows.Next() {
+			err := rows.Scan(&engine_db, &engineenabled)
+			if err != nil {
+				DbMetrics.logger.Error(err)
+				return err
+			}
+			output[engine_db] = models.MetricGroupValue{"Enabled": engineenabled}
+			engine_elem[engine_db] = models.MetricGroupValue{"Table Number": uint64(0), "Total Size": uint64(0), "Data Size": uint64(0), "Index Size": uint64(0)}
+		}
+		rows.Close()
+		i := 0
+		for _, database := range metrics.DB.Metrics.Databases {
+			rows, err = models.DB.Query(`SELECT ENGINE, IFNULL(SUM(DATA_LENGTH+INDEX_LENGTH), 0), IFNULL(COUNT(ENGINE), 0), IFNULL(SUM(DATA_LENGTH), 0), IFNULL(SUM(INDEX_LENGTH), 0) FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND ENGINE IS NOT NULL  GROUP BY ENGINE ORDER BY ENGINE ASC`, database)
+			if err != nil {
+				DbMetrics.logger.Error(err)
+				return err
+			}
+			for rows.Next() {
+				err := rows.Scan(&engine_db, &size, &count, &dsize, &isize)
+				if err != nil {
+					DbMetrics.logger.Error(err)
+					continue
+				}
+				if engine_elem[engine_db]["Table Number"] == nil {
+					engine_elem[engine_db] = models.MetricGroupValue{"Table Number": uint64(0), "Total Size": uint64(0), "Data Size": uint64(0), "Index Size": uint64(0)}
+				}
+				engine_elem[engine_db]["Table Number"] = engine_elem[engine_db]["Table Number"].(uint64) + count
+				engine_elem[engine_db]["Total Size"] = engine_elem[engine_db]["Total Size"].(uint64) + size
+				engine_elem[engine_db]["Data Size"] = engine_elem[engine_db]["Data Size"].(uint64) + dsize
+				engine_elem[engine_db]["Index Size"] = engine_elem[engine_db]["Index Size"].(uint64) + isize
+			}
+			rows.Close()
+			i += 1
+			if i%25 == 0 {
+				time.Sleep(3 * time.Second)
+			}
+		}
+		for k := range output {
+			output[k] = utils.MapJoin(output[k], engine_elem[k])
+		}
+
+		metrics.DB.Metrics.Engine = output
+		if metrics.DB.Metrics.Engine["MyISAM"] == nil {
+			metrics.DB.Metrics.TotalMyisamIndexes = 0
+		} else {
+			metrics.DB.Metrics.TotalMyisamIndexes = metrics.DB.Metrics.Engine["MyISAM"]["Index Size"].(uint64)
+		}
+	}
+	DbMetrics.logger.V(5).Info("CollectMetrics DbMetrics ", metrics.DB.Metrics)
+
+	return nil
 }

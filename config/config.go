@@ -27,6 +27,11 @@ type Config struct {
 	MysqlHost                             string        `hcl:"mysql_host"`
 	MysqlPort                             string        `hcl:"mysql_port"`
 	MysqlSslMode                          bool          `hcl:"mysql_ssl_mode"`
+	PgPassword                            string        `hcl:"pg_password" json:"-"`
+	PgUser                                string        `hcl:"pg_user"`
+	PgHost                                string        `hcl:"pg_host"`
+	PgPort                                string        `hcl:"pg_port"`
+	PgSslMode                             string        `hcl:"pg_ssl_mode"`
 	CommandRestartService                 string        `hcl:"mysql_restart_service"`
 	MysqlConfDir                          string        `hcl:"mysql_cnf_dir"`
 	ReleemConfDir                         string        `hcl:"releem_cnf_dir"`
@@ -81,6 +86,12 @@ func LoadConfigFromString(data string, logger logging.Logger) (*Config, error) {
 	if config.MysqlPort == "" {
 		config.MysqlPort = "3306"
 	}
+	if config.PgHost == "" {
+		config.PgHost = "127.0.0.1"
+	}
+	if config.PgPort == "" {
+		config.PgPort = "5432"
+	}
 	if config.ReleemDir == "" {
 		config.ReleemDir = "/opt/releem"
 	}
@@ -102,4 +113,18 @@ func (config *Config) GetMemoryLimit() int {
 }
 func (config *Config) GetReleemConfDir() string {
 	return config.ReleemConfDir
+}
+
+// GetDatabaseType returns the database type based on configuration parameters
+func (config *Config) GetDatabaseType() string {
+	// Check if PostgreSQL parameters are configured
+	if config.PgUser != "" && config.PgPassword != "" {
+		return "postgresql"
+	}
+	// Default to MySQL if MySQL parameters are configured or no specific DB params
+	if config.MysqlUser != "" && config.MysqlPassword != "" {
+		return "mysql"
+	}
+	// Default to MySQL for backward compatibility
+	return "mysql"
 }

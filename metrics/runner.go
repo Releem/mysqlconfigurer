@@ -61,7 +61,12 @@ loop:
 				defer utils.HandlePanic(configuration, logger)
 				metrics := utils.CollectMetrics(append(gatherers, gatherers_metrics...), logger, configuration)
 				if metrics != nil {
-					metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, metrics.DB.Metrics.Status["Uptime"].(string))
+					// Get uptime for MySQL, use default for PostgreSQL
+					var uptime_str string = "0"
+					if uptime_val, exists := metrics.DB.Metrics.Status["Uptime"]; exists && uptime_val != nil {
+						uptime_str = uptime_val.(string)
+					}
+					metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, uptime_str)
 					task := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: ""})
 					if task == "Task" {
 						logger.Info("* A task received by the agent...")
@@ -113,41 +118,45 @@ loop:
 			go func() {
 				defer utils.HandlePanic(configuration, logger)
 				Ready = false
-				rows, err := models.DB.Query("SELECT t2.`CURRENT_SCHEMA`, t2.`DIGEST`, t2.`SQL_TEXT` FROM (SELECT `CURRENT_SCHEMA`, `DIGEST`, MAX(`TIMER_START`) AS MAX_TIMER_START FROM `performance_schema`.`events_statements_history` WHERE `DIGEST` IS NOT NULL AND `CURRENT_SCHEMA` IS NOT NULL GROUP BY `CURRENT_SCHEMA`, `DIGEST` ) t1 JOIN `performance_schema`.`events_statements_history` t2 ON t2.`TIMER_START`=t1.`MAX_TIMER_START` AND t2.`CURRENT_SCHEMA`=t1.`CURRENT_SCHEMA` AND t2.`DIGEST`=t1.`DIGEST`")
-				if err != nil {
-					logger.Error(err)
-				} else {
-					defer rows.Close()
 
-					// Batch collect data to reduce mutex contention
-					tempData := make(map[string]map[string]string)
-					var schema, digest, sqlText string
+				// Only collect SQL text for MySQL
+				if configuration.GetDatabaseType() == "mysql" {
+					rows, err := models.DB.Query("SELECT t2.`CURRENT_SCHEMA`, t2.`DIGEST`, t2.`SQL_TEXT` FROM (SELECT `CURRENT_SCHEMA`, `DIGEST`, MAX(`TIMER_START`) AS MAX_TIMER_START FROM `performance_schema`.`events_statements_history` WHERE `DIGEST` IS NOT NULL AND `CURRENT_SCHEMA` IS NOT NULL GROUP BY `CURRENT_SCHEMA`, `DIGEST` ) t1 JOIN `performance_schema`.`events_statements_history` t2 ON t2.`TIMER_START`=t1.`MAX_TIMER_START` AND t2.`CURRENT_SCHEMA`=t1.`CURRENT_SCHEMA` AND t2.`DIGEST`=t1.`DIGEST`")
+					if err != nil {
+						logger.Error(err)
+					} else {
+						defer rows.Close()
 
-					for rows.Next() {
-						err := rows.Scan(&schema, &digest, &sqlText)
-						if err != nil {
-							logger.Error(err)
-							continue
-						}
+						// Batch collect data to reduce mutex contention
+						tempData := make(map[string]map[string]string)
+						var schema, digest, sqlText string
 
-						if tempData[schema] == nil {
-							tempData[schema] = make(map[string]string)
-						}
-						tempData[schema][digest] = sqlText
-					}
-
-					// Single mutex lock for batch update
-					if len(tempData) > 0 {
-						models.SqlTextMutex.Lock()
-						for schema, digestMap := range tempData {
-							if models.SqlText[schema] == nil {
-								models.SqlText[schema] = make(map[string]string)
+						for rows.Next() {
+							err := rows.Scan(&schema, &digest, &sqlText)
+							if err != nil {
+								logger.Error(err)
+								continue
 							}
-							for digest, sqlText := range digestMap {
-								models.SqlText[schema][digest] = sqlText
+
+							if tempData[schema] == nil {
+								tempData[schema] = make(map[string]string)
 							}
+							tempData[schema][digest] = sqlText
 						}
-						models.SqlTextMutex.Unlock()
+
+						// Single mutex lock for batch update
+						if len(tempData) > 0 {
+							models.SqlTextMutex.Lock()
+							for schema, digestMap := range tempData {
+								if models.SqlText[schema] == nil {
+									models.SqlText[schema] = make(map[string]string)
+								}
+								for digest, sqlText := range digestMap {
+									models.SqlText[schema][digest] = sqlText
+								}
+							}
+							models.SqlTextMutex.Unlock()
+						}
 					}
 				}
 

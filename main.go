@@ -12,6 +12,9 @@ import (
 	"github.com/Releem/daemon"
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/metrics"
+	"github.com/Releem/mysqlconfigurer/metrics/mysql"
+	"github.com/Releem/mysqlconfigurer/metrics/postgresql"
+	"github.com/Releem/mysqlconfigurer/metrics/system"
 	"github.com/Releem/mysqlconfigurer/models"
 	r "github.com/Releem/mysqlconfigurer/repeater"
 	"github.com/Releem/mysqlconfigurer/utils"
@@ -137,7 +140,7 @@ func (programm *Programm) Run() {
 		if result != nil && len(result.DBInstances) == 1 {
 			configuration.Hostname = configuration.AwsRDSDB
 			configuration.MysqlHost = *result.DBInstances[0].Endpoint.Address
-			gatherers = append(gatherers, metrics.NewAWSRDSEnhancedMetricsGatherer(logger, result.DBInstances[0], cwlogsclient, configuration))
+			gatherers = append(gatherers, system.NewAWSRDSEnhancedMetricsGatherer(logger, result.DBInstances[0], cwlogsclient, configuration))
 			logger.Info("AWS RDS DB instance found: ", configuration.AwsRDSDB)
 		} else if result != nil && len(result.DBInstances) > 1 {
 			logger.Infof("RDS.DescribeDBInstances: Database has %d instances. Clusters are not supported", len(result.DBInstances))
@@ -202,15 +205,17 @@ func (programm *Programm) Run() {
 		}
 
 		// Add GCP gatherer
-		gatherers = append(gatherers, metrics.NewGCPCloudSQLEnhancedMetricsGatherer(logger, monitoringClient, sqlAdminService, configuration))
+		gatherers = append(gatherers, system.NewGCPCloudSQLEnhancedMetricsGatherer(logger, monitoringClient, sqlAdminService, configuration))
 
 	default:
 		logger.Info("InstanceType is Local")
-		gatherers = append(gatherers, metrics.NewOSMetricsGatherer(logger, configuration))
+		gatherers = append(gatherers, system.NewOSMetricsGatherer(logger, configuration))
 
 	}
 
-	models.DB = utils.ConnectionDatabase(configuration, logger, "mysql")
+	// Initialize database connection based on database type
+	dbType := configuration.GetDatabaseType()
+	models.DB = utils.ConnectionDatabase(configuration, logger, "")
 	defer models.DB.Close()
 
 	//Init repeaters
@@ -227,15 +232,28 @@ func (programm *Programm) Run() {
 	//var repeaters models.MetricsRepeater
 	repeaters := models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, logger))
 
-	//Init gatherers
-	gatherers = append(gatherers,
-		metrics.NewDbConfGatherer(logger, configuration),
-		metrics.NewDbInfoBaseGatherer(logger, configuration),
-		metrics.NewDbMetricsBaseGatherer(logger, configuration),
-		metrics.NewAgentMetricsGatherer(logger, configuration))
-	gatherers_metrics = append(gatherers_metrics, metrics.NewDbMetricsMetricsBaseGatherer(logger, configuration))
-	gatherers_configuration = append(gatherers_configuration, metrics.NewDbMetricsGatherer(logger, configuration), metrics.NewDbInfoGatherer(logger, configuration))
-	gatherers_query_optimization = append(gatherers_query_optimization, metrics.NewDbCollectQueriesOptimization(logger, configuration))
+	//Init gatherers based on database type
+	switch dbType {
+	case "postgresql":
+		gatherers = append(gatherers,
+			postgresql.NewPgConfGatherer(logger, configuration),
+			postgresql.NewPgInfoBaseGatherer(logger, configuration),
+			postgresql.NewPgMetricsBaseGatherer(logger, configuration),
+			metrics.NewAgentMetricsGatherer(logger, configuration))
+		gatherers_metrics = append(gatherers_metrics, postgresql.NewPgMetricsMetricsBaseGatherer(logger, configuration))
+		gatherers_query_optimization = append(gatherers_query_optimization, postgresql.NewPgCollectQueriesOptimization(logger, configuration))
+	case "mysql":
+		fallthrough
+	default:
+		gatherers = append(gatherers,
+			mysql.NewDbConfGatherer(logger, configuration),
+			mysql.NewDbInfoBaseGatherer(logger, configuration),
+			mysql.NewDbMetricsBaseGatherer(logger, configuration),
+			metrics.NewAgentMetricsGatherer(logger, configuration))
+		gatherers_metrics = append(gatherers_metrics, mysql.NewDbMetricsMetricsBaseGatherer(logger, configuration))
+		gatherers_configuration = append(gatherers_configuration, mysql.NewDbMetricsGatherer(logger, configuration), mysql.NewDbInfoGatherer(logger, configuration))
+		gatherers_query_optimization = append(gatherers_query_optimization, mysql.NewDbCollectQueriesOptimization(logger, configuration))
+	}
 
 	metrics.RunWorker(gatherers, gatherers_metrics, gatherers_configuration, gatherers_query_optimization, repeaters, logger, configuration, Mode)
 

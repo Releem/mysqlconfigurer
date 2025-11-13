@@ -12,6 +12,7 @@ import (
 	"github.com/Releem/mysqlconfigurer/models"
 	_ "github.com/go-sql-driver/mysql"
 	logging "github.com/google/logger"
+	_ "github.com/lib/pq"
 	"github.com/pkg/errors"
 )
 
@@ -66,6 +67,25 @@ func IsPath(path string, logger logging.Logger) bool {
 }
 
 func ConnectionDatabase(configuration *config.Config, logger logging.Logger, DBname string) *sql.DB {
+	dbType := configuration.GetDatabaseType()
+
+	switch dbType {
+	case "postgresql":
+		if DBname == "" {
+			DBname = "postgres"
+		}
+		return ConnectionPostgreSQL(configuration, logger, DBname)
+	case "mysql":
+		fallthrough
+	default:
+		if DBname == "" {
+			DBname = "mysql"
+		}
+		return ConnectionMySQL(configuration, logger, DBname)
+	}
+}
+
+func ConnectionMySQL(configuration *config.Config, logger logging.Logger, DBname string) *sql.DB {
 	var db *sql.DB
 	var err error
 	var TypeConnection, MysqlSslMode string
@@ -106,8 +126,37 @@ func ConnectionDatabase(configuration *config.Config, logger logging.Logger, DBn
 	return db
 }
 
+func ConnectionPostgreSQL(configuration *config.Config, logger logging.Logger, DBname string) *sql.DB {
+	var db *sql.DB
+	var err error
+
+	// Build PostgreSQL connection string
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		configuration.PgHost, configuration.PgPort, configuration.PgUser,
+		configuration.PgPassword, DBname, configuration.PgSslMode)
+
+	db, err = sql.Open("postgres", connStr)
+	if err != nil {
+		logger.Error("PostgreSQL connection opening failed ", err)
+	}
+
+	err = db.Ping()
+	if err != nil {
+		logger.Info("PostgreSQL connection failed to DB ", DBname, " via tcp ", configuration.PgHost, ":", configuration.PgPort)
+	} else {
+		logger.Info("PostgreSQL connection successful to DB ", DBname, " via tcp ", configuration.PgHost, ":", configuration.PgPort)
+	}
+	return db
+}
+
 func EnableEventsStatementsConsumers(configuration *config.Config, logger logging.Logger, uptime_str string) uint64 {
 	var count_setup_consumers uint64
+
+	// Only applicable to MySQL
+	if configuration.GetDatabaseType() != "mysql" {
+		return 0
+	}
+
 	uptime, err := strconv.Atoi(uptime_str)
 	if err != nil {
 		logger.Error(err)
@@ -131,4 +180,61 @@ func EnableEventsStatementsConsumers(configuration *config.Config, logger loggin
 	}
 
 	return count_setup_consumers
+}
+
+// IsSchemaNameExclude checks if a schema name should be excluded from query optimization
+func IsSchemaNameExclude(SchemaName string, DatabasesQueryOptimization string) bool {
+	if DatabasesQueryOptimization == "" {
+		return false
+	}
+	for _, DbName := range strings.Split(DatabasesQueryOptimization, `,`) {
+		if SchemaName == DbName {
+			return false
+		}
+	}
+	return true
+}
+
+func GetPostgreSQLMetrics(rows *sql.Rows, logger logging.Logger) []models.MetricGroupValue {
+
+	cols, err := rows.Columns()
+	if err != nil {
+		logger.Error(err)
+	}
+	var out []map[string]any
+
+	for rows.Next() {
+		// Готовим приёмники под каждую колонку
+		values := make([]any, len(cols))
+		ptrs := make([]any, len(cols))
+		for i := range values {
+			ptrs[i] = &values[i]
+		}
+		err := rows.Scan(ptrs...)
+		if err != nil {
+			logger.Error(err)
+			return nil
+		}
+
+		row := make(map[string]any, len(cols))
+		for i, col := range cols {
+			v := values[i]
+			switch vv := v.(type) {
+			case []byte:
+				row[col] = string(vv)
+			case nil:
+				row[col] = "NULL"
+			default:
+				row[col] = vv // может быть nil, time.Time, int64, float64, bool и т.д.
+			}
+
+		}
+		out = append(out, row)
+	}
+	// Convert []map[string]any to []models.MetricGroupValue
+	processListConverted := make([]models.MetricGroupValue, len(out))
+	for i, row := range out {
+		processListConverted[i] = models.MetricGroupValue(row)
+	}
+	return processListConverted
 }

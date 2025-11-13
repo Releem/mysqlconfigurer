@@ -6,16 +6,14 @@ require (
 	cloud.google.com/go/monitoring v1.21.2
 	github.com/Releem/daemon v0.0.0-20241028135502-b7f24658ba58
 	github.com/aws/aws-sdk-go v1.55.7
-	github.com/aws/aws-sdk-go-v2 v1.36.5
 	github.com/aws/aws-sdk-go-v2/config v1.29.17
-	github.com/aws/aws-sdk-go-v2/service/cloudwatch v1.45.3
 	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.51.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.228.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.99.1
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/google/logger v1.1.1
 	github.com/hashicorp/go-version v1.7.0
 	github.com/hashicorp/hcl v1.0.0
+	github.com/lib/pq v1.10.9
 	github.com/pkg/errors v0.9.1
 	github.com/shirou/gopsutil/v4 v4.25.6
 	google.golang.org/api v0.210.0
@@ -27,6 +25,7 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.6 // indirect
 	cloud.google.com/go/compute/metadata v0.5.2 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.36.5 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.11 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.70 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.32 // indirect

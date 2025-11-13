@@ -1,4 +1,4 @@
-package metrics
+package mysql
 
 import (
 	"github.com/Releem/mysqlconfigurer/config"

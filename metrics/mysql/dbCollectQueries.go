@@ -112,25 +112,6 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 		return nil
 	}
 
-	//list of databases
-	var database string
-	var output []string
-	rows_database, err := models.DB.Query("SELECT table_schema FROM INFORMATION_SCHEMA.tables group BY table_schema")
-	if err != nil {
-		DbCollectQueriesOptimization.logger.Error(err)
-		return err
-	}
-	for rows_database.Next() {
-		err := rows_database.Scan(&database)
-		if err != nil {
-			DbCollectQueriesOptimization.logger.Error(err)
-			return err
-		}
-		output = append(output, database)
-	}
-	rows_database.Close()
-	metrics.DB.Metrics.Databases = output
-
 	metrics.DB.QueriesOptimization = make(map[string][]models.MetricGroupValue)
 	type information_schema_table_type struct {
 		TABLE_SCHEMA    string

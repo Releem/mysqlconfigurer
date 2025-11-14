@@ -94,3 +94,5 @@ var (
 	SqlText      map[string]map[string]string
 	SqlTextMutex sync.RWMutex
 )
+
+var PgStatStatementsEnabled bool

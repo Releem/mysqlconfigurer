@@ -2,7 +2,6 @@ package postgresql
 
 import (
 	"database/sql"
-	"strings"
 	"time"
 
 	"github.com/Releem/mysqlconfigurer/config"
@@ -138,7 +137,14 @@ func (PgMetricsBase *PgMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 		}
 		metrics.DB.Metrics.TotalTables = row
 	}
-
+	{
+		// Check if pg_stat_statements extension is available
+		err := models.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements')").Scan(&models.PgStatStatementsEnabled)
+		if err != nil {
+			PgMetricsBase.logger.Error("Error checking pg_stat_statements extension: ", err)
+			return err
+		}
+	}
 	PgMetricsBase.logger.V(5).Info("CollectMetrics PgMetricsBase ", metrics.DB.Metrics)
 
 	return nil
@@ -204,20 +210,17 @@ func (PgMetrics *PgMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 	// Query latency from pg_stat_statements if available
 	{
 		var count_statements uint64
-
-		err := models.DB.QueryRow("SELECT COUNT(*) FROM pg_stat_statements").Scan(&count_statements)
-		if err != nil {
-			// Check if it's a "relation does not exist" error (extension not installed)
-			if strings.Contains(err.Error(), "relation \"pg_stat_statements\" does not exist") {
-				PgMetrics.logger.Warning("pg_stat_statements extension is not installed, skipping query latency collection")
-				metrics.DB.Metrics.CountQueriesLatency = 0
-			} else if err != sql.ErrNoRows {
-				PgMetrics.logger.Error("pg_stat_statements count query failed: ", err)
-				metrics.DB.Metrics.CountQueriesLatency = 0
+		count_statements = 0
+		if models.PgStatStatementsEnabled {
+			err := models.DB.QueryRow("SELECT COUNT(*) FROM pg_stat_statements").Scan(&count_statements)
+			if err != nil {
+				if err != sql.ErrNoRows {
+					PgMetrics.logger.Error(err)
+				}
 			}
-		} else {
-			metrics.DB.Metrics.CountQueriesLatency = count_statements
 		}
+		metrics.DB.Metrics.CountQueriesLatency = count_statements
+
 	}
 	PgMetrics.logger.V(5).Info("CollectMetrics PgMetrics ", metrics.DB.Metrics)
 
@@ -230,61 +233,65 @@ func (PgMetricsMetricsBase *PgMetricsMetricsBaseGatherer) GetMetrics(metrics *mo
 	// Query latency from pg_stat_statements if available
 	{
 		var output []models.MetricGroupValue
-		var schema_name, query_id string
-		var calls, avg_time_us, sum_time_us int
+		var query_id, dbname string
+		var calls int
+		var total_time, mean_time float64
 
-		// Check if pg_stat_statements extension is available
-		var extension_exists bool
-		err := models.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements')").Scan(&extension_exists)
-		if err != nil {
-			PgMetricsMetricsBase.logger.Error("Error checking pg_stat_statements extension: ", err)
-			return err
-		}
-
-		if extension_exists {
+		if models.PgStatStatementsEnabled {
+			// Collect query statistics from pg_stat_statements
 			rows, err := models.DB.Query(`
 				SELECT 
-					COALESCE(d.datname, 'NULL') as schema_name,
+					COALESCE(d.datname, NULL) as dbname,
 					s.queryid::text as query_id,
 					s.calls,
-					ROUND(s.mean_exec_time * 1000)::int as avg_time_us,
-					ROUND(s.total_exec_time * 1000)::int as sum_time_us
+					s.total_exec_time as total_time,
+					s.mean_exec_time as mean_time
 				FROM pg_stat_statements s
 				LEFT JOIN pg_database d ON d.oid = s.dbid
 				WHERE s.calls > 0
 				ORDER BY s.total_exec_time DESC
-				LIMIT 100`)
+				LIMIT 1000`)
 
 			if err != nil {
 				// Try older version of pg_stat_statements (pre-13)
 				rows, err = models.DB.Query(`
 					SELECT 
-						COALESCE(d.datname, 'NULL') as schema_name,
+						COALESCE(d.datname, NULL) as dbname,
 						s.queryid::text as query_id,
 						s.calls,
-						ROUND(s.mean_time * 1000)::int as avg_time_us,
-						ROUND(s.total_time * 1000)::int as sum_time_us
+						s.total_time as total_time,
+						s.mean_time as mean_time
 					FROM pg_stat_statements s
 					LEFT JOIN pg_database d ON d.oid = s.dbid
 					WHERE s.calls > 0
 					ORDER BY s.total_time DESC
-					LIMIT 100`)
-			}
+					LIMIT 1000`)
 
-			if err != nil {
-				if err != sql.ErrNoRows {
-					PgMetricsMetricsBase.logger.Error(err)
-				}
-			} else {
-				for rows.Next() {
-					err := rows.Scan(&schema_name, &query_id, &calls, &avg_time_us, &sum_time_us)
-					if err != nil {
+				if err != nil {
+					if err != sql.ErrNoRows {
 						PgMetricsMetricsBase.logger.Error(err)
-						return err
 					}
-					output = append(output, models.MetricGroupValue{"schema_name": schema_name, "query_id": query_id, "calls": calls, "avg_time_us": avg_time_us, "sum_time_us": sum_time_us})
 				}
-				rows.Close()
+			}
+			defer rows.Close()
+
+			for rows.Next() {
+				err := rows.Scan(&dbname, &query_id, &calls, &total_time, &mean_time)
+				if err != nil {
+					PgMetricsMetricsBase.logger.Error(err)
+					return err
+				}
+
+				// Convert to microseconds for compatibility with MySQL metrics
+				total_time_us := int(total_time * 1000)
+				mean_time_us := int(mean_time * 1000)
+				output = append(output, models.MetricGroupValue{
+					"schema_name": dbname,
+					"query_id":    query_id,
+					"calls":       calls,
+					"avg_time_us": mean_time_us,
+					"sum_time_us": total_time_us,
+				})
 			}
 		}
 

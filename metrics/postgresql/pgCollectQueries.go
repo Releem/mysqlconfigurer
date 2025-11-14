@@ -30,18 +30,10 @@ func (PgCollectQueriesOptimization *PgCollectQueriesOptimization) GetMetrics(met
 
 	var dbname, query_id, query string
 	var calls int
-	var total_time, mean_time, rows_query float64
+	var total_time, mean_time float64
 	output_digest := make(map[string]models.MetricGroupValue)
 
-	// Check if pg_stat_statements extension is available
-	var extension_exists bool
-	err := models.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements')").Scan(&extension_exists)
-	if err != nil {
-		PgCollectQueriesOptimization.logger.Error("Error checking pg_stat_statements extension: ", err)
-		return err
-	}
-
-	if !extension_exists {
+	if !models.PgStatStatementsEnabled {
 		PgCollectQueriesOptimization.logger.Info("pg_stat_statements extension is not installed, skipping query collection")
 		metrics.DB.Queries = nil
 		return nil
@@ -55,8 +47,7 @@ func (PgCollectQueriesOptimization *PgCollectQueriesOptimization) GetMetrics(met
 			s.query as query_text,
 			s.calls,
 			s.total_exec_time as total_time,
-			s.mean_exec_time as mean_time,
-			s.rows as rows
+			s.mean_exec_time as mean_time
 		FROM pg_stat_statements s
 		LEFT JOIN pg_database d ON d.oid = s.dbid
 		WHERE s.calls > 0
@@ -72,8 +63,7 @@ func (PgCollectQueriesOptimization *PgCollectQueriesOptimization) GetMetrics(met
 				s.query as query_text,
 				s.calls,
 				s.total_time as total_time,
-				s.mean_time as mean_time,
-				s.rows as rows
+				s.mean_time as mean_time
 			FROM pg_stat_statements s
 			LEFT JOIN pg_database d ON d.oid = s.dbid
 			WHERE s.calls > 0
@@ -91,7 +81,7 @@ func (PgCollectQueriesOptimization *PgCollectQueriesOptimization) GetMetrics(met
 	defer rows.Close()
 
 	for rows.Next() {
-		err := rows.Scan(&dbname, &query_id, &query, &calls, &total_time, &mean_time, &rows_query)
+		err := rows.Scan(&dbname, &query_id, &query, &calls, &total_time, &mean_time)
 		if err != nil {
 			PgCollectQueriesOptimization.logger.Error(err)
 			return err
@@ -102,14 +92,13 @@ func (PgCollectQueriesOptimization *PgCollectQueriesOptimization) GetMetrics(met
 		mean_time_us := int(mean_time * 1000)
 		query_text := ""
 		output_digest[dbname+query_id] = models.MetricGroupValue{
-			"schema_name":   dbname,
-			"query_id":      query_id,
-			"query":         query,
-			"query_text":    query_text,
-			"calls":         calls,
-			"avg_time_us":   mean_time_us,
-			"sum_time_us":   total_time_us,
-			"rows_returned": rows_query,
+			"schema_name": dbname,
+			"query_id":    query_id,
+			"query":       query,
+			"query_text":  query_text,
+			"calls":       calls,
+			"avg_time_us": mean_time_us,
+			"sum_time_us": total_time_us,
 		}
 	}
 
@@ -124,26 +113,6 @@ func (PgCollectQueriesOptimization *PgCollectQueriesOptimization) GetMetrics(met
 	if !PgCollectQueriesOptimization.configuration.QueryOptimization {
 		return nil
 	}
-
-	// List of databases
-	var database string
-	var output []string
-	rows_database, err := models.DB.Query("SELECT datname FROM pg_database WHERE datistemplate = false ORDER BY datname")
-	if err != nil {
-		PgCollectQueriesOptimization.logger.Error(err)
-		return err
-	}
-	defer rows_database.Close()
-
-	for rows_database.Next() {
-		err := rows_database.Scan(&database)
-		if err != nil {
-			PgCollectQueriesOptimization.logger.Error(err)
-			return err
-		}
-		output = append(output, database)
-	}
-	metrics.DB.Metrics.Databases = output
 
 	metrics.DB.QueriesOptimization = make(map[string][]models.MetricGroupValue)
 

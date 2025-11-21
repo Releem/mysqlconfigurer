@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+     xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+
+  <?define ProductName = "Releem Agent" ?>
+  <?define Manufacturer = "Releem" ?>
+  <?define Version = "1.0.0" ?>
+  <?define UpgradeCode = "E8F5C9A1-2B3D-4E6F-8A9B-0C1D2E3F4A5B" ?>
+
+  <Product Id="*"
+           Name="$(var.ProductName)"
+           Language="1033"
+           Version="$(var.Version)"
+           Manufacturer="$(var.Manufacturer)"
+           UpgradeCode="$(var.UpgradeCode)">
+
+    <Package InstallerVersion="500"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Description="$(var.ProductName) Installer"
+             Manufacturer="$(var.Manufacturer)"
+             Platform="x64" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed."
+                  AllowSameVersionUpgrades="yes" />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Properties for user input -->
+    <Property Id="RELEEM_APIKEY" Value="" Secure="yes" />
+    <Property Id="MYSQL_HOST" Value="127.0.0.1" Secure="yes" />
+    <Property Id="MYSQL_PORT" Value="3306" Secure="yes" />
+    <Property Id="MYSQL_USER" Value="releem" Secure="yes" />
+    <Property Id="MYSQL_PASSWORD" Value="" Secure="yes" />
+    <Property Id="QUERY_OPTIMIZATION" Value="true" Secure="yes" />
+
+    <!-- Installation directory -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="ReleemAgent">
+          <Component Id="InstallDirComponent" Guid="A1B2C3D4-E5F6-7890-ABCD-EF1234567890" Win64="yes">
+            <CreateFolder />
+            <RemoveFolder Id="RemoveInstallDir" On="uninstall" />
+          </Component>
+        </Directory>
+      </Directory>
+      <Directory Id="CommonAppDataFolder">
+        <Directory Id="CONFIGDIR" Name="ReleemAgent">
+          <Component Id="ConfigDirComponent" Guid="B2C3D4E5-F6A7-8901-BCDE-F12345678901" Win64="yes">
+            <CreateFolder />
+            <RemoveFolder Id="RemoveConfigDir" On="uninstall" />
+          </Component>
+          <Directory Id="CONFDDIR" Name="conf.d">
+            <Component Id="ConfDDirComponent" Guid="C3D4E5F6-A7B8-9012-CDEF-123456789012" Win64="yes">
+              <CreateFolder />
+              <RemoveFolder Id="RemoveConfDDir" On="uninstall" />
+            </Component>
+          </Directory>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <!-- Executable component (placeholder - file downloaded by custom action) -->
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="ExecutableComponent" Guid="D4E5F6A7-B8C9-0123-DEF0-234567890123" Win64="yes">
+        <File Id="ReleemAgentExe"
+              Name="releem-agent.exe"
+              Source="!(bindpath.bin)\releem-agent.exe"
+              KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- Registry entries for Add/Remove Programs -->
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="RegistryComponent" Guid="E5F6A7B8-C9D0-1234-EF01-345678901234" Win64="yes">
+        <RegistryKey Root="HKLM" Key="SOFTWARE\Releem\ReleemAgent">
+          <RegistryValue Type="string" Name="InstallPath" Value="[INSTALLDIR]" />
+          <RegistryValue Type="string" Name="ConfigPath" Value="[CONFIGDIR]" />
+          <RegistryValue Type="string" Name="Version" Value="$(var.Version)" />
+        </RegistryKey>
+      </Component>
+    </DirectoryRef>
+
+    <!-- Main feature -->
+    <Feature Id="MainFeature" Title="$(var.ProductName)" Level="1" Absent="disallow">
+      <ComponentRef Id="InstallDirComponent" />
+      <ComponentRef Id="ConfigDirComponent" />
+      <ComponentRef Id="ConfDDirComponent" />
+      <ComponentRef Id="ExecutableComponent" />
+      <ComponentRef Id="RegistryComponent" />
+    </Feature>
+
+    <!-- Custom Actions -->
+    <Binary Id="CustomActionsDll" SourceFile="!(bindpath.ca)\ReleemCustomActions.CA.dll" />
+
+    <!-- Download executable custom action -->
+    <CustomAction Id="DownloadExecutable"
+                  BinaryKey="CustomActionsDll"
+                  DllEntry="DownloadExecutable"
+                  Execute="immediate"
+                  Return="check" />
+
+    <!-- Set properties for deferred custom actions -->
+    <CustomAction Id="SetGenerateConfigProperties"
+                  Property="GenerateConfigFile"
+                  Value="CONFIGDIR=[CONFIGDIR];RELEEM_APIKEY=[RELEEM_APIKEY];MYSQL_HOST=[MYSQL_HOST];MYSQL_PORT=[MYSQL_PORT];MYSQL_USER=[MYSQL_USER];MYSQL_PASSWORD=[MYSQL_PASSWORD];QUERY_OPTIMIZATION=[QUERY_OPTIMIZATION]" />
+
+    <CustomAction Id="GenerateConfigFile"
+                  BinaryKey="CustomActionsDll"
+                  DllEntry="GenerateConfigFile"
+                  Execute="deferred"
+                  Return="check"
+                  Impersonate="no" />
+
+    <CustomAction Id="SetInstallServiceProperties"
+                  Property="InstallService"
+                  Value="INSTALLDIR=[INSTALLDIR]" />
+
+    <CustomAction Id="InstallService"
+                  BinaryKey="CustomActionsDll"
+                  DllEntry="InstallService"
+                  Execute="deferred"
+                  Return="check"
+                  Impersonate="no" />
+
+    <CustomAction Id="SetStartServiceProperties"
+                  Property="StartService"
+                  Value="INSTALLDIR=[INSTALLDIR]" />
+
+    <CustomAction Id="StartService"
+                  BinaryKey="CustomActionsDll"
+                  DllEntry="StartService"
+                  Execute="commit"
+                  Return="ignore"
+                  Impersonate="no" />
+
+    <CustomAction Id="SetStopServiceProperties"
+                  Property="StopService"
+                  Value="INSTALLDIR=[INSTALLDIR]" />
+
+    <CustomAction Id="StopService"
+                  BinaryKey="CustomActionsDll"
+                  DllEntry="StopService"
+                  Execute="deferred"
+                  Return="ignore"
+                  Impersonate="no" />
+
+    <CustomAction Id="SetRemoveServiceProperties"
+                  Property="RemoveService"
+                  Value="INSTALLDIR=[INSTALLDIR]" />
+
+    <CustomAction Id="RemoveService"
+                  BinaryKey="CustomActionsDll"
+                  DllEntry="RemoveService"
+                  Execute="deferred"
+                  Return="ignore"
+                  Impersonate="no" />
+
+    <!-- Install sequence -->
+    <InstallExecuteSequence>
+      <!-- Download before InstallFiles -->
+      <Custom Action="DownloadExecutable" After="CostFinalize">NOT Installed AND NOT REMOVE</Custom>
+
+      <!-- Generate config file -->
+      <Custom Action="SetGenerateConfigProperties" After="InstallFiles">NOT Installed AND NOT REMOVE</Custom>
+      <Custom Action="GenerateConfigFile" After="SetGenerateConfigProperties">NOT Installed AND NOT REMOVE</Custom>
+
+      <!-- Install service -->
+      <Custom Action="SetInstallServiceProperties" After="GenerateConfigFile">NOT Installed AND NOT REMOVE</Custom>
+      <Custom Action="InstallService" After="SetInstallServiceProperties">NOT Installed AND NOT REMOVE</Custom>
+
+      <!-- Start service -->
+      <Custom Action="SetStartServiceProperties" After="InstallService">NOT Installed AND NOT REMOVE</Custom>
+      <Custom Action="StartService" After="SetStartServiceProperties">NOT Installed AND NOT REMOVE</Custom>
+
+      <!-- Uninstall: Stop and remove service -->
+      <Custom Action="SetStopServiceProperties" Before="RemoveFiles">REMOVE="ALL"</Custom>
+      <Custom Action="StopService" After="SetStopServiceProperties">REMOVE="ALL"</Custom>
+      <Custom Action="SetRemoveServiceProperties" After="StopService">REMOVE="ALL"</Custom>
+      <Custom Action="RemoveService" After="SetRemoveServiceProperties">REMOVE="ALL"</Custom>
+    </InstallExecuteSequence>
+
+    <!-- UI Reference -->
+    <UIRef Id="ReleemInstallerUI" />
+
+  </Product>
+</Wix>

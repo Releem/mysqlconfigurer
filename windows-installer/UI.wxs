@@ -26,10 +26,10 @@
       <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="ConfigurationDlg">1</Publish>
 
       <Publish Dialog="ConfigurationDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">1</Publish>
-      <Publish Dialog="ConfigurationDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">RELEEM_APIKEY AND MYSQL_PASSWORD</Publish>
+      <Publish Dialog="ConfigurationDlg" Control="Next" Event="NewDialog" Value="InstallReadyDlg">RELEEM_APIKEY AND MYSQL_PASSWORD</Publish>
 
-      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="ConfigurationDlg">1</Publish>
-      <Publish Dialog="VerifyReadyDlg" Control="Install" Event="NewDialog" Value="ProgressDlg">1</Publish>
+      <Publish Dialog="InstallReadyDlg" Control="Back" Event="NewDialog" Value="ConfigurationDlg">1</Publish>
+      <Publish Dialog="InstallReadyDlg" Control="Install" Event="NewDialog" Value="ProgressDlg">1</Publish>
 
       <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return">1</Publish>
 
@@ -84,8 +84,8 @@
         </Control>
       </Dialog>
 
-      <!-- Verify Ready Dialog -->
-      <Dialog Id="VerifyReadyDlg" Width="370" Height="270" Title="[ProductName] Setup">
+      <!-- Install Ready Dialog -->
+      <Dialog Id="InstallReadyDlg" Width="370" Height="270" Title="[ProductName] Setup">
         <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
         <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Ready to Install" />
         <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Click Install to begin the installation." />

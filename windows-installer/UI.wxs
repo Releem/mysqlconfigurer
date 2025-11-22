@@ -2,9 +2,6 @@
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
 
   <Fragment>
-    <!-- Logo binary -->
-    <Binary Id="logo.png" SourceFile="logo.png" />
-
     <UI Id="ReleemInstallerUI">
       <UIRef Id="WixUI_Common" />
 
@@ -45,8 +42,7 @@
       <!-- Configuration Dialog -->
       <Dialog Id="ConfigurationDlg" Width="370" Height="270" Title="[ProductName] Setup">
         <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
-        <Control Id="LogoBitmap" Type="Bitmap" X="8" Y="8" Width="28" Height="28" TabSkip="no" Text="logo.png" />
-        <Control Id="Title" Type="Text" X="42" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Configuration Settings" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Configuration Settings" />
         <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Enter your Releem API key and MySQL connection details." />
         <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
 
@@ -91,8 +87,7 @@
       <!-- Install Ready Dialog -->
       <Dialog Id="InstallReadyDlg" Width="370" Height="270" Title="[ProductName] Setup">
         <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
-        <Control Id="LogoBitmap" Type="Bitmap" X="8" Y="8" Width="28" Height="28" TabSkip="no" Text="logo.png" />
-        <Control Id="Title" Type="Text" X="42" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Ready to Install" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Ready to Install" />
         <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Click Install to begin the installation." />
         <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
 

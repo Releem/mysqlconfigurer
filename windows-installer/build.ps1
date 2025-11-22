@@ -47,20 +47,8 @@ try {
 Write-Host "Custom Actions built successfully." -ForegroundColor Green
 Write-Host ""
 
-# Step 2: Download releem-agent.exe
-Write-Host "[2/4] Downloading releem-agent.exe..." -ForegroundColor Green
-$exePath = "bin\releem-agent.exe"
-if (-not $SkipDownload -and -not (Test-Path $exePath)) {
-    try {
-        $url = "https://releem.s3.us-east-1.amazonaws.com/v2/releem-agent.exe"
-        Invoke-WebRequest -Uri $url -OutFile $exePath
-        Write-Host "Downloaded releem-agent.exe" -ForegroundColor Green
-    } catch {
-        Write-Host "WARNING: Could not download releem-agent.exe. It will be downloaded during installation." -ForegroundColor Yellow
-    }
-} else {
-    Write-Host "releem-agent.exe already exists or download skipped." -ForegroundColor Yellow
-}
+# Step 2: Skip exe download (will download during installation)
+Write-Host "[2/4] Skipping exe download (will download during installation)..." -ForegroundColor Green
 Write-Host ""
 
 # Step 3: Compile WiX sources
@@ -89,7 +77,6 @@ $lightArgs = @(
     "obj\UI.wixobj",
     "-ext", "WixUtilExtension",
     "-ext", "WixUIExtension",
-    "-b", "bin=bin",
     "-b", "ca=CustomActions\bin\Release\net48",
     "-out", "bin\releem-agent-setup.msi",
     "-sice:ICE61"

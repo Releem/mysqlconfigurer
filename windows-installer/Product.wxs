@@ -60,13 +60,11 @@
       </Directory>
     </Directory>
 
-    <!-- Executable component (placeholder - file downloaded by custom action) -->
+    <!-- Executable component (file downloaded by custom action during install) -->
     <DirectoryRef Id="INSTALLDIR">
       <Component Id="ExecutableComponent" Guid="D4E5F6A7-B8C9-0123-DEF0-234567890123" Win64="yes">
-        <File Id="ReleemAgentExe"
-              Name="releem-agent.exe"
-              Source="!(bindpath.bin)\releem-agent.exe"
-              KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="SOFTWARE\Releem\ReleemAgent" Name="ExecutableInstalled" Type="string" Value="1" KeyPath="yes" />
+        <RemoveFile Id="RemoveExe" Name="releem-agent.exe" On="uninstall" />
       </Component>
     </DirectoryRef>
 

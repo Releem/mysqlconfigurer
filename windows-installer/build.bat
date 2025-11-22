@@ -43,18 +43,8 @@ cd ..
 echo Custom Actions built successfully.
 echo.
 
-:: Download releem-agent.exe for inclusion in MSI (optional - can also be downloaded at install time)
-echo [2/4] Downloading releem-agent.exe...
-if not exist "bin\releem-agent.exe" (
-    powershell -Command "Invoke-WebRequest -Uri 'https://releem.s3.us-east-1.amazonaws.com/v2/releem-agent.exe' -OutFile 'bin\releem-agent.exe'"
-    if %errorlevel% neq 0 (
-        echo WARNING: Could not download releem-agent.exe. It will be downloaded during installation.
-    ) else (
-        echo Downloaded releem-agent.exe
-    )
-) else (
-    echo releem-agent.exe already exists, skipping download.
-)
+:: Note: releem-agent.exe will be downloaded during installation
+echo [2/4] Skipping exe download (will download during installation)...
 echo.
 
 echo [3/4] Compiling WiX sources...
@@ -74,7 +64,6 @@ echo [4/4] Linking MSI...
 light.exe obj\Product.wixobj obj\UI.wixobj ^
     -ext WixUtilExtension ^
     -ext WixUIExtension ^
-    -b bin=bin ^
     -b ca=CustomActions\bin\Release\net48 ^
     -out bin\releem-agent-setup.msi ^
     -sice:ICE61

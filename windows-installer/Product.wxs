@@ -27,11 +27,11 @@
     <MediaTemplate EmbedCab="yes" />
 
     <!-- Properties for user input -->
-    <Property Id="RELEEM_APIKEY" Value="" Secure="yes" />
+    <Property Id="RELEEM_APIKEY" Secure="yes" />
     <Property Id="MYSQL_HOST" Value="127.0.0.1" Secure="yes" />
     <Property Id="MYSQL_PORT" Value="3306" Secure="yes" />
     <Property Id="MYSQL_USER" Value="releem" Secure="yes" />
-    <Property Id="MYSQL_PASSWORD" Value="" Secure="yes" />
+    <Property Id="MYSQL_PASSWORD" Secure="yes" />
     <Property Id="QUERY_OPTIMIZATION" Value="true" Secure="yes" />
 
     <!-- Installation directory -->

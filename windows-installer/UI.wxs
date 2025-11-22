@@ -38,15 +38,19 @@
 
       <!-- Installation complete actions -->
       <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchDashboard">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
-
-      <!-- Custom action to launch dashboard -->
-      <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
-      <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Open Releem Dashboard" />
-      <Property Id="WixShellExecTarget" Value="https://releem.com/dashboard" />
-      <CustomAction Id="LaunchDashboard" BinaryKey="WixCA" DllEntry="WixShellExec" Impersonate="yes" />
     </UI>
 
-    <!-- Configuration Dialog -->
+    <!-- Properties for dashboard launch -->
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Open Releem Dashboard" />
+    <Property Id="WixShellExecTarget" Value="https://releem.com/dashboard" />
+
+    <!-- Custom action to launch dashboard -->
+    <CustomAction Id="LaunchDashboard" BinaryKey="WixCA" DllEntry="WixShellExec" Impersonate="yes" />
+  </Fragment>
+
+  <!-- Configuration Dialog -->
+  <Fragment>
     <Dialog Id="ConfigurationDlg" Width="370" Height="270" Title="[ProductName] Setup">
       <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
       <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Configuration Settings" />
@@ -90,8 +94,10 @@
         <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
       </Control>
     </Dialog>
+  </Fragment>
 
-    <!-- Verify Ready Dialog -->
+  <!-- Verify Ready Dialog -->
+  <Fragment>
     <Dialog Id="VerifyReadyDlg" Width="370" Height="270" Title="[ProductName] Setup">
       <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
       <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Ready to Install" />

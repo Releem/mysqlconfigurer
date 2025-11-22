@@ -60,10 +60,6 @@ Click the button below to view the step-by-step guide.</Text>
           <Publish Event="DoAction" Value="OpenPermissionsGuide">2</Publish>
         </Control>
 
-        <Control Id="NoteText" Type="Text" X="20" Y="160" Width="330" Height="40" NoPrefix="yes">
-          <Text>Note: You can complete this setup now or continue with the installation and configure user permissions later.</Text>
-        </Control>
-
         <!-- Bottom line and buttons -->
         <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&amp;Back" />
@@ -81,31 +77,31 @@ Click the button below to view the step-by-step guide.</Text>
         <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
 
         <!-- API Key -->
-        <Control Id="ApiKeyLabel" Type="Text" X="20" Y="55" Width="150" Height="13" NoPrefix="yes" Text="API Key (required):" />
-        <Control Id="GetApiKeyButton" Type="PushButton" X="250" Y="53" Width="100" Height="17" Text="Get API Key">
+        <Control Id="ApiKeyLabel" Type="Text" X="20" Y="55" Width="180" Height="13" NoPrefix="yes" Text="API Key from Profile page (required):" />
+        <Control Id="GetApiKeyButton" Type="PushButton" X="210" Y="53" Width="90" Height="17" Text="Open Profile">
           <Publish Event="DoAction" Value="SetApiKeyUrl">1</Publish>
           <Publish Event="DoAction" Value="OpenApiKeyPage">2</Publish>
         </Control>
-        <Control Id="ApiKeyEdit" Type="Edit" X="20" Y="68" Width="330" Height="18" Property="RELEEM_APIKEY" />
+        <Control Id="ApiKeyEdit" Type="Edit" X="20" Y="73" Width="330" Height="18" Property="RELEEM_APIKEY" />
 
         <!-- MySQL Host -->
-        <Control Id="MysqlHostLabel" Type="Text" X="20" Y="92" Width="100" Height="13" NoPrefix="yes" Text="MySQL Host:" />
-        <Control Id="MysqlHostEdit" Type="Edit" X="20" Y="105" Width="160" Height="18" Property="MYSQL_HOST" />
+        <Control Id="MysqlHostLabel" Type="Text" X="20" Y="97" Width="100" Height="13" NoPrefix="yes" Text="MySQL Host:" />
+        <Control Id="MysqlHostEdit" Type="Edit" X="20" Y="110" Width="160" Height="18" Property="MYSQL_HOST" />
 
         <!-- MySQL Port -->
-        <Control Id="MysqlPortLabel" Type="Text" X="190" Y="92" Width="80" Height="13" NoPrefix="yes" Text="MySQL Port:" />
-        <Control Id="MysqlPortEdit" Type="Edit" X="190" Y="105" Width="60" Height="18" Property="MYSQL_PORT" />
+        <Control Id="MysqlPortLabel" Type="Text" X="190" Y="97" Width="80" Height="13" NoPrefix="yes" Text="MySQL Port:" />
+        <Control Id="MysqlPortEdit" Type="Edit" X="190" Y="110" Width="60" Height="18" Property="MYSQL_PORT" />
 
         <!-- MySQL User -->
-        <Control Id="MysqlUserLabel" Type="Text" X="20" Y="129" Width="100" Height="13" NoPrefix="yes" Text="MySQL User:" />
-        <Control Id="MysqlUserEdit" Type="Edit" X="20" Y="142" Width="160" Height="18" Property="MYSQL_USER" />
+        <Control Id="MysqlUserLabel" Type="Text" X="20" Y="134" Width="100" Height="13" NoPrefix="yes" Text="MySQL User:" />
+        <Control Id="MysqlUserEdit" Type="Edit" X="20" Y="147" Width="160" Height="18" Property="MYSQL_USER" />
 
         <!-- MySQL Password -->
-        <Control Id="MysqlPasswordLabel" Type="Text" X="190" Y="129" Width="120" Height="13" NoPrefix="yes" Text="MySQL Password (required):" />
-        <Control Id="MysqlPasswordEdit" Type="Edit" X="190" Y="142" Width="160" Height="18" Property="MYSQL_PASSWORD" Password="yes" />
+        <Control Id="MysqlPasswordLabel" Type="Text" X="190" Y="134" Width="120" Height="13" NoPrefix="yes" Text="MySQL Password (required):" />
+        <Control Id="MysqlPasswordEdit" Type="Edit" X="190" Y="147" Width="160" Height="18" Property="MYSQL_PASSWORD" Password="yes" />
 
         <!-- Query Optimization Checkbox -->
-        <Control Id="QueryOptCheckbox" Type="CheckBox" X="20" Y="170" Width="330" Height="18" Property="QUERY_OPTIMIZATION" CheckBoxValue="true" Text="Enable Query Optimization" />
+        <Control Id="QueryOptCheckbox" Type="CheckBox" X="20" Y="175" Width="330" Height="18" Property="QUERY_OPTIMIZATION" CheckBoxValue="true" Text="Enable Query Optimization" />
 
         <!-- Bottom line and buttons -->
         <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />

@@ -38,6 +38,75 @@
 
       <!-- Installation complete actions -->
       <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchDashboard">WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
+
+      <!-- Configuration Dialog -->
+      <Dialog Id="ConfigurationDlg" Width="370" Height="270" Title="[ProductName] Setup">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Configuration Settings" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Enter your Releem API key and MySQL connection details." />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+
+        <!-- API Key -->
+        <Control Id="ApiKeyLabel" Type="Text" X="20" Y="55" Width="100" Height="13" NoPrefix="yes" Text="API Key (required):" />
+        <Control Id="ApiKeyEdit" Type="Edit" X="20" Y="68" Width="330" Height="18" Property="RELEEM_APIKEY" />
+
+        <!-- MySQL Host -->
+        <Control Id="MysqlHostLabel" Type="Text" X="20" Y="92" Width="100" Height="13" NoPrefix="yes" Text="MySQL Host:" />
+        <Control Id="MysqlHostEdit" Type="Edit" X="20" Y="105" Width="160" Height="18" Property="MYSQL_HOST" />
+
+        <!-- MySQL Port -->
+        <Control Id="MysqlPortLabel" Type="Text" X="190" Y="92" Width="80" Height="13" NoPrefix="yes" Text="MySQL Port:" />
+        <Control Id="MysqlPortEdit" Type="Edit" X="190" Y="105" Width="60" Height="18" Property="MYSQL_PORT" />
+
+        <!-- MySQL User -->
+        <Control Id="MysqlUserLabel" Type="Text" X="20" Y="129" Width="100" Height="13" NoPrefix="yes" Text="MySQL User:" />
+        <Control Id="MysqlUserEdit" Type="Edit" X="20" Y="142" Width="160" Height="18" Property="MYSQL_USER" />
+
+        <!-- MySQL Password -->
+        <Control Id="MysqlPasswordLabel" Type="Text" X="190" Y="129" Width="120" Height="13" NoPrefix="yes" Text="MySQL Password (required):" />
+        <Control Id="MysqlPasswordEdit" Type="Edit" X="190" Y="142" Width="160" Height="18" Property="MYSQL_PASSWORD" Password="yes" />
+
+        <!-- Query Optimization Checkbox -->
+        <Control Id="QueryOptCheckbox" Type="CheckBox" X="20" Y="170" Width="330" Height="18" Property="QUERY_OPTIMIZATION" CheckBoxValue="true" Text="Enable Query Optimization" />
+
+        <!-- Info text -->
+        <Control Id="InfoText" Type="Text" X="20" Y="195" Width="330" Height="26" NoPrefix="yes" Text="Get your API key from https://releem.com. The MySQL user needs SELECT and PROCESS privileges." />
+
+        <!-- Bottom line and buttons -->
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&amp;Back" />
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="&amp;Next">
+          <Condition Action="disable"><![CDATA[NOT RELEEM_APIKEY OR NOT MYSQL_PASSWORD]]></Condition>
+          <Condition Action="enable"><![CDATA[RELEEM_APIKEY AND MYSQL_PASSWORD]]></Condition>
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancel">
+          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        </Control>
+      </Dialog>
+
+      <!-- Verify Ready Dialog -->
+      <Dialog Id="VerifyReadyDlg" Width="370" Height="270" Title="[ProductName] Setup">
+        <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
+        <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Ready to Install" />
+        <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Click Install to begin the installation." />
+        <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+
+        <Control Id="InstallText" Type="Text" X="20" Y="60" Width="330" Height="60" NoPrefix="yes">
+          <Text>The installer will:
+1. Download Releem Agent from the internet
+2. Create configuration file with your settings
+3. Install and start the Releem Agent service
+
+Click Install to proceed.</Text>
+        </Control>
+
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&amp;Back" />
+        <Control Id="Install" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="&amp;Install" />
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancel">
+          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        </Control>
+      </Dialog>
     </UI>
 
     <!-- Properties for dashboard launch -->
@@ -47,78 +116,5 @@
 
     <!-- Custom action to launch dashboard -->
     <CustomAction Id="LaunchDashboard" BinaryKey="WixCA" DllEntry="WixShellExec" Impersonate="yes" />
-  </Fragment>
-
-  <!-- Configuration Dialog -->
-  <Fragment>
-    <Dialog Id="ConfigurationDlg" Width="370" Height="270" Title="[ProductName] Setup">
-      <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
-      <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Configuration Settings" />
-      <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Enter your Releem API key and MySQL connection details." />
-      <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
-
-      <!-- API Key -->
-      <Control Id="ApiKeyLabel" Type="Text" X="20" Y="55" Width="100" Height="13" NoPrefix="yes" Text="API Key (required):" />
-      <Control Id="ApiKeyEdit" Type="Edit" X="20" Y="68" Width="330" Height="18" Property="RELEEM_APIKEY" />
-
-      <!-- MySQL Host -->
-      <Control Id="MysqlHostLabel" Type="Text" X="20" Y="92" Width="100" Height="13" NoPrefix="yes" Text="MySQL Host:" />
-      <Control Id="MysqlHostEdit" Type="Edit" X="20" Y="105" Width="160" Height="18" Property="MYSQL_HOST" />
-
-      <!-- MySQL Port -->
-      <Control Id="MysqlPortLabel" Type="Text" X="190" Y="92" Width="80" Height="13" NoPrefix="yes" Text="MySQL Port:" />
-      <Control Id="MysqlPortEdit" Type="Edit" X="190" Y="105" Width="60" Height="18" Property="MYSQL_PORT" />
-
-      <!-- MySQL User -->
-      <Control Id="MysqlUserLabel" Type="Text" X="20" Y="129" Width="100" Height="13" NoPrefix="yes" Text="MySQL User:" />
-      <Control Id="MysqlUserEdit" Type="Edit" X="20" Y="142" Width="160" Height="18" Property="MYSQL_USER" />
-
-      <!-- MySQL Password -->
-      <Control Id="MysqlPasswordLabel" Type="Text" X="190" Y="129" Width="120" Height="13" NoPrefix="yes" Text="MySQL Password (required):" />
-      <Control Id="MysqlPasswordEdit" Type="Edit" X="190" Y="142" Width="160" Height="18" Property="MYSQL_PASSWORD" Password="yes" />
-
-      <!-- Query Optimization Checkbox -->
-      <Control Id="QueryOptCheckbox" Type="CheckBox" X="20" Y="170" Width="330" Height="18" Property="QUERY_OPTIMIZATION" CheckBoxValue="true" Text="Enable Query Optimization" />
-
-      <!-- Info text -->
-      <Control Id="InfoText" Type="Text" X="20" Y="195" Width="330" Height="26" NoPrefix="yes" Text="Get your API key from https://releem.com. The MySQL user needs SELECT and PROCESS privileges." />
-
-      <!-- Bottom line and buttons -->
-      <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
-      <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&amp;Back" />
-      <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="&amp;Next">
-        <Condition Action="disable"><![CDATA[NOT RELEEM_APIKEY OR NOT MYSQL_PASSWORD]]></Condition>
-        <Condition Action="enable"><![CDATA[RELEEM_APIKEY AND MYSQL_PASSWORD]]></Condition>
-      </Control>
-      <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancel">
-        <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
-      </Control>
-    </Dialog>
-  </Fragment>
-
-  <!-- Verify Ready Dialog -->
-  <Fragment>
-    <Dialog Id="VerifyReadyDlg" Width="370" Height="270" Title="[ProductName] Setup">
-      <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="WixUI_Bmp_Banner" />
-      <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Ready to Install" />
-      <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Click Install to begin the installation." />
-      <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
-
-      <Control Id="InstallText" Type="Text" X="20" Y="60" Width="330" Height="60" NoPrefix="yes">
-        <Text>The installer will:
-1. Download Releem Agent from the internet
-2. Create configuration file with your settings
-3. Install and start the Releem Agent service
-
-Click Install to proceed.</Text>
-      </Control>
-
-      <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
-      <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&amp;Back" />
-      <Control Id="Install" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="&amp;Install" />
-      <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancel">
-        <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
-      </Control>
-    </Dialog>
   </Fragment>
 </Wix>

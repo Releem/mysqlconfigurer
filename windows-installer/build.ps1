@@ -79,7 +79,8 @@ $lightArgs = @(
     "-ext", "WixUIExtension",
     "-b", "ca=CustomActions\bin\Release\net48",
     "-out", "bin\releem-agent-setup.msi",
-    "-sice:ICE61"
+    "-sice:ICE61",
+    "-sice:ICE71"
 )
 & light.exe @lightArgs
 if ($LASTEXITCODE -ne 0) {

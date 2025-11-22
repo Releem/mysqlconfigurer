@@ -66,7 +66,8 @@ light.exe obj\Product.wixobj obj\UI.wixobj ^
     -ext WixUIExtension ^
     -b ca=CustomActions\bin\Release\net48 ^
     -out bin\releem-agent-setup.msi ^
-    -sice:ICE61
+    -sice:ICE61 ^
+    -sice:ICE71
 if %errorlevel% neq 0 (
     echo ERROR: MSI linking failed
     exit /b 1

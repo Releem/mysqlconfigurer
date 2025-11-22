@@ -2,6 +2,9 @@
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
 
   <Fragment>
+    <!-- Logo binary -->
+    <Binary Id="logo.png" SourceFile="logo.png" />
+
     <UI Id="ReleemInstallerUI">
       <UIRef Id="WixUI_Common" />
 

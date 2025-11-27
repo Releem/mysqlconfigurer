@@ -102,7 +102,15 @@ func (PgMetricsBase *PgMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 		}
 		pg_stat["PgConnections"] = output
 	}
-
+	// PostgreSQL Uptime Statistics
+	{
+		var uptime string
+		err := models.DB.QueryRow("SELECT EXTRACT(EPOCH FROM (now() - pg_postmaster_start_time()))::bigint AS uptime").Scan(&uptime)
+		if err != nil {
+			PgMetricsBase.logger.Error(err)
+		}
+		pg_stat["Uptime"] = uptime
+	}
 	metrics.DB.Metrics.Status = pg_stat
 
 	// List of databases
@@ -233,7 +241,7 @@ func (PgMetricsMetricsBase *PgMetricsMetricsBaseGatherer) GetMetrics(metrics *mo
 	// Query latency from pg_stat_statements if available
 	{
 		var output []models.MetricGroupValue
-		var query_id, dbname string
+		var queryid, dbname string
 		var calls int
 		var total_time, mean_time float64
 
@@ -241,31 +249,25 @@ func (PgMetricsMetricsBase *PgMetricsMetricsBaseGatherer) GetMetrics(metrics *mo
 			// Collect query statistics from pg_stat_statements
 			rows, err := models.DB.Query(`
 				SELECT 
-					COALESCE(d.datname, NULL) as dbname,
-					s.queryid::text as query_id,
+					COALESCE(d.datname, 'NULL') as dbname,
+					s.queryid::text as queryid,
 					s.calls,
 					s.total_exec_time as total_time,
 					s.mean_exec_time as mean_time
 				FROM pg_stat_statements s
-				LEFT JOIN pg_database d ON d.oid = s.dbid
-				WHERE s.calls > 0
-				ORDER BY s.total_exec_time DESC
-				LIMIT 1000`)
+				LEFT JOIN pg_database d ON d.oid = s.dbid`)
 
 			if err != nil {
 				// Try older version of pg_stat_statements (pre-13)
 				rows, err = models.DB.Query(`
 					SELECT 
-						COALESCE(d.datname, NULL) as dbname,
-						s.queryid::text as query_id,
+						COALESCE(d.datname, 'NULL') as dbname,
+						s.queryid::text as queryid,
 						s.calls,
 						s.total_time as total_time,
 						s.mean_time as mean_time
 					FROM pg_stat_statements s
-					LEFT JOIN pg_database d ON d.oid = s.dbid
-					WHERE s.calls > 0
-					ORDER BY s.total_time DESC
-					LIMIT 1000`)
+					LEFT JOIN pg_database d ON d.oid = s.dbid`)
 
 				if err != nil {
 					if err != sql.ErrNoRows {
@@ -276,7 +278,7 @@ func (PgMetricsMetricsBase *PgMetricsMetricsBaseGatherer) GetMetrics(metrics *mo
 			defer rows.Close()
 
 			for rows.Next() {
-				err := rows.Scan(&dbname, &query_id, &calls, &total_time, &mean_time)
+				err := rows.Scan(&dbname, &queryid, &calls, &total_time, &mean_time)
 				if err != nil {
 					PgMetricsMetricsBase.logger.Error(err)
 					return err
@@ -286,11 +288,11 @@ func (PgMetricsMetricsBase *PgMetricsMetricsBaseGatherer) GetMetrics(metrics *mo
 				total_time_us := int(total_time * 1000)
 				mean_time_us := int(mean_time * 1000)
 				output = append(output, models.MetricGroupValue{
-					"schema_name": dbname,
-					"query_id":    query_id,
-					"calls":       calls,
-					"avg_time_us": mean_time_us,
-					"sum_time_us": total_time_us,
+					"dbname":        dbname,
+					"queryid":       queryid,
+					"calls":         calls,
+					"total_time_us": total_time_us,
+					"mean_time_us":  mean_time_us,
 				})
 			}
 		}

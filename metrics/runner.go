@@ -62,11 +62,7 @@ loop:
 				metrics := utils.CollectMetrics(append(gatherers, gatherers_metrics...), logger, configuration)
 				if metrics != nil {
 					// Get uptime for MySQL, use default for PostgreSQL
-					var uptime_str string = "0"
-					if uptime_val, exists := metrics.DB.Metrics.Status["Uptime"]; exists && uptime_val != nil {
-						uptime_str = uptime_val.(string)
-					}
-					metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, uptime_str)
+					metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, metrics.DB.Metrics.Status["Uptime"].(string))
 					task := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: ""})
 					if task == "Task" {
 						logger.Info("* A task received by the agent...")

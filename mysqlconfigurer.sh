@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mysqlconfigurer.sh - Version 1.22.1
+# mysqlconfigurer.sh - Version 1.22.2.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -16,7 +16,7 @@ MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 RELEEM_MYSQL_VERSION=$MYSQLCONFIGURER_PATH"mysql_version"
 MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
 MYSQL_MEMORY_LIMIT=0
-VERSION="1.22.1"
+VERSION="1.22.2.1"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
 logfile="/var/log/releem-mysqlconfigurer.log"
 MYSQL_CONF_DIR="/etc/mysql/releem.conf.d"
@@ -204,6 +204,11 @@ function releem_ps_mysql() {
         FLAG_CONFIGURE=0
     fi
 
+    ps_digest_size=$($mysqlcmd  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'performance_schema_digests_size'" 2>/dev/null | awk '{print $2}')
+    if [ $ps_digest_size -lt 10000 ]; then
+        FLAG_CONFIGURE=0
+    fi
+
     if [ -z "$RELEEM_MYSQL_CONFIG_DIR" ] || [ ! -d "$RELEEM_MYSQL_CONFIG_DIR" ]; then
         printf "\033[31m\n MySQL configuration directory was not found.\n Try to reinstall Releem Agent.\033[0m"
         exit 3;
@@ -219,6 +224,9 @@ function releem_ps_mysql() {
     echo "[mysqld]" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
     echo "performance_schema = 1" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
     echo "slow_query_log = 1" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+    if [ $ps_digest_size -lt 10000 ]; then
+        echo "performance_schema_digests_size = 10000" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+    fi
     if [ -n "$RELEEM_QUERY_OPTIMIZATION" -a "$RELEEM_QUERY_OPTIMIZATION" = true ]; then
         if ! check_mysql_version; then
             printf "\033[31m\n * MySQL version is lower than 5.6.7. Query optimization is not supported. Please reinstall the agent with query optimization disabled. \033[0m\n"
@@ -295,6 +303,9 @@ function releem_apply_config() {
     elif [ "$1" == "automatic" ]; 
     then
         releem_apply_automatic
+    elif [ "$1" == "initial" ]; 
+    then        
+        releem_apply_automatic "initial"
     else
         releem_apply_manual
     fi
@@ -713,7 +724,7 @@ if [ "$RELEEM_INSTANCE_TYPE" == "local" ]; then
     fi
 fi
 # Parse parameters
-while getopts "k:m:s:arcpui" option
+while getopts "k:m:s:arpu" option
 do
   case "${option}" in
     k) RELEEM_API_KEY=${OPTARG};;
@@ -721,10 +732,8 @@ do
     a) releem_apply_manual;;
     s) releem_apply_config ${OPTARG};;
     r) releem_rollback_config;;
-    c) get_config;;
     p) releem_ps_mysql;;
     u) update_agent; exit 0;;
-    i) releem_apply_automatic initial;;
   esac
 done
 

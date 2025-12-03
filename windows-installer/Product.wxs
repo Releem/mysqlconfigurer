@@ -26,7 +26,7 @@
 
     <MediaTemplate EmbedCab="yes" />
 
-    <!-- Properties for user input -->
+    <!-- Properties for user input (collected via UI dialogs) -->
     <Property Id="RELEEM_APIKEY" Secure="yes" />
     <Property Id="MYSQL_HOST" Value="127.0.0.1" Secure="yes" />
     <Property Id="MYSQL_PORT" Value="3306" Secure="yes" />
@@ -34,10 +34,11 @@
     <Property Id="MYSQL_PASSWORD" Secure="yes" />
     <Property Id="QUERY_OPTIMIZATION" Value="true" Secure="yes" />
 
-    <!-- Installation directory -->
+    <!-- Installation directory structure -->
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="ProgramFiles64Folder">
-        <Directory Id="INSTALLDIR" Name="ReleemAgent">
+        <Directory Id="INSTALLDIR" Name="Releem">
+          <!-- Directory will be created by custom action -->
           <Component Id="InstallDirComponent" Guid="A1B2C3D4-E5F6-7890-ABCD-EF1234567890" Win64="yes">
             <CreateFolder />
             <RemoveFolder Id="RemoveInstallDir" On="uninstall" />
@@ -45,7 +46,7 @@
         </Directory>
       </Directory>
       <Directory Id="CommonAppDataFolder">
-        <Directory Id="CONFIGDIR" Name="ReleemAgent">
+        <Directory Id="CONFIGDIR" Name="Releem">
           <Component Id="ConfigDirComponent" Guid="B2C3D4E5-F6A7-8901-BCDE-F12345678901" Win64="yes">
             <CreateFolder />
             <RemoveFolder Id="RemoveConfigDir" On="uninstall" />
@@ -60,19 +61,11 @@
       </Directory>
     </Directory>
 
-    <!-- Executable component (file downloaded by custom action during install) -->
-    <DirectoryRef Id="INSTALLDIR">
-      <Component Id="ExecutableComponent" Guid="D4E5F6A7-B8C9-0123-DEF0-234567890123" Win64="yes">
-        <RegistryValue Root="HKLM" Key="SOFTWARE\Releem\ReleemAgent" Name="ExecutableInstalled" Type="string" Value="1" KeyPath="yes" />
-        <RemoveFile Id="RemoveExe" Name="releem-agent.exe" On="uninstall" />
-      </Component>
-    </DirectoryRef>
-
     <!-- Registry entries for Add/Remove Programs -->
     <DirectoryRef Id="INSTALLDIR">
       <Component Id="RegistryComponent" Guid="E5F6A7B8-C9D0-1234-EF01-345678901234" Win64="yes">
-        <RegistryKey Root="HKLM" Key="SOFTWARE\Releem\ReleemAgent">
-          <RegistryValue Type="string" Name="InstallPath" Value="[INSTALLDIR]" />
+        <RegistryKey Root="HKLM" Key="SOFTWARE\Releem">
+          <RegistryValue Type="string" Name="InstallPath" Value="[INSTALLDIR]" KeyPath="yes" />
           <RegistryValue Type="string" Name="ConfigPath" Value="[CONFIGDIR]" />
           <RegistryValue Type="string" Name="Version" Value="$(var.Version)" />
         </RegistryKey>
@@ -84,98 +77,47 @@
       <ComponentRef Id="InstallDirComponent" />
       <ComponentRef Id="ConfigDirComponent" />
       <ComponentRef Id="ConfDDirComponent" />
-      <ComponentRef Id="ExecutableComponent" />
       <ComponentRef Id="RegistryComponent" />
     </Feature>
 
     <!-- Custom Actions -->
     <Binary Id="CustomActionsDll" SourceFile="!(bindpath.ca)\ReleemCustomActions.CA.dll" />
 
-    <!-- Download executable custom action -->
-    <CustomAction Id="DownloadExecutable"
-                  BinaryKey="CustomActionsDll"
-                  DllEntry="DownloadExecutable"
-                  Execute="immediate"
-                  Return="check" />
+    <!-- Set properties for deferred custom action (install) -->
+    <CustomAction Id="SetRunInstallerProperties"
+                  Property="RunInstaller"
+                  Value="INSTALLDIR=[INSTALLDIR];RELEEM_APIKEY=[RELEEM_APIKEY];MYSQL_HOST=[MYSQL_HOST];MYSQL_PORT=[MYSQL_PORT];MYSQL_USER=[MYSQL_USER];MYSQL_PASSWORD=[MYSQL_PASSWORD];QUERY_OPTIMIZATION=[QUERY_OPTIMIZATION]" />
 
-    <!-- Set properties for deferred custom actions -->
-    <CustomAction Id="SetGenerateConfigProperties"
-                  Property="GenerateConfigFile"
-                  Value="CONFIGDIR=[CONFIGDIR];RELEEM_APIKEY=[RELEEM_APIKEY];MYSQL_HOST=[MYSQL_HOST];MYSQL_PORT=[MYSQL_PORT];MYSQL_USER=[MYSQL_USER];MYSQL_PASSWORD=[MYSQL_PASSWORD];QUERY_OPTIMIZATION=[QUERY_OPTIMIZATION]" />
-
-    <CustomAction Id="GenerateConfigFile"
+    <!-- Run install.ps1 with parameters -->
+    <CustomAction Id="RunInstaller"
                   BinaryKey="CustomActionsDll"
-                  DllEntry="GenerateConfigFile"
+                  DllEntry="RunInstaller"
                   Execute="deferred"
                   Return="check"
                   Impersonate="no" />
 
-    <CustomAction Id="SetInstallServiceProperties"
-                  Property="InstallService"
+    <!-- Set properties for deferred custom action (uninstall) -->
+    <CustomAction Id="SetRunUninstallerProperties"
+                  Property="RunUninstaller"
                   Value="INSTALLDIR=[INSTALLDIR]" />
 
-    <CustomAction Id="InstallService"
+    <!-- Run install.ps1 -Uninstall -->
+    <CustomAction Id="RunUninstaller"
                   BinaryKey="CustomActionsDll"
-                  DllEntry="InstallService"
-                  Execute="deferred"
-                  Return="check"
-                  Impersonate="no" />
-
-    <CustomAction Id="SetStartServiceProperties"
-                  Property="StartService"
-                  Value="INSTALLDIR=[INSTALLDIR]" />
-
-    <CustomAction Id="StartService"
-                  BinaryKey="CustomActionsDll"
-                  DllEntry="StartService"
-                  Execute="commit"
-                  Return="ignore"
-                  Impersonate="no" />
-
-    <CustomAction Id="SetStopServiceProperties"
-                  Property="StopService"
-                  Value="INSTALLDIR=[INSTALLDIR]" />
-
-    <CustomAction Id="StopService"
-                  BinaryKey="CustomActionsDll"
-                  DllEntry="StopService"
+                  DllEntry="RunUninstaller"
                   Execute="deferred"
                   Return="ignore"
                   Impersonate="no" />
 
-    <CustomAction Id="SetRemoveServiceProperties"
-                  Property="RemoveService"
-                  Value="INSTALLDIR=[INSTALLDIR]" />
-
-    <CustomAction Id="RemoveService"
-                  BinaryKey="CustomActionsDll"
-                  DllEntry="RemoveService"
-                  Execute="deferred"
-                  Return="ignore"
-                  Impersonate="no" />
-
-    <!-- Install sequence -->
+    <!-- Install/Uninstall sequence -->
     <InstallExecuteSequence>
-      <!-- Download before InstallFiles -->
-      <Custom Action="DownloadExecutable" After="CostFinalize">NOT Installed AND NOT REMOVE</Custom>
+      <!-- Install: Run install.ps1 after files are installed -->
+      <Custom Action="SetRunInstallerProperties" After="InstallFiles">NOT Installed AND NOT REMOVE</Custom>
+      <Custom Action="RunInstaller" After="SetRunInstallerProperties">NOT Installed AND NOT REMOVE</Custom>
 
-      <!-- Generate config file -->
-      <Custom Action="SetGenerateConfigProperties" After="InstallFiles">NOT Installed AND NOT REMOVE</Custom>
-      <Custom Action="GenerateConfigFile" After="SetGenerateConfigProperties">NOT Installed AND NOT REMOVE</Custom>
-
-      <!-- Install service -->
-      <Custom Action="SetInstallServiceProperties" After="GenerateConfigFile">NOT Installed AND NOT REMOVE</Custom>
-      <Custom Action="InstallService" After="SetInstallServiceProperties">NOT Installed AND NOT REMOVE</Custom>
-
-      <!-- Start service -->
-      <Custom Action="SetStartServiceProperties" After="InstallService">NOT Installed AND NOT REMOVE</Custom>
-      <Custom Action="StartService" After="SetStartServiceProperties">NOT Installed AND NOT REMOVE</Custom>
-
-      <!-- Uninstall: Stop and remove service -->
-      <Custom Action="SetStopServiceProperties" Before="RemoveFiles">REMOVE="ALL"</Custom>
-      <Custom Action="StopService" After="SetStopServiceProperties">REMOVE="ALL"</Custom>
-      <Custom Action="SetRemoveServiceProperties" After="StopService">REMOVE="ALL"</Custom>
-      <Custom Action="RemoveService" After="SetRemoveServiceProperties">REMOVE="ALL"</Custom>
+      <!-- Uninstall: Run install.ps1 -Uninstall before removing files -->
+      <Custom Action="SetRunUninstallerProperties" Before="RemoveFiles">REMOVE="ALL"</Custom>
+      <Custom Action="RunUninstaller" After="SetRunUninstallerProperties">REMOVE="ALL"</Custom>
     </InstallExecuteSequence>
 
     <!-- UI Reference -->

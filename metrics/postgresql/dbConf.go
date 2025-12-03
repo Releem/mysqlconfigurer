@@ -7,20 +7,20 @@ import (
 	logging "github.com/google/logger"
 )
 
-type PgConfGatherer struct {
+type DBConfGatherer struct {
 	logger        logging.Logger
 	configuration *config.Config
 }
 
-func NewPgConfGatherer(logger logging.Logger, configuration *config.Config) *PgConfGatherer {
-	return &PgConfGatherer{
+func NewDBConfGatherer(logger logging.Logger, configuration *config.Config) *DBConfGatherer {
+	return &DBConfGatherer{
 		logger:        logger,
 		configuration: configuration,
 	}
 }
 
-func (PgConf *PgConfGatherer) GetMetrics(metrics *models.Metrics) error {
-	defer utils.HandlePanic(PgConf.configuration, PgConf.logger)
+func (DBConf *DBConfGatherer) GetMetrics(metrics *models.Metrics) error {
+	defer utils.HandlePanic(DBConf.configuration, DBConf.logger)
 
 	output := make(models.MetricGroupValue)
 
@@ -33,7 +33,7 @@ func (PgConf *PgConfGatherer) GetMetrics(metrics *models.Metrics) error {
 		FROM pg_settings 
 		ORDER BY name`)
 	if err != nil {
-		PgConf.logger.Error(err)
+		DBConf.logger.Error(err)
 		return err
 	}
 	defer rows.Close()
@@ -43,7 +43,7 @@ func (PgConf *PgConfGatherer) GetMetrics(metrics *models.Metrics) error {
 		var pending_restart bool
 
 		if err := rows.Scan(&name, &setting, &unit, &category, &short_desc, &context, &vartype, &source, &min_val, &max_val, &enumvals, &boot_val, &reset_val, &pending_restart); err != nil {
-			PgConf.logger.Error(err)
+			DBConf.logger.Error(err)
 			continue
 		}
 
@@ -66,7 +66,7 @@ func (PgConf *PgConfGatherer) GetMetrics(metrics *models.Metrics) error {
 	}
 
 	metrics.DB.Conf.Variables = output
-	PgConf.logger.V(5).Info("CollectMetrics PgConf ", len(output), " settings collected")
+	DBConf.logger.V(5).Info("CollectMetrics DBConf ", len(output), " settings collected")
 
 	return nil
 }

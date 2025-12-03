@@ -12,7 +12,7 @@ type DbConfGatherer struct {
 	configuration *config.Config
 }
 
-func NewDbConfGatherer(logger logging.Logger, configuration *config.Config) *DbConfGatherer {
+func NewDBConfGatherer(logger logging.Logger, configuration *config.Config) *DbConfGatherer {
 	return &DbConfGatherer{
 		logger:        logger,
 		configuration: configuration,

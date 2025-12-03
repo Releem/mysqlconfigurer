@@ -18,7 +18,7 @@ type DbCollectQueriesOptimization struct {
 	configuration *config.Config
 }
 
-func NewDbCollectQueriesOptimization(logger logging.Logger, configuration *config.Config) *DbCollectQueriesOptimization {
+func NewDBCollectQueriesOptimization(logger logging.Logger, configuration *config.Config) *DbCollectQueriesOptimization {
 	return &DbCollectQueriesOptimization{
 		logger:        logger,
 		configuration: configuration,

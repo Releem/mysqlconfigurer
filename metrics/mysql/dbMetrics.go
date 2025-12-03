@@ -11,44 +11,20 @@ import (
 	logging "github.com/google/logger"
 )
 
-type DbMetricsGatherer struct {
+type DBMetricsBaseGatherer struct {
 	logger        logging.Logger
 	configuration *config.Config
 }
 
-func NewDbMetricsGatherer(logger logging.Logger, configuration *config.Config) *DbMetricsGatherer {
-	return &DbMetricsGatherer{
+func NewDBMetricsBaseGatherer(logger logging.Logger, configuration *config.Config) *DBMetricsBaseGatherer {
+	return &DBMetricsBaseGatherer{
 		logger:        logger,
 		configuration: configuration,
 	}
 }
 
-type DbMetricsBaseGatherer struct {
-	logger        logging.Logger
-	configuration *config.Config
-}
-
-func NewDbMetricsBaseGatherer(logger logging.Logger, configuration *config.Config) *DbMetricsBaseGatherer {
-	return &DbMetricsBaseGatherer{
-		logger:        logger,
-		configuration: configuration,
-	}
-}
-
-type DbMetricsMetricsBaseGatherer struct {
-	logger        logging.Logger
-	configuration *config.Config
-}
-
-func NewDbMetricsMetricsBaseGatherer(logger logging.Logger, configuration *config.Config) *DbMetricsMetricsBaseGatherer {
-	return &DbMetricsMetricsBaseGatherer{
-		logger:        logger,
-		configuration: configuration,
-	}
-}
-
-func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) error {
-	defer utils.HandlePanic(DbMetricsBase.configuration, DbMetricsBase.logger)
+func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) error {
+	defer utils.HandlePanic(DBMetricsBase.configuration, DBMetricsBase.logger)
 	// Mysql Status
 	output := make(models.MetricGroupValue)
 	{
@@ -56,13 +32,13 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 		rows, err := models.DB.Query("SHOW STATUS")
 
 		if err != nil {
-			DbMetricsBase.logger.Error(err)
+			DBMetricsBase.logger.Error(err)
 			return err
 		}
 		for rows.Next() {
 			err := rows.Scan(&row.Name, &row.Value)
 			if err != nil {
-				DbMetricsBase.logger.Error(err)
+				DBMetricsBase.logger.Error(err)
 				return err
 			}
 			output[row.Name] = row.Value
@@ -71,13 +47,13 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 
 		rows, err = models.DB.Query("SHOW GLOBAL STATUS")
 		if err != nil {
-			DbMetricsBase.logger.Error(err)
+			DBMetricsBase.logger.Error(err)
 			return err
 		}
 		for rows.Next() {
 			err := rows.Scan(&row.Name, &row.Value)
 			if err != nil {
-				DbMetricsBase.logger.Error(err)
+				DBMetricsBase.logger.Error(err)
 				return err
 			}
 			output[row.Name] = row.Value
@@ -90,7 +66,7 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 		var engine, name, status string
 		err := models.DB.QueryRow("show engine innodb status").Scan(&engine, &name, &status)
 		if err != nil {
-			DbMetricsBase.logger.Error(err)
+			DBMetricsBase.logger.Error(err)
 		} else {
 			metrics.DB.Metrics.InnoDBEngineStatus = status
 		}
@@ -101,13 +77,13 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 		var output []string
 		rows, err := models.DB.Query("SELECT table_schema FROM INFORMATION_SCHEMA.tables group BY table_schema")
 		if err != nil {
-			DbMetricsBase.logger.Error(err)
+			DBMetricsBase.logger.Error(err)
 			return err
 		}
 		for rows.Next() {
 			err := rows.Scan(&database)
 			if err != nil {
-				DbMetricsBase.logger.Error(err)
+				DBMetricsBase.logger.Error(err)
 				return err
 			}
 			output = append(output, database)
@@ -120,19 +96,31 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 		var row uint64
 		err := models.DB.QueryRow("SELECT COUNT(*) as count FROM information_schema.tables").Scan(&row)
 		if err != nil {
-			DbMetricsBase.logger.Error(err)
+			DBMetricsBase.logger.Error(err)
 			return err
 		}
 		metrics.DB.Metrics.TotalTables = row
 	}
 
-	DbMetricsBase.logger.V(5).Info("CollectMetrics DbMetricsBase ", metrics.DB.Metrics)
+	DBMetricsBase.logger.V(5).Info("CollectMetrics DBMetricsBase ", metrics.DB.Metrics)
 
 	return nil
 }
 
-func (DbMetricsMetricsBase *DbMetricsMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) error {
-	defer utils.HandlePanic(DbMetricsMetricsBase.configuration, DbMetricsMetricsBase.logger)
+type DBMetricsGatherer struct {
+	logger        logging.Logger
+	configuration *config.Config
+}
+
+func NewDBMetricsGatherer(logger logging.Logger, configuration *config.Config) *DBMetricsGatherer {
+	return &DBMetricsGatherer{
+		logger:        logger,
+		configuration: configuration,
+	}
+}
+
+func (DBMetrics *DBMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
+	defer utils.HandlePanic(DBMetrics.configuration, DBMetrics.logger)
 
 	// Latency
 	{
@@ -143,19 +131,19 @@ func (DbMetricsMetricsBase *DbMetricsMetricsBaseGatherer) GetMetrics(metrics *mo
 		rows, err := models.DB.Query("SELECT IFNULL(schema_name, 'NULL') as schema_name, IFNULL(digest, 'NULL') as query_id, count_star as calls, round(avg_timer_wait/1000000, 0) as avg_time_us, round(SUM_TIMER_WAIT/1000000, 0) as sum_time_us FROM performance_schema.events_statements_summary_by_digest")
 		if err != nil {
 			if err != sql.ErrNoRows {
-				DbMetricsMetricsBase.logger.Error(err)
+				DBMetrics.logger.Error(err)
 			}
 		} else {
 			for rows.Next() {
 				err := rows.Scan(&schema_name, &query_id, &calls, &avg_time_us, &sum_time_us)
 				if err != nil {
-					DbMetricsMetricsBase.logger.Error(err)
+					DBMetrics.logger.Error(err)
 					return err
 				}
 				output = append(output, models.MetricGroupValue{"schema_name": schema_name, "query_id": query_id, "calls": calls, "avg_time_us": avg_time_us, "sum_time_us": sum_time_us})
 			}
 		}
-		metrics.DB.Metrics.QueriesLatency = output
+		metrics.DB.Queries = output
 
 		// if len(output) != 0 {
 		// 	totalQueryCount := len(output)
@@ -208,13 +196,13 @@ func (DbMetricsMetricsBase *DbMetricsMetricsBaseGatherer) GetMetrics(metrics *mo
 		rows, err := models.DB.Query("SHOW FULL PROCESSLIST")
 
 		if err != nil {
-			DbMetricsMetricsBase.logger.Error(err)
+			DBMetrics.logger.Error(err)
 		} else {
 			defer rows.Close()
 
 			cols, err := rows.Columns()
 			if err != nil {
-				DbMetricsMetricsBase.logger.Error(err)
+				DBMetrics.logger.Error(err)
 			}
 			var out []map[string]any
 
@@ -227,7 +215,7 @@ func (DbMetricsMetricsBase *DbMetricsMetricsBaseGatherer) GetMetrics(metrics *mo
 				}
 				err := rows.Scan(ptrs...)
 				if err != nil {
-					DbMetricsMetricsBase.logger.Error(err)
+					DBMetrics.logger.Error(err)
 					return err
 				}
 
@@ -279,7 +267,7 @@ func (DbMetricsMetricsBase *DbMetricsMetricsBaseGatherer) GetMetrics(metrics *mo
 
 				// Safety check to prevent infinite loop
 				if process_list_info_limit_length < minInfoLength {
-					DbMetricsMetricsBase.logger.Warning("INFO truncation reached minimum length, stopping truncation")
+					DBMetrics.logger.Warning("INFO truncation reached minimum length, stopping truncation")
 					break
 				}
 			}
@@ -287,31 +275,25 @@ func (DbMetricsMetricsBase *DbMetricsMetricsBaseGatherer) GetMetrics(metrics *mo
 		}
 	}
 
-	DbMetricsMetricsBase.logger.V(5).Info("CollectMetrics DbMetricsMetricsBase ", metrics.DB.Metrics)
+	DBMetrics.logger.V(5).Info("CollectMetrics DBMetrics ", metrics.DB.Metrics)
 
 	return nil
 }
 
-// func contains(arr []int, num int) bool {
-// 	for _, n := range arr {
-// 		if n == num {
-// 			return true
-// 		}
-// 	}
-// 	return false
-// }
-
-func str_contains(slice []string, element string) bool {
-	for _, v := range slice {
-		if v == element {
-			return true
-		}
-	}
-	return false
+type DBMetricsConfigGatherer struct {
+	logger        logging.Logger
+	configuration *config.Config
 }
 
-func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
-	defer utils.HandlePanic(DbMetrics.configuration, DbMetrics.logger)
+func NewDBMetricsConfigGatherer(logger logging.Logger, configuration *config.Config) *DBMetricsConfigGatherer {
+	return &DBMetricsConfigGatherer{
+		logger:        logger,
+		configuration: configuration,
+	}
+}
+
+func (DBMetricsConfig *DBMetricsConfigGatherer) GetMetrics(metrics *models.Metrics) error {
+	defer utils.HandlePanic(DBMetricsConfig.configuration, DBMetricsConfig.logger)
 	// count of queries latency
 	{
 		var count_events_statements_summary_by_digest uint64
@@ -319,7 +301,7 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 		err := models.DB.QueryRow("SELECT count(*) FROM performance_schema.events_statements_summary_by_digest").Scan(&count_events_statements_summary_by_digest)
 		if err != nil {
 			if err != sql.ErrNoRows {
-				DbMetrics.logger.Error(err)
+				DBMetricsConfig.logger.Error(err)
 			}
 		} else {
 			metrics.DB.Metrics.CountQueriesLatency = count_events_statements_summary_by_digest
@@ -334,13 +316,13 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 
 		rows, err := models.DB.Query("SELECT ENGINE,SUPPORT FROM information_schema.ENGINES ORDER BY ENGINE ASC")
 		if err != nil {
-			DbMetrics.logger.Error(err)
+			DBMetricsConfig.logger.Error(err)
 			return err
 		}
 		for rows.Next() {
 			err := rows.Scan(&engine_db, &engineenabled)
 			if err != nil {
-				DbMetrics.logger.Error(err)
+				DBMetricsConfig.logger.Error(err)
 				return err
 			}
 			output[engine_db] = models.MetricGroupValue{"Enabled": engineenabled}
@@ -351,13 +333,13 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 		for _, database := range metrics.DB.Metrics.Databases {
 			rows, err = models.DB.Query(`SELECT ENGINE, IFNULL(SUM(DATA_LENGTH+INDEX_LENGTH), 0), IFNULL(COUNT(ENGINE), 0), IFNULL(SUM(DATA_LENGTH), 0), IFNULL(SUM(INDEX_LENGTH), 0) FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND ENGINE IS NOT NULL  GROUP BY ENGINE ORDER BY ENGINE ASC`, database)
 			if err != nil {
-				DbMetrics.logger.Error(err)
+				DBMetricsConfig.logger.Error(err)
 				return err
 			}
 			for rows.Next() {
 				err := rows.Scan(&engine_db, &size, &count, &dsize, &isize)
 				if err != nil {
-					DbMetrics.logger.Error(err)
+					DBMetricsConfig.logger.Error(err)
 					continue
 				}
 				if engine_elem[engine_db]["Table Number"] == nil {
@@ -385,7 +367,16 @@ func (DbMetrics *DbMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 			metrics.DB.Metrics.TotalMyisamIndexes = metrics.DB.Metrics.Engine["MyISAM"]["Index Size"].(uint64)
 		}
 	}
-	DbMetrics.logger.V(5).Info("CollectMetrics DbMetrics ", metrics.DB.Metrics)
+	DBMetricsConfig.logger.V(5).Info("CollectMetrics DBMetricsConfig ", metrics.DB.Metrics)
 
 	return nil
+}
+
+func str_contains(slice []string, element string) bool {
+	for _, v := range slice {
+		if v == element {
+			return true
+		}
+	}
+	return false
 }

@@ -61,7 +61,6 @@ loop:
 				defer utils.HandlePanic(configuration, logger)
 				metrics := utils.CollectMetrics(append(gatherers, gatherers_metrics...), logger, configuration)
 				if metrics != nil {
-					// Get uptime for MySQL, use default for PostgreSQL
 					metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, metrics.DB.Metrics.Status["Uptime"].(string))
 					task := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: ""})
 					if task == "Task" {

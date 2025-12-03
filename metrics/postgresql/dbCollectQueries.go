@@ -8,97 +8,100 @@ import (
 
 	"github.com/Releem/mysqlconfigurer/models"
 	u "github.com/Releem/mysqlconfigurer/utils"
+	"github.com/hashicorp/go-version"
 
 	"github.com/Releem/mysqlconfigurer/config"
 	logging "github.com/google/logger"
 )
 
-type PgCollectQueriesOptimization struct {
+type DBCollectQueriesOptimization struct {
 	logger        logging.Logger
 	configuration *config.Config
 }
 
-func NewPgCollectQueriesOptimization(logger logging.Logger, configuration *config.Config) *PgCollectQueriesOptimization {
-	return &PgCollectQueriesOptimization{
+func NewDBCollectQueriesOptimization(logger logging.Logger, configuration *config.Config) *DBCollectQueriesOptimization {
+	return &DBCollectQueriesOptimization{
 		logger:        logger,
 		configuration: configuration,
 	}
 }
 
-func (PgCollectQueriesOptimization *PgCollectQueriesOptimization) GetMetrics(metrics *models.Metrics) error {
-	defer u.HandlePanic(PgCollectQueriesOptimization.configuration, PgCollectQueriesOptimization.logger)
+var PG_STAT_STATEMENTS_QUERY = `
+SELECT
+	COALESCE(d.datname, 'NULL') as datname,
+	s.queryid::text as queryid,
+	min(s.query) as query,
+	sum(s.calls) AS calls,
+	sum(s.total_exec_time) AS total_exec_time,
+	sum(s.total_exec_time) / sum(s.calls) AS mean_exec_time
+FROM pg_stat_statements s
+LEFT JOIN pg_database d ON d.oid = s.dbid
+GROUP BY d.datname, s.queryid
+`
 
-	var dbname, query_id, query string
+var PG_STAT_STATEMENTS_QUERY_OLD_VERSION = `
+SELECT
+	COALESCE(d.datname, 'NULL') as datname,
+	s.queryid::text as queryid,
+	min(s.query) as query,
+	sum(s.calls) AS calls,
+	sum(s.total_time) AS total_exec_time,
+	sum(s.total_time) / sum(s.calls) AS mean_exec_time
+FROM pg_stat_statements s
+LEFT JOIN pg_database d ON d.oid = s.dbid
+GROUP BY d.datname, s.queryid
+`
+
+func (DBCollectQueriesOptimization *DBCollectQueriesOptimization) GetMetrics(metrics *models.Metrics) error {
+	defer u.HandlePanic(DBCollectQueriesOptimization.configuration, DBCollectQueriesOptimization.logger)
+
+	var queryid, datname, query string
 	var calls int
-	var total_time, mean_time float64
+	var total_exec_time, mean_exec_time float64
 	output_digest := make(map[string]models.MetricGroupValue)
 
 	if !models.PgStatStatementsEnabled {
-		PgCollectQueriesOptimization.logger.Info("pg_stat_statements extension is not installed, skipping query collection")
+		DBCollectQueriesOptimization.logger.Info("pg_stat_statements extension is not installed, skipping query collection")
 		metrics.DB.Queries = nil
 		return nil
 	}
 
+	ver_current, _ := version.NewVersion(metrics.DB.Info["Version"].(string))
+	ver_postgresql, _ := version.NewVersion("13")
+	// Collect DBMS internal metrics
+	pgStatStatements := PG_STAT_STATEMENTS_QUERY
+	if ver_current.LessThan(ver_postgresql) {
+		pgStatStatements = PG_STAT_STATEMENTS_QUERY_OLD_VERSION
+	}
+
 	// Collect query statistics from pg_stat_statements
-	rows, err := models.DB.Query(`
-		SELECT 
-			COALESCE(d.datname, NULL) as dbname,
-			s.queryid::text as query_id,
-			s.query as query_text,
-			s.calls,
-			s.total_exec_time as total_time,
-			s.mean_exec_time as mean_time
-		FROM pg_stat_statements s
-		LEFT JOIN pg_database d ON d.oid = s.dbid
-		WHERE s.calls > 0
-		ORDER BY s.total_exec_time DESC
-		LIMIT 1000`)
+	rows, err := models.DB.Query(pgStatStatements)
 
 	if err != nil {
-		// Try older version of pg_stat_statements (pre-13)
-		rows, err = models.DB.Query(`
-			SELECT 
-				COALESCE(d.datname, NULL) as dbname,
-				s.queryid::text as query_id,
-				s.query as query_text,
-				s.calls,
-				s.total_time as total_time,
-				s.mean_time as mean_time
-			FROM pg_stat_statements s
-			LEFT JOIN pg_database d ON d.oid = s.dbid
-			WHERE s.calls > 0
-			ORDER BY s.total_time DESC
-			LIMIT 1000`)
+		if err != sql.ErrNoRows {
+			DBCollectQueriesOptimization.logger.Error(err)
+		}
+	} else {
+		defer rows.Close()
+		for rows.Next() {
+			err := rows.Scan(&datname, &queryid, &query, &calls, &total_exec_time, &mean_exec_time)
 
-		if err != nil {
-			if err != sql.ErrNoRows {
-				PgCollectQueriesOptimization.logger.Error(err)
+			if err != nil {
+				DBCollectQueriesOptimization.logger.Error(err)
+				return err
 			}
-			metrics.DB.Queries = nil
-			return nil
-		}
-	}
-	defer rows.Close()
 
-	for rows.Next() {
-		err := rows.Scan(&dbname, &query_id, &query, &calls, &total_time, &mean_time)
-		if err != nil {
-			PgCollectQueriesOptimization.logger.Error(err)
-			return err
-		}
-
-		// Convert to microseconds for compatibility with MySQL metrics
-		total_time_us := int(total_time * 1000)
-		mean_time_us := int(mean_time * 1000)
-		query_text := ""
-		output_digest[dbname+query_id] = models.MetricGroupValue{
-			"schema_name": dbname,
-			"query_id":    query_id,
-			"query":       query,
-			"query_text":  query_text,
-			"calls":       calls,
-			"avg_time_us": mean_time_us,
-			"sum_time_us": total_time_us,
+			// Convert to microseconds for compatibility with MySQL metrics
+			total_exec_time_us := total_exec_time * 1000
+			mean_exec_time_us := mean_exec_time * 1000
+			output_digest[datname+queryid] = models.MetricGroupValue{
+				"datname":            datname,
+				"queryid":            queryid,
+				"query":              query,
+				"calls":              calls,
+				"total_exec_time_us": total_exec_time_us,
+				"mean_exec_time_us":  mean_exec_time_us,
+			}
 		}
 	}
 
@@ -110,7 +113,7 @@ func (PgCollectQueriesOptimization *PgCollectQueriesOptimization) GetMetrics(met
 		metrics.DB.Queries = nil
 	}
 
-	if !PgCollectQueriesOptimization.configuration.QueryOptimization {
+	if !DBCollectQueriesOptimization.configuration.QueryOptimization {
 		return nil
 	}
 
@@ -126,7 +129,7 @@ func (PgCollectQueriesOptimization *PgCollectQueriesOptimization) GetMetrics(met
 	i := 0
 
 	for _, database := range metrics.DB.Metrics.Databases {
-		if u.IsSchemaNameExclude(database, PgCollectQueriesOptimization.configuration.DatabasesQueryOptimization) {
+		if u.IsSchemaNameExclude(database, DBCollectQueriesOptimization.configuration.DatabasesQueryOptimization) {
 			continue
 		}
 
@@ -136,13 +139,13 @@ func (PgCollectQueriesOptimization *PgCollectQueriesOptimization) GetMetrics(met
 			WHERE table_catalog = $1 
 			  AND table_schema NOT IN ('information_schema', 'pg_catalog')`, database)
 		if err != nil {
-			PgCollectQueriesOptimization.logger.Error(err)
+			DBCollectQueriesOptimization.logger.Error(err)
 		} else {
 			defer rows.Close()
 			for rows.Next() {
 				err := rows.Scan(&information_schema_table.TABLE_SCHEMA, &information_schema_table.TABLE_NAME, &information_schema_table.TABLE_TYPE)
 				if err != nil {
-					PgCollectQueriesOptimization.logger.Error(err)
+					DBCollectQueriesOptimization.logger.Error(err)
 					return err
 				}
 				metrics.DB.QueriesOptimization["information_schema_tables"] = append(
@@ -179,7 +182,7 @@ func (PgCollectQueriesOptimization *PgCollectQueriesOptimization) GetMetrics(met
 		WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
 		ORDER BY table_schema, table_name, ordinal_position`)
 	if err != nil {
-		PgCollectQueriesOptimization.logger.Error(err)
+		DBCollectQueriesOptimization.logger.Error(err)
 	} else {
 		defer rows.Close()
 		for rows.Next() {
@@ -188,7 +191,7 @@ func (PgCollectQueriesOptimization *PgCollectQueriesOptimization) GetMetrics(met
 				&information_schema_column.COLUMN_DEFAULT, &information_schema_column.IS_NULLABLE,
 				&information_schema_column.DATA_TYPE)
 			if err != nil {
-				PgCollectQueriesOptimization.logger.Error(err)
+				DBCollectQueriesOptimization.logger.Error(err)
 				return err
 			}
 			metrics.DB.QueriesOptimization["information_schema_columns"] = append(
@@ -205,8 +208,8 @@ func (PgCollectQueriesOptimization *PgCollectQueriesOptimization) GetMetrics(met
 		}
 	}
 
-	PgCollectQueriesOptimization.logger.V(5).Info("collectMetrics ", metrics.DB.Queries)
-	PgCollectQueriesOptimization.logger.V(5).Info("collectMetrics ", metrics.DB.QueriesOptimization)
+	DBCollectQueriesOptimization.logger.Info("collectMetrics ", metrics.DB.Queries)
+	DBCollectQueriesOptimization.logger.V(5).Info("collectMetrics ", metrics.DB.QueriesOptimization)
 
 	return nil
 }

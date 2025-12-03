@@ -228,25 +228,25 @@ func (programm *Programm) Run() {
 	switch dbType {
 	case "postgresql":
 		gatherers = append(gatherers,
-			postgresql.NewPgConfGatherer(logger, configuration),
-			postgresql.NewPgInfoBaseGatherer(logger, configuration),
-			postgresql.NewPgMetricsBaseGatherer(logger, configuration),
-			metrics.NewAgentMetricsGatherer(logger, configuration))
-		gatherers_metrics = append(gatherers_metrics, postgresql.NewPgMetricsMetricsBaseGatherer(logger, configuration))
-		gatherers_query_optimization = append(gatherers_query_optimization, postgresql.NewPgCollectQueriesOptimization(logger, configuration))
+			postgresql.NewDBConfGatherer(logger, configuration),
+			postgresql.NewDBInfoBaseGatherer(logger, configuration),
+			postgresql.NewDBMetricsBaseGatherer(logger, configuration))
+		gatherers_metrics = append(gatherers_metrics, postgresql.NewDBMetricsGatherer(logger, configuration))
+		gatherers_configuration = append(gatherers_configuration, postgresql.NewDBMetricsConfigGatherer(logger, configuration))
+		gatherers_query_optimization = append(gatherers_query_optimization, postgresql.NewDBCollectQueriesOptimization(logger, configuration))
 	case "mysql":
 		fallthrough
 	default:
 		gatherers = append(gatherers,
-			mysql.NewDbConfGatherer(logger, configuration),
-			mysql.NewDbInfoBaseGatherer(logger, configuration),
-			mysql.NewDbMetricsBaseGatherer(logger, configuration),
-			metrics.NewAgentMetricsGatherer(logger, configuration))
-		gatherers_metrics = append(gatherers_metrics, mysql.NewDbMetricsMetricsBaseGatherer(logger, configuration))
-		gatherers_configuration = append(gatherers_configuration, mysql.NewDbMetricsGatherer(logger, configuration), mysql.NewDbInfoGatherer(logger, configuration))
-		gatherers_query_optimization = append(gatherers_query_optimization, mysql.NewDbCollectQueriesOptimization(logger, configuration))
-	}
+			mysql.NewDBConfGatherer(logger, configuration),
+			mysql.NewDBInfoBaseGatherer(logger, configuration),
+			mysql.NewDBMetricsBaseGatherer(logger, configuration))
 
+		gatherers_metrics = append(gatherers_metrics, mysql.NewDBMetricsGatherer(logger, configuration))
+		gatherers_configuration = append(gatherers_configuration, mysql.NewDBMetricsConfigGatherer(logger, configuration), mysql.NewDBInfoConfigGatherer(logger, configuration))
+		gatherers_query_optimization = append(gatherers_query_optimization, mysql.NewDBCollectQueriesOptimization(logger, configuration))
+	}
+	gatherers = append(gatherers, metrics.NewAgentMetricsGatherer(logger, configuration))
 	metrics.RunWorker(gatherers, gatherers_metrics, gatherers_configuration, gatherers_query_optimization, repeaters, logger, configuration, Mode)
 
 }

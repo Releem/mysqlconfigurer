@@ -32,7 +32,6 @@ type Metrics struct {
 			TotalTables                          uint64
 			TotalMyisamIndexes                   uint64
 			Engine                               map[string]MetricGroupValue
-			QueriesLatency                       []MetricGroupValue
 			CountQueriesLatency                  uint64
 			Databases                            []string
 			InnoDBEngineStatus                   string

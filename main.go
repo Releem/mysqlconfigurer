@@ -230,9 +230,19 @@ func (programm *Programm) Run() {
 		gatherers = append(gatherers,
 			postgresql.NewDBConfGatherer(logger, configuration),
 			postgresql.NewDBInfoBaseGatherer(logger, configuration),
-			postgresql.NewDBMetricsBaseGatherer(logger, configuration))
+			postgresql.NewDBMetricsBaseGatherer(logger, configuration),
+			metrics.NewAgentMetricsGatherer(logger, configuration))
+
+		gatherers_metrics = make([]models.MetricsGatherer, len(gatherers))
+		copy(gatherers_metrics, gatherers)
 		gatherers_metrics = append(gatherers_metrics, postgresql.NewDBMetricsGatherer(logger, configuration))
+
+		gatherers_configuration = make([]models.MetricsGatherer, len(gatherers))
+		copy(gatherers_configuration, gatherers)
 		gatherers_configuration = append(gatherers_configuration, postgresql.NewDBMetricsConfigGatherer(logger, configuration))
+
+		gatherers_query_optimization = make([]models.MetricsGatherer, len(gatherers))
+		copy(gatherers_query_optimization, gatherers)
 		gatherers_query_optimization = append(gatherers_query_optimization, postgresql.NewDBCollectQueriesOptimization(logger, configuration))
 	case "mysql":
 		fallthrough
@@ -240,13 +250,21 @@ func (programm *Programm) Run() {
 		gatherers = append(gatherers,
 			mysql.NewDBConfGatherer(logger, configuration),
 			mysql.NewDBInfoBaseGatherer(logger, configuration),
-			mysql.NewDBMetricsBaseGatherer(logger, configuration))
+			mysql.NewDBMetricsBaseGatherer(logger, configuration),
+			metrics.NewAgentMetricsGatherer(logger, configuration))
 
+		gatherers_metrics = make([]models.MetricsGatherer, len(gatherers))
+		copy(gatherers_metrics, gatherers)
 		gatherers_metrics = append(gatherers_metrics, mysql.NewDBMetricsGatherer(logger, configuration))
+
+		gatherers_configuration = make([]models.MetricsGatherer, len(gatherers))
+		copy(gatherers_configuration, gatherers)
 		gatherers_configuration = append(gatherers_configuration, mysql.NewDBMetricsConfigGatherer(logger, configuration), mysql.NewDBInfoConfigGatherer(logger, configuration))
+
+		gatherers_query_optimization = make([]models.MetricsGatherer, len(gatherers))
+		copy(gatherers_query_optimization, gatherers)
 		gatherers_query_optimization = append(gatherers_query_optimization, mysql.NewDBCollectQueriesOptimization(logger, configuration))
 	}
-	gatherers = append(gatherers, metrics.NewAgentMetricsGatherer(logger, configuration))
 	metrics.RunWorker(gatherers, gatherers_metrics, gatherers_configuration, gatherers_query_optimization, repeaters, logger, configuration, Mode)
 
 }

@@ -59,7 +59,7 @@ loop:
 			timer.Reset(configuration.MetricsPeriod * time.Second)
 			go func() {
 				defer utils.HandlePanic(configuration, logger)
-				metrics := utils.CollectMetrics(append(gatherers, gatherers_metrics...), logger, configuration)
+				metrics := utils.CollectMetrics(gatherers_metrics, logger, configuration)
 				if metrics != nil {
 					metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, metrics.DB.Metrics.Status["Uptime"].(string))
 					task := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: ""})
@@ -79,9 +79,9 @@ loop:
 				logger.Info("* Collecting metrics...")
 				defer utils.HandlePanic(configuration, logger)
 				if Mode.Name == "TaskSet" && Mode.Type == "queries_optimization" {
-					metrics = utils.CollectMetrics(append(gatherers, gatherers_query_optimization...), logger, configuration)
+					metrics = utils.CollectMetrics(gatherers_query_optimization, logger, configuration)
 				} else {
-					metrics = utils.CollectMetrics(append(gatherers, gatherers_configuration...), logger, configuration)
+					metrics = utils.CollectMetrics(gatherers_configuration, logger, configuration)
 				}
 				if metrics != nil {
 					metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, "0")
@@ -102,7 +102,7 @@ loop:
 			QueryOptimizationTimer.Reset(configuration.QueryOptimizationPeriod * time.Second)
 			go func() {
 				defer utils.HandlePanic(configuration, logger)
-				metrics := utils.CollectMetrics(append(gatherers, gatherers_query_optimization...), logger, configuration)
+				metrics := utils.CollectMetrics(gatherers_query_optimization, logger, configuration)
 				if metrics != nil {
 					utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: "QueryOptimization"})
 				}

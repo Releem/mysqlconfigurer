@@ -228,8 +228,9 @@ func ApplySchemaChanges(metrics *models.Metrics, repeaters models.MetricsRepeate
 					SQL: sql_statement,
 					TableName: "airportdb.airport",
 					BackupMethod: phase2.BackupNone,
-					UsePTOnlineSchemaChange: false,
-					Debug: false,
+					UsePTOnlineSchemaChange: true,
+					Config: configuration,
+					Debug: true,
 				})
 				if err != nil {
 					logger.Error(err)

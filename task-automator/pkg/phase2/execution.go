@@ -7,8 +7,9 @@ import (
 	"os/exec"
 	"strings"
 	"syscall"
+	"time"
 
-	"github.com/Releem/mysqlconfigurer/task-automator/pkg/config"
+	"github.com/Releem/mysqlconfigurer/config"
 )
 
 // BackupMethod represents the type of backup to perform
@@ -120,16 +121,18 @@ func (e *Executor) performBackup(options ExecuteOptions) (string, error) {
 }
 
 func (e *Executor) backupWithMysqldump(options ExecuteOptions) (string, error) {
-	if options.DSN == "" {
-		return "", fmt.Errorf("DSN is required for backup")
-	}
+	// if options.DSN == "" {
+	// 	return "", fmt.Errorf("DSN is required for backup")
+	// }
 
 	if options.Config == nil {
 		return "", fmt.Errorf("config is required for backup")
 	}
 
-	// Parse DSN to get connection details
-	host, port, user, password, _ := e.parseDSN(options.DSN)
+	host := options.Config.MysqlHost
+	port := options.Config.MysqlPort
+	user := options.Config.MysqlUser
+	password := options.Config.MysqlPassword
 	if host == "" {
 		return "", fmt.Errorf("could not parse DSN")
 	}
@@ -155,7 +158,9 @@ func (e *Executor) backupWithMysqldump(options ExecuteOptions) (string, error) {
 		return "", fmt.Errorf("failed to create backup directory: %w", err)
 	}
 
-	backupPath := fmt.Sprintf("%s/%s_%s.sql", options.Config.BackupDir, tableInfo.Database, tableInfo.Table)
+	// Generate timestamp prefix in YYMMDDHHMMSS format
+	timestamp := time.Now().Format("060102150405")
+	backupPath := fmt.Sprintf("%s/%s_%s_%s.sql", options.Config.BackupDir, timestamp, tableInfo.Database, tableInfo.Table)
 
 	args := []string{
 		"-h", host,
@@ -204,19 +209,24 @@ func (e *Executor) backupWithMysqldump(options ExecuteOptions) (string, error) {
 }
 
 func (e *Executor) backupWithXtrabackup(options ExecuteOptions) (string, error) {
-	if options.DSN == "" {
-		return "", fmt.Errorf("DSN is required for backup")
-	}
+	// if options.DSN == "" {
+	// 	return "", fmt.Errorf("DSN is required for backup")
+	// }
 
 	if options.Config == nil {
 		return "", fmt.Errorf("config is required for backup")
 	}
 
 	// Parse DSN to get connection details
-	host, port, user, password, _ := e.parseDSN(options.DSN)
-	if host == "" {
-		return "", fmt.Errorf("could not parse DSN")
-	}
+
+	host := options.Config.MysqlHost
+	port := options.Config.MysqlPort
+	user := options.Config.MysqlUser
+	password := options.Config.MysqlPassword
+	// host, port, user, password, _ := e.parseDSN(options.DSN)
+	// if host == "" {
+	// 	return "", fmt.Errorf("could not parse DSN")
+	// }
 
 	// Parse table name
 	tableInfo, err := ParseTableName(options.TableName, func() (string, error) {
@@ -239,8 +249,10 @@ func (e *Executor) backupWithXtrabackup(options ExecuteOptions) (string, error) 
 		return "", fmt.Errorf("failed to create backup directory: %w", err)
 	}
 
+	// Generate timestamp prefix in YYMMDDHHMMSS format
+	timestamp := time.Now().Format("060102150405")
 	// Create a unique backup directory for this table
-	backupDir := fmt.Sprintf("%s/xtrabackup_%s_%s", options.Config.BackupDir, tableInfo.Database, tableInfo.Table)
+	backupDir := fmt.Sprintf("%s/%s_xtrabackup_%s_%s", options.Config.BackupDir, timestamp, tableInfo.Database, tableInfo.Table)
 
 	// Step 1: Take backup of the table using --tables option
 	// Format: database.table
@@ -447,9 +459,9 @@ func (e *Executor) executeWithPTOSC(options ExecuteOptions) error {
 }
 
 func (e *Executor) dryRunPTOSC(options ExecuteOptions) error {
-	if options.DSN == "" {
-		return fmt.Errorf("DSN is required for pt-online-schema-change")
-	}
+	// if options.DSN == "" {
+	// 	return fmt.Errorf("DSN is required for pt-online-schema-change")
+	// }
 
 	if options.Config == nil {
 		return fmt.Errorf("config is required for pt-online-schema-change")
@@ -460,7 +472,10 @@ func (e *Executor) dryRunPTOSC(options ExecuteOptions) error {
 		ptosc = "pt-online-schema-change"
 	}
 
-	host, port, user, password, _ := e.parseDSN(options.DSN)
+	host := options.Config.MysqlHost
+	port := options.Config.MysqlPort
+	user := options.Config.MysqlUser
+	password := options.Config.MysqlPassword
 	if host == "" {
 		return fmt.Errorf("could not parse DSN")
 	}

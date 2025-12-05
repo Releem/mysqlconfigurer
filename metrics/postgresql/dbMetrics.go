@@ -27,7 +27,7 @@ var PG_STAT_VIEWS_OLD_VERSION = []string{
 var PG_STAT_STATEMENTS = `
 SELECT
 	COALESCE(d.datname, 'NULL') as datname,
-	s.queryid::text as queryid,
+	s.queryid as queryid,
 	sum(s.calls) AS calls,
 	sum(s.total_exec_time) AS total_exec_time,
 	sum(s.total_exec_time) / sum(s.calls) AS mean_exec_time
@@ -195,29 +195,63 @@ func (DBMetricsConfig *DBMetricsConfigGatherer) GetMetrics(metrics *models.Metri
 	defer utils.HandlePanic(DBMetricsConfig.configuration, DBMetricsConfig.logger)
 
 	output := make(map[string]models.MetricGroupValue)
-	var total_tables uint64
+	var total_tables, row, size, count uint64
+	var table_type string
 	i := 0
 
+	// Total tables count
+	err := models.DB.QueryRow("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema NOT IN ('information_schema', 'pg_catalog')").Scan(&row)
+	if err != nil {
+		DBMetricsConfig.logger.Error(err)
+	}
+	total_tables += row
+
+	// PostgreSQL table engine statistics (PostgreSQL doesn't have engines like MySQL, but we can collect table types)
+	// Switch to each database to get table statistics
+	rows, err := models.DB.Query(`
+					SELECT 
+						t.table_type,
+						COUNT(*) as table_count,
+						COALESCE(SUM(pg_total_relation_size(c.oid)), 0) as total_size
+					FROM information_schema.tables t
+					LEFT JOIN pg_class c ON c.relname = t.table_name
+					LEFT JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = t.table_schema
+					WHERE t.table_schema NOT IN ('information_schema', 'pg_catalog')
+					GROUP BY t.table_type`)
+
+	if err != nil {
+		DBMetricsConfig.logger.Error(err)
+	} else {
+		for rows.Next() {
+			err := rows.Scan(&table_type, &count, &size)
+			if err != nil {
+				DBMetricsConfig.logger.Error(err)
+			}
+			if output[table_type] == nil {
+				output[table_type] = models.MetricGroupValue{"Table Number": uint64(0), "Total Size": uint64(0)}
+			}
+			output[table_type]["Table Number"] = output[table_type]["Table Number"].(uint64) + count
+			output[table_type]["Total Size"] = output[table_type]["Total Size"].(uint64) + size
+		}
+		rows.Close()
+	}
+
 	for _, database := range metrics.DB.Metrics.Databases {
-		// if database == "postgres" {
-		// 	continue
-		// }
+		if database == "postgres" {
+			continue
+		}
+		// Switch to each database to get table statistics
 		db := u.ConnectionDatabase(DBMetricsConfig.configuration, DBMetricsConfig.logger, database)
 		defer db.Close()
 
 		// Total tables count
-		var row uint64
 		err := db.QueryRow("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema NOT IN ('information_schema', 'pg_catalog')").Scan(&row)
 		if err != nil {
 			DBMetricsConfig.logger.Error(err)
-			return err
 		}
 		total_tables += row
 
 		// PostgreSQL table engine statistics (PostgreSQL doesn't have engines like MySQL, but we can collect table types)
-		var table_type string
-		var size, count uint64
-		// Switch to each database to get table statistics
 		rows, err := db.Query(`
 				SELECT 
 					t.table_type,
@@ -231,22 +265,21 @@ func (DBMetricsConfig *DBMetricsConfigGatherer) GetMetrics(metrics *models.Metri
 
 		if err != nil {
 			DBMetricsConfig.logger.Error(err)
-			continue
-		}
-		for rows.Next() {
-			err := rows.Scan(&table_type, &count, &size)
-			if err != nil {
-				DBMetricsConfig.logger.Error(err)
-				continue
+		} else {
+			for rows.Next() {
+				err := rows.Scan(&table_type, &count, &size)
+				if err != nil {
+					DBMetricsConfig.logger.Error(err)
+					continue
+				}
+				if output[table_type] == nil {
+					output[table_type] = models.MetricGroupValue{"Table Number": uint64(0), "Total Size": uint64(0)}
+				}
+				output[table_type]["Table Number"] = output[table_type]["Table Number"].(uint64) + count
+				output[table_type]["Total Size"] = output[table_type]["Total Size"].(uint64) + size
 			}
-			if output[table_type] == nil {
-				output[table_type] = models.MetricGroupValue{"Table Number": uint64(0), "Total Size": uint64(0)}
-			}
-			output[table_type]["Table Number"] = output[table_type]["Table Number"].(uint64) + count
-			output[table_type]["Total Size"] = output[table_type]["Total Size"].(uint64) + size
+			rows.Close()
 		}
-		rows.Close()
-
 		i += 1
 		if i%25 == 0 {
 			time.Sleep(3 * time.Second)

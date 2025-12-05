@@ -26,12 +26,18 @@ func (DBConf *DBConfGatherer) GetMetrics(metrics *models.Metrics) error {
 
 	// Get PostgreSQL settings from pg_settings
 	rows, err := models.DB.Query(`
-		SELECT name, setting, COALESCE(unit, '') as unit, category, short_desc, context, vartype, source, 
-		       COALESCE(min_val, '') as min_val, COALESCE(max_val, '') as max_val, 
-		       COALESCE(enumvals::text, '') as enumvals, COALESCE(boot_val, '') as boot_val, 
-		       COALESCE(reset_val, '') as reset_val, pending_restart
-		FROM pg_settings 
-		ORDER BY name`)
+		SELECT name, 
+			case when source = 'session' then reset_val else setting end as setting, 
+			COALESCE(unit, 'NULL') as unit, 
+			COALESCE(vartype, 'NULL') as vartype, 
+			COALESCE(source, 'NULL') as source, 
+			COALESCE(sourcefile, 'NULL') as sourcefile, 
+			COALESCE(sourceline::text, 'NULL') as sourceline, 
+			COALESCE(min_val, 'NULL') as min_val, 
+			COALESCE(max_val, 'NULL') as max_val, 
+			COALESCE(enumvals::text, 'NULL') as enumvals, 
+			pending_restart
+		FROM pg_settings`)
 	if err != nil {
 		DBConf.logger.Error(err)
 		return err
@@ -39,10 +45,10 @@ func (DBConf *DBConfGatherer) GetMetrics(metrics *models.Metrics) error {
 	defer rows.Close()
 
 	for rows.Next() {
-		var name, setting, unit, category, short_desc, context, vartype, source, min_val, max_val, enumvals, boot_val, reset_val string
+		var name, setting, unit, vartype, source, sourcefile, sourceline, min_val, max_val, enumvals string
 		var pending_restart bool
 
-		if err := rows.Scan(&name, &setting, &unit, &category, &short_desc, &context, &vartype, &source, &min_val, &max_val, &enumvals, &boot_val, &reset_val, &pending_restart); err != nil {
+		if err := rows.Scan(&name, &setting, &unit, &vartype, &source, &sourcefile, &sourceline, &min_val, &max_val, &enumvals, &pending_restart); err != nil {
 			DBConf.logger.Error(err)
 			continue
 		}
@@ -51,16 +57,13 @@ func (DBConf *DBConfGatherer) GetMetrics(metrics *models.Metrics) error {
 		output[name] = models.MetricGroupValue{
 			"setting":         setting,
 			"unit":            unit,
-			"category":        category,
-			"short_desc":      short_desc,
-			"context":         context,
 			"vartype":         vartype,
 			"source":          source,
+			"sourcefile":      sourcefile,
+			"sourceline":      sourceline,
 			"min_val":         min_val,
 			"max_val":         max_val,
 			"enumvals":        enumvals,
-			"boot_val":        boot_val,
-			"reset_val":       reset_val,
 			"pending_restart": pending_restart,
 		}
 	}

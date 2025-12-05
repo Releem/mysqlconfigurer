@@ -27,40 +27,27 @@ go build -o task-automator ./cmd/task-automator
 
 ## Configuration
 
-The application uses a JSON configuration file for paths and directories. Configuration is loaded from:
+The application uses the main mysqlconfigurer configuration file (`releem.conf`). The following HCL configuration fields are available for task-automator:
 
-1. Environment variable `TASK_AUTOMATOR_CONFIG` (if set)
-2. `~/.task-automator.json` (if exists)
-3. `./task-automator.json` (if exists in current directory)
-4. Default values (if no config file found)
+- `backup_dir`: Directory for backups (default: `/tmp/backups`)
+- `ptosc_path`: Path to pt-online-schema-change binary (default: `pt-online-schema-change`)
+- `mysqldump_path`: Path to mysqldump binary (default: `mysqldump`)
+- `xtrabackup_path`: Path to xtrabackup binary (default: `xtrabackup`)
+- `backup_space_buffer`: Disk space buffer percentage (default: `20.0`)
 
-### Example Configuration File
+### Example Configuration
 
-Create a `task-automator.json` file:
+Add to your `releem.conf` file:
 
-```json
-{
-  "backup_dir": "/var/backups/mysql",
-  "ptosc_path": "/usr/local/bin/pt-online-schema-change",
-  "mysqldump_path": "/usr/bin/mysqldump",
-  "xtrabackup_path": "/usr/bin/xtrabackup",
-  "backup_space_buffer": 20.0
-}
+```hcl
+backup_dir = "/var/backups/mysql"
+ptosc_path = "/usr/local/bin/pt-online-schema-change"
+mysqldump_path = "/usr/bin/mysqldump"
+xtrabackup_path = "/usr/bin/xtrabackup"
+backup_space_buffer = 20.0
 ```
 
-### Default Values
-
-- `backup_dir`: `/tmp/backups`
-- `ptosc_path`: `pt-online-schema-change` (uses PATH)
-- `mysqldump_path`: `mysqldump` (uses PATH)
-- `xtrabackup_path`: `xtrabackup` (uses PATH)
-- `backup_space_buffer`: `20.0` (20% buffer for disk space checking)
-
-You can also use the example file:
-```bash
-cp task-automator.json.example task-automator.json
-# Edit task-automator.json with your paths
-```
+The configuration file path can be specified via the `RELEEM_CONFIG` environment variable, or defaults to `/opt/releem/releem.conf`.
 
 ## Usage
 

@@ -160,7 +160,7 @@ func ApplySchemaChanges(metrics *models.Metrics, repeaters models.MetricsRepeate
 	var task_exit_code, task_status int
 	var task_output string
 	var sql_statement string
-	sql_statement = "ALTER TABLE airportdb.airport ADD COLUMN email VARCHAR(255)"
+	sql_statement = "ALTER TABLE airportdb.t1 ADD COLUMN email VARCHAR(255)"
 	logger.Info("* Validating schema changes...")
 
 	// Use existing models.DB connection for validation
@@ -189,10 +189,11 @@ func ApplySchemaChanges(metrics *models.Metrics, repeaters models.MetricsRepeate
 				executor := phase2.NewExecutor(models.DB)
 				_, err = executor.Execute(phase2.ExecuteOptions{
 					SQL: sql_statement,
-					TableName: "airportdb.airport",
+					TableName: stmt.TableName,
 					BackupMethod: phase2.BackupNone,
-					UsePTOnlineSchemaChange: false,
-					Debug: false,
+					UsePTOnlineSchemaChange: true,
+					Config: configuration,
+					Debug: true,
 				})
 				if err != nil {
 					logger.Error(err)

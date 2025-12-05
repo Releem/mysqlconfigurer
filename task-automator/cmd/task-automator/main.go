@@ -7,7 +7,8 @@ import (
 	"os"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/Releem/mysqlconfigurer/task-automator/pkg/config"
+	logging "github.com/google/logger"
+	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/task-automator/pkg/phase1"
 	"github.com/Releem/mysqlconfigurer/task-automator/pkg/phase2"
 )
@@ -23,11 +24,27 @@ func main() {
 
 	command := os.Args[1]
 
-	// Load configuration
-	configPath := getConfigPath()
-	cfg, err := config.LoadConfig(configPath)
+	// Load configuration from main config file
+	// Default config path or use environment variable
+	configPath := os.Getenv("RELEEM_CONFIG")
+	if configPath == "" {
+		configPath = "/opt/releem/releem.conf"
+	}
+	
+	logger := logging.Init("task-automator", false, false, os.Stderr)
+	var cfg *config.Config
+	var err error
+	cfg, err = config.LoadConfig(configPath, *logger)
 	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
+		// If config file doesn't exist, create a default config
+		cfg = &config.Config{
+			BackupDir:         "/tmp/backups",
+			PTOSCPath:         "pt-online-schema-change",
+			MysqldumpPath:     "mysqldump",
+			XtrabackupPath:    "xtrabackup",
+			BackupSpaceBuffer: 20.0,
+		}
+		logger.Infof("Using default configuration (config file not found)")
 	}
 
 	// Example DSN - replace with actual connection details
@@ -95,26 +112,6 @@ func getDSN() string {
 	return dsn
 }
 
-func getConfigPath() string {
-	configPath := os.Getenv("TASK_AUTOMATOR_CONFIG")
-	if configPath == "" {
-		// Try default locations
-		homeDir, err := os.UserHomeDir()
-		if err == nil {
-			defaultPath := homeDir + "/.task-automator.json"
-			if _, err := os.Stat(defaultPath); err == nil {
-				return defaultPath
-			}
-		}
-		// Try current directory
-		if _, err := os.Stat("./task-automator.json"); err == nil {
-			return "./task-automator.json"
-		}
-		// Return empty to use defaults
-		return ""
-	}
-	return configPath
-}
 
 func runPhase1(conn *sql.DB, ddlStatements []string) {
 	validator := phase1.NewValidator(conn)

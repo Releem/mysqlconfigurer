@@ -6,20 +6,25 @@
 export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
 export EXTEND_TIMEOUT_USEC=18000000000
 
+# Set sudo command
+if [ "$EUID" -ne 0 ]; then
+    sudo_cmd="sudo"
+else
+    sudo_cmd=""
+fi
+
 # Variables
+VERSION="1.22.2.1"
 MYSQLCONFIGURER_PATH="/opt/releem/conf/"
 RELEEM_CONF_FILE="/opt/releem/releem.conf"
 MYSQLCONFIGURER_FILE_NAME="z_aiops_mysql.cnf"
 INITIAL_MYSQLCONFIGURER_FILE_NAME="initial_config_mysql.cnf"
-MYSQLTUNER_FILENAME=$MYSQLCONFIGURER_PATH"mysqltuner.pl"
-MYSQLTUNER_REPORT=$MYSQLCONFIGURER_PATH"mysqltunerreport.json"
 RELEEM_MYSQL_VERSION=$MYSQLCONFIGURER_PATH"mysql_version"
 MYSQLCONFIGURER_CONFIGFILE="${MYSQLCONFIGURER_PATH}${MYSQLCONFIGURER_FILE_NAME}"
-MYSQL_MEMORY_LIMIT=0
-VERSION="1.22.2.1"
 RELEEM_INSTALL_PATH=$MYSQLCONFIGURER_PATH"install.sh"
+DB_MEMORY_LIMIT=0
+
 logfile="/var/log/releem-mysqlconfigurer.log"
-MYSQL_CONF_DIR="/etc/mysql/releem.conf.d"
 
 # Set up a named pipe for logging
 npipe=/tmp/$$.mysqlconfigurer.tmp
@@ -76,7 +81,7 @@ function wait_restart() {
   spin[1]="\\"
   spin[2]="|"
   spin[3]="/"
-  printf "\033[37m\n Waiting for MySQL service to start 1200 seconds ${spin[0]}"
+  printf "\033[37m\n Waiting for service to start 1200 seconds ${spin[0]}"
   while /bin/true; do
     PID=$1
     non_blocking_wait $PID
@@ -106,9 +111,7 @@ function wait_restart() {
 
 function check_mysql_version() {
 
-    if [ -f $MYSQLTUNER_REPORT ]; then
-        mysql_version=$(grep -o '"Version":"[^"]*' $MYSQLTUNER_REPORT  | grep -o '[^"]*$')
-    elif [ -f "$RELEEM_MYSQL_VERSION" ]; then
+    if [ -f "$RELEEM_MYSQL_VERSION" ]; then
         mysql_version=$(cat $RELEEM_MYSQL_VERSION)
     else
         printf "\033[37m\n * Please try again later or run Releem Agent manually:\033[0m"
@@ -174,7 +177,6 @@ function releem_rollback_config() {
     wait_restart $!
     RESTART_CODE=$?
 
-    #if [[ $($mysqladmincmd  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     if [ $RESTART_CODE -eq 0 ];
     then
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m The MySQL service restarted successfully!\033[0m\n"
@@ -192,19 +194,35 @@ function releem_rollback_config() {
 
 
 
-function releem_ps_mysql() {
+function releem_configure_database() {
+    printf "\033[37m\n * Detected database type: $DATABASE_TYPE\033[0m\n"
+    
+    if [ "$DATABASE_TYPE" == "mysql" ]; then
+        releem_configure_mysql
+    elif [ "$DATABASE_TYPE" == "postgresql" ]; then
+        releem_configure_postgresql_libraries
+        releem_configure_postgresql
+    else
+        printf "\033[31m\n * Unknown database type: $DATABASE_TYPE. Supported types: mysql, postgresql\033[0m\n"
+        printf "\033[37m\n * Please configure either mysql_user/mysql_password or pg_user/pg_password in releem.conf\033[0m\n"
+        exit 1
+    fi
+}
+
+
+function releem_configure_mysql() {
     FLAG_CONFIGURE=1
-    status_ps=$($mysqlcmd  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'performance_schema'" 2>/dev/null | awk '{print $2}')
+    status_ps=$($mysqlcmd  ${mysql_connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'performance_schema'" 2>/dev/null | awk '{print $2}')
     if [ "$status_ps" != "ON" ]; then
         FLAG_CONFIGURE=0
     fi
 
-    status_slowlog=$($mysqlcmd  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'slow_query_log'" 2>/dev/null | awk '{print $2}')
+    status_slowlog=$($mysqlcmd  ${mysql_connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'slow_query_log'" 2>/dev/null | awk '{print $2}')
     if [ "$status_slowlog" != "ON" ]; then
         FLAG_CONFIGURE=0
     fi
 
-    ps_digest_size=$($mysqlcmd  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'performance_schema_digests_size'" 2>/dev/null | awk '{print $2}')
+    ps_digest_size=$($mysqlcmd  ${mysql_connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'performance_schema_digests_size'" 2>/dev/null | awk '{print $2}')
     if [ $ps_digest_size -lt 10000 ]; then
         FLAG_CONFIGURE=0
     fi
@@ -214,7 +232,7 @@ function releem_ps_mysql() {
         exit 3;
     fi
     if [ -f "$MYSQL_MY_CNF_PATH" ]; then
-        if [ `$sudo_cmd grep -cE "!includedir $MYSQL_CONF_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ]; then
+        if [ `$sudo_cmd grep -cE "!includedir $RELEEM_MYSQL_CONFIG_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ]; then
             printf "\033[31m\n Directive includedir was not found in the MySQL configuration file $MYSQL_MY_CNF_PATH.\n Try to reinstall Releem Agent.\n\033[0m"
             exit 11;
         fi
@@ -224,16 +242,16 @@ function releem_ps_mysql() {
     echo "[mysqld]" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
     echo "performance_schema = 1" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
     echo "slow_query_log = 1" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
-    if [ $ps_digest_size -lt 10000 ]; then
+    if [ $ps_digest_size -le 10000 ]; then
         echo "performance_schema_digests_size = 10000" | $sudo_cmd tee -a "$RELEEM_MYSQL_CONFIG_DIR/collect_metrics.cnf" >/dev/null
     fi
     if [ -n "$RELEEM_QUERY_OPTIMIZATION" -a "$RELEEM_QUERY_OPTIMIZATION" = true ]; then
         if ! check_mysql_version; then
             printf "\033[31m\n * MySQL version is lower than 5.6.7. Query optimization is not supported. Please reinstall the agent with query optimization disabled. \033[0m\n"
         else
-            performance_schema_setup_consumers_events_statements_current=$($mysqlcmd ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "SELECT ENABLED FROM performance_schema.setup_consumers WHERE NAME = 'events_statements_current';" 2>/dev/null )
-            performance_schema_setup_consumers_events_statements_history=$($mysqlcmd ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "SELECT ENABLED FROM performance_schema.setup_consumers WHERE NAME = 'events_statements_history';" 2>/dev/null )
-            # performance_schema_events_statements_history_size=$($mysqlcmd  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'performance_schema_events_statements_history_size'" 2>/dev/null | awk '{print $2}')
+            performance_schema_setup_consumers_events_statements_current=$($mysqlcmd ${mysql_connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "SELECT ENABLED FROM performance_schema.setup_consumers WHERE NAME = 'events_statements_current';" 2>/dev/null )
+            performance_schema_setup_consumers_events_statements_history=$($mysqlcmd ${mysql_connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "SELECT ENABLED FROM performance_schema.setup_consumers WHERE NAME = 'events_statements_history';" 2>/dev/null )
+            # performance_schema_events_statements_history_size=$($mysqlcmd  ${mysql_connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'performance_schema_events_statements_history_size'" 2>/dev/null | awk '{print $2}')
 
             if [ "$performance_schema_setup_consumers_events_statements_current" != "YES" ]; then
                 FLAG_CONFIGURE=0
@@ -278,7 +296,7 @@ function releem_ps_mysql() {
     wait_restart $!
     RESTART_CODE=$?
 
-    #if [[ $($mysqladmincmd  ${connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
+    #if [[ $($mysqladmincmd  ${mysql_connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
     if [ $RESTART_CODE -eq 0 ];
     then
         printf "\033[32m\n The MySQL service restarted successfully!\n Performance schema and SlowLog are enabled and configured to collect metrics and queries.\033[0m\n"
@@ -289,9 +307,143 @@ function releem_ps_mysql() {
     then
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m The MySQL service failed to restart with error. Check the MySQL error log. \033[0m\n" 
     fi
-    printf "\033[32m Sending notification to Releem Platform. \033[0m\n"
-    $sudo_cmd /opt/releem/releem-agent -f
     
+    exit "${RESTART_CODE}"
+}
+
+function releem_configure_postgresql_libraries() {
+    FLAG_CONFIGURE=1    
+    shared_preload_libraries=$(PGPASSWORD=${PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${PG_LOGIN} -t -c "SHOW shared_preload_libraries;" 2>/dev/null | xargs)
+    if [[ "$shared_preload_libraries" != *"pg_stat_statements"* ]]; then
+        FLAG_CONFIGURE=0
+    fi    
+    printf "\033[37m\n * Enabling PostgreSQL Library pg_stat_statements for performance monitoring.\033[0m\n"
+    if [ -z "$RELEEM_PG_CONF_DIR" ] || [ ! -d "$RELEEM_PG_CONF_DIR" ]; then
+        printf "\033[31m\n PostgreSQL configuration directory was not found: $RELEEM_PG_CONF_DIR\033[0m\n"
+        printf "\033[37m\n * Please ensure PostgreSQL is installed and the configuration directory exists.\033[0m\n"    
+        exit 3;
+    fi    
+    echo "# This configuration was recommended by Releem. https://releem.com" | $sudo_cmd tee "$RELEEM_PG_CONF_DIR/collect_metrics.conf" >/dev/null
+    echo "# PostgreSQL configuration for Releem metrics collection" | $sudo_cmd tee -a "$RELEEM_PG_CONF_DIR/collect_metrics.conf" >/dev/null
+    echo "" | $sudo_cmd tee -a "$RELEEM_PG_CONF_DIR/collect_metrics.conf" >/dev/null
+        
+    if [[ "$shared_preload_libraries" == *"pg_stat_statements"* ]]; then
+        echo "shared_preload_libraries = '${shared_preload_libraries}'" | $sudo_cmd tee -a "$RELEEM_PG_CONF_DIR/collect_metrics.conf" >/dev/null
+    else    
+        if [ "$shared_preload_libraries" == "" ]; then
+            echo "shared_preload_libraries = 'pg_stat_statements'" | $sudo_cmd tee -a "$RELEEM_PG_CONF_DIR/collect_metrics.conf" >/dev/null
+        else
+            echo "shared_preload_libraries = '${shared_preload_libraries},pg_stat_statements'" | $sudo_cmd tee -a "$RELEEM_PG_CONF_DIR/collect_metrics.conf" >/dev/null
+        fi
+    fi
+    chmod 644 $RELEEM_PG_CONF_DIR/collect_metrics.conf
+
+    if [ "$FLAG_CONFIGURE" -eq 1 ]; then
+        printf "\033[37m\n * The Extention pg_stat_statements is enabled to collect metrics and queries.\033[0m\n"
+        return
+    fi
+    printf "\033[37m To apply changes to the Postgresql configuration, you need to restart the service\n\033[0m\n"
+    FLAG_RESTART_SERVICE=1
+    if [ -z "$RELEEM_RESTART_SERVICE" ]; then
+        read -p " Restart Postgresql service? (Y/N) " -n 1 -r
+        echo    # move to a new line
+        if [[ ! $REPLY =~ ^[Yy]$ ]]
+        then
+            printf "\033[31m Confirmation to restart the service has not been received. \033[0m\n"
+            FLAG_RESTART_SERVICE=0
+        fi
+    elif [ "$RELEEM_RESTART_SERVICE" -eq 0 ]; then
+        FLAG_RESTART_SERVICE=0
+    fi
+    if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
+        printf "\033[31m\n For appling change in configuration Postgresql need to restart service.\n Run the command \`bash /opt/releem/mysqlconfigurer.sh -p\` when it is possible to restart the service.\033[0m\n"
+        exit 0
+    fi
+    #echo "-------Test config-------"
+    printf "\033[37m Restarting Postgresql service with command '$RELEEM_PG_RESTART_SERVICE'.\033[0m\n"
+    eval "$RELEEM_PG_RESTART_SERVICE" &
+    wait_restart $!
+    RESTART_CODE=$?
+
+    if [ $RESTART_CODE -eq 0 ];
+    then
+        printf "\033[32m\n The Postgresql service restarted successfully!\n The Extention pg_stat_statements is enabled to collect metrics and queries.\033[0m\n"
+    elif [ $RESTART_CODE -eq 6 ];
+    then
+        printf "\033[31m\n The Postgresql service failed to restart in 1200 seconds. Check the Postgresql error log.\033[0m\n"
+        exit "${RESTART_CODE}"
+    elif [ $RESTART_CODE -eq 7 ];
+    then
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m The Postgresql service failed to restart with error. Check the Postgresql error log. \033[0m\n" 
+        exit "${RESTART_CODE}"
+    fi
+}
+
+function releem_configure_postgresql() {
+    FLAG_CONFIGURE=1
+    
+    # Check if logging is properly configured
+    pg_stat_statements_track=$(PGPASSWORD=${PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${PG_LOGIN} -t -c "SHOW pg_stat_statements.track;"  | xargs)
+    if [ "$pg_stat_statements_track" != "all" ]; then
+        FLAG_CONFIGURE=0
+    fi
+
+    pg_stat_statements_max=$(PGPASSWORD=${PG_PASSWORD} $psqlcmd ${pg_connection_string}  -U ${PG_LOGIN} -t -c "SHOW pg_stat_statements.max;" | xargs)
+    if [ $pg_stat_statements_max -lt 10000 ]; then
+        FLAG_CONFIGURE=0
+    fi
+
+
+    printf "\033[37m\n * Configuring PostgreSQL to collect metrics and queries.\033[0m\n"
+    if [ -z "$RELEEM_PG_CONF_DIR" ] || [ ! -d "$RELEEM_PG_CONF_DIR" ]; then
+        printf "\033[31m\n The PostgreSQL configuration directory was not found: $RELEEM_PG_CONF_DIR\033[0m\n"
+        printf "\033[37m\n * Please ensure PostgreSQL is installed and the configuration directory exists.\033[0m\n"    
+        exit 3;
+    fi    
+    echo "pg_stat_statements.track = all" | $sudo_cmd tee -a "$RELEEM_PG_CONF_DIR/collect_metrics.conf" >/dev/null
+    if [ "$pg_stat_statements_max" -le "10000" ]; then
+        echo "pg_stat_statements.max = 10000" | $sudo_cmd tee -a "$RELEEM_PG_CONF_DIR/collect_metrics.conf" >/dev/null
+    fi
+    chmod 644 $RELEEM_PG_CONF_DIR/collect_metrics.conf
+
+    if [ "$FLAG_CONFIGURE" -eq 1 ]; then
+        printf "\033[37m\n * The PostgreSQL is configured to collect metrics and queries.\033[0m\n"
+        return
+    fi
+    printf "\033[37m To apply changes to the Postgresql configuration, you need to restart the service\n\033[0m\n"
+    FLAG_RESTART_SERVICE=1
+    if [ -z "$RELEEM_RESTART_SERVICE" ]; then
+        read -p " Restart Postgresql service? (Y/N) " -n 1 -r
+        echo    # move to a new line
+        if [[ ! $REPLY =~ ^[Yy]$ ]]
+        then
+            printf "\033[31m Confirmation to restart the service has not been received. \033[0m\n"
+            FLAG_RESTART_SERVICE=0
+        fi
+    elif [ "$RELEEM_RESTART_SERVICE" -eq 0 ]; then
+        FLAG_RESTART_SERVICE=0
+    fi
+    if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
+        printf "\033[31m\n For appling change in configuration Postgresql need to restart service.\n Run the command \`bash /opt/releem/mysqlconfigurer.sh -p\` when it is possible to restart the service.\033[0m\n"
+        exit 0
+    fi
+    #echo "-------Test config-------"
+    printf "\033[37m Restarting Postgresql service with command '$RELEEM_PG_RESTART_SERVICE'.\033[0m\n"
+    eval "$RELEEM_PG_RESTART_SERVICE" &
+    wait_restart $!
+    RESTART_CODE=$?
+
+    if [ $RESTART_CODE -eq 0 ];
+    then
+        printf "\033[32m\n The Postgresql service restarted successfully!\n The PostgreSQL is configured to collect metrics and queries.\033[0m\n"
+    elif [ $RESTART_CODE -eq 6 ];
+    then
+        printf "\033[31m\n The Postgresql service failed to restart in 1200 seconds. Check the Postgresql error log.\033[0m\n"
+    elif [ $RESTART_CODE -eq 7 ];
+    then
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m The Postgresql service failed to restart with error. Check the Postgresql error log. \033[0m\n" 
+    fi
+
     exit "${RESTART_CODE}"
 }
 
@@ -334,7 +486,7 @@ function releem_apply_manual() {
         exit 3;
     fi
     if [ -f "$MYSQL_MY_CNF_PATH" ]; then
-        if [ `$sudo_cmd grep -cE "!includedir $MYSQL_CONF_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ]; then
+        if [ `$sudo_cmd grep -cE "!includedir $RELEEM_MYSQL_CONFIG_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ]; then
             printf "\033[31m\n Directive includedir was not found in the MySQL configuration file $MYSQL_MY_CNF_PATH.\n Try to reinstall Releem Agent.\n\033[0m"
             exit 11;
         fi
@@ -436,7 +588,7 @@ function releem_apply_automatic() {
         exit 3;
     fi
     if [ -f "$MYSQL_MY_CNF_PATH" ]; then
-        if [ `$sudo_cmd grep -cE "!includedir $MYSQL_CONF_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ]; then
+        if [ `$sudo_cmd grep -cE "!includedir $RELEEM_MYSQL_CONFIG_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ]; then
             printf "\033[31m\n Directive includedir was not found in the MySQL configuration file $MYSQL_MY_CNF_PATH.\n Try to reinstall Releem Agent.\n\033[0m"
             exit 11;
         fi
@@ -614,7 +766,7 @@ function releem_apply_automatic() {
 #   echo -e "\033[37m\n * Collecting metrics to recommend a config.\033[0m"
 
 #   # Collect MySQL metrics
-#   if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --nocolstat --noidxstat --nopfstat --forcemem=$MYSQL_MEMORY_LIMIT --outputfile="$MYSQLTUNER_REPORT" --user=${MYSQL_LOGIN} --pass=${MYSQL_PASSWORD}  ${connection_string}  > /dev/null; then
+#   if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --nocolstat --noidxstat --nopfstat --forcemem=$DB_MEMORY_LIMIT --outputfile="$MYSQLTUNER_REPORT" --user=${MYSQL_LOGIN} --pass=${MYSQL_PASSWORD}  ${mysql_connection_string}  > /dev/null; then
 
 #       echo -e "\033[37m\n * Sending metrics to Releem Cloud Platform.\033[0m"
 
@@ -642,18 +794,89 @@ function releem_apply_automatic() {
 #   fi
 
 # }
+function detect_mysql_commands() {
+    local mysqladmincmd=""
+    local mysqlcmd=""
+    
+    printf "\033[37m\n * Detecting MySQL/MariaDB commands.\033[0m\n"
+    
+    # Detect mysqladmin/mariadb-admin
+    mysqladmincmd=$(which mariadb-admin 2>/dev/null || which mysqladmin 2>/dev/null || true)
+    if [ -z "$mysqladmincmd" ]; then
+        printf "\033[31m Couldn't find mysqladmin/mariadb-admin in your \$PATH. Correct the path to mysqladmin/mariadb-admin in a \$PATH variable \033[0m\n"
+        on_error
+        exit 1
+    fi
+    
+    # Detect mysql/mariadb
+    mysqlcmd=$(which mariadb 2>/dev/null || which mysql 2>/dev/null || true)
+    if [ -z "$mysqlcmd" ]; then
+        printf "\033[31m Couldn't find mysql/mariadb in your \$PATH. Correct the path to mysql/mariadb in a \$PATH variable \033[0m\n"
+        on_error
+        exit 1
+    fi
+    
+    # Export as global variables
+    mysqladmincmd="$mysqladmincmd"
+    mysqlcmd="$mysqlcmd"
+}
 
-connection_string=""
+function detect_postgresql_commands() {
+    local psql_cmd=""
+    local pg_isready_cmd=""
+    
+    printf "\033[37m\n * Detecting PostgreSQL commands.\033[0m\n"
+    
+    # Detect psql
+    psql_cmd=$(which psql 2>/dev/null || true)
+    if [ -z "$psql_cmd" ]; then
+        printf "\033[31m Couldn't find psql in your \$PATH. Please install PostgreSQL client tools or correct the \$PATH variable \033[0m\n"
+        on_error
+        exit 1
+    fi
+
+    # Detect pg_isready
+    pg_isready_cmd=$(which pg_isready 2>/dev/null || true)
+    if [ -z "$pg_isready_cmd" ]; then
+        printf "\033[31m Couldn't find pg_isready in your \$PATH. Please install PostgreSQL client tools \033[0m\n"
+        on_error
+        exit 1
+    fi    
+
+    # Export as global variables
+    psqlcmd="$psql_cmd"
+    pg_isreadycmd="$pg_isready_cmd"
+
+    printf "\033[37m   Found psql: %s\033[0m\n" "$psql_cmd"
+    printf "\033[37m   Found pg_isready: %s\033[0m\n" "$pg_isready_cmd"
+}
+
+
+mysql_connection_string=""
+pg_connection_string=""
 if test -f $RELEEM_CONF_FILE ; then
     . $RELEEM_CONF_FILE
 
-    if [ ! -z $apikey ]; then
+    if [ ! -z "$apikey" ]; then
         RELEEM_API_KEY=$apikey
     fi
-    if [ ! -z $memory_limit ]; then
-        MYSQL_MEMORY_LIMIT=$memory_limit
+    if [ ! -z "$memory_limit" ]; then
+        DB_MEMORY_LIMIT=$memory_limit
     fi
-    if [ ! -z $mysql_cnf_dir ]; then
+    if [ ! -z "$query_optimization" ]; then
+        RELEEM_QUERY_OPTIMIZATION=$query_optimization
+    fi    
+    if [ ! -z "$releem_region" ]; then
+        RELEEM_REGION=$releem_region
+    fi
+    if [ ! -z "$instance_type" ]; then
+        RELEEM_INSTANCE_TYPE=$instance_type
+    else
+        RELEEM_INSTANCE_TYPE="local"
+    fi
+
+    # MySQL Configuration Variables
+    if [ ! -z "$mysql_cnf_dir" ]; then
         RELEEM_MYSQL_CONFIG_DIR=$mysql_cnf_dir
     fi
     if [ ! -z "$mysql_restart_service" ]; then
@@ -667,60 +890,69 @@ if test -f $RELEEM_CONF_FILE ; then
     fi
     if [ ! -z "$mysql_host" ]; then
         if [ -S "$mysql_host" ]; then
-            connection_string="${connection_string} --socket=$mysql_host"
+            mysql_connection_string="${mysql_connection_string} --socket=$mysql_host"
         else
-            connection_string="${connection_string} --host=$mysql_host"
+            mysql_connection_string="${mysql_connection_string} --host=$mysql_host"
         fi
     else
-        connection_string="${connection_string} --host=127.0.0.1"
+        mysql_connection_string="${mysql_connection_string} --host=127.0.0.1"
     fi
     if [ ! -z "$mysql_port" ]; then
-        connection_string="${connection_string} --port=$mysql_port"
+        mysql_connection_string="${mysql_connection_string} --port=$mysql_port"
     else
-        connection_string="${connection_string} --port=3306"
+        mysql_connection_string="${mysql_connection_string} --port=3306"
     fi
-    if [ ! -z "$query_optimization" ]; then
-        RELEEM_QUERY_OPTIMIZATION=$query_optimization
-    fi    
-    if [ ! -z "$releem_region" ]; then
-        RELEEM_REGION=$releem_region
+
+    # PostgreSQL Configuration Variables
+    if [ ! -z "$pg_cnf_dir" ]; then
+        RELEEM_PG_CONF_DIR=$pg_cnf_dir
     fi
-    if [ ! -z "$instance_type" ]; then
-        RELEEM_INSTANCE_TYPE=$instance_type
+    if [ ! -z "$pg_restart_service" ]; then
+        RELEEM_PG_RESTART_SERVICE=$pg_restart_service
+    fi
+    if [ ! -z "$pg_user" ]; then
+        PG_LOGIN=$pg_user
+    fi
+    if [ ! -z "$pg_password" ]; then
+        PG_PASSWORD=$pg_password
+    fi
+    if [ ! -z "$pg_host" ]; then
+        pg_connection_string="${pg_connection_string} -h $pg_host"        
     else
-        RELEEM_INSTANCE_TYPE="local"
-    fi    
+        pg_connection_string="${pg_connection_string} -h 127.0.0.1"
+    fi
+    if [ ! -z "$pg_port" ]; then
+        pg_connection_string="${pg_connection_string} -p $pg_port"        
+    else
+        pg_connection_string="${pg_connection_string} -p 5432"
+    fi
+    if [ ! -z "$pg_database" ]; then
+        pg_connection_string="${pg_connection_string} -d $pg_database"
+    else
+        pg_connection_string="${pg_connection_string} -d postgres"
+    fi
 fi
 
-if [ -f "/etc/my.cnf" ]; then
-    MYSQL_MY_CNF_PATH="/etc/my.cnf"
-elif [ -f "/etc/mysql/my.cnf" ]; then
-    MYSQL_MY_CNF_PATH="/etc/mysql/my.cnf"
-else
-    MYSQL_MY_CNF_PATH=""
-fi 
+# Database Type Detection
+DATABASE_TYPE=""  # Default to MySQL for backward compatibility
+if [ ! -z "$PG_LOGIN" ] && [ ! -z "$PG_PASSWORD" ]; then
+    DATABASE_TYPE="postgresql"
+elif [ ! -z "$MYSQL_LOGIN" ] && [ ! -z "$MYSQL_PASSWORD" ]; then
+    DATABASE_TYPE="mysql"
+fi
 
 if [ "$RELEEM_INSTANCE_TYPE" == "local" ]; then
-    mysqladmincmd=$(which  mariadb-admin 2>/dev/null || true)
-    if [ -z $mysqladmincmd ];
-    then
-        mysqladmincmd=$(which  mysqladmin 2>/dev/null || true)
-    fi
-    if [ -z $mysqladmincmd ];
-    then
-        printf "\033[31m Couldn't find mysqladmin/mariadb-admin in your \$PATH. Correct the path to mysqladmin/mariadb-admin in a \$PATH variable \033[0m\n"
-        exit 1
-    fi
-
-    mysqlcmd=$(which  mariadb 2>/dev/null || true)
-    if [ -z $mysqlcmd ];
-    then
-        mysqlcmd=$(which  mysql 2>/dev/null || true)
-    fi
-    if [ -z $mysqlcmd ];
-    then
-        printf "\033[31m Couldn't find mysql/mariadb in your \$PATH. Correct the path to mysql/mariadb in a \$PATH variable \033[0m\n"
-        exit 1
+    if [ "$DATABASE_TYPE" == "mysql" ]; then
+        detect_mysql_commands
+        if [ -f "/etc/my.cnf" ]; then
+            MYSQL_MY_CNF_PATH="/etc/my.cnf"
+        elif [ -f "/etc/mysql/my.cnf" ]; then
+            MYSQL_MY_CNF_PATH="/etc/mysql/my.cnf"
+        else
+            MYSQL_MY_CNF_PATH=""
+        fi 
+    elif [ "$DATABASE_TYPE" == "postgresql" ]; then
+        detect_postgresql_commands
     fi
 fi
 # Parse parameters
@@ -728,11 +960,11 @@ while getopts "k:m:s:arpu" option
 do
   case "${option}" in
     k) RELEEM_API_KEY=${OPTARG};;
-    m) MYSQL_MEMORY_LIMIT=${OPTARG};;
+    m) DB_MEMORY_LIMIT=${OPTARG};;
     a) releem_apply_manual;;
     s) releem_apply_config ${OPTARG};;
     r) releem_rollback_config;;
-    p) releem_ps_mysql;;
+    p) releem_configure_database;;
     u) update_agent; exit 0;;
   esac
 done

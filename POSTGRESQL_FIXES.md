@@ -6,16 +6,16 @@ This document summarizes the fixes applied to resolve the PostgreSQL integration
 
 From the terminal output, the following issues were identified:
 
-1. **NULL value handling errors** in `pgConf.go` - PostgreSQL `pg_settings` table has NULL values in multiple columns
-2. **NULL value handling errors** in `pgMetricsBase.go` - `stats_reset` column can be NULL in PostgreSQL statistics tables
+1. **NULL value handling errors** in `DBConf.go` - PostgreSQL `pg_settings` table has NULL values in multiple columns
+2. **NULL value handling errors** in `DBMetricsBase.go` - `stats_reset` column can be NULL in PostgreSQL statistics tables
 3. **PostgreSQL version compatibility** - Some columns don't exist in older PostgreSQL versions
-4. **MySQL-specific gatherer usage** - `DbMetricsMetricsBaseGatherer` was being used for PostgreSQL
+4. **MySQL-specific gatherer usage** - `DBMetricsGatherer` was being used for PostgreSQL
 5. **MySQL-specific queries in runner** - SQL text collection and events statements consumers
 6. **Interface conversion panic** - Trying to access non-existent MySQL status fields
 
 ## Fixes Applied
 
-### 1. Fixed NULL Handling in pgConf.go
+### 1. Fixed NULL Handling in DBConf.go
 
 **Problem**: PostgreSQL `pg_settings` table contains NULL values in several columns (`unit`, `min_val`, `max_val`, `enumvals`, `boot_val`, `reset_val`) which caused scan errors when trying to read into Go string variables.
 
@@ -35,7 +35,7 @@ SELECT name, setting, COALESCE(unit, '') as unit, category, short_desc, context,
 FROM pg_settings
 ```
 
-### 2. Fixed NULL Handling in pgMetricsBase.go
+### 2. Fixed NULL Handling in DBMetricsBase.go
 
 **Problem**: PostgreSQL statistics tables can have NULL values in `stats_reset` columns.
 
@@ -69,11 +69,11 @@ FROM pg_stat_bgwriter
 
 ### 4. Created PostgreSQL-Specific Metrics Gatherer
 
-**Problem**: The main.go was using `NewDbMetricsMetricsBaseGatherer` for PostgreSQL, which contains MySQL-specific queries using `performance_schema.events_statements_summary_by_digest` and `IFNULL()` function.
+**Problem**: The main.go was using `NewDBMetricsGatherer` for PostgreSQL, which contains MySQL-specific queries using `performance_schema.events_statements_summary_by_digest` and `IFNULL()` function.
 
 **Solution**: 
-- Created new file `metrics/pgMetricsMetrics.go` with PostgreSQL-equivalent functionality
-- Implemented `NewPgMetricsMetricsBaseGatherer` that uses:
+- Created new file `metrics/DBMetrics.go` with PostgreSQL-equivalent functionality
+- Implemented `NewDBMetricsBaseGatherer` that uses:
   - `pg_stat_statements` instead of `performance_schema.events_statements_summary_by_digest`
   - `pg_stat_activity` for process list instead of MySQL process list
   - PostgreSQL-compatible SQL syntax with `COALESCE()` instead of `IFNULL()`
@@ -161,16 +161,16 @@ SELECT buffers_clean, maxwritten_clean
 
 ```go
 if strings.Contains(err.Error(), "relation \"pg_stat_statements\" does not exist") {
-    PgMetricsBase.logger.V(5).Info("pg_stat_statements extension is not installed, skipping query latency collection")
+    DBMetricsBase.logger.V(5).Info("pg_stat_statements extension is not installed, skipping query latency collection")
     metrics.DB.Metrics.CountQueriesLatency = 0
 }
 ```
 
 ## Files Modified
 
-1. **metrics/pgConf.go** - Fixed NULL handling in pg_settings query
-2. **metrics/pgMetricsBase.go** - Fixed NULL handling, version compatibility, and extension handling
-3. **metrics/pgMetricsMetrics.go** - New file with PostgreSQL-specific metrics gathering
+1. **metrics/DBConf.go** - Fixed NULL handling in pg_settings query
+2. **metrics/DBMetricsBase.go** - Fixed NULL handling, version compatibility, and extension handling
+3. **metrics/DBMetrics.go** - New file with PostgreSQL-specific metrics gathering
 4. **main.go** - Updated to use PostgreSQL gatherer for PostgreSQL databases
 5. **utils/utils.go** - Made EnableEventsStatementsConsumers MySQL-only
 6. **metrics/runner.go** - Added database type checks for SQL text collection and status access

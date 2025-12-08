@@ -59,22 +59,15 @@ Create a monitoring user with appropriate permissions:
 
 ```sql
 -- Create monitoring user
-CREATE USER releem WITH PASSWORD 'secure_password';
+CREATE USER releem WITH PASSWORD 'Ya8dhpWM3dTLvnCz';
 
 -- Grant necessary permissions
-GRANT CONNECT ON DATABASE postgres TO releem;
-GRANT USAGE ON SCHEMA public TO releem;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO releem;
-GRANT SELECT ON ALL TABLES IN SCHEMA information_schema TO releem;
-GRANT SELECT ON ALL TABLES IN SCHEMA pg_catalog TO releem;
-
--- For pg_stat_statements access
-GRANT EXECUTE ON FUNCTION pg_stat_statements_reset() TO releem;
+GRANT pg_monitor TO releem;
 ```
 
 ## Metrics Collected
 
-### PostgreSQL Base Metrics (`pgMetricsBase.go`)
+### PostgreSQL Base Metrics (`DBMetricsBase.go`)
 
 - **Database Statistics**: From `pg_stat_database`
   - Transaction counts (commits, rollbacks)
@@ -91,7 +84,7 @@ GRANT EXECUTE ON FUNCTION pg_stat_statements_reset() TO releem;
 - **Connection Statistics**: From `pg_stat_activity`
   - Total, active, and idle connections
 
-### PostgreSQL Configuration (`pgConf.go`)
+### PostgreSQL Configuration (`DBConf.go`)
 
 - **Database Settings**: From `pg_settings`
   - All PostgreSQL configuration parameters
@@ -100,7 +93,7 @@ GRANT EXECUTE ON FUNCTION pg_stat_statements_reset() TO releem;
   - Boot and reset values
   - Pending restart status
 
-### PostgreSQL Database Info (`pgInfo.go`)
+### PostgreSQL Database Info (`DBInfoConfig.go`)
 
 - **Database Information**:
   - PostgreSQL version
@@ -109,7 +102,7 @@ GRANT EXECUTE ON FUNCTION pg_stat_statements_reset() TO releem;
   - Table type statistics (BASE TABLE, VIEW, MATERIALIZED VIEW)
   - Table size information
 
-### PostgreSQL Query Performance (`pgCollectQueries.go`)
+### PostgreSQL Query Performance (`DBCollectQueries.go`)
 
 - **Query Statistics**: From `pg_stat_statements`
   - Query execution statistics (calls, timing)
@@ -128,10 +121,10 @@ GRANT EXECUTE ON FUNCTION pg_stat_statements_reset() TO releem;
 
 ```
 metrics/
-├── pgMetricsBase.go      # PostgreSQL system metrics
-├── pgConf.go            # PostgreSQL configuration metrics
-├── pgInfo.go            # PostgreSQL database information
-└── pgCollectQueries.go  # PostgreSQL query performance metrics
+├── DBMetricsBase.go      # PostgreSQL system metrics
+├── DBConf.go            # PostgreSQL configuration metrics
+├── DBInfoConfig.go            # PostgreSQL database information
+└── DBCollectQueries.go  # PostgreSQL query performance metrics
 ```
 
 ### Database Connection

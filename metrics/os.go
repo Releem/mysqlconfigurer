@@ -115,8 +115,20 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 
 	// OS SwapMemory
 	SwapMemory, _ := mem.SwapMemory()
-	metricsMap["SwapMemory"] = StructToMap(SwapMemory.String())
-	info["PhysicalMemory"] = utils.MapJoin(info["PhysicalMemory"].(models.MetricGroupValue), models.MetricGroupValue{"swapTotal": SwapMemory.Total})
+	var swapTotal uint64 = 0
+	if SwapMemory != nil {
+		metricsMap["SwapMemory"] = StructToMap(SwapMemory.String())
+		swapTotal = SwapMemory.Total
+	} else {
+		metricsMap["SwapMemory"] = models.MetricGroupValue{
+			"total":       0,
+			"used":        0,
+			"free":        0,
+			"usedPercent": 0,
+		}
+
+	}
+	info["PhysicalMemory"] = utils.MapJoin(info["PhysicalMemory"].(models.MetricGroupValue), models.MetricGroupValue{"swapTotal": swapTotal})
 
 	//CPU Counts
 	CpuCounts, _ := cpu.Counts(true)
@@ -184,7 +196,7 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 
 	metrics.System.Info = info
 	metrics.System.Metrics = metricsMap
-	OS.logger.V(5).Info("CollectMetrics OS ", metrics.System)
+	OS.logger.Info("CollectMetrics OS ", metrics.System)
 
 	return nil
 }

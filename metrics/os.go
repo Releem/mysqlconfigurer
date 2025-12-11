@@ -114,19 +114,19 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 	info["PhysicalMemory"] = models.MetricGroupValue{"total": VirtualMemory.Total}
 
 	// OS SwapMemory
-	SwapMemory, _ := mem.SwapMemory()
 	var swapTotal uint64 = 0
-	if SwapMemory != nil {
-		metricsMap["SwapMemory"] = StructToMap(SwapMemory.String())
-		swapTotal = SwapMemory.Total
-	} else {
+	SwapMemory, err := mem.SwapMemory()
+	if err != nil {
+		OS.logger.Error(err)
 		metricsMap["SwapMemory"] = models.MetricGroupValue{
 			"total":       0,
 			"used":        0,
 			"free":        0,
 			"usedPercent": 0,
 		}
-
+	} else {
+		metricsMap["SwapMemory"] = StructToMap(SwapMemory.String())
+		swapTotal = SwapMemory.Total
 	}
 	info["PhysicalMemory"] = utils.MapJoin(info["PhysicalMemory"].(models.MetricGroupValue), models.MetricGroupValue{"swapTotal": swapTotal})
 
@@ -183,8 +183,17 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 	OS.logger.V(5).Info("IOCountersArray ", IOCountersArray)
 
 	// CPU load avarage
-	Avg, _ := load.Avg()
-	metricsMap["CPU"] = StructToMap(Avg.String())
+	Avg, err := load.Avg()
+	if err != nil {
+		OS.logger.Error(err)
+		metricsMap["CPU"] = models.MetricGroupValue{
+			"load1":  0,
+			"load5":  0,
+			"load15": 0,
+		}
+	} else {
+		metricsMap["CPU"] = StructToMap(Avg.String())
+	}
 	OS.logger.V(5).Info("Avg ", Avg)
 
 	// CpuUtilisation := float64(metrics.System.Metrics.CPU["load1"].(float64) / float64(info["CPU"].(models.MetricGroupValue)["Counts"].(int)))
@@ -196,7 +205,7 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 
 	metrics.System.Info = info
 	metrics.System.Metrics = metricsMap
-	OS.logger.Info("CollectMetrics OS ", metrics.System)
+	OS.logger.V(5).Info("CollectMetrics OS ", metrics.System)
 
 	return nil
 }

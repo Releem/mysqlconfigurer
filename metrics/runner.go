@@ -67,6 +67,9 @@ loop:
 						logger.Info("* A task received by the agent...")
 						f := tasks.ProcessTaskFunc(metrics, repeaters, gatherers, logger, configuration)
 						time.AfterFunc(5*time.Second, f)
+					}else {
+						f := tasks.ProcessTaskFunc(metrics, repeaters, gatherers, logger, configuration)
+						time.AfterFunc(5*time.Second, f)
 					}
 				}
 				logger.Info("* MySQL Metrics are saved...")

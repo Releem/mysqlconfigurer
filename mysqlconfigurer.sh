@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mysqlconfigurer.sh - Version 1.22.2.1
+# mysqlconfigurer.sh - Version 1.22.3.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -14,7 +14,7 @@ else
 fi
 
 # Variables
-VERSION="1.22.2.1"
+VERSION="1.22.3.1"
 MYSQLCONFIGURER_PATH="/opt/releem/conf/"
 RELEEM_CONF_FILE="/opt/releem/releem.conf"
 MYSQLCONFIGURER_FILE_NAME="z_aiops_mysql.cnf"

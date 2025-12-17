@@ -27,13 +27,15 @@ type Config struct {
 	MysqlHost                             string        `hcl:"mysql_host"`
 	MysqlPort                             string        `hcl:"mysql_port"`
 	MysqlSslMode                          bool          `hcl:"mysql_ssl_mode"`
+	MysqlConfDir                          string        `hcl:"mysql_cnf_dir"`
+	MysqlRestartService                   string        `hcl:"mysql_restart_service"`
 	PgPassword                            string        `hcl:"pg_password" json:"-"`
 	PgUser                                string        `hcl:"pg_user"`
 	PgHost                                string        `hcl:"pg_host"`
 	PgPort                                string        `hcl:"pg_port"`
 	PgSslMode                             string        `hcl:"pg_ssl_mode"`
-	CommandRestartService                 string        `hcl:"mysql_restart_service"`
-	MysqlConfDir                          string        `hcl:"mysql_cnf_dir"`
+	PgConfDir                             string        `hcl:"pg_cnf_dir"`
+	PgRestartService                      string        `hcl:"pg_restart_service"`
 	ReleemConfDir                         string        `hcl:"releem_cnf_dir"`
 	ReleemDir                             string        `hcl:"releem_dir"`
 	MemoryLimit                           int           `hcl:"memory_limit"`

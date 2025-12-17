@@ -223,7 +223,7 @@ func GetPostgreSQLMetrics(rows *sql.Rows, logger logging.Logger) []models.Metric
 			case []byte:
 				row[col] = string(vv)
 			case nil:
-				row[col] = "NULL"
+				row[col] = nil
 			default:
 				row[col] = vv // может быть nil, time.Time, int64, float64, bool и т.д.
 			}

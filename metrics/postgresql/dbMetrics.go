@@ -14,13 +14,19 @@ import (
 
 var PG_STAT_VIEWS = []string{
 	"pg_stat_archiver", "pg_stat_bgwriter", "pg_stat_database",
-	"pg_stat_database_conflicts", "pg_stat_user_tables", "pg_statio_user_tables",
+	"pg_stat_database_conflicts", "pg_stat_checkpointer",
+	"pg_stat_user_tables", "pg_statio_user_tables",
 	"pg_stat_user_indexes", "pg_statio_user_indexes",
 }
 
 var PG_STAT_VIEWS_OLD_VERSION = []string{
 	"pg_stat_bgwriter", "pg_stat_database",
 	"pg_stat_database_conflicts", "pg_stat_user_tables", "pg_statio_user_tables",
+	"pg_stat_user_indexes", "pg_statio_user_indexes",
+}
+
+var PG_STAT_PER_DB_VIEWS = []string{
+	"pg_stat_user_tables", "pg_statio_user_tables",
 	"pg_stat_user_indexes", "pg_statio_user_indexes",
 }
 
@@ -110,7 +116,11 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 				return err
 			}
 			defer rows.Close()
-			pg_stat[view] = utils.GetPostgreSQLMetrics(rows, DBMetricsBase.logger)
+			var existing []models.MetricGroupValue
+			if val, ok := pg_stat[view].([]models.MetricGroupValue); ok {
+				existing = val
+			}
+			pg_stat[view] = append(existing, utils.GetPostgreSQLMetrics(rows, DBMetricsBase.logger)...)
 		}
 
 		// PostgreSQL Connection Statistics
@@ -244,6 +254,20 @@ func (DBMetricsConfig *DBMetricsConfigGatherer) GetMetrics(metrics *models.Metri
 		db := u.ConnectionDatabase(DBMetricsConfig.configuration, DBMetricsConfig.logger, database)
 		defer db.Close()
 
+		for _, view := range PG_STAT_PER_DB_VIEWS {
+			rows, err := db.Query(`
+			SELECT * FROM ` + view)
+			if err != nil {
+				DBMetricsConfig.logger.Error(err)
+				return err
+			}
+			defer rows.Close()
+			var existing []models.MetricGroupValue
+			if val, ok := metrics.DB.Metrics.Status[view].([]models.MetricGroupValue); ok {
+				existing = val
+			}
+			metrics.DB.Metrics.Status[view] = append(existing, utils.GetPostgreSQLMetrics(rows, DBMetricsConfig.logger)...)
+		}
 		// Total tables count
 		err := db.QueryRow("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema NOT IN ('information_schema', 'pg_catalog')").Scan(&row)
 		if err != nil {

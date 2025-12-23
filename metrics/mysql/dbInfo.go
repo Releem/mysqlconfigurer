@@ -242,8 +242,8 @@ func users_security_check(DBInfoConfig *DBInfoConfigGatherer, metrics *models.Me
 func MysqlVersionFile() string {
 	switch runtime.GOOS {
 	case "windows":
-		return "\\MysqlVersion.txt"
+		return "\\DB_Version.txt"
 	default: // для Linux и других UNIX-подобных систем
-		return "/mysql_version"
+		return "/db_version"
 	}
 }

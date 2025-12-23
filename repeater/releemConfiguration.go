@@ -120,7 +120,15 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 			if Mode.Type == "ForceInitial" {
 				config_filename = "initial_config_mysql.cnf"
 			} else {
-				config_filename = "z_aiops_mysql.cnf"
+				db_type := repeater.configuration.GetDatabaseType()
+				switch db_type {
+				case "mysql":
+					config_filename = "z_aiops_mysql.cnf"
+				case "postgresql":
+					config_filename = "z_aiops_postgresql.conf"
+				default:
+					config_filename = "z_aiops_mysql.cnf"
+				}
 			}
 			err = os.WriteFile(context.GetReleemConfDir()+"/"+config_filename, body_res, 0644)
 			if err != nil {

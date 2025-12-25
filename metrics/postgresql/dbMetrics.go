@@ -105,9 +105,7 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 			rows, err := models.DB.Query(`
 			SELECT * FROM ` + view)
 			if err != nil {
-				if strings.Contains(err.Error(), "relation \""+view+"\" does not exist") {
-					DBMetricsBase.logger.Error(err)
-				} else {
+				if !strings.Contains(err.Error(), "relation \""+view+"\" does not exist") {
 					DBMetricsBase.logger.Error(err)
 				}
 			} else {
@@ -183,9 +181,7 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 		if models.PgStatStatementsEnabled {
 			err := models.DB.QueryRow("SELECT dealloc, stats_reset FROM pg_stat_statements_info").Scan(&dealloc, &stats_reset)
 			if err != nil {
-				if strings.Contains(err.Error(), "relation \"pg_stat_statements_info\" does not exist") {
-					DBMetricsBase.logger.Error(err)
-				} else {
+				if !strings.Contains(err.Error(), "relation \"pg_stat_statements_info\" does not exist") {
 					DBMetricsBase.logger.Error(err)
 				}
 			}

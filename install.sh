@@ -512,15 +512,15 @@ function create_postgresql_user() {
     FLAG_SUCCESS=0
     
     if [ -n "$RELEEM_PG_PASSWORD" ] && [ -n "$RELEEM_PG_LOGIN" ]; then
-        printf "\033[37m\n * Using PostgreSQL login and password from environment variables\033[0m\n"
+        printf "\033[37m - Using PostgreSQL login and password from environment variables\033[0m\n"
         FLAG_SUCCESS=1
     else
-        printf "\033[37m\n * Using PostgreSQL superuser for user creation.\033[0m\n"        
+        printf "\033[37m - Using PostgreSQL superuser for user creation.\033[0m\n"        
         # Test connection with superuser (usually postgres)
         pg_superuser="${RELEEM_PG_ROOT_LOGIN:-postgres}"            
         if PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "SELECT VERSION()" >/dev/null 2>&1; then
 
-            printf "\033[37m\n PostgreSQL connection successful.\033[0m\n"
+            printf "\033[37m - PostgreSQL connection successful.\033[0m\n"
             
             # Set default user and generate password
             RELEEM_PG_LOGIN="releem"
@@ -528,10 +528,10 @@ function create_postgresql_user() {
             
             # Drop user if exists and create new one
             PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "DROP USER IF EXISTS ${RELEEM_PG_LOGIN};" 2>/dev/null || true
-            PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "CREATE USER ${RELEEM_PG_LOGIN} WITH PASSWORD '${RELEEM_PG_PASSWORD}';"
+            PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "CREATE USER ${RELEEM_PG_LOGIN} WITH PASSWORD '${RELEEM_PG_PASSWORD}';" 2>/dev/null 
             
             # Grant necessary permissions
-            PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "GRANT pg_monitor TO ${RELEEM_PG_LOGIN};"
+            PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "GRANT pg_monitor TO ${RELEEM_PG_LOGIN};" 2>/dev/null 
             
             # # Try to grant access to pg_stat_statements if available
             # if $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements';" | grep -q 1; then
@@ -539,23 +539,22 @@ function create_postgresql_user() {
             #     printf "\033[37m   Granted access to pg_stat_statements extension.\033[0m\n"
             # fi
             # Check if pg_stat_statements extension is available
-            if PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements';" | grep -q "1" 2>/dev/null; then
-                printf "\033[32m\n pg_stat_statements extension is available for query performance monitoring.\033[0m\n"
+            FLAG_PG_STAT_STATEMENTS=1
+            if PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements';" 2>/dev/null  | grep -q "1" 2>/dev/null; then
+                printf "\033[32m - pg_stat_statements extension is available for query performance monitoring.\033[0m\n"
             else
-                printf "\033[37m   Installing pg_stat_statements extension.\033[0m\n"
-                if PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"; then
+                printf "\033[37m - Installing pg_stat_statements extension.\033[0m\n"
+                
+                if PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;" 2>/dev/null; then
                     printf "\033[32m   Successfully installed pg_stat_statements extension.\033[0m\n"
                 else
+                    FLAG_PG_STAT_STATEMENTS=0
                     printf "\033[33m   Warning: Failed to install pg_stat_statements extension. Query performance monitoring may be limited.\033[0m\n"
                 fi
             fi            
-            printf "\033[32m\n Created new PostgreSQL user \`${RELEEM_PG_LOGIN}\`\033[0m\n"
+            printf "\033[32m   Created new PostgreSQL user \`${RELEEM_PG_LOGIN}\`\033[0m\n"
             FLAG_SUCCESS=1
         else
-            printf "\033[31m\n%s\n%s\033[0m\n" "PostgreSQL connection failed with superuser." "Check that the password is correct and PostgreSQL is running."
-            PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "SELECT VERSION()" || true
-            on_error
-            exit 1        
             printf "\033[31m\n%s\n%s\033[0m\n" "PostgreSQL connection failed with superuser ${pg_superuser}." "Check that PostgreSQL is running and accessible, or set RELEEM_PG_ROOT_PASSWORD if authentication is required."
             on_error
             exit 1        
@@ -565,15 +564,12 @@ function create_postgresql_user() {
     # Test connection with the monitoring user
     if [ "$FLAG_SUCCESS" == "1" ]; then
         if PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -c "SELECT VERSION()" >/dev/null 2>&1; then
-            printf "\033[32m\n PostgreSQL connection with user \`${RELEEM_PG_LOGIN}\` - successful. \033[0m\n"
+            printf "\033[32m\n   PostgreSQL connection with user \`${RELEEM_PG_LOGIN}\` - successful. \033[0m\n"
             PG_LOGIN=$RELEEM_PG_LOGIN
             PG_PASSWORD=$RELEEM_PG_PASSWORD
         else
-            printf "\033[31m\n%s\n%s\033[0m\n" "PostgreSQL connection failed with user \`${RELEEM_PG_LOGIN}\`." "Check that the user and password are correct."
+            printf "\033[31m\n%s\n%s\033[0m\n" "PostgreSQL connection failed with user \`${RELEEM_PG_LOGIN}\`." "Check that the host, user and password are correct and the user has necessary permissions."
             PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -c "SELECT VERSION()" || true
-            on_error
-            exit 1        
-            printf "\033[31m\n%s\n%s\033[0m\n" "PostgreSQL connection failed with user \`${RELEEM_PG_LOGIN}\`." "Check that the user and password are correct and the user has necessary permissions."
             on_error
             exit 1
         fi
@@ -776,8 +772,8 @@ else
 fi
 
 printf "\033[37m\n * Saving variables to Releem Agent configuration\033[0m\n"
-echo "pg_cnf_dir=\"$PG_CONF_DIR\"" | $sudo_cmd tee -a $CONF >/dev/null
-printf "\033[37m\n - Adding API key to the Releem Agent configuration: $CONF\n\033[0m"
+
+printf "\033[37m - Adding API key to the Releem Agent configuration: $CONF\n\033[0m"
 echo "apikey=\"$apikey\"" | $sudo_cmd tee -a $CONF >/dev/null
 if [ -d "$WORKDIR/conf" ]; then
     printf "\033[37m - Adding Releem Configuration Directory $WORKDIR/conf to Releem Agent configuration: $CONF\n\033[0m"
@@ -922,16 +918,21 @@ if [ -z "$RELEEM_CRON_ENABLE" ]; then
 elif [ "$RELEEM_CRON_ENABLE" -gt 0 ]; then
     releem_set_cron
     if [ `$sudo_cmd crontab -l 2>/dev/null | grep -c "$WORKDIR/mysqlconfigurer.sh" || true` -eq 0 ]; then
-        printf "\033[31m\nCrontab configuration failed. Automatic updates are disabled.\033[0m\n"
+        printf "\033[31m   Crontab configuration failed. Automatic updates are disabled.\033[0m\n"
     else
-        printf "\033[32m\nCrontab configuration complete. Automatic updates are enabled.\033[0m\n"
+        printf "\033[32m   Crontab configuration complete. Automatic updates are enabled.\033[0m\n"
     fi
 else
-    printf "\033[31m\nCrontab configuration failed. Automatic updates are disabled.\033[0m\n"
+    printf "\033[31m   Crontab configuration failed. Automatic updates are disabled.\033[0m\n"
 fi
 # Enable performance schema for local instances
 if [ "$instance_type" == "local" ]; then
-    $sudo_cmd $RELEEM_COMMAND -p
+    if [ "$FLAG_PG_STAT_STATEMENTS" -eq 1 ]; then
+        $sudo_cmd $RELEEM_COMMAND -p
+    else
+        printf "\033[31m\n pg_stat_statements extension is not enabled. \n Please install the postgresql-contrib package for your version of Postgresql and reinstall the Releem Agent.\033[0m\n"
+        exit 1
+    fi
 fi
 set +e
 trap - ERR
@@ -946,20 +947,20 @@ printf "\033[37m\n * Installing and starting Releem Agent service to collect met
 releem_agent_remove=$($sudo_cmd $WORKDIR/releem-agent remove)
 releem_agent_install=$($sudo_cmd $WORKDIR/releem-agent install)
 if [ $? -eq 0 ]; then
-    printf "\033[32m\n The Releem Agent installation successful.\033[0m\n"
+    printf "\033[32m\n   The Releem Agent installation successful.\033[0m\n"
 else
     echo $releem_agent_remove
     echo $releem_agent_install
-    printf "\033[31m\n The Releem Agent installation failed.\033[0m\n"
+    printf "\033[31m\n   The Releem Agent installation failed.\033[0m\n"
 fi
 releem_agent_stop=$($sudo_cmd $WORKDIR/releem-agent  stop)
 releem_agent_start=$($sudo_cmd $WORKDIR/releem-agent  start)
 if [ $? -eq 0 ]; then
-    printf "\033[32m\n The Releem Agent restart successful.\033[0m\n"
+    printf "\033[32m\n   The Releem Agent restart successful.\033[0m\n"
 else
     echo $releem_agent_stop
     echo $releem_agent_start
-    printf "\033[31m\n The Releem Agent restart failed.\033[0m\n"
+    printf "\033[31m\n   The Releem Agent restart failed.\033[0m\n"
 fi
 # $sudo_cmd $WORKDIR/releem-agent  status
 # if [ $? -eq 0 ]; then

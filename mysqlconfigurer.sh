@@ -340,7 +340,7 @@ function releem_configure_postgresql_libraries() {
     chmod 644 $RELEEM_DB_CONFIG_DIR/collect_metrics.conf
 
     if [ "$FLAG_CONFIGURE" -eq 1 ]; then
-        printf "\033[37m\n * The Extention pg_stat_statements is enabled to collect metrics and queries.\033[0m\n"
+        printf "\033[37m\n   The Extention pg_stat_statements is enabled to collect metrics and queries.\033[0m\n"
         return
     fi
     printf "\033[37m To apply changes to the Postgresql configuration, you need to restart the service\n\033[0m\n"
@@ -398,7 +398,7 @@ function releem_configure_postgresql() {
     printf "\033[37m\n * Configuring PostgreSQL to collect metrics and queries.\033[0m\n"
     if [ -z "$RELEEM_DB_CONFIG_DIR" ] || [ ! -d "$RELEEM_DB_CONFIG_DIR" ]; then
         printf "\033[31m\n The PostgreSQL configuration directory was not found: $RELEEM_DB_CONFIG_DIR\033[0m\n"
-        printf "\033[37m\n * Please ensure PostgreSQL is installed and the configuration directory exists.\033[0m\n"    
+        printf "\033[37m\n Please ensure PostgreSQL is installed and the configuration directory exists.\033[0m\n"    
         exit 3;
     fi    
     echo "pg_stat_statements.track = all" | $sudo_cmd tee -a "$RELEEM_DB_CONFIG_DIR/collect_metrics.conf" >/dev/null
@@ -408,8 +408,8 @@ function releem_configure_postgresql() {
     chmod 644 $RELEEM_DB_CONFIG_DIR/collect_metrics.conf
 
     if [ "$FLAG_CONFIGURE" -eq 1 ]; then
-        printf "\033[37m\n * The PostgreSQL is configured to collect metrics and queries.\033[0m\n"
-        return
+        printf "\033[37m\n   The PostgreSQL is configured to collect metrics and queries.\033[0m\n"
+        exit 0
     fi
     printf "\033[37m To apply changes to the Postgresql configuration, you need to restart the service\n\033[0m\n"
     FLAG_RESTART_SERVICE=1

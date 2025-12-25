@@ -94,6 +94,9 @@ func LoadConfigFromString(data string, logger logging.Logger) (*Config, error) {
 	if config.PgPort == "" {
 		config.PgPort = "5432"
 	}
+	if config.PgSslMode == "" {
+		config.PgSslMode = "disable"
+	}
 	if config.ReleemDir == "" {
 		config.ReleemDir = "/opt/releem"
 	}

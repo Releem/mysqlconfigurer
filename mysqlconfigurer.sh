@@ -841,11 +841,11 @@ function detect_postgresql_commands() {
 
     # Detect pg_isready
     pg_isready_cmd=$(which pg_isready 2>/dev/null || true)
-    if [ -z "$pg_isready_cmd" ]; then
-        printf "\033[31m Couldn't find pg_isready in your \$PATH. Please install PostgreSQL client tools \033[0m\n"
-        on_error
-        exit 1
-    fi    
+    # if [ -z "$pg_isready_cmd" ]; then
+    #     printf "\033[31m Couldn't find pg_isready in your \$PATH. Please install PostgreSQL client tools \033[0m\n"
+    #     on_error
+    #     exit 1
+    # fi    
 
     # Export as global variables
     psqlcmd="$psql_cmd"

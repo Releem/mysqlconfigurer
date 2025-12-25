@@ -2,6 +2,7 @@ package postgresql
 
 import (
 	"database/sql"
+	"strings"
 	"time"
 
 	"github.com/Releem/mysqlconfigurer/config"
@@ -15,14 +16,6 @@ import (
 var PG_STAT_VIEWS = []string{
 	"pg_stat_archiver", "pg_stat_bgwriter", "pg_stat_database",
 	"pg_stat_database_conflicts", "pg_stat_checkpointer",
-	"pg_stat_user_tables", "pg_statio_user_tables",
-	"pg_stat_user_indexes", "pg_statio_user_indexes",
-}
-
-var PG_STAT_VIEWS_OLD_VERSION = []string{
-	"pg_stat_bgwriter", "pg_stat_database",
-	"pg_stat_database_conflicts", "pg_stat_user_tables", "pg_statio_user_tables",
-	"pg_stat_user_indexes", "pg_statio_user_indexes",
 }
 
 var PG_STAT_PER_DB_VIEWS = []string{
@@ -101,26 +94,30 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 	}
 	{
 		pg_stat := make(models.MetricGroupValue)
-		ver_current, _ := version.NewVersion(metrics.DB.Info["Version"].(string))
-		ver_postgresql, _ := version.NewVersion("9.4")
+		// ver_current, _ := version.NewVersion(metrics.DB.Info["Version"].(string))
+		// ver_postgresql, _ := version.NewVersion("9.4")
 		// Collect DBMS internal metrics
-		pgStatViews := PG_STAT_VIEWS
-		if ver_current.LessThan(ver_postgresql) {
-			pgStatViews = PG_STAT_VIEWS_OLD_VERSION
-		}
-		for _, view := range pgStatViews {
+		// pgStatViews := PG_STAT_VIEWS
+		// if ver_current.LessThan(ver_postgresql) {
+		// 	pgStatViews = PG_STAT_VIEWS_OLD_VERSION
+		// }
+		for _, view := range PG_STAT_VIEWS {
 			rows, err := models.DB.Query(`
 			SELECT * FROM ` + view)
 			if err != nil {
-				DBMetricsBase.logger.Error(err)
-				return err
+				if strings.Contains(err.Error(), "relation \""+view+"\" does not exist") {
+					DBMetricsBase.logger.Error(err)
+				} else {
+					DBMetricsBase.logger.Error(err)
+				}
+			} else {
+				defer rows.Close()
+				var existing []models.MetricGroupValue
+				if val, ok := pg_stat[view].([]models.MetricGroupValue); ok {
+					existing = val
+				}
+				pg_stat[view] = append(existing, utils.GetPostgreSQLMetrics(rows, DBMetricsBase.logger)...)
 			}
-			defer rows.Close()
-			var existing []models.MetricGroupValue
-			if val, ok := pg_stat[view].([]models.MetricGroupValue); ok {
-				existing = val
-			}
-			pg_stat[view] = append(existing, utils.GetPostgreSQLMetrics(rows, DBMetricsBase.logger)...)
 		}
 
 		// PostgreSQL Connection Statistics
@@ -186,7 +183,9 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 		if models.PgStatStatementsEnabled {
 			err := models.DB.QueryRow("SELECT dealloc, stats_reset FROM pg_stat_statements_info").Scan(&dealloc, &stats_reset)
 			if err != nil {
-				if err != sql.ErrNoRows {
+				if strings.Contains(err.Error(), "relation \"pg_stat_statements_info\" does not exist") {
+					DBMetricsBase.logger.Error(err)
+				} else {
 					DBMetricsBase.logger.Error(err)
 				}
 			}
@@ -209,47 +208,47 @@ func (DBMetricsConfig *DBMetricsConfigGatherer) GetMetrics(metrics *models.Metri
 	var table_type string
 	i := 0
 
-	// Total tables count
-	err := models.DB.QueryRow("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema NOT IN ('information_schema', 'pg_catalog')").Scan(&row)
-	if err != nil {
-		DBMetricsConfig.logger.Error(err)
-	}
-	total_tables += row
+	// // Total tables count
+	// err := models.DB.QueryRow("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema NOT IN ('information_schema', 'pg_catalog')").Scan(&row)
+	// if err != nil {
+	// 	DBMetricsConfig.logger.Error(err)
+	// }
+	// total_tables += row
 
-	// PostgreSQL table engine statistics (PostgreSQL doesn't have engines like MySQL, but we can collect table types)
-	// Switch to each database to get table statistics
-	rows, err := models.DB.Query(`
-					SELECT 
-						t.table_type,
-						COUNT(*) as table_count,
-						COALESCE(SUM(pg_total_relation_size(c.oid)), 0) as total_size
-					FROM information_schema.tables t
-					LEFT JOIN pg_class c ON c.relname = t.table_name
-					LEFT JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = t.table_schema
-					WHERE t.table_schema NOT IN ('information_schema', 'pg_catalog')
-					GROUP BY t.table_type`)
+	// // PostgreSQL table engine statistics (PostgreSQL doesn't have engines like MySQL, but we can collect table types)
+	// // Switch to each database to get table statistics
+	// rows, err := models.DB.Query(`
+	// 				SELECT
+	// 					t.table_type,
+	// 					COUNT(*) as table_count,
+	// 					COALESCE(SUM(pg_total_relation_size(c.oid)), 0) as total_size
+	// 				FROM information_schema.tables t
+	// 				LEFT JOIN pg_class c ON c.relname = t.table_name
+	// 				LEFT JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = t.table_schema
+	// 				WHERE t.table_schema NOT IN ('information_schema', 'pg_catalog')
+	// 				GROUP BY t.table_type`)
 
-	if err != nil {
-		DBMetricsConfig.logger.Error(err)
-	} else {
-		for rows.Next() {
-			err := rows.Scan(&table_type, &count, &size)
-			if err != nil {
-				DBMetricsConfig.logger.Error(err)
-			}
-			if output[table_type] == nil {
-				output[table_type] = models.MetricGroupValue{"Table Number": uint64(0), "Total Size": uint64(0)}
-			}
-			output[table_type]["Table Number"] = output[table_type]["Table Number"].(uint64) + count
-			output[table_type]["Total Size"] = output[table_type]["Total Size"].(uint64) + size
-		}
-		rows.Close()
-	}
+	// if err != nil {
+	// 	DBMetricsConfig.logger.Error(err)
+	// } else {
+	// 	for rows.Next() {
+	// 		err := rows.Scan(&table_type, &count, &size)
+	// 		if err != nil {
+	// 			DBMetricsConfig.logger.Error(err)
+	// 		}
+	// 		if output[table_type] == nil {
+	// 			output[table_type] = models.MetricGroupValue{"Table Number": uint64(0), "Total Size": uint64(0)}
+	// 		}
+	// 		output[table_type]["Table Number"] = output[table_type]["Table Number"].(uint64) + count
+	// 		output[table_type]["Total Size"] = output[table_type]["Total Size"].(uint64) + size
+	// 	}
+	// 	rows.Close()
+	// }
 
 	for _, database := range metrics.DB.Metrics.Databases {
-		if database == "postgres" {
-			continue
-		}
+		// if database == "postgres" {
+		// 	continue
+		// }
 		// Switch to each database to get table statistics
 		db := u.ConnectionDatabase(DBMetricsConfig.configuration, DBMetricsConfig.logger, database)
 		defer db.Close()

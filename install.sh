@@ -198,11 +198,11 @@ function detect_postgresql_commands() {
 
     # Detect pg_isready
     pg_isready_cmd=$(which pg_isready 2>/dev/null || true)
-    if [ -z "$pg_isready_cmd" ]; then
-        printf "\033[31m Couldn't find pg_isready in your \$PATH. Please install PostgreSQL client tools \033[0m\n"
-        on_error
-        exit 1
-    fi    
+    # if [ -z "$pg_isready_cmd" ]; then
+    #     printf "\033[31m Couldn't find pg_isready in your \$PATH. Please install PostgreSQL client tools \033[0m\n"
+    #     on_error
+    #     exit 1
+    # fi    
 
     # Export as global variables
     psqlcmd="$psql_cmd"
@@ -518,7 +518,7 @@ function create_postgresql_user() {
         printf "\033[37m\n * Using PostgreSQL superuser for user creation.\033[0m\n"        
         # Test connection with superuser (usually postgres)
         pg_superuser="${RELEEM_PG_ROOT_LOGIN:-postgres}"            
-        if PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $pg_isreadycmd ${pg_root_connection_string} -U ${pg_superuser} >/dev/null 2>&1; then
+        if PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "SELECT VERSION()" >/dev/null 2>&1; then
 
             printf "\033[37m\n PostgreSQL connection successful.\033[0m\n"
             
@@ -553,7 +553,7 @@ function create_postgresql_user() {
             FLAG_SUCCESS=1
         else
             printf "\033[31m\n%s\n%s\033[0m\n" "PostgreSQL connection failed with superuser." "Check that the password is correct and PostgreSQL is running."
-            PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $pg_isreadycmd ${pg_root_connection_string} -U ${pg_superuser} || true
+            PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "SELECT VERSION()" || true
             on_error
             exit 1        
             printf "\033[31m\n%s\n%s\033[0m\n" "PostgreSQL connection failed with superuser ${pg_superuser}." "Check that PostgreSQL is running and accessible, or set RELEEM_PG_ROOT_PASSWORD if authentication is required."
@@ -564,13 +564,13 @@ function create_postgresql_user() {
     
     # Test connection with the monitoring user
     if [ "$FLAG_SUCCESS" == "1" ]; then
-        if PGPASSWORD=${RELEEM_PG_PASSWORD} $pg_isreadycmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} >/dev/null 2>&1; then
+        if PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -c "SELECT VERSION()" >/dev/null 2>&1; then
             printf "\033[32m\n PostgreSQL connection with user \`${RELEEM_PG_LOGIN}\` - successful. \033[0m\n"
             PG_LOGIN=$RELEEM_PG_LOGIN
             PG_PASSWORD=$RELEEM_PG_PASSWORD
         else
             printf "\033[31m\n%s\n%s\033[0m\n" "PostgreSQL connection failed with user \`${RELEEM_PG_LOGIN}\`." "Check that the user and password are correct."
-            PGPASSWORD=${RELEEM_PG_PASSWORD} $pg_isreadycmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} || true
+            PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -c "SELECT VERSION()" || true
             on_error
             exit 1        
             printf "\033[31m\n%s\n%s\033[0m\n" "PostgreSQL connection failed with user \`${RELEEM_PG_LOGIN}\`." "Check that the user and password are correct and the user has necessary permissions."

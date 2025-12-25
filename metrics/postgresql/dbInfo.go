@@ -57,8 +57,8 @@ func (DBInfoBase *DBInfoBaseGatherer) GetMetrics(metrics *models.Metrics) error 
 func PostgreSQLVersionFile() string {
 	switch runtime.GOOS {
 	case "windows":
-		return "\\PostgreSQLVersion.txt"
+		return "\\DB_Version.txt"
 	default: // для Linux и других UNIX-подобных систем
-		return "/postgresql_version"
+		return "/db_version"
 	}
 }

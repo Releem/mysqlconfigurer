@@ -776,7 +776,7 @@ else
 fi
 
 printf "\033[37m\n * Saving variables to Releem Agent configuration\033[0m\n"
-echo "pg_cnf_dir=\"$PG_CONF_DIR\""
+echo "pg_cnf_dir=\"$PG_CONF_DIR\"" | $sudo_cmd tee -a $CONF >/dev/null
 printf "\033[37m\n - Adding API key to the Releem Agent configuration: $CONF\n\033[0m"
 echo "apikey=\"$apikey\"" | $sudo_cmd tee -a $CONF >/dev/null
 if [ -d "$WORKDIR/conf" ]; then

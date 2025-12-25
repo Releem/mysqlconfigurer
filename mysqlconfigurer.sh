@@ -224,7 +224,7 @@ function releem_configure_mysql() {
     fi
 
     ps_digest_size=$($mysqlcmd  ${mysql_connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'performance_schema_digests_size'" 2>/dev/null | awk '{print $2}')
-    if [ $ps_digest_size -lt 10000 ]; then
+    if [ "$ps_digest_size" -lt 10000 ]; then
         FLAG_CONFIGURE=0
     fi
 
@@ -238,12 +238,12 @@ function releem_configure_mysql() {
             exit 11;
         fi
     fi
-    printf "\033[37m\n * Enabling and configuring Performance schema and SlowLog to collect metrics and queries.\n\033[0m\n"
+    printf "\033[37m\n * Enabling and configuring Performance schema and SlowLog to collect metrics and queries.\n\033[0m"
     echo "### This configuration was recommended by Releem. https://releem.com" | $sudo_cmd tee "$RELEEM_DB_CONFIG_DIR/collect_metrics.cnf" >/dev/null
     echo "[mysqld]" | $sudo_cmd tee -a "$RELEEM_DB_CONFIG_DIR/collect_metrics.cnf" >/dev/null
     echo "performance_schema = 1" | $sudo_cmd tee -a "$RELEEM_DB_CONFIG_DIR/collect_metrics.cnf" >/dev/null
     echo "slow_query_log = 1" | $sudo_cmd tee -a "$RELEEM_DB_CONFIG_DIR/collect_metrics.cnf" >/dev/null
-    if [ $ps_digest_size -le 10000 ]; then
+    if [ "$ps_digest_size" -le 10000 ]; then
         echo "performance_schema_digests_size = 10000" | $sudo_cmd tee -a "$RELEEM_DB_CONFIG_DIR/collect_metrics.cnf" >/dev/null
     fi
     if [ -n "$RELEEM_QUERY_OPTIMIZATION" -a "$RELEEM_QUERY_OPTIMIZATION" = true ]; then
@@ -274,14 +274,14 @@ function releem_configure_mysql() {
         printf "\033[37m\n * Performance schema and SlowLog are enabled and configured to collect metrics and queries.\033[0m\n"
         exit 0
     fi
-    printf "\033[37m To apply changes to the MySQL configuration, you need to restart the service\n\033[0m\n"
+    printf "\033[37m\n To apply changes to the MySQL configuration, you need to restart the service\n\033[0m\n"
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
         read -p " Restart MySQL service? (Y/N) " -n 1 -r
         echo    # move to a new line
         if [[ ! $REPLY =~ ^[Yy]$ ]]
         then
-            printf "\033[31m Confirmation to restart the service has not been received. \033[0m\n"
+            printf "\033[31m\n Confirmation to restart the service has not been received. \033[0m\n"
             FLAG_RESTART_SERVICE=0
         fi
     elif [ "$RELEEM_RESTART_SERVICE" -eq 0 ]; then
@@ -292,7 +292,7 @@ function releem_configure_mysql() {
         exit 0
     fi
     #echo "-------Test config-------"
-    printf "\033[37m Restarting MySQL service with command '$RELEEM_COMMAND_RESTART_SERVICE'.\033[0m\n"
+    printf "\033[37m\n Restarting MySQL service with command '$RELEEM_COMMAND_RESTART_SERVICE'.\033[0m\n"
     eval "$RELEEM_COMMAND_RESTART_SERVICE" &
     wait_restart $!
     RESTART_CODE=$?
@@ -390,7 +390,7 @@ function releem_configure_postgresql() {
     fi
 
     pg_stat_statements_max=$(PGPASSWORD=${PG_PASSWORD} $psqlcmd ${pg_connection_string}  -U ${PG_LOGIN} -t -c "SHOW pg_stat_statements.max;" | xargs)
-    if [ $pg_stat_statements_max -lt 10000 ]; then
+    if [ "$pg_stat_statements_max" -lt 10000 ]; then
         FLAG_CONFIGURE=0
     fi
 
@@ -402,7 +402,7 @@ function releem_configure_postgresql() {
         exit 3;
     fi    
     echo "pg_stat_statements.track = all" | $sudo_cmd tee -a "$RELEEM_DB_CONFIG_DIR/collect_metrics.conf" >/dev/null
-    if [ "$pg_stat_statements_max" -le "10000" ]; then
+    if [ "$pg_stat_statements_max" -le 10000 ]; then
         echo "pg_stat_statements.max = 10000" | $sudo_cmd tee -a "$RELEEM_DB_CONFIG_DIR/collect_metrics.conf" >/dev/null
     fi
     chmod 644 $RELEEM_DB_CONFIG_DIR/collect_metrics.conf
@@ -799,30 +799,30 @@ function releem_apply_automatic() {
 
 # }
 function detect_mysql_commands() {
-    local mysqladmincmd=""
-    local mysqlcmd=""
+    local mysqladmin_cmd=""
+    local mysql_cmd=""
     
     printf "\033[37m\n * Detecting MySQL/MariaDB commands.\033[0m\n"
     
     # Detect mysqladmin/mariadb-admin
-    mysqladmincmd=$(which mariadb-admin 2>/dev/null || which mysqladmin 2>/dev/null || true)
-    if [ -z "$mysqladmincmd" ]; then
+    mysqladmin_cmd=$(which mariadb-admin 2>/dev/null || which mysqladmin 2>/dev/null || true)
+    if [ -z "$mysqladmin_cmd" ]; then
         printf "\033[31m Couldn't find mysqladmin/mariadb-admin in your \$PATH. Correct the path to mysqladmin/mariadb-admin in a \$PATH variable \033[0m\n"
         on_error
         exit 1
     fi
     
     # Detect mysql/mariadb
-    mysqlcmd=$(which mariadb 2>/dev/null || which mysql 2>/dev/null || true)
-    if [ -z "$mysqlcmd" ]; then
+    mysql_cmd=$(which mariadb 2>/dev/null || which mysql 2>/dev/null || true)
+    if [ -z "$mysql_cmd" ]; then
         printf "\033[31m Couldn't find mysql/mariadb in your \$PATH. Correct the path to mysql/mariadb in a \$PATH variable \033[0m\n"
         on_error
         exit 1
     fi
     
     # Export as global variables
-    mysqladmincmd="$mysqladmincmd"
-    mysqlcmd="$mysqlcmd"
+    mysqladmincmd="$mysqladmin_cmd"
+    mysqlcmd="$mysql_cmd"
 }
 
 function detect_postgresql_commands() {
@@ -964,7 +964,7 @@ if [ "$RELEEM_INSTANCE_TYPE" == "local" ]; then
             MYSQL_MY_CNF_PATH="/etc/mysql/my.cnf"
         else
             MYSQL_MY_CNF_PATH=""
-        fi 
+        fi
     elif [ "$DATABASE_TYPE" == "postgresql" ]; then
         detect_postgresql_commands
     fi

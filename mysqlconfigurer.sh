@@ -20,6 +20,10 @@ RELEEM_CONF_FILE="/opt/releem/releem.conf"
 RELEEM_DB_VERSION_FILE="${RELEEM_CONF_DIR}db_version"
 RELEEM_INSTALL_FILE="${RELEEM_CONF_DIR}install.sh"
 DB_MEMORY_LIMIT=0
+RELEEM_AGENT_BINARY_URL="https://releem.s3.amazonaws.com/test/releem-agent-$(arch)"
+RELEEM_AGENT_SCRIPT_URL="https://releem.s3.amazonaws.com/test/mysqlconfigurer.sh"
+RELEEM_AGENT_INSTALL_SCRIPT_URL="https://releem.s3.amazonaws.com/test/install.sh"
+
 
 logfile="/var/log/releem-mysqlconfigurer.log"
 
@@ -52,7 +56,7 @@ function update_agent() {
         if [ "$(printf '%s\n' "$NEW_VER" "$VERSION" | sort -V | head -n1)" = "$VERSION" ];
         then
             printf "\033[37m\n * Updating script \e[31;1m%s\e[0m -> \e[32;1m%s\e[0m\n" "$VERSION" "$NEW_VER"
-            curl -s -L https://releem.s3.amazonaws.com/v2/install.sh > "$RELEEM_INSTALL_FILE"
+            curl -s -L $RELEEM_AGENT_INSTALL_SCRIPT_URL > "$RELEEM_INSTALL_FILE"
             RELEEM_INSTANCE_TYPE=$RELEEM_INSTANCE_TYPE RELEEM_API_KEY=$RELEEM_API_KEY exec bash "$RELEEM_INSTALL_FILE" -u
             /opt/releem/releem-agent --event=agent_updated > /dev/null
         fi
@@ -134,20 +138,22 @@ function check_db_version() {
 
 
 function releem_rollback_config() {
-    printf "\033[31m\n * Rolling back MySQL configuration.\033[0m\n"
-    if ! check_db_version; then
-        printf "\033[31m\n * MySQL version is lower than 5.6.7. Check the documentation https://github.com/Releem/mysqlconfigurer#how-to-apply-the-recommended-configuration for applying the configuration. \033[0m\n"
-        exit 2
+    printf "\033[31m\n * Rolling back ${DATABASE_NAME} configuration.\033[0m\n"
+    if [ "$DATABASE_TYPE" == "mysql" ]; then
+        if ! check_db_version; then        
+                printf "\033[31m\n * MySQL version is lower than 5.6.7. Check the documentation https://github.com/Releem/mysqlconfigurer#how-to-apply-the-recommended-configuration for applying the configuration. \033[0m\n"        
+            exit 2
+        fi
     fi
     if [ -z "$RELEEM_DB_CONFIG_DIR" -o ! -d "$RELEEM_DB_CONFIG_DIR" ]; then
-        printf "\033[37m\n * MySQL configuration directory was not found.\033[0m"
+        printf "\033[37m\n * ${DATABASE_NAME} configuration directory was not found.\033[0m"
         printf "\033[37m\n * Try to reinstall Releem Agent, and set the my.cnf location.\033[0m"
         exit 3;
     fi
 
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
-    	read -p "Restart MySQL service? (Y/N) " -n 1 -r
+    	read -p "Restart ${DATABASE_NAME} service? (Y/N) " -n 1 -r
       echo    # move to a new line
       if [[ ! $REPLY =~ ^[Yy]$ ]]
       then
@@ -170,24 +176,24 @@ function releem_rollback_config() {
     fi
 
     if [ -z "$RELEEM_COMMAND_RESTART_SERVICE" ]; then
-        printf "\033[37m\n * The command to restart the MySQL service was not found. Try to reinstall Releem Agent.\033[0m"
+        printf "\033[37m\n * The command to restart the ${DATABASE_NAME} service was not found. Try to reinstall Releem Agent.\033[0m"
         exit 4;
     fi
-    printf "\033[31m\n * Restarting MySQL with command '$RELEEM_COMMAND_RESTART_SERVICE'.\033[0m\n"
+    printf "\033[31m\n * Restarting ${DATABASE_NAME} with command '$RELEEM_COMMAND_RESTART_SERVICE'.\033[0m\n"
     eval "$RELEEM_COMMAND_RESTART_SERVICE" &
     wait_restart $!
     RESTART_CODE=$?
 
     if [ $RESTART_CODE -eq 0 ];
     then
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m The MySQL service restarted successfully!\033[0m\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m The ${DATABASE_NAME} service restarted successfully!\033[0m\n"
         rm -f "${RELEEM_CONF_DIR}${RELEEM_DB_CONFIG_FILE_NAME}.bkp"
     elif [ $RESTART_CODE -eq 6 ];
     then
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m The MySQL service failed to restart in 1200 seconds. Check the MySQL error log. \033[0m\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m The ${DATABASE_NAME} service failed to restart in 1200 seconds. Check the ${DATABASE_NAME} error log. \033[0m\n"
     elif [ $RESTART_CODE -eq 7 ];
     then
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m The MySQL service failed to restart. Check the MySQL error log. \033[0m\n" 
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m The ${DATABASE_NAME} service failed to restart. Check the ${DATABASE_NAME} error log. \033[0m\n" 
     fi
     /opt/releem/releem-agent --event=config_rollback > /dev/null
     exit "${RESTART_CODE}"
@@ -334,7 +340,7 @@ function releem_configure_postgresql_libraries() {
         if [ "$shared_preload_libraries" == "" ]; then
             echo "shared_preload_libraries = 'pg_stat_statements'" | $sudo_cmd tee -a "$RELEEM_DB_CONFIG_DIR/collect_metrics.conf" >/dev/null
         else
-            echo "shared_preload_libraries = '${shared_preload_libraries},pg_stat_statements'" | $sudo_cmd tee -a "$RELEEM_DB_CONFIG_DIR/collect_metrics.conf" >/dev/null
+            echo "shared_preload_libraries = '${shared_preload_libraries}, pg_stat_statements'" | $sudo_cmd tee -a "$RELEEM_DB_CONFIG_DIR/collect_metrics.conf" >/dev/null
         fi
     fi
     chmod 644 $RELEEM_DB_CONFIG_DIR/collect_metrics.conf
@@ -471,29 +477,36 @@ function releem_apply_auto() {
 }
 
 function releem_apply_manual() {
-
-    if ! check_db_version; then
-        printf "\033[31m\n * MySQL version is lower than 5.6.7. Check the documentation https://github.com/Releem/mysqlconfigurer#how-to-apply-the-recommended-configuration for applying the configuration. \033[0m\n"
-        exit 2
-    fi
-    if [ -z "$RELEEM_DB_CONFIG_DIR" -o ! -d "$RELEEM_DB_CONFIG_DIR" ]; then
-        printf "\033[37m\n * MySQL configuration directory was not found.\033[0m"
-        printf "\033[37m\n * Try to reinstall Releem Agent, and please set the my.cnf location.\033[0m"
-        exit 3;
-    fi
+    if [ "$1" == "initial" ]; then
+        DB_CONFIG_FILE_NAME="${RELEEM_DB_INITIAL_CONFIG_FILE_NAME}"
+        DB_CONFIG_FILE="${RELEEM_DB_INITIAL_CONFIG_FILE}"
+    else
+        DB_CONFIG_FILE_NAME="${RELEEM_DB_CONFIG_FILE_NAME}"
+        DB_CONFIG_FILE="${RELEEM_DB_CONFIG_FILE}"
+    fi    
     if [ "$DATABASE_TYPE" == "mysql" ]; then
+        if ! check_db_version; then        
+                printf "\033[31m\n * MySQL version is lower than 5.6.7. Check the documentation https://github.com/Releem/mysqlconfigurer#how-to-apply-the-recommended-configuration for applying the configuration. \033[0m\n"        
+            exit 2
+        fi
         if [ -f "$MYSQL_MY_CNF_PATH" ]; then
             if [ `$sudo_cmd grep -cE "!includedir $RELEEM_DB_CONFIG_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ]; then
                 printf "\033[31m\n Directive includedir was not found in the MySQL configuration file $MYSQL_MY_CNF_PATH.\n Try to reinstall Releem Agent.\n\033[0m"
                 exit 11;
             fi
-        fi
+        fi        
     fi
-    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended MySQL configuration.\033[0m\n"
+    if [ -z "$RELEEM_DB_CONFIG_DIR" -o ! -d "$RELEEM_DB_CONFIG_DIR" ]; then
+        printf "\033[37m\n * ${DATABASE_NAME} configuration directory was not found.\033[0m"
+        printf "\033[37m\n * Try to reinstall Releem Agent, and please set the my.cnf location.\033[0m"
+        exit 3;
+    fi
+
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended ${DATABASE_NAME} configuration.\033[0m\n"
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the latest up-to-date configuration.\033[0m\n"
     /opt/releem/releem-agent -c >/dev/null 2>&1 || true
     if [ ! -f $RELEEM_DB_CONFIG_FILE ]; then
-        printf "\033[37m\n * Recommended MySQL configuration was not found.\033[0m"
+        printf "\033[37m\n * Recommended ${DATABASE_NAME} configuration was not found.\033[0m"
         printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"
         printf "\033[32m\n /opt/releem/releem-agent -f \033[0m\n\n"
         exit 1;
@@ -511,7 +524,7 @@ function releem_apply_manual() {
 
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
-      read -p "Restart MySQL service? (Y/N) " -n 1 -r
+      read -p "Restart ${DATABASE_NAME} service? (Y/N) " -n 1 -r
       echo    # move to a new line
       if [[ ! $REPLY =~ ^[Yy]$ ]]
       then
@@ -533,32 +546,32 @@ function releem_apply_manual() {
     chmod 644 $RELEEM_DB_CONFIG_DIR/*
 
     if [ -z "$RELEEM_COMMAND_RESTART_SERVICE" ]; then
-        printf "\033[37m\n * The command to restart the MySQL service was not found. Try to reinstall Releem Agent.\033[0m"
+        printf "\033[37m\n * The command to restart the ${DATABASE_NAME} service was not found. Try to reinstall Releem Agent.\033[0m"
         exit 4;
     fi
 
     #echo "-------Test config-------"
-    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Restarting MySQL with the command '$RELEEM_COMMAND_RESTART_SERVICE'.\033[0m\n"
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Restarting ${DATABASE_NAME} with the command '$RELEEM_COMMAND_RESTART_SERVICE'.\033[0m\n"
     eval "$RELEEM_COMMAND_RESTART_SERVICE" &
     wait_restart $!
     RESTART_CODE=$?
 
     if [ $RESTART_CODE -eq 0 ];
     then
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m The MySQL service restarted successfully!\033[0m\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m The ${DATABASE_NAME} service restarted successfully!\033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Recommended configuration applied successfully!\033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S` Releem Score and Unapplied recommendations in the Releem Dashboard will be updated in a few minutes.\n"
         rm -f "${RELEEM_CONF_DIR}${RELEEM_DB_CONFIG_FILE_NAME}.bkp"
     elif [ $RESTART_CODE -eq 6 ];
     then
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to restart in 1200 seconds. \033[0m\n"
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Wait for the MySQL service to start and Check the MySQL error log.\033[0m\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m ${DATABASE_NAME} service failed to restart in 1200 seconds. \033[0m\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Wait for the ${DATABASE_NAME} service to start and Check the ${DATABASE_NAME} error log.\033[0m\n"
 
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
     elif [ $RESTART_CODE -eq 7 ];
     then
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to restart! Check the MySQL error log! \033[0m\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m ${DATABASE_NAME} service failed to restart! Check the ${DATABASE_NAME} error log! \033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
     fi
@@ -576,24 +589,25 @@ function releem_apply_automatic() {
         DB_CONFIG_FILE_NAME="${RELEEM_DB_CONFIG_FILE_NAME}"
         DB_CONFIG_FILE="${RELEEM_DB_CONFIG_FILE}"
     fi
-    if ! check_db_version; then
-        printf "\033[31m\n * MySQL version is lower than 5.6.7. Check the documentation https://github.com/Releem/mysqlconfigurer#how-to-apply-the-recommended-configuration for applying the configuration. \033[0m\n"
-        exit 2
-    fi
-    if [ -z "$RELEEM_DB_CONFIG_DIR" -o ! -d "$RELEEM_DB_CONFIG_DIR" ]; then
-        printf "\033[37m\n * MySQL configuration directory was not found.\033[0m"
-        printf "\033[37m\n * Try to reinstall Releem Agent, and set the my.cnf location.\033[0m"
-        exit 3;
-    fi
     if [ "$DATABASE_TYPE" == "mysql" ]; then
+        if ! check_db_version; then        
+                printf "\033[31m\n * MySQL version is lower than 5.6.7. Check the documentation https://github.com/Releem/mysqlconfigurer#how-to-apply-the-recommended-configuration for applying the configuration. \033[0m\n"        
+            exit 2
+        fi
         if [ -f "$MYSQL_MY_CNF_PATH" ]; then
             if [ `$sudo_cmd grep -cE "!includedir $RELEEM_DB_CONFIG_DIR" $MYSQL_MY_CNF_PATH` -eq 0 ]; then
                 printf "\033[31m\n Directive includedir was not found in the MySQL configuration file $MYSQL_MY_CNF_PATH.\n Try to reinstall Releem Agent.\n\033[0m"
                 exit 11;
             fi
-        fi
+        fi        
     fi
-    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended MySQL configuration.\033[0m\n"
+    if [ -z "$RELEEM_DB_CONFIG_DIR" -o ! -d "$RELEEM_DB_CONFIG_DIR" ]; then
+        printf "\033[37m\n * ${DATABASE_NAME} configuration directory was not found.\033[0m"
+        printf "\033[37m\n * Try to reinstall Releem Agent, and set the my.cnf location.\033[0m"
+        exit 3;
+    fi
+
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended ${DATABASE_NAME} configuration.\033[0m\n"
     if [ "$1" == "initial" ]; then
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the initial configuration.\033[0m\n"
         /opt/releem/releem-agent --initial >/dev/null 2>&1 || true
@@ -602,14 +616,14 @@ function releem_apply_automatic() {
         /opt/releem/releem-agent -c >/dev/null 2>&1 || true
     fi
     if [ ! -f $DB_CONFIG_FILE ]; then
-        printf "\033[37m\n * Recommended MySQL configuration was not found.\033[0m"
+        printf "\033[37m\n * Recommended ${DATABASE_NAME} configuration was not found.\033[0m"
         printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"
         printf "\033[32m\n /opt/releem/releem-agent -f \033[0m\n\n"
         exit 1;
     fi
     FLAG_RESTART_SERVICE=1
     if [ -z "$RELEEM_RESTART_SERVICE" ]; then
-      read -p "Restart MySQL service? (Y/N) " -n 1 -r
+      read -p "Restart ${DATABASE_NAME} service? (Y/N) " -n 1 -r
       echo    # move to a new line
       if [[ ! $REPLY =~ ^[Yy]$ ]]
       then
@@ -630,31 +644,31 @@ function releem_apply_automatic() {
 
     if [ "$FLAG_RESTART_SERVICE" -ne 0 ]; then
         if [ -z "$RELEEM_COMMAND_RESTART_SERVICE" ]; then
-            printf "\033[37m\n * The command to restart the MySQL service was not found. Try to reinstall Releem Agent.\033[0m"
+            printf "\033[37m\n * The command to restart the ${DATABASE_NAME} service was not found. Try to reinstall Releem Agent.\033[0m"
             exit 4;
         fi    
         #echo "-------Test config-------"
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Restarting MySQL with the command '$RELEEM_COMMAND_RESTART_SERVICE'.\033[0m\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Restarting ${DATABASE_NAME} with the command '$RELEEM_COMMAND_RESTART_SERVICE'.\033[0m\n"
         eval "$RELEEM_COMMAND_RESTART_SERVICE" &
         wait_restart $!
         RESTART_CODE=$?
 
         if [ $RESTART_CODE -eq 0 ];
         then
-            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m The MySQL service restarted successfully!\033[0m\n"
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m The ${DATABASE_NAME} service restarted successfully!\033[0m\n"
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Recommended configuration applied successfully!\033[0m\n"
             printf "\n`date +%Y%m%d-%H:%M:%S` Releem Score and Unapplied recommendations in the Releem Dashboard will be updated in a few minutes.\n"
             rm -f "${DB_CONFIG_FILE}.bkp"
         elif [ $RESTART_CODE -eq 6 ];
         then
-            printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to restart in 1200 seconds. \033[0m\n"
-            printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Wait for the MySQL service to start and Check the MySQL error log.\033[0m\n"
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m ${DATABASE_NAME} service failed to restart in 1200 seconds. \033[0m\n"
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Wait for the ${DATABASE_NAME} service to start and Check the ${DATABASE_NAME} error log.\033[0m\n"
 
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
         elif [ $RESTART_CODE -eq 7 ];
         then
-            printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m MySQL service failed to restart. Check the MySQL error log. \033[0m\n"
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m ${DATABASE_NAME} service failed to restart. Check the ${DATABASE_NAME} error log. \033[0m\n"
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
         fi
@@ -823,6 +837,13 @@ function detect_mysql_commands() {
     # Export as global variables
     mysqladmincmd="$mysqladmin_cmd"
     mysqlcmd="$mysql_cmd"
+    if [ -f "/etc/my.cnf" ]; then
+        MYSQL_MY_CNF_PATH="/etc/my.cnf"
+    elif [ -f "/etc/mysql/my.cnf" ]; then
+        MYSQL_MY_CNF_PATH="/etc/mysql/my.cnf"
+    else
+        MYSQL_MY_CNF_PATH=""
+    fi    
 }
 
 function detect_postgresql_commands() {
@@ -938,15 +959,17 @@ if test -f $RELEEM_CONF_FILE ; then
 fi
 
 # Database Type Detection
-DATABASE_TYPE=""  # Default to MySQL for backward compatibility
+DATABASE_TYPE="mysql"  # Default to MySQL for backward compatibility
 if [ ! -z "$PG_LOGIN" ] && [ ! -z "$PG_PASSWORD" ]; then
     DATABASE_TYPE="postgresql"
+    DATABASE_NAME="PostgreSQL"
     RELEEM_DB_CONFIG_FILE_NAME="z_aiops_postgresql.conf"
     RELEEM_DB_INITIAL_CONFIG_FILE_NAME="initial_config_postgresql.conf"  
     RELEEM_DB_CONFIG_DIR="${RELEEM_PG_CONFIG_DIR}"
     RELEEM_COMMAND_RESTART_SERVICE="${RELEEM_PG_RESTART_SERVICE}"
 elif [ ! -z "$MYSQL_LOGIN" ] && [ ! -z "$MYSQL_PASSWORD" ]; then
     DATABASE_TYPE="mysql"
+    DATABASE_NAME="MySQL"
     RELEEM_DB_CONFIG_FILE_NAME="z_aiops_mysql.cnf"
     RELEEM_DB_INITIAL_CONFIG_FILE_NAME="initial_config_mysql.cnf"
     RELEEM_DB_CONFIG_DIR="${RELEEM_MYSQL_CONFIG_DIR}"
@@ -958,13 +981,6 @@ RELEEM_DB_INITIAL_CONFIG_FILE="${RELEEM_CONF_DIR}${RELEEM_DB_INITIAL_CONFIG_FILE
 if [ "$RELEEM_INSTANCE_TYPE" == "local" ]; then
     if [ "$DATABASE_TYPE" == "mysql" ]; then
         detect_mysql_commands
-        if [ -f "/etc/my.cnf" ]; then
-            MYSQL_MY_CNF_PATH="/etc/my.cnf"
-        elif [ -f "/etc/mysql/my.cnf" ]; then
-            MYSQL_MY_CNF_PATH="/etc/mysql/my.cnf"
-        else
-            MYSQL_MY_CNF_PATH=""
-        fi
     elif [ "$DATABASE_TYPE" == "postgresql" ]; then
         detect_postgresql_commands
     fi

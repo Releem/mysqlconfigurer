@@ -61,7 +61,14 @@ loop:
 				defer utils.HandlePanic(configuration, logger)
 				metrics := utils.CollectMetrics(gatherers_metrics, logger, configuration)
 				if metrics != nil {
-					metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, metrics.DB.Metrics.Status["Uptime"].(string))
+					// Safely get uptime value - use "0" as default if not available
+					var uptime_str string = "0"
+					if uptime_val, exists := metrics.DB.Metrics.Status["Uptime"]; exists && uptime_val != nil {
+						if uptime_str_val, ok := uptime_val.(string); ok {
+							uptime_str = uptime_str_val
+						}
+					}
+					metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, uptime_str)
 					task := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: ""})
 					if task == "Task" {
 						logger.Info("* A task received by the agent...")

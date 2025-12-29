@@ -76,7 +76,7 @@ loop:
 						time.AfterFunc(5*time.Second, f)
 					}
 				}
-				logger.Info("* MySQL Metrics are saved...")
+				logger.Info("* Database Metrics are saved...")
 			}()
 		case <-GenerateTimer.C:
 			logger.Info("* Starting to collect metrics...")
@@ -95,17 +95,17 @@ loop:
 					logger.Info("* Sending metrics to the Releem Cloud Platform...")
 					utils.ProcessRepeaters(metrics, repeaters, configuration, logger, Mode)
 					if Mode.Name == "Configurations" {
-						logger.Info("* The recommended MySQL configuration has been downloaded to: ", configuration.GetReleemConfDir())
+						logger.Info("* The recommended Database configuration has been downloaded to: ", configuration.GetReleemConfDir())
 					}
 				}
 				if (Mode.Name == "Configurations" && Mode.Type != "Default") || Mode.Name == "Event" || Mode.Name == "TaskSet" {
 					logger.Info("Exiting")
 					os.Exit(0)
 				}
-				logger.Info("* MySQL Metrics are saved...")
+				logger.Info("* Database Metrics are saved...")
 			}()
 		case <-QueryOptimizationTimer.C:
-			logger.Info("* Starting to collect MySQL metrics for Query Analytics...")
+			logger.Info("* Starting to collect Database metrics for Query Analytics...")
 			QueryOptimizationTimer.Reset(configuration.QueryOptimizationPeriod * time.Second)
 			go func() {
 				defer utils.HandlePanic(configuration, logger)
@@ -113,7 +113,7 @@ loop:
 				if metrics != nil {
 					utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: "QueryOptimization"})
 				}
-				logger.Info("* MySQL metrics for Query Analytics are saved...")
+				logger.Info("* Database metrics for Query Analytics are saved...")
 			}()
 		case <-QueryOptimizationCollectSqlText.C:
 			QueryOptimizationCollectSqlText.Reset(configuration.QueryOptimizationCollectSqlTextPeriod * time.Second)

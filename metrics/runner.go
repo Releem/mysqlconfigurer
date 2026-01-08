@@ -9,7 +9,7 @@ import (
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
-	"github.com/Releem/mysqlconfigurer/tasks"
+	"github.com/Releem/mysqlconfigurer/task"
 	"github.com/Releem/mysqlconfigurer/utils"
 	logging "github.com/google/logger"
 )
@@ -62,10 +62,10 @@ loop:
 				metrics := utils.CollectMetrics(append(gatherers, gatherers_metrics...), logger, configuration)
 				if metrics != nil {
 					metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, metrics.DB.Metrics.Status["Uptime"].(string))
-					task := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: ""})
-					if task == "Task" {
+					response := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: ""})
+					if response == "Task" {
 						logger.Info("* A task received by the agent...")
-						f := tasks.ProcessTaskFunc(metrics, repeaters, gatherers, logger, configuration)
+						f := task.ProcessTaskFunc(metrics, repeaters, gatherers, logger, configuration)
 						time.AfterFunc(5*time.Second, f)
 					}
 				}

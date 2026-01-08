@@ -48,7 +48,7 @@ type Metrics struct {
 	}
 	ReleemAgent struct {
 		Info  MetricGroupValue
-		Tasks MetricGroupValue
+		Tasks Task
 		Conf  config.Config
 	}
 }
@@ -63,9 +63,12 @@ type Metric map[string]MetricGroupValue
 // }
 
 type Task struct {
-	TaskID     *int    `json:"task_id"`
-	TaskTypeID *int    `json:"task_type_id"`
-	IsExist    *string `json:"is_exist"`
+	ID          int    `json:"task_id"`
+	TypeID      int    `json:"task_type_id"`
+	Description string `json:"task_description"`
+	Status      int    `json:"task_status"`
+	Output      string `json:"task_output"`
+	ExitCode    int    `json:"task_exit_code"`
 }
 
 type MetricContext interface {

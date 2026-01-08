@@ -1,12 +1,9 @@
-package tasks
+package task
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -22,171 +19,6 @@ import (
 
 	config_aws "github.com/aws/aws-sdk-go-v2/config"
 )
-
-func ProcessTaskFunc(metrics *models.Metrics, repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer, logger logging.Logger, configuration *config.Config) func() {
-	return func() {
-		ProcessTask(metrics, repeaters, gatherers, logger, configuration)
-	}
-}
-
-func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer, logger logging.Logger, configuration *config.Config) {
-	defer utils.HandlePanic(configuration, logger)
-	output := make(models.MetricGroupValue)
-	//metrics := collectMetrics(gatherers, logger)
-	var task_output string
-	task := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskGet", Type: ""})
-	if task == nil || task.(models.Task).TaskTypeID == nil {
-		return
-	}
-
-	TaskTypeID := *task.(models.Task).TaskTypeID
-	TaskID := *task.(models.Task).TaskID
-	var stdout, stderr bytes.Buffer
-
-	output["task_id"] = TaskID
-	output["task_type_id"] = TaskTypeID
-	output["task_status"] = 3
-	output["task_output"] = ""
-
-	metrics.ReleemAgent.Tasks = output
-	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskStatus", Type: ""})
-	logger.Info(" * Task with id - ", TaskID, " and type id - ", TaskTypeID, " is being started...")
-
-	switch TaskTypeID {
-	case 0:
-		output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -a", []string{"RELEEM_RESTART_SERVICE=1"}, logger)
-		output["task_output"] = output["task_output"].(string) + task_output
-
-		if output["task_exit_code"] == 7 {
-			var rollback_exit_code int
-			cmd := exec.Command(configuration.ReleemDir+"/mysqlconfigurer.sh", "-r")
-			cmd.Stdout = &stdout
-			cmd.Stderr = &stderr
-			cmd.Env = append(cmd.Environ(), "RELEEM_RESTART_SERVICE=1")
-			err := cmd.Run()
-			if err != nil {
-				output["task_output"] = output["task_output"].(string) + err.Error()
-				logger.Error(err)
-				if exiterr, ok := err.(*exec.ExitError); ok {
-					rollback_exit_code = exiterr.ExitCode()
-				} else {
-					rollback_exit_code = 999
-				}
-			} else {
-				rollback_exit_code = 0
-			}
-			output["task_output"] = output["task_output"].(string) + stdout.String() + stderr.String()
-			logger.Info(" * Task rollbacked with code ", rollback_exit_code)
-		}
-
-	case 1:
-		output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/releem-agent -f", []string{}, logger)
-		output["task_output"] = output["task_output"].(string) + task_output
-	case 2:
-		output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -u", []string{}, logger)
-		output["task_output"] = output["task_output"].(string) + task_output
-	case 3:
-		output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/releem-agent --task=queries_optimization", []string{}, logger)
-		output["task_output"] = output["task_output"].(string) + task_output
-	case 4:
-		switch configuration.InstanceType {
-		case "aws/rds":
-			output["task_exit_code"], output["task_status"], task_output = ApplyConfAwsRds(repeaters, gatherers, logger, configuration, types.ApplyMethodImmediate)
-			output["task_output"] = output["task_output"].(string) + task_output
-			if output["task_exit_code"] == 0 {
-				output["task_exit_code"], output["task_status"], task_output = ApplyConfAwsRds(repeaters, gatherers, logger, configuration, types.ApplyMethodPendingReboot)
-				output["task_output"] = output["task_output"].(string) + task_output
-			}
-		case "gcp/cloudsql":
-			output["task_exit_code"], output["task_status"], task_output = ApplyConfGcpCloudSQL(repeaters, gatherers, logger, configuration, types.ApplyMethodPendingReboot)
-			output["task_output"] = output["task_output"].(string) + task_output
-
-		default:
-			switch runtime.GOOS {
-			case "windows":
-				output["task_exit_code"] = 0
-				output["task_status"] = 1
-				output["task_output"] = output["task_output"].(string) + "Windows is not supported apply configuration.\n"
-			default: // для Linux и других UNIX-подобных систем
-				output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=0"}, logger)
-				output["task_output"] = output["task_output"].(string) + task_output
-			}
-
-			if output["task_exit_code"] == 0 {
-				output["task_exit_code"], output["task_status"], task_output = ApplyConfLocal(metrics, repeaters, gatherers, logger, configuration)
-				output["task_output"] = output["task_output"].(string) + task_output
-			}
-		}
-		metrics = utils.CollectMetrics(gatherers, logger, configuration)
-	case 5:
-		switch configuration.InstanceType {
-		case "aws/rds":
-			output["task_exit_code"], output["task_status"], task_output = ApplyConfAwsRds(repeaters, gatherers, logger, configuration, types.ApplyMethodPendingReboot)
-			output["task_output"] = output["task_output"].(string) + task_output
-		case "gcp/cloudsql":
-			output["task_exit_code"], output["task_status"], task_output = ApplyConfGcpCloudSQL(repeaters, gatherers, logger, configuration, types.ApplyMethodPendingReboot)
-			output["task_output"] = output["task_output"].(string) + task_output
-
-		default:
-			output["task_exit_code"], output["task_status"], task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=1"}, logger)
-			output["task_output"] = output["task_output"].(string) + task_output
-			if output["task_exit_code"] == 7 {
-				var rollback_exit_code int
-				cmd := exec.Command(configuration.ReleemDir+"/mysqlconfigurer.sh", "-r")
-				cmd.Stdout = &stdout
-				cmd.Stderr = &stderr
-				cmd.Env = append(cmd.Environ(), "RELEEM_RESTART_SERVICE=1")
-				err := cmd.Run()
-				if err != nil {
-					output["task_output"] = output["task_output"].(string) + err.Error()
-					logger.Error(err)
-					if exiterr, ok := err.(*exec.ExitError); ok {
-						rollback_exit_code = exiterr.ExitCode()
-					} else {
-						rollback_exit_code = 999
-					}
-				} else {
-					rollback_exit_code = 0
-				}
-				output["task_output"] = output["task_output"].(string) + stdout.String() + stderr.String()
-				logger.Info(" * Task rollbacked with code ", rollback_exit_code)
-			}
-		}
-	}
-	logger.Info(" * Task with id - ", TaskID, " and type id - ", TaskTypeID, " completed with code ", output["task_exit_code"])
-	metrics.ReleemAgent.Tasks = output
-	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskStatus", Type: ""})
-
-}
-
-func execCmd(cmd_path string, environment []string, logger logging.Logger) (int, int, string) {
-	var stdout, stderr bytes.Buffer
-	var task_exit_code, task_status int
-	var task_output string
-
-	cmd := exec.Command("sh", "-c", cmd_path)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	for _, env := range environment {
-		cmd.Env = append(cmd.Environ(), env)
-	}
-	err := cmd.Run()
-	if err != nil {
-		task_output = task_output + err.Error()
-		logger.Error(err)
-		if exiterr, ok := err.(*exec.ExitError); ok {
-			task_exit_code = exiterr.ExitCode()
-		} else {
-			task_exit_code = 999
-		}
-		task_status = 4
-	} else {
-		task_exit_code = 0
-		task_status = 1
-	}
-	task_output = task_output + stdout.String() + stderr.String()
-	return task_exit_code, task_status, task_output
-}
 
 func ApplyConfLocal(metrics *models.Metrics, repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer, logger logging.Logger, configuration *config.Config) (int, int, string) {
 	var task_exit_code, task_status int
@@ -235,16 +67,16 @@ func ApplyConfLocal(metrics *models.Metrics, repeaters models.MetricsRepeater, g
 		// 	for _, query := range flush_queries {
 		// 		_, err := config.DB.Exec(query)
 		// 		if err != nil {
-		// 			output["task_output"] = output["task_output"].(string) + err.Error()
+		// 			taskStruct.Output = taskStruct.Output + err.Error()
 		// 			logger.Error(err)
 		// 			// if exiterr, ok := err.(*exec.ExitError); ok {
-		// 			// 	output["task_exit_code"] = exiterr.ExitCode()
+		// 			// 	taskStruct.ExitCode = exiterr.ExitCode()
 		// 			// } else {
-		// 			// 	output["task_exit_code"] = 999
+		// 			// 	taskStruct.ExitCode = 999
 		// 			// }
 		// 		}
 		// 		// } else {
-		// 		// 	output["task_exit_code"] = 0
+		// 		// 	taskStruct.ExitCode = 0
 		// 		// }
 		// 	}
 		// }
@@ -479,7 +311,7 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 }
 
 func ApplyConfGcpCloudSQL(repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer,
-	logger logging.Logger, configuration *config.Config, apply_method types.ApplyMethod) (int, int, string) {
+	logger logging.Logger, configuration *config.Config) (int, int, string) {
 
 	var task_exit_code, task_status int = 0, 1
 	var task_output string

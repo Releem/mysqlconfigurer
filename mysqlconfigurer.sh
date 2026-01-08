@@ -253,26 +253,22 @@ function releem_configure_mysql() {
         echo "performance_schema_digests_size = 10000" | $sudo_cmd tee -a "$RELEEM_DB_CONFIG_DIR/collect_metrics.cnf" >/dev/null
     fi
     if [ -n "$RELEEM_QUERY_OPTIMIZATION" -a "$RELEEM_QUERY_OPTIMIZATION" = true ]; then
-        if ! check_db_version; then
-            printf "\033[31m\n * MySQL version is lower than 5.6.7. Query optimization is not supported. Please reinstall the agent with query optimization disabled. \033[0m\n"
-        else
-            performance_schema_setup_consumers_events_statements_current=$($mysqlcmd ${mysql_connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "SELECT ENABLED FROM performance_schema.setup_consumers WHERE NAME = 'events_statements_current';" 2>/dev/null )
-            performance_schema_setup_consumers_events_statements_history=$($mysqlcmd ${mysql_connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "SELECT ENABLED FROM performance_schema.setup_consumers WHERE NAME = 'events_statements_history';" 2>/dev/null )
-            # performance_schema_events_statements_history_size=$($mysqlcmd  ${mysql_connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'performance_schema_events_statements_history_size'" 2>/dev/null | awk '{print $2}')
+        performance_schema_setup_consumers_events_statements_current=$($mysqlcmd ${mysql_connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "SELECT ENABLED FROM performance_schema.setup_consumers WHERE NAME = 'events_statements_current';" 2>/dev/null )
+        performance_schema_setup_consumers_events_statements_history=$($mysqlcmd ${mysql_connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "SELECT ENABLED FROM performance_schema.setup_consumers WHERE NAME = 'events_statements_history';" 2>/dev/null )
+        # performance_schema_events_statements_history_size=$($mysqlcmd  ${mysql_connection_string}  --user=${MYSQL_LOGIN} --password=${MYSQL_PASSWORD} -BNe "show global variables like 'performance_schema_events_statements_history_size'" 2>/dev/null | awk '{print $2}')
 
-            if [ "$performance_schema_setup_consumers_events_statements_current" != "YES" ]; then
-                FLAG_CONFIGURE=0
-            fi
-            if [ "$performance_schema_setup_consumers_events_statements_history" != "YES" ]; then
-                FLAG_CONFIGURE=0
-            fi
-            # if [ "$performance_schema_events_statements_history_size" != "150" ]; then
-            #     FLAG_CONFIGURE=0
-            # fi         
-            echo "performance-schema-consumer-events-statements-history = ON" | $sudo_cmd tee -a "$RELEEM_DB_CONFIG_DIR/collect_metrics.cnf" >/dev/null
-            echo "performance-schema-consumer-events-statements-current = ON" | $sudo_cmd tee -a "$RELEEM_DB_CONFIG_DIR/collect_metrics.cnf" >/dev/null
-            # echo "performance_schema_events_statements_history_size = 500" | $sudo_cmd tee -a "$RELEEM_DB_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+        if [ "$performance_schema_setup_consumers_events_statements_current" != "YES" ]; then
+            FLAG_CONFIGURE=0
         fi
+        if [ "$performance_schema_setup_consumers_events_statements_history" != "YES" ]; then
+            FLAG_CONFIGURE=0
+        fi
+        # if [ "$performance_schema_events_statements_history_size" != "150" ]; then
+        #     FLAG_CONFIGURE=0
+        # fi         
+        echo "performance-schema-consumer-events-statements-history = ON" | $sudo_cmd tee -a "$RELEEM_DB_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+        echo "performance-schema-consumer-events-statements-current = ON" | $sudo_cmd tee -a "$RELEEM_DB_CONFIG_DIR/collect_metrics.cnf" >/dev/null
+        # echo "performance_schema_events_statements_history_size = 500" | $sudo_cmd tee -a "$RELEEM_DB_CONFIG_DIR/collect_metrics.cnf" >/dev/null
     fi        
     chmod 644 $RELEEM_DB_CONFIG_DIR/collect_metrics.cnf
 

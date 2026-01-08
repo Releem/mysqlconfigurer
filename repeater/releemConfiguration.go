@@ -76,12 +76,15 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 		}
 	case "Event":
 		api_domain = api_domain + "event/" + Mode.Type
-	case "TaskGet":
-		api_domain = api_domain + "task/task_get"
+	case "Task":
+		switch Mode.Type {
+		case "Get":
+			api_domain = api_domain + "task/task_get"
+		case "Status":
+			api_domain = api_domain + "task/task_status"
+		}
 	case "TaskSet":
 		api_domain = api_domain + "task/" + Mode.Type
-	case "TaskStatus":
-		api_domain = api_domain + "task/task_status"
 	}
 	repeater.logger.V(5).Info(api_domain)
 
@@ -110,46 +113,54 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	if res.StatusCode != 200 && res.StatusCode != 201 {
 		repeater.logger.Error("Response: status code: ", res.StatusCode)
 		repeater.logger.Error("Response: body:\n", string(body_res))
-	} else {
-		repeater.logger.V(5).Info("Response: status code: ", res.StatusCode)
-		repeater.logger.V(5).Info("Response: body:\n", string(body_res))
+		return nil, err
+	}
+	repeater.logger.V(5).Info("Response: status code: ", res.StatusCode)
+	repeater.logger.V(5).Info("Response: body:\n", string(body_res))
 
-		switch Mode.Name {
-		case "Configurations":
-			var config_filename string
-			if Mode.Type == "ForceInitial" {
-				config_filename = "initial_config_mysql.cnf"
-			} else {
-				db_type := repeater.configuration.GetDatabaseType()
-				switch db_type {
-				case "mysql":
-					config_filename = "z_aiops_mysql.cnf"
-				case "postgresql":
-					config_filename = "z_aiops_postgresql.conf"
-				default:
-					config_filename = "z_aiops_mysql.cnf"
-				}
+	switch Mode.Name {
+	case "Configurations":
+		var config_filename string
+		if Mode.Type == "ForceInitial" {
+			config_filename = "initial_config_mysql.cnf"
+		} else {
+			db_type := repeater.configuration.GetDatabaseType()
+			switch db_type {
+			case "mysql":
+				config_filename = "z_aiops_mysql.cnf"
+			case "postgresql":
+				config_filename = "z_aiops_postgresql.conf"
+			default:
+				config_filename = "z_aiops_mysql.cnf"
 			}
-			err = os.WriteFile(context.GetReleemConfDir()+"/"+config_filename, body_res, 0644)
-			if err != nil {
-				repeater.logger.Error("WriteFile: Error write to file: ", err)
-				return nil, err
-			}
-			return string(body_res), err
-
-		case "Metrics":
-			return string(body_res), err
-		case "Event":
-			return nil, err
-		case "TaskGet":
-			result_data := models.Task{}
-			err := json.Unmarshal(body_res, &result_data)
-			return result_data, err
-		case "TaskSet":
-			return nil, err
-		case "TaskStatus":
+		}
+		err = os.WriteFile(context.GetReleemConfDir()+"/"+config_filename, body_res, 0644)
+		if err != nil {
+			repeater.logger.Error("WriteFile: Error write to file: ", err)
 			return nil, err
 		}
+		return string(body_res), err
+
+	case "Metrics":
+		return string(body_res), err
+	case "Event":
+		return nil, err
+	case "Task":
+		// switch Mode.Type {
+		// case "Get":
+		// 	result_data := models.Task{}
+		// 	err := json.Unmarshal(body_res, &result_data)
+		// 	return result_data, err
+		// case "Set":
+		// 	return nil, err
+		// case "Status":
+		// 	return nil, err
+		// }
+		result_data := models.Task{}
+		err := json.Unmarshal(body_res, &result_data)
+		return result_data, err
+	case "TaskSet":
+		return nil, err
 	}
 	return nil, err
 }

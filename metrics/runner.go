@@ -30,7 +30,7 @@ func RunWorker(gatherers []models.MetricsGatherer, gatherers_metrics []models.Me
 	var GenerateTimer, timer, QueryOptimizationTimer *time.Timer
 	defer utils.HandlePanic(configuration, logger)
 
-	if (Mode.Name == "Configurations" && Mode.Type != "Default") || Mode.Name == "Event" || Mode.Name == "TaskSet" {
+	if (Mode.Name == "Configurations" && Mode.Type != "Default") || Mode.Name == "Event" || Mode.Name == "Task" {
 		GenerateTimer = time.NewTimer(1 * time.Second)
 		timer = time.NewTimer(1 * time.Hour)
 		QueryOptimizationTimer = time.NewTimer(1 * time.Hour)
@@ -85,7 +85,7 @@ loop:
 				var metrics *models.Metrics
 				logger.Info("* Collecting metrics...")
 				defer utils.HandlePanic(configuration, logger)
-				if Mode.Name == "TaskSet" && Mode.Type == "queries_optimization" {
+				if Mode.Name == "Task" && Mode.Type == "queries_optimization" {
 					metrics = utils.CollectMetrics(gatherers_query_optimization, logger, configuration)
 				} else {
 					metrics = utils.CollectMetrics(gatherers_configuration, logger, configuration)
@@ -98,7 +98,7 @@ loop:
 						logger.Info("* The recommended Database configuration has been downloaded to: ", configuration.GetReleemConfDir())
 					}
 				}
-				if (Mode.Name == "Configurations" && Mode.Type != "Default") || Mode.Name == "Event" || Mode.Name == "TaskSet" {
+				if (Mode.Name == "Configurations" && Mode.Type != "Default") || Mode.Name == "Event" || Mode.Name == "Task" {
 					logger.Info("Exiting")
 					os.Exit(0)
 				}
@@ -111,7 +111,7 @@ loop:
 				defer utils.HandlePanic(configuration, logger)
 				metrics := utils.CollectMetrics(gatherers_query_optimization, logger, configuration)
 				if metrics != nil {
-					utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: "QueryOptimization"})
+					utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: "Queries"})
 				}
 				logger.Info("* Database metrics for Query Analytics are saved...")
 			}()

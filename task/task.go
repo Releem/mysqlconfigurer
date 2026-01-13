@@ -1,6 +1,7 @@
 package task
 
 import (
+	"encoding/json"
 	"runtime"
 	"time"
 
@@ -27,7 +28,13 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 	if task == nil {
 		return
 	}
-	taskStruct = task.(models.Task)
+	err := json.Unmarshal([]byte(task.(string)), &taskStruct)
+	if err != nil {
+		logger.Error("Failed to parse task description JSON: ", err)
+		return
+	}
+	logger.Info(task)
+	logger.Info(taskStruct)
 
 	taskStruct.Status = 3
 	taskStruct.Output = ""
@@ -118,6 +125,13 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 				}
 			}
 		}
+
+	case 7:
+		taskStruct.ExitCode, taskStruct.Status, task_output = ProcessQueryExplainTask(
+			taskStruct.Description, logger, configuration, metrics)
+		taskStruct.Output = taskStruct.Output + task_output
+		utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "queries_optimization"})
+
 	}
 	time.Sleep(10 * time.Second)
 	metrics = utils.CollectMetrics(gatherers, logger, configuration)

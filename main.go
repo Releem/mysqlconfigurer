@@ -55,20 +55,8 @@ func (programm *Programm) Start() {
 }
 
 func (programm *Programm) Run() {
-
-	var TypeConfiguration string
 	var gatherers, gatherers_metrics, gatherers_configuration, gatherers_query_optimization []models.MetricsGatherer
 	var Mode models.ModeType
-
-	if *SetConfigRun {
-		TypeConfiguration = "ForceSet"
-	} else if *InitialConfigRun {
-		TypeConfiguration = "ForceInitial"
-	} else if *GetConfigRun {
-		TypeConfiguration = "ForceGet"
-	} else {
-		TypeConfiguration = "Default"
-	}
 
 	// Do something, call your goroutines, etc
 	logger.Info("Releem-agent version is ", config.ReleemAgentVersion) //
@@ -89,11 +77,19 @@ func (programm *Programm) Run() {
 		Mode.Name = "Event"
 		Mode.Type = *AgentEvent
 	} else if len(*AgentTask) > 0 {
-		Mode.Name = "TaskSet"
+		Mode.Name = "Task"
 		Mode.Type = *AgentTask
 	} else {
 		Mode.Name = "Configurations"
-		Mode.Type = TypeConfiguration
+		if *SetConfigRun {
+			Mode.Type = "Set"
+		} else if *InitialConfigRun {
+			Mode.Type = "GetInitial"
+		} else if *GetConfigRun {
+			Mode.Type = "Get"
+		} else {
+			Mode.Type = "Default"
+		}
 	}
 	// if Mode.Name != "Event" {
 	// Select how we collect instance metrics depending on InstanceType

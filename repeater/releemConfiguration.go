@@ -47,7 +47,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	} else {
 		domain = "releem.com"
 	}
-	if Mode.Name == "TaskSet" && Mode.Type == "queries_optimization" {
+	if Mode.Name == "Task" && Mode.Type == "queries_optimization" {
 		api_domain = "https://api.queries." + subdomain + domain + "/v2/"
 	} else if Mode.Name == "Metrics" {
 		api_domain = "https://api.queries." + subdomain + domain + "/v2/"
@@ -58,33 +58,33 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	switch Mode.Name {
 	case "Configurations":
 		switch Mode.Type {
-		case "ForceSet", "ForceGet":
-			api_domain = api_domain + "db/config"
-		case "ForceInitial":
+		case "Set":
+			api_domain = api_domain + "db/config/set"
+		case "Get", "GetJson":
+			api_domain = api_domain + "db/config/get"
+		case "GetInitial":
 			api_domain = api_domain + "db/config/initial"
-		case "ForceGetJson":
-			api_domain = api_domain + "db/config?json=1"
 		default:
-			api_domain = api_domain + "db/config"
+			api_domain = api_domain + "db/config/set"
 		}
 	case "Metrics":
 		switch Mode.Type {
-		case "QueryOptimization":
-			api_domain = api_domain + "db/queries/metrics"
+		case "Queries":
+			api_domain = api_domain + "db/metrics/queries"
 		default:
 			api_domain = api_domain + "db/metrics"
 		}
 	case "Event":
-		api_domain = api_domain + "event/" + Mode.Type
+		api_domain = api_domain + "events/" + Mode.Type
 	case "Task":
 		switch Mode.Type {
 		case "Get":
-			api_domain = api_domain + "task/task_get"
+			api_domain = api_domain + "tasks/pull"
 		case "Status":
-			api_domain = api_domain + "task/task_status"
+			api_domain = api_domain + "tasks/status"
+		default:
+			api_domain = api_domain + "tasks/by-name/" + Mode.Type
 		}
-	case "TaskSet":
-		api_domain = api_domain + "task/" + Mode.Type
 	}
 	repeater.logger.V(5).Info(api_domain)
 
@@ -94,7 +94,9 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 		return nil, err
 	}
 	req.Header.Set("x-releem-api-key", context.GetApiKey())
-
+	if Mode.Name == "Configurations" && Mode.Type == "GetJson" {
+		req.Header.Set("Accept", "application/json")
+	}
 	client := http.Client{
 		Timeout: 10 * time.Minute,
 	}
@@ -118,10 +120,9 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	repeater.logger.V(5).Info("Response: status code: ", res.StatusCode)
 	repeater.logger.V(5).Info("Response: body:\n", string(body_res))
 
-	switch Mode.Name {
-	case "Configurations":
+	if Mode.Name == "Configurations" {
 		var config_filename string
-		if Mode.Type == "ForceInitial" {
+		if Mode.Type == "Initial" {
 			config_filename = "initial_config_mysql.cnf"
 		} else {
 			db_type := repeater.configuration.GetDatabaseType()
@@ -139,30 +140,9 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 			repeater.logger.Error("WriteFile: Error write to file: ", err)
 			return nil, err
 		}
-		return string(body_res), err
 
-	case "Metrics":
-		return string(body_res), err
-	case "Event":
-		return nil, err
-	case "Task":
-		// switch Mode.Type {
-		// case "Get":
-		// 	result_data := models.Task{}
-		// 	err := json.Unmarshal(body_res, &result_data)
-		// 	return result_data, err
-		// case "Set":
-		// 	return nil, err
-		// case "Status":
-		// 	return nil, err
-		// }
-		result_data := models.Task{}
-		err := json.Unmarshal(body_res, &result_data)
-		return result_data, err
-	case "TaskSet":
-		return nil, err
 	}
-	return nil, err
+	return string(body_res), err
 }
 
 func NewReleemConfigurationsRepeater(configuration *config.Config, logger logging.Logger) ReleemConfigurationsRepeater {

@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"database/sql"
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -77,11 +78,6 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 				output_digest[schema_name+query_id] = models.MetricGroupValue{"schema_name": schema_name, "query_id": query_id, "query": query, "query_text": query_text, "calls": calls, "avg_time_us": avg_time_us, "sum_time_us": sum_time_us, "SUM_LOCK_TIME": SUM_LOCK_TIME, "SUM_ERRORS": SUM_ERRORS, "SUM_WARNINGS": SUM_WARNINGS, "SUM_ROWS_AFFECTED": SUM_ROWS_AFFECTED, "SUM_ROWS_SENT": SUM_ROWS_SENT, "SUM_ROWS_EXAMINED": SUM_ROWS_EXAMINED, "SUM_CREATED_TMP_DISK_TABLES": SUM_CREATED_TMP_DISK_TABLES, "SUM_CREATED_TMP_TABLES": SUM_CREATED_TMP_TABLES, "SUM_SELECT_FULL_JOIN": SUM_SELECT_FULL_JOIN, "SUM_SELECT_FULL_RANGE_JOIN": SUM_SELECT_FULL_RANGE_JOIN, "SUM_SELECT_RANGE": SUM_SELECT_RANGE, "SUM_SELECT_RANGE_CHECK": SUM_SELECT_RANGE_CHECK, "SUM_SELECT_SCAN": SUM_SELECT_SCAN, "SUM_SORT_MERGE_PASSES": SUM_SORT_MERGE_PASSES, "SUM_SORT_RANGE": SUM_SORT_RANGE, "SUM_SORT_ROWS": SUM_SORT_ROWS, "SUM_SORT_SCAN": SUM_SORT_SCAN, "SUM_NO_INDEX_USED": SUM_NO_INDEX_USED, "SUM_NO_GOOD_INDEX_USED": SUM_NO_GOOD_INDEX_USED}
 			}
 			rows.Close()
-
-			if DbCollectQueriesOptimization.configuration.QueryOptimization {
-				CollectionExplain(output_digest, "sum_time_us", DbCollectQueriesOptimization.logger, DbCollectQueriesOptimization.configuration, true)
-				CollectionExplain(output_digest, "avg_time_us", DbCollectQueriesOptimization.logger, DbCollectQueriesOptimization.configuration, true)
-			}
 		}
 
 	} else {
@@ -94,11 +90,11 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 			output_digest[schema_name+query_id] = models.MetricGroupValue{"schema_name": schema_name, "query_id": query_id, "query": query, "query_text": query_text, "calls": calls, "avg_time_us": avg_time_us, "sum_time_us": sum_time_us, "SUM_LOCK_TIME": SUM_LOCK_TIME, "SUM_ERRORS": SUM_ERRORS, "SUM_WARNINGS": SUM_WARNINGS, "SUM_ROWS_AFFECTED": SUM_ROWS_AFFECTED, "SUM_ROWS_SENT": SUM_ROWS_SENT, "SUM_ROWS_EXAMINED": SUM_ROWS_EXAMINED, "SUM_CREATED_TMP_DISK_TABLES": SUM_CREATED_TMP_DISK_TABLES, "SUM_CREATED_TMP_TABLES": SUM_CREATED_TMP_TABLES, "SUM_SELECT_FULL_JOIN": SUM_SELECT_FULL_JOIN, "SUM_SELECT_FULL_RANGE_JOIN": SUM_SELECT_FULL_RANGE_JOIN, "SUM_SELECT_RANGE": SUM_SELECT_RANGE, "SUM_SELECT_RANGE_CHECK": SUM_SELECT_RANGE_CHECK, "SUM_SELECT_SCAN": SUM_SELECT_SCAN, "SUM_SORT_MERGE_PASSES": SUM_SORT_MERGE_PASSES, "SUM_SORT_RANGE": SUM_SORT_RANGE, "SUM_SORT_ROWS": SUM_SORT_ROWS, "SUM_SORT_SCAN": SUM_SORT_SCAN, "SUM_NO_INDEX_USED": SUM_NO_INDEX_USED, "SUM_NO_GOOD_INDEX_USED": SUM_NO_GOOD_INDEX_USED}
 		}
 		rows.Close()
+	}
 
-		if DbCollectQueriesOptimization.configuration.QueryOptimization {
-			CollectionExplain(output_digest, "sum_time_us", DbCollectQueriesOptimization.logger, DbCollectQueriesOptimization.configuration, false)
-			CollectionExplain(output_digest, "avg_time_us", DbCollectQueriesOptimization.logger, DbCollectQueriesOptimization.configuration, false)
-		}
+	if DbCollectQueriesOptimization.configuration.QueryOptimization {
+		CollectExplain(output_digest, "sum_time_us", DbCollectQueriesOptimization.logger, DbCollectQueriesOptimization.configuration)
+		CollectExplain(output_digest, "avg_time_us", DbCollectQueriesOptimization.logger, DbCollectQueriesOptimization.configuration)
 	}
 	if len(output_digest) != 0 {
 		for _, value := range output_digest {
@@ -113,6 +109,27 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 	}
 
 	metrics.DB.QueriesOptimization = make(map[string][]models.MetricGroupValue)
+	i := 0
+	for _, database := range metrics.DB.Metrics.Databases {
+		if u.IsSchemaNameExclude(database, DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization) {
+			continue
+		}
+		err := CollectDbSchema(database, DbCollectQueriesOptimization.logger, metrics)
+		if err != nil {
+			return err
+		}
+		i += 1
+		if i%25 == 0 {
+			time.Sleep(3 * time.Second)
+		}
+	}
+	DbCollectQueriesOptimization.logger.V(5).Info("collectMetrics ", metrics.DB.Queries)
+	DbCollectQueriesOptimization.logger.V(5).Info("collectMetrics ", metrics.DB.QueriesOptimization)
+
+	return nil
+}
+
+func CollectDbSchema(database string, logger logging.Logger, metrics *models.Metrics) error {
 	type information_schema_table_type struct {
 		TABLE_SCHEMA    string
 		TABLE_NAME      string
@@ -128,28 +145,19 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 		DATA_FREE       string
 	}
 	var information_schema_table information_schema_table_type
-	i := 0
-	for _, database := range metrics.DB.Metrics.Databases {
-		if u.IsSchemaNameExclude(database, DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization) {
-			continue
-		}
-		rows, err := models.DB.Query(`SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(TABLE_TYPE, 'NULL') as TABLE_TYPE,  IFNULL(ENGINE, 'NULL') as ENGINE, IFNULL(ROW_FORMAT, 'NULL') as ROW_FORMAT, IFNULL(TABLE_ROWS, 'NULL') as TABLE_ROWS, IFNULL(AVG_ROW_LENGTH, 'NULL') as AVG_ROW_LENGTH, IFNULL(MAX_DATA_LENGTH, 'NULL') as MAX_DATA_LENGTH, IFNULL(DATA_LENGTH, 'NULL') as DATA_LENGTH, IFNULL(INDEX_LENGTH, 'NULL') as INDEX_LENGTH, IFNULL(TABLE_COLLATION, 'NULL') as TABLE_COLLATION, IFNULL(DATA_FREE, 'NULL') as DATA_FREE FROM information_schema.tables WHERE TABLE_SCHEMA = ? `, database)
-		if err != nil {
-			DbCollectQueriesOptimization.logger.Error(err)
-		} else {
-			defer rows.Close()
-			for rows.Next() {
-				err := rows.Scan(&information_schema_table.TABLE_SCHEMA, &information_schema_table.TABLE_NAME, &information_schema_table.TABLE_TYPE, &information_schema_table.ENGINE, &information_schema_table.ROW_FORMAT, &information_schema_table.TABLE_ROWS, &information_schema_table.AVG_ROW_LENGTH, &information_schema_table.MAX_DATA_LENGTH, &information_schema_table.DATA_LENGTH, &information_schema_table.INDEX_LENGTH, &information_schema_table.TABLE_COLLATION, &information_schema_table.DATA_FREE)
-				if err != nil {
-					DbCollectQueriesOptimization.logger.Error(err)
-					return err
-				}
-				metrics.DB.QueriesOptimization["information_schema_tables"] = append(metrics.DB.QueriesOptimization["information_schema_tables"], models.MetricGroupValue{"TABLE_SCHEMA": information_schema_table.TABLE_SCHEMA, "TABLE_NAME": information_schema_table.TABLE_NAME, "TABLE_TYPE": information_schema_table.TABLE_TYPE, "ENGINE": information_schema_table.ENGINE, "ROW_FORMAT": information_schema_table.ROW_FORMAT, "TABLE_ROWS": information_schema_table.TABLE_ROWS, "AVG_ROW_LENGTH": information_schema_table.AVG_ROW_LENGTH, "MAX_DATA_LENGTH": information_schema_table.MAX_DATA_LENGTH, "DATA_LENGTH": information_schema_table.DATA_LENGTH, "INDEX_LENGTH": information_schema_table.INDEX_LENGTH, "TABLE_COLLATION": information_schema_table.TABLE_COLLATION, "DATA_FREE": information_schema_table.DATA_FREE})
+
+	rows, err := models.DB.Query(`SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(TABLE_TYPE, 'NULL') as TABLE_TYPE,  IFNULL(ENGINE, 'NULL') as ENGINE, IFNULL(ROW_FORMAT, 'NULL') as ROW_FORMAT, IFNULL(TABLE_ROWS, 'NULL') as TABLE_ROWS, IFNULL(AVG_ROW_LENGTH, 'NULL') as AVG_ROW_LENGTH, IFNULL(MAX_DATA_LENGTH, 'NULL') as MAX_DATA_LENGTH, IFNULL(DATA_LENGTH, 'NULL') as DATA_LENGTH, IFNULL(INDEX_LENGTH, 'NULL') as INDEX_LENGTH, IFNULL(TABLE_COLLATION, 'NULL') as TABLE_COLLATION, IFNULL(DATA_FREE, 'NULL') as DATA_FREE FROM information_schema.tables WHERE TABLE_SCHEMA = ? `, database)
+	if err != nil {
+		logger.Error(err)
+	} else {
+		defer rows.Close()
+		for rows.Next() {
+			err := rows.Scan(&information_schema_table.TABLE_SCHEMA, &information_schema_table.TABLE_NAME, &information_schema_table.TABLE_TYPE, &information_schema_table.ENGINE, &information_schema_table.ROW_FORMAT, &information_schema_table.TABLE_ROWS, &information_schema_table.AVG_ROW_LENGTH, &information_schema_table.MAX_DATA_LENGTH, &information_schema_table.DATA_LENGTH, &information_schema_table.INDEX_LENGTH, &information_schema_table.TABLE_COLLATION, &information_schema_table.DATA_FREE)
+			if err != nil {
+				logger.Error(err)
+				return err
 			}
-		}
-		i += 1
-		if i%25 == 0 {
-			time.Sleep(3 * time.Second)
+			metrics.DB.QueriesOptimization["information_schema_tables"] = append(metrics.DB.QueriesOptimization["information_schema_tables"], models.MetricGroupValue{"TABLE_SCHEMA": information_schema_table.TABLE_SCHEMA, "TABLE_NAME": information_schema_table.TABLE_NAME, "TABLE_TYPE": information_schema_table.TABLE_TYPE, "ENGINE": information_schema_table.ENGINE, "ROW_FORMAT": information_schema_table.ROW_FORMAT, "TABLE_ROWS": information_schema_table.TABLE_ROWS, "AVG_ROW_LENGTH": information_schema_table.AVG_ROW_LENGTH, "MAX_DATA_LENGTH": information_schema_table.MAX_DATA_LENGTH, "DATA_LENGTH": information_schema_table.DATA_LENGTH, "INDEX_LENGTH": information_schema_table.INDEX_LENGTH, "TABLE_COLLATION": information_schema_table.TABLE_COLLATION, "DATA_FREE": information_schema_table.DATA_FREE})
 		}
 	}
 
@@ -172,19 +180,19 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 		GENERATION_EXPRESSION    string
 	}
 	var information_schema_column information_schema_column_type
-	rows, err = models.DB.Query("SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(ORDINAL_POSITION, 'NULL') as ORDINAL_POSITION, IFNULL(COLUMN_DEFAULT, 'NULL') as COLUMN_DEFAULT, IFNULL(IS_NULLABLE, 'NULL') as IS_NULLABLE, IFNULL(DATA_TYPE, 'NULL') as DATA_TYPE, IFNULL(CHARACTER_MAXIMUM_LENGTH, 'NULL') as CHARACTER_MAXIMUM_LENGTH, IFNULL(NUMERIC_PRECISION, 'NULL') as NUMERIC_PRECISION, IFNULL(NUMERIC_SCALE, 'NULL') as NUMERIC_SCALE, IFNULL(CHARACTER_SET_NAME, 'NULL') as CHARACTER_SET_NAME, IFNULL(COLLATION_NAME, 'NULL') as COLLATION_NAME, IFNULL(COLUMN_TYPE, 'NULL') as COLUMN_TYPE, IFNULL(COLUMN_KEY, 'NULL') as COLUMN_KEY, IFNULL(EXTRA, 'NULL') as EXTRA, IFNULL(GENERATION_EXPRESSION, 'NULL') as GENERATION_EXPRESSION FROM information_schema.columns" + FilterQueryString(DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "TABLE_SCHEMA"))
+	rows, err = models.DB.Query(`SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(ORDINAL_POSITION, 'NULL') as ORDINAL_POSITION, IFNULL(COLUMN_DEFAULT, 'NULL') as COLUMN_DEFAULT, IFNULL(IS_NULLABLE, 'NULL') as IS_NULLABLE, IFNULL(DATA_TYPE, 'NULL') as DATA_TYPE, IFNULL(CHARACTER_MAXIMUM_LENGTH, 'NULL') as CHARACTER_MAXIMUM_LENGTH, IFNULL(NUMERIC_PRECISION, 'NULL') as NUMERIC_PRECISION, IFNULL(NUMERIC_SCALE, 'NULL') as NUMERIC_SCALE, IFNULL(CHARACTER_SET_NAME, 'NULL') as CHARACTER_SET_NAME, IFNULL(COLLATION_NAME, 'NULL') as COLLATION_NAME, IFNULL(COLUMN_TYPE, 'NULL') as COLUMN_TYPE, IFNULL(COLUMN_KEY, 'NULL') as COLUMN_KEY, IFNULL(EXTRA, 'NULL') as EXTRA, IFNULL(GENERATION_EXPRESSION, 'NULL') as GENERATION_EXPRESSION FROM information_schema.columns WHERE TABLE_SCHEMA = ? `, database)
 	if err != nil {
 		if err != sql.ErrNoRows && !strings.Contains(err.Error(), "Unknown column") {
-			DbCollectQueriesOptimization.logger.Error(err)
+			logger.Error(err)
 		}
-		rows, err = models.DB.Query("SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(ORDINAL_POSITION, 'NULL') as ORDINAL_POSITION, IFNULL(COLUMN_DEFAULT, 'NULL') as COLUMN_DEFAULT, IFNULL(IS_NULLABLE, 'NULL') as IS_NULLABLE, IFNULL(DATA_TYPE, 'NULL') as DATA_TYPE, IFNULL(CHARACTER_MAXIMUM_LENGTH, 'NULL') as CHARACTER_MAXIMUM_LENGTH, IFNULL(NUMERIC_PRECISION, 'NULL') as NUMERIC_PRECISION, IFNULL(NUMERIC_SCALE, 'NULL') as NUMERIC_SCALE, IFNULL(CHARACTER_SET_NAME, 'NULL') as CHARACTER_SET_NAME, IFNULL(COLLATION_NAME, 'NULL') as COLLATION_NAME, IFNULL(COLUMN_TYPE, 'NULL') as COLUMN_TYPE, IFNULL(COLUMN_KEY, 'NULL') as COLUMN_KEY, IFNULL(EXTRA, 'NULL') as EXTRA FROM information_schema.columns" + FilterQueryString(DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "TABLE_SCHEMA"))
+		rows, err = models.DB.Query(`SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(ORDINAL_POSITION, 'NULL') as ORDINAL_POSITION, IFNULL(COLUMN_DEFAULT, 'NULL') as COLUMN_DEFAULT, IFNULL(IS_NULLABLE, 'NULL') as IS_NULLABLE, IFNULL(DATA_TYPE, 'NULL') as DATA_TYPE, IFNULL(CHARACTER_MAXIMUM_LENGTH, 'NULL') as CHARACTER_MAXIMUM_LENGTH, IFNULL(NUMERIC_PRECISION, 'NULL') as NUMERIC_PRECISION, IFNULL(NUMERIC_SCALE, 'NULL') as NUMERIC_SCALE, IFNULL(CHARACTER_SET_NAME, 'NULL') as CHARACTER_SET_NAME, IFNULL(COLLATION_NAME, 'NULL') as COLLATION_NAME, IFNULL(COLUMN_TYPE, 'NULL') as COLUMN_TYPE, IFNULL(COLUMN_KEY, 'NULL') as COLUMN_KEY, IFNULL(EXTRA, 'NULL') as EXTRA FROM information_schema.columns WHERE TABLE_SCHEMA = ? `, database)
 		if err != nil {
-			DbCollectQueriesOptimization.logger.Error(err)
+			logger.Error(err)
 		} else {
 			for rows.Next() {
 				err := rows.Scan(&information_schema_column.TABLE_SCHEMA, &information_schema_column.TABLE_NAME, &information_schema_column.COLUMN_NAME, &information_schema_column.ORDINAL_POSITION, &information_schema_column.COLUMN_DEFAULT, &information_schema_column.IS_NULLABLE, &information_schema_column.DATA_TYPE, &information_schema_column.CHARACTER_MAXIMUM_LENGTH, &information_schema_column.NUMERIC_PRECISION, &information_schema_column.NUMERIC_SCALE, &information_schema_column.CHARACTER_SET_NAME, &information_schema_column.COLLATION_NAME, &information_schema_column.COLUMN_TYPE, &information_schema_column.COLUMN_KEY, &information_schema_column.EXTRA)
 				if err != nil {
-					DbCollectQueriesOptimization.logger.Error(err)
+					logger.Error(err)
 					return err
 				}
 				metrics.DB.QueriesOptimization["information_schema_columns"] = append(metrics.DB.QueriesOptimization["information_schema_columns"], models.MetricGroupValue{"TABLE_SCHEMA": information_schema_column.TABLE_SCHEMA, "TABLE_NAME": information_schema_column.TABLE_NAME, "COLUMN_NAME": information_schema_column.COLUMN_NAME, "ORDINAL_POSITION": information_schema_column.ORDINAL_POSITION, "COLUMN_DEFAULT": information_schema_column.COLUMN_DEFAULT, "IS_NULLABLE": information_schema_column.IS_NULLABLE, "DATA_TYPE": information_schema_column.DATA_TYPE, "CHARACTER_MAXIMUM_LENGTH": information_schema_column.CHARACTER_MAXIMUM_LENGTH, "NUMERIC_PRECISION": information_schema_column.NUMERIC_PRECISION, "NUMERIC_SCALE": information_schema_column.NUMERIC_SCALE, "CHARACTER_SET_NAME": information_schema_column.CHARACTER_SET_NAME, "COLLATION_NAME": information_schema_column.COLLATION_NAME, "COLUMN_TYPE": information_schema_column.COLUMN_TYPE, "COLUMN_KEY": information_schema_column.COLUMN_KEY, "EXTRA": information_schema_column.EXTRA, "GENERATION_EXPRESSION": "NULL"})
@@ -195,7 +203,7 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 		for rows.Next() {
 			err := rows.Scan(&information_schema_column.TABLE_SCHEMA, &information_schema_column.TABLE_NAME, &information_schema_column.COLUMN_NAME, &information_schema_column.ORDINAL_POSITION, &information_schema_column.COLUMN_DEFAULT, &information_schema_column.IS_NULLABLE, &information_schema_column.DATA_TYPE, &information_schema_column.CHARACTER_MAXIMUM_LENGTH, &information_schema_column.NUMERIC_PRECISION, &information_schema_column.NUMERIC_SCALE, &information_schema_column.CHARACTER_SET_NAME, &information_schema_column.COLLATION_NAME, &information_schema_column.COLUMN_TYPE, &information_schema_column.COLUMN_KEY, &information_schema_column.EXTRA, &information_schema_column.GENERATION_EXPRESSION)
 			if err != nil {
-				DbCollectQueriesOptimization.logger.Error(err)
+				logger.Error(err)
 				return err
 			}
 			metrics.DB.QueriesOptimization["information_schema_columns"] = append(metrics.DB.QueriesOptimization["information_schema_columns"], models.MetricGroupValue{"TABLE_SCHEMA": information_schema_column.TABLE_SCHEMA, "TABLE_NAME": information_schema_column.TABLE_NAME, "COLUMN_NAME": information_schema_column.COLUMN_NAME, "ORDINAL_POSITION": information_schema_column.ORDINAL_POSITION, "COLUMN_DEFAULT": information_schema_column.COLUMN_DEFAULT, "IS_NULLABLE": information_schema_column.IS_NULLABLE, "DATA_TYPE": information_schema_column.DATA_TYPE, "CHARACTER_MAXIMUM_LENGTH": information_schema_column.CHARACTER_MAXIMUM_LENGTH, "NUMERIC_PRECISION": information_schema_column.NUMERIC_PRECISION, "NUMERIC_SCALE": information_schema_column.NUMERIC_SCALE, "CHARACTER_SET_NAME": information_schema_column.CHARACTER_SET_NAME, "COLLATION_NAME": information_schema_column.COLLATION_NAME, "COLUMN_TYPE": information_schema_column.COLUMN_TYPE, "COLUMN_KEY": information_schema_column.COLUMN_KEY, "EXTRA": information_schema_column.EXTRA, "GENERATION_EXPRESSION": information_schema_column.GENERATION_EXPRESSION})
@@ -219,19 +227,19 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 		EXPRESSION   string
 	}
 	var information_schema_index information_schema_index_type
-	rows, err = models.DB.Query("SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(INDEX_NAME, 'NULL') as INDEX_NAME, IFNULL(NON_UNIQUE, 'NULL') as NON_UNIQUE, IFNULL(SEQ_IN_INDEX, 'NULL') as SEQ_IN_INDEX, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(COLLATION, 'NULL') as COLLATION, IFNULL(CARDINALITY, 'NULL') as CARDINALITY, IFNULL(SUB_PART, 'NULL') as SUB_PART, IFNULL(PACKED, 'NULL') as PACKED, IFNULL(NULLABLE, 'NULL') as NULLABLE, IFNULL(INDEX_TYPE, 'NULL') as INDEX_TYPE, IFNULL(EXPRESSION, 'NULL') as EXPRESSION FROM information_schema.statistics" + FilterQueryString(DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "TABLE_SCHEMA"))
+	rows, err = models.DB.Query(`SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(INDEX_NAME, 'NULL') as INDEX_NAME, IFNULL(NON_UNIQUE, 'NULL') as NON_UNIQUE, IFNULL(SEQ_IN_INDEX, 'NULL') as SEQ_IN_INDEX, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(COLLATION, 'NULL') as COLLATION, IFNULL(CARDINALITY, 'NULL') as CARDINALITY, IFNULL(SUB_PART, 'NULL') as SUB_PART, IFNULL(PACKED, 'NULL') as PACKED, IFNULL(NULLABLE, 'NULL') as NULLABLE, IFNULL(INDEX_TYPE, 'NULL') as INDEX_TYPE, IFNULL(EXPRESSION, 'NULL') as EXPRESSION FROM information_schema.statistics WHERE TABLE_SCHEMA = ? `, database)
 	if err != nil {
 		if err != sql.ErrNoRows && !strings.Contains(err.Error(), "Unknown column") {
-			DbCollectQueriesOptimization.logger.Error(err)
+			logger.Error(err)
 		}
-		rows, err = models.DB.Query("SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(INDEX_NAME, 'NULL') as INDEX_NAME, IFNULL(NON_UNIQUE, 'NULL') as NON_UNIQUE, IFNULL(SEQ_IN_INDEX, 'NULL') as SEQ_IN_INDEX, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(COLLATION, 'NULL') as COLLATION, IFNULL(CARDINALITY, 'NULL') as CARDINALITY, IFNULL(SUB_PART, 'NULL') as SUB_PART, IFNULL(PACKED, 'NULL') as PACKED, IFNULL(NULLABLE, 'NULL') as NULLABLE, IFNULL(INDEX_TYPE, 'NULL') as INDEX_TYPE FROM information_schema.statistics" + FilterQueryString(DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "TABLE_SCHEMA"))
+		rows, err = models.DB.Query(`SELECT IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(INDEX_NAME, 'NULL') as INDEX_NAME, IFNULL(NON_UNIQUE, 'NULL') as NON_UNIQUE, IFNULL(SEQ_IN_INDEX, 'NULL') as SEQ_IN_INDEX, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(COLLATION, 'NULL') as COLLATION, IFNULL(CARDINALITY, 'NULL') as CARDINALITY, IFNULL(SUB_PART, 'NULL') as SUB_PART, IFNULL(PACKED, 'NULL') as PACKED, IFNULL(NULLABLE, 'NULL') as NULLABLE, IFNULL(INDEX_TYPE, 'NULL') as INDEX_TYPE FROM information_schema.statistics WHERE TABLE_SCHEMA = ? `, database)
 		if err != nil {
-			DbCollectQueriesOptimization.logger.Error(err)
+			logger.Error(err)
 		} else {
 			for rows.Next() {
 				err := rows.Scan(&information_schema_index.TABLE_SCHEMA, &information_schema_index.TABLE_NAME, &information_schema_index.INDEX_NAME, &information_schema_index.NON_UNIQUE, &information_schema_index.SEQ_IN_INDEX, &information_schema_index.COLUMN_NAME, &information_schema_index.COLLATION, &information_schema_index.CARDINALITY, &information_schema_index.SUB_PART, &information_schema_index.PACKED, &information_schema_index.NULLABLE, &information_schema_index.INDEX_TYPE)
 				if err != nil {
-					DbCollectQueriesOptimization.logger.Error(err)
+					logger.Error(err)
 					return err
 				}
 				metrics.DB.QueriesOptimization["information_schema_indexes"] = append(metrics.DB.QueriesOptimization["information_schema_indexes"], models.MetricGroupValue{"TABLE_SCHEMA": information_schema_index.TABLE_SCHEMA, "TABLE_NAME": information_schema_index.TABLE_NAME, "INDEX_NAME": information_schema_index.INDEX_NAME, "NON_UNIQUE": information_schema_index.NON_UNIQUE, "SEQ_IN_INDEX": information_schema_index.SEQ_IN_INDEX, "COLUMN_NAME": information_schema_index.COLUMN_NAME, "COLLATION": information_schema_index.COLLATION, "CARDINALITY": information_schema_index.CARDINALITY, "SUB_PART": information_schema_index.SUB_PART, "PACKED": information_schema_index.PACKED, "NULLABLE": information_schema_index.NULLABLE, "INDEX_TYPE": information_schema_index.INDEX_TYPE})
@@ -242,7 +250,7 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 		for rows.Next() {
 			err := rows.Scan(&information_schema_index.TABLE_SCHEMA, &information_schema_index.TABLE_NAME, &information_schema_index.INDEX_NAME, &information_schema_index.NON_UNIQUE, &information_schema_index.SEQ_IN_INDEX, &information_schema_index.COLUMN_NAME, &information_schema_index.COLLATION, &information_schema_index.CARDINALITY, &information_schema_index.SUB_PART, &information_schema_index.PACKED, &information_schema_index.NULLABLE, &information_schema_index.INDEX_TYPE, &information_schema_index.EXPRESSION)
 			if err != nil {
-				DbCollectQueriesOptimization.logger.Error(err)
+				logger.Error(err)
 				return err
 			}
 			metrics.DB.QueriesOptimization["information_schema_indexes"] = append(metrics.DB.QueriesOptimization["information_schema_indexes"], models.MetricGroupValue{"TABLE_SCHEMA": information_schema_index.TABLE_SCHEMA, "TABLE_NAME": information_schema_index.TABLE_NAME, "INDEX_NAME": information_schema_index.INDEX_NAME, "NON_UNIQUE": information_schema_index.NON_UNIQUE, "SEQ_IN_INDEX": information_schema_index.SEQ_IN_INDEX, "COLUMN_NAME": information_schema_index.COLUMN_NAME, "COLLATION": information_schema_index.COLLATION, "CARDINALITY": information_schema_index.CARDINALITY, "SUB_PART": information_schema_index.SUB_PART, "PACKED": information_schema_index.PACKED, "NULLABLE": information_schema_index.NULLABLE, "INDEX_TYPE": information_schema_index.INDEX_TYPE, "EXPRESSION": information_schema_index.EXPRESSION})
@@ -364,14 +372,14 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 		REFERENCED_TABLE_NAME    string
 	}
 	var information_schema_referential_constraints information_schema_referential_constraints_type
-	rows, err = models.DB.Query("SELECT IFNULL(CONSTRAINT_SCHEMA, 'NULL') as CONSTRAINT_SCHEMA, IFNULL(CONSTRAINT_NAME, 'NULL') as CONSTRAINT_NAME, IFNULL(UNIQUE_CONSTRAINT_SCHEMA, 'NULL') as UNIQUE_CONSTRAINT_SCHEMA, IFNULL(UNIQUE_CONSTRAINT_NAME, 'NULL') as UNIQUE_CONSTRAINT_NAME, IFNULL(MATCH_OPTION, 'NULL') as MATCH_OPTION, IFNULL(UPDATE_RULE, 'NULL') as UPDATE_RULE, IFNULL(DELETE_RULE, 'NULL') as DELETE_RULE, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(REFERENCED_TABLE_NAME, 'NULL') as REFERENCED_TABLE_NAME FROM information_schema.REFERENTIAL_CONSTRAINTS" + FilterQueryString(DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "CONSTRAINT_SCHEMA"))
+	rows, err = models.DB.Query(`SELECT IFNULL(CONSTRAINT_SCHEMA, 'NULL') as CONSTRAINT_SCHEMA, IFNULL(CONSTRAINT_NAME, 'NULL') as CONSTRAINT_NAME, IFNULL(UNIQUE_CONSTRAINT_SCHEMA, 'NULL') as UNIQUE_CONSTRAINT_SCHEMA, IFNULL(UNIQUE_CONSTRAINT_NAME, 'NULL') as UNIQUE_CONSTRAINT_NAME, IFNULL(MATCH_OPTION, 'NULL') as MATCH_OPTION, IFNULL(UPDATE_RULE, 'NULL') as UPDATE_RULE, IFNULL(DELETE_RULE, 'NULL') as DELETE_RULE, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(REFERENCED_TABLE_NAME, 'NULL') as REFERENCED_TABLE_NAME FROM information_schema.REFERENTIAL_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = ? `, database)
 	if err != nil {
-		DbCollectQueriesOptimization.logger.Error(err)
+		logger.Error(err)
 	} else {
 		for rows.Next() {
 			err := rows.Scan(&information_schema_referential_constraints.CONSTRAINT_SCHEMA, &information_schema_referential_constraints.CONSTRAINT_NAME, &information_schema_referential_constraints.UNIQUE_CONSTRAINT_SCHEMA, &information_schema_referential_constraints.UNIQUE_CONSTRAINT_NAME, &information_schema_referential_constraints.MATCH_OPTION, &information_schema_referential_constraints.UPDATE_RULE, &information_schema_referential_constraints.DELETE_RULE, &information_schema_referential_constraints.TABLE_NAME, &information_schema_referential_constraints.REFERENCED_TABLE_NAME)
 			if err != nil {
-				DbCollectQueriesOptimization.logger.Error(err)
+				logger.Error(err)
 				return err
 			}
 			metrics.DB.QueriesOptimization["information_schema_referential_constraints"] = append(metrics.DB.QueriesOptimization["information_schema_referential_constraints"], models.MetricGroupValue{"CONSTRAINT_SCHEMA": information_schema_referential_constraints.CONSTRAINT_SCHEMA, "CONSTRAINT_NAME": information_schema_referential_constraints.CONSTRAINT_NAME, "UNIQUE_CONSTRAINT_SCHEMA": information_schema_referential_constraints.UNIQUE_CONSTRAINT_SCHEMA, "UNIQUE_CONSTRAINT_NAME": information_schema_referential_constraints.UNIQUE_CONSTRAINT_NAME, "MATCH_OPTION": information_schema_referential_constraints.MATCH_OPTION, "UPDATE_RULE": information_schema_referential_constraints.UPDATE_RULE, "DELETE_RULE": information_schema_referential_constraints.DELETE_RULE, "TABLE_NAME": information_schema_referential_constraints.TABLE_NAME, "REFERENCED_TABLE_NAME": information_schema_referential_constraints.REFERENCED_TABLE_NAME})
@@ -392,14 +400,14 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 		REFERENCED_COLUMN_NAME        string
 	}
 	var information_schema_key_column_usage information_schema_key_column_usage_type
-	rows, err = models.DB.Query("SELECT IFNULL(CONSTRAINT_SCHEMA, 'NULL') as CONSTRAINT_SCHEMA, IFNULL(CONSTRAINT_NAME, 'NULL') as CONSTRAINT_NAME, IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(ORDINAL_POSITION, 'NULL') as ORDINAL_POSITION, IFNULL(POSITION_IN_UNIQUE_CONSTRAINT, 'NULL') as POSITION_IN_UNIQUE_CONSTRAINT, IFNULL(REFERENCED_TABLE_SCHEMA, 'NULL') as REFERENCED_TABLE_SCHEMA, IFNULL(REFERENCED_TABLE_NAME, 'NULL') as REFERENCED_TABLE_NAME, IFNULL(REFERENCED_COLUMN_NAME, 'NULL') as REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE" + FilterQueryString(DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "CONSTRAINT_SCHEMA"))
+	rows, err = models.DB.Query(`SELECT IFNULL(CONSTRAINT_SCHEMA, 'NULL') as CONSTRAINT_SCHEMA, IFNULL(CONSTRAINT_NAME, 'NULL') as CONSTRAINT_NAME, IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(ORDINAL_POSITION, 'NULL') as ORDINAL_POSITION, IFNULL(POSITION_IN_UNIQUE_CONSTRAINT, 'NULL') as POSITION_IN_UNIQUE_CONSTRAINT, IFNULL(REFERENCED_TABLE_SCHEMA, 'NULL') as REFERENCED_TABLE_SCHEMA, IFNULL(REFERENCED_TABLE_NAME, 'NULL') as REFERENCED_TABLE_NAME, IFNULL(REFERENCED_COLUMN_NAME, 'NULL') as REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE CONSTRAINT_SCHEMA = ? `, database)
 	if err != nil {
-		DbCollectQueriesOptimization.logger.Error(err)
+		logger.Error(err)
 	} else {
 		for rows.Next() {
 			err := rows.Scan(&information_schema_key_column_usage.CONSTRAINT_SCHEMA, &information_schema_key_column_usage.CONSTRAINT_NAME, &information_schema_key_column_usage.TABLE_SCHEMA, &information_schema_key_column_usage.TABLE_NAME, &information_schema_key_column_usage.COLUMN_NAME, &information_schema_key_column_usage.ORDINAL_POSITION, &information_schema_key_column_usage.POSITION_IN_UNIQUE_CONSTRAINT, &information_schema_key_column_usage.REFERENCED_TABLE_SCHEMA, &information_schema_key_column_usage.REFERENCED_TABLE_NAME, &information_schema_key_column_usage.REFERENCED_COLUMN_NAME)
 			if err != nil {
-				DbCollectQueriesOptimization.logger.Error(err)
+				logger.Error(err)
 				return err
 			}
 			metrics.DB.QueriesOptimization["information_schema_key_column_usage"] = append(metrics.DB.QueriesOptimization["information_schema_key_column_usage"], models.MetricGroupValue{"CONSTRAINT_SCHEMA": information_schema_key_column_usage.CONSTRAINT_SCHEMA, "CONSTRAINT_NAME": information_schema_key_column_usage.CONSTRAINT_NAME, "TABLE_SCHEMA": information_schema_key_column_usage.TABLE_SCHEMA, "TABLE_NAME": information_schema_key_column_usage.TABLE_NAME, "COLUMN_NAME": information_schema_key_column_usage.COLUMN_NAME, "ORDINAL_POSITION": information_schema_key_column_usage.ORDINAL_POSITION, "POSITION_IN_UNIQUE_CONSTRAINT": information_schema_key_column_usage.POSITION_IN_UNIQUE_CONSTRAINT, "REFERENCED_TABLE_SCHEMA": information_schema_key_column_usage.REFERENCED_TABLE_SCHEMA, "REFERENCED_TABLE_NAME": information_schema_key_column_usage.REFERENCED_TABLE_NAME, "REFERENCED_COLUMN_NAME": information_schema_key_column_usage.REFERENCED_COLUMN_NAME})
@@ -415,14 +423,14 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 		CONSTRAINT_TYPE   string
 	}
 	var information_schema_table_constraints information_schema_table_constraints_type
-	rows, err = models.DB.Query("SELECT IFNULL(CONSTRAINT_SCHEMA, 'NULL') as CONSTRAINT_SCHEMA, IFNULL(CONSTRAINT_NAME, 'NULL') as CONSTRAINT_NAME, IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(CONSTRAINT_TYPE, 'NULL') as CONSTRAINT_TYPE FROM information_schema.TABLE_CONSTRAINTS" + FilterQueryString(DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "CONSTRAINT_SCHEMA"))
+	rows, err = models.DB.Query(`SELECT IFNULL(CONSTRAINT_SCHEMA, 'NULL') as CONSTRAINT_SCHEMA, IFNULL(CONSTRAINT_NAME, 'NULL') as CONSTRAINT_NAME, IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(CONSTRAINT_TYPE, 'NULL') as CONSTRAINT_TYPE FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = ? `, database)
 	if err != nil {
-		DbCollectQueriesOptimization.logger.Error(err)
+		logger.Error(err)
 	} else {
 		for rows.Next() {
 			err := rows.Scan(&information_schema_table_constraints.CONSTRAINT_SCHEMA, &information_schema_table_constraints.CONSTRAINT_NAME, &information_schema_table_constraints.TABLE_SCHEMA, &information_schema_table_constraints.TABLE_NAME, &information_schema_table_constraints.CONSTRAINT_TYPE)
 			if err != nil {
-				DbCollectQueriesOptimization.logger.Error(err)
+				logger.Error(err)
 				return err
 			}
 			metrics.DB.QueriesOptimization["information_schema_table_constraints"] = append(metrics.DB.QueriesOptimization["information_schema_table_constraints"], models.MetricGroupValue{"CONSTRAINT_SCHEMA": information_schema_table_constraints.CONSTRAINT_SCHEMA, "CONSTRAINT_NAME": information_schema_table_constraints.CONSTRAINT_NAME, "TABLE_SCHEMA": information_schema_table_constraints.TABLE_SCHEMA, "TABLE_NAME": information_schema_table_constraints.TABLE_NAME, "CONSTRAINT_TYPE": information_schema_table_constraints.CONSTRAINT_TYPE})
@@ -438,14 +446,14 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 		EVENT_OBJECT_TABLE  string
 	}
 	var information_schema_triggers information_schema_triggers_type
-	rows, err = models.DB.Query("SELECT IFNULL(TRIGGER_SCHEMA, 'NULL') as TRIGGER_SCHEMA, IFNULL(TRIGGER_NAME, 'NULL') as TRIGGER_NAME, IFNULL(EVENT_MANIPULATION, 'NULL') as EVENT_MANIPULATION, IFNULL(EVENT_OBJECT_SCHEMA, 'NULL') as EVENT_OBJECT_SCHEMA, IFNULL(EVENT_OBJECT_TABLE, 'NULL') as EVENT_OBJECT_TABLE FROM information_schema.TRIGGERS" + FilterQueryString(DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "TRIGGER_SCHEMA"))
+	rows, err = models.DB.Query(`SELECT IFNULL(TRIGGER_SCHEMA, 'NULL') as TRIGGER_SCHEMA, IFNULL(TRIGGER_NAME, 'NULL') as TRIGGER_NAME, IFNULL(EVENT_MANIPULATION, 'NULL') as EVENT_MANIPULATION, IFNULL(EVENT_OBJECT_SCHEMA, 'NULL') as EVENT_OBJECT_SCHEMA, IFNULL(EVENT_OBJECT_TABLE, 'NULL') as EVENT_OBJECT_TABLE FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = ? `, database)
 	if err != nil {
-		DbCollectQueriesOptimization.logger.Error(err)
+		logger.Error(err)
 	} else {
 		for rows.Next() {
 			err := rows.Scan(&information_schema_triggers.TRIGGER_SCHEMA, &information_schema_triggers.TRIGGER_NAME, &information_schema_triggers.EVENT_MANIPULATION, &information_schema_triggers.EVENT_OBJECT_SCHEMA, &information_schema_triggers.EVENT_OBJECT_TABLE)
 			if err != nil {
-				DbCollectQueriesOptimization.logger.Error(err)
+				logger.Error(err)
 				return err
 			}
 			metrics.DB.QueriesOptimization["information_schema_triggers"] = append(metrics.DB.QueriesOptimization["information_schema_triggers"], models.MetricGroupValue{"TRIGGER_SCHEMA": information_schema_triggers.TRIGGER_SCHEMA, "TRIGGER_NAME": information_schema_triggers.TRIGGER_NAME, "EVENT_MANIPULATION": information_schema_triggers.EVENT_MANIPULATION, "EVENT_OBJECT_SCHEMA": information_schema_triggers.EVENT_OBJECT_SCHEMA, "EVENT_OBJECT_TABLE": information_schema_triggers.EVENT_OBJECT_TABLE})
@@ -453,15 +461,12 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 		rows.Close()
 	}
 
-	DbCollectQueriesOptimization.logger.V(5).Info("collectMetrics ", metrics.DB.Queries)
-	DbCollectQueriesOptimization.logger.V(5).Info("collectMetrics ", metrics.DB.QueriesOptimization)
-
 	return nil
 
 }
 
-func CollectionExplain(digests map[string]models.MetricGroupValue, field_sorting string, logger logging.Logger, configuration *config.Config, is_mysql57 bool) {
-	var explain, schema_name_conn, query_text string
+func CollectExplain(digests map[string]models.MetricGroupValue, field_sorting string, logger logging.Logger, configuration *config.Config) {
+	var schema_name_conn string
 	var i int
 	var db *sql.DB
 
@@ -481,98 +486,102 @@ func CollectionExplain(digests map[string]models.MetricGroupValue, field_sorting
 			break
 		}
 
-		if digests[k]["schema_name"].(string) != "mysql" && digests[k]["schema_name"].(string) != "information_schema" &&
-			digests[k]["schema_name"].(string) != "performance_schema" && digests[k]["schema_name"].(string) != "NULL" &&
-			(strings.Contains(digests[k]["query_text"].(string), "SELECT ") || strings.Contains(digests[k]["query_text"].(string), "select ")) &&
-			digests[k]["explain"] == nil {
+		if digests[k]["schema_name"].(string) == "mysql" || digests[k]["schema_name"].(string) == "information_schema" ||
+			digests[k]["schema_name"].(string) == "performance_schema" || digests[k]["schema_name"].(string) == "NULL" ||
+			!(strings.Contains(digests[k]["query_text"].(string), "SELECT ") || strings.Contains(digests[k]["query_text"].(string), "select ")) ||
+			digests[k]["explain"] != nil {
+			continue
+		}
+		if digests[k]["query_text"].(string) == "" {
+			continue
+		}
+		if strings.Contains(digests[k]["query_text"].(string), "EXPLAIN FORMAT=JSON") {
+			continue
+		}
+		if u.IsSchemaNameExclude(digests[k]["schema_name"].(string), configuration.DatabasesQueryOptimization) {
+			continue
+		}
 
-			if digests[k]["query_text"].(string) == "" {
-				continue
-			}
-			if strings.Contains(digests[k]["query_text"].(string), "EXPLAIN FORMAT=JSON") {
-				continue
-			}
-			if u.IsSchemaNameExclude(digests[k]["schema_name"].(string), configuration.DatabasesQueryOptimization) {
-				continue
-			}
+		if (strings.Contains(digests[k]["query_text"].(string), "SELECT") || strings.Contains(digests[k]["query_text"].(string), "select")) &&
+			strings.Contains(digests[k]["query_text"].(string), "SQL_NO_CACHE") &&
+			!(strings.Contains(digests[k]["query_text"].(string), "WHERE") || strings.Contains(digests[k]["query_text"].(string), "where")) {
+			logger.V(5).Info("Query From mysqldump", digests[k]["query_text"].(string))
+			continue
+		}
 
-			if (strings.Contains(digests[k]["query_text"].(string), "SELECT") || strings.Contains(digests[k]["query_text"].(string), "select")) &&
-				strings.Contains(digests[k]["query_text"].(string), "SQL_NO_CACHE") &&
-				!(strings.Contains(digests[k]["query_text"].(string), "WHERE") || strings.Contains(digests[k]["query_text"].(string), "where")) {
-				logger.V(5).Info("Query From mysqldump", digests[k]["query_text"].(string))
-				continue
+		if strings.HasSuffix(digests[k]["query_text"].(string), "...") {
+			digests[k]["explain_error"] = "need_full_query"
+			logger.V(5).Info("need_full_query") //, digests[k]["query_text"].(string))
+			continue
+		}
+		if schema_name_conn != digests[k]["schema_name"].(string) {
+			if db != nil {
+				db.Close()
 			}
-
-			if strings.HasSuffix(digests[k]["query_text"].(string), "...") {
-				digests[k]["explain_error"] = "need_full_query"
-				logger.V(5).Info("need_full_query") //, digests[k]["query_text"].(string))
-				continue
-			}
-			if schema_name_conn != digests[k]["schema_name"].(string) {
-				if db != nil {
-					db.Close()
-				}
-				db = u.ConnectionDatabase(configuration, logger, digests[k]["schema_name"].(string))
-				defer db.Close()
-				schema_name_conn = digests[k]["schema_name"].(string)
-			}
-
-			//Try exec EXPLAIN for origin query
-			err := db.QueryRow("EXPLAIN FORMAT=JSON " + digests[k]["query_text"].(string)).Scan(&explain)
-			if err != nil {
-				logger.Error("Explain Error: ", err)
-				if strings.Contains(err.Error(), "SELECT command denied to user") || strings.Contains(err.Error(), "Access denied for user") {
-					digests[k]["explain_error"] = "need_grant_permission"
-					continue
-				} else {
-					digests[k]["explain_error"] = err.Error()
-					logger.Error(digests[k]["query_text"].(string))
-				}
-			} else {
-				logger.V(5).Info(i, "OK")
-				digests[k]["explain"] = explain
-				i = i + 1
-				continue
-			}
-
-			//Try exec EXPLAIN for  query with replace "\"" on "'"
-			query_text = strings.Replace(digests[k]["query_text"].(string), "\"", "'", -1)
-			err_1 := db.QueryRow("EXPLAIN FORMAT=JSON " + query_text).Scan(&explain)
-			if err_1 != nil {
-				logger.Error("Explain Error: ", err_1)
-				if strings.Contains(err_1.Error(), "SELECT command denied to user") || strings.Contains(err_1.Error(), "Access denied for user") {
-					digests[k]["explain_error"] = "need_grant_permission"
-					continue
-				} else {
-					digests[k]["explain_error"] = err_1.Error()
-					logger.Error(query_text)
-				}
-			} else {
-				logger.V(5).Info(i, "OK")
-				digests[k]["explain"] = explain
-				i = i + 1
-				continue
-			}
-
-			//Try exec EXPLAIN for  query with replace "\"" on "`"
-			query_text = strings.Replace(digests[k]["query_text"].(string), "\"", "`", -1)
-			err_2 := db.QueryRow("EXPLAIN FORMAT=JSON " + query_text).Scan(&explain)
-			if err_2 != nil {
-				logger.Error("Explain Error: ", err_2)
-				if strings.Contains(err_2.Error(), "SELECT command denied to user") || strings.Contains(err_2.Error(), "Access denied for user") {
-					digests[k]["explain_error"] = "need_grant_permission"
-					continue
-				} else {
-					digests[k]["explain_error"] = err_2.Error()
-					logger.Error(query_text)
-				}
-			} else {
-				logger.V(5).Info(i, "OK")
-				digests[k]["explain"] = explain
-				i = i + 1
-				continue
-			}
-
+			db = u.ConnectionDatabase(configuration, logger, digests[k]["schema_name"].(string))
+			defer db.Close()
+			schema_name_conn = digests[k]["schema_name"].(string)
+		}
+		query_explain, err := ExecuteExplain(db, digests[k]["query_text"].(string), logger)
+		if err != nil {
+			digests[k]["explain_error"] = err.Error()
+		}
+		if query_explain != "" {
+			logger.V(5).Info(i, "OK")
+			digests[k]["explain"] = query_explain
+			i = i + 1
 		}
 	}
+}
+
+func ExecuteExplain(db *sql.DB, queryText string, logger logging.Logger) (string, error) {
+	var explain, query_text string
+	var explain_error error
+	explain_error = nil
+
+	//Try exec EXPLAIN for origin query
+	err := db.QueryRow("EXPLAIN FORMAT=JSON " + queryText).Scan(&explain)
+	if err != nil {
+		logger.Error("Explain Error: ", err)
+		if strings.Contains(err.Error(), "SELECT command denied to user") || strings.Contains(err.Error(), "Access denied for user") {
+			explain_error = errors.New("need_grant_permission")
+			return explain, explain_error
+		} else {
+			explain_error = err
+		}
+	} else {
+		return explain, explain_error
+	}
+
+	//Try exec EXPLAIN for  query with replace "\"" on "'"
+	query_text = strings.Replace(queryText, "\"", "'", -1)
+	err_1 := db.QueryRow("EXPLAIN FORMAT=JSON " + query_text).Scan(&explain)
+	if err_1 != nil {
+		logger.Error("Explain Error: ", err_1)
+		if strings.Contains(err_1.Error(), "SELECT command denied to user") || strings.Contains(err_1.Error(), "Access denied for user") {
+			explain_error = errors.New("need_grant_permission")
+			return explain, explain_error
+		} else {
+			explain_error = err_1
+		}
+	} else {
+		return explain, explain_error
+	}
+
+	//Try exec EXPLAIN for  query with replace "\"" on "`"
+	query_text = strings.Replace(queryText, "\"", "`", -1)
+	err_2 := db.QueryRow("EXPLAIN FORMAT=JSON " + query_text).Scan(&explain)
+	if err_2 != nil {
+		logger.Error("Explain Error: ", err_2)
+		if strings.Contains(err_2.Error(), "SELECT command denied to user") || strings.Contains(err_2.Error(), "Access denied for user") {
+			explain_error = errors.New("need_grant_permission")
+			return explain, explain_error
+		} else {
+			explain_error = err_2
+		}
+	} else {
+		return explain, explain_error
+	}
+
+	return explain, explain_error
 }

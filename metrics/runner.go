@@ -30,7 +30,7 @@ func RunWorker(gatherers []models.MetricsGatherer, gatherers_metrics []models.Me
 	var GenerateTimer, timer, QueryOptimizationTimer *time.Timer
 	defer utils.HandlePanic(configuration, logger)
 
-	if (Mode.Name == "Configurations" && Mode.Type != "Default") || Mode.Name == "Event" || Mode.Name == "Task" {
+	if (Mode.Name == "Configurations" && Mode.Type != "Default") || Mode.Name == "Event" || Mode.Name == "TaskByName" {
 		GenerateTimer = time.NewTimer(1 * time.Second)
 		timer = time.NewTimer(1 * time.Hour)
 		QueryOptimizationTimer = time.NewTimer(1 * time.Hour)
@@ -85,8 +85,12 @@ loop:
 				var metrics *models.Metrics
 				logger.Info("* Collecting metrics...")
 				defer utils.HandlePanic(configuration, logger)
-				if Mode.Name == "Task" && Mode.Type == "queries_optimization" {
-					metrics = utils.CollectMetrics(gatherers_query_optimization, logger, configuration)
+				if Mode.Name == "TaskByName" {
+					if Mode.Type == "queries_optimization" {
+						metrics = utils.CollectMetrics(gatherers_query_optimization, logger, configuration)
+					} else {
+						metrics = utils.CollectMetrics(gatherers_configuration, logger, configuration)
+					}
 				} else {
 					metrics = utils.CollectMetrics(gatherers_configuration, logger, configuration)
 				}
@@ -98,7 +102,7 @@ loop:
 						logger.Info("* The recommended Database configuration has been downloaded to: ", configuration.GetReleemConfDir())
 					}
 				}
-				if (Mode.Name == "Configurations" && Mode.Type != "Default") || Mode.Name == "Event" || Mode.Name == "Task" {
+				if (Mode.Name == "Configurations" && Mode.Type != "Default") || Mode.Name == "Event" || Mode.Name == "TaskByName" {
 					logger.Info("Exiting")
 					os.Exit(0)
 				}

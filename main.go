@@ -77,7 +77,7 @@ func (programm *Programm) Run() {
 		Mode.Name = "Event"
 		Mode.Type = *AgentEvent
 	} else if len(*AgentTask) > 0 {
-		Mode.Name = "Task"
+		Mode.Name = "TaskByName"
 		Mode.Type = *AgentTask
 	} else {
 		Mode.Name = "Configurations"

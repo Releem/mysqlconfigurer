@@ -47,7 +47,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	} else {
 		domain = "releem.com"
 	}
-	if Mode.Name == "Task" && Mode.Type == "queries_optimization" {
+	if Mode.Name == "TaskByName" {
 		api_domain = "https://api.queries." + subdomain + domain + "/v2/"
 	} else if Mode.Name == "Metrics" {
 		api_domain = "https://api.queries." + subdomain + domain + "/v2/"
@@ -82,9 +82,9 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 			api_domain = api_domain + "tasks/pull"
 		case "Status":
 			api_domain = api_domain + "tasks/status"
-		default:
-			api_domain = api_domain + "tasks/by-name/" + Mode.Type
 		}
+	case "TaskByName":
+		api_domain = api_domain + "tasks/by-name/" + Mode.Type
 	}
 	repeater.logger.V(5).Info(api_domain)
 

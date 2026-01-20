@@ -130,7 +130,7 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 		taskStruct.ExitCode, taskStruct.Status, task_output = ProcessQueryExplainTask(
 			taskStruct.Description, logger, configuration, metrics)
 		taskStruct.Output = taskStruct.Output + task_output
-		utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "queries_optimization"})
+		utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskByName", Type: "custom_queries_optimization"})
 
 	}
 	time.Sleep(10 * time.Second)

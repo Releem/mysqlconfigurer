@@ -68,19 +68,18 @@ func IsPath(path string, logger logging.Logger) bool {
 func ConnectionDatabase(configuration *config.Config, logger logging.Logger, DBname string) *sql.DB {
 	var db *sql.DB
 	var err error
-	var TypeConnection, MysqlSslMode string
+	var TypeConnection string
+	dsn_params := "?interpolateParams=true"
 
-	if configuration.MysqlSslMode {
-		MysqlSslMode = "?tls=skip-verify"
-	} else {
-		MysqlSslMode = ""
-	}
 	if IsPath(configuration.MysqlHost, logger) {
-		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@unix("+configuration.MysqlHost+")/"+DBname)
+		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@unix("+configuration.MysqlHost+")/"+DBname+dsn_params)
 		TypeConnection = "unix"
 
 	} else {
-		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@tcp("+configuration.MysqlHost+":"+configuration.MysqlPort+")/"+DBname+MysqlSslMode)
+		if configuration.MysqlSslMode {
+			dsn_params = dsn_params + "&tls=skip-verify"
+		}
+		db, err = sql.Open("mysql", configuration.MysqlUser+":"+configuration.MysqlPassword+"@tcp("+configuration.MysqlHost+":"+configuration.MysqlPort+")/"+DBname+dsn_params)
 		TypeConnection = "tcp"
 	}
 	if err != nil {

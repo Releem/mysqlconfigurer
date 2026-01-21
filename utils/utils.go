@@ -130,11 +130,17 @@ func ConnectionMySQL(configuration *config.Config, logger logging.Logger, DBname
 func ConnectionPostgreSQL(configuration *config.Config, logger logging.Logger, DBname string) *sql.DB {
 	var db *sql.DB
 	var err error
+	var sslmode string
 
+	if configuration.PgSslMode {
+		sslmode = "require"
+	} else {
+		sslmode = "disable"
+	}
 	// Build PostgreSQL connection string
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		configuration.PgHost, configuration.PgPort, configuration.PgUser,
-		configuration.PgPassword, DBname, configuration.PgSslMode)
+		configuration.PgPassword, DBname, sslmode)
 
 	db, err = sql.Open("postgres", connStr)
 	if err != nil {

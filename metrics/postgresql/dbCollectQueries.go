@@ -70,6 +70,7 @@ func (DBCollectQueriesOptimization *DBCollectQueriesOptimization) GetMetrics(met
 				"datname":            datname,
 				"queryid":            queryid,
 				"query":              query,
+				"query_text":         "",
 				"calls":              calls,
 				"total_exec_time_us": total_exec_time_us,
 				"mean_exec_time_us":  mean_exec_time_us,
@@ -120,7 +121,7 @@ func CollectDbSchema(database string, logger logging.Logger, metrics *models.Met
 	rows, err := models.DB.Query(`
 		SELECT table_schema, table_name, table_type
 		FROM information_schema.tables 
-		WHERE table_catalog = ?
+		WHERE table_catalog = $1
 			AND table_schema NOT IN ('information_schema', 'pg_catalog')`, database)
 	if err != nil {
 		logger.Error(err)
@@ -158,7 +159,7 @@ func CollectDbSchema(database string, logger logging.Logger, metrics *models.Met
 		SELECT table_schema, table_name, column_name, ordinal_position::text, 
 		       COALESCE(column_default, ''), is_nullable, data_type
 		FROM information_schema.columns 
-		WHERE table_catalog = ?
+		WHERE table_catalog = $1
 			AND table_schema NOT IN ('information_schema', 'pg_catalog')
 		ORDER BY table_schema, table_name, ordinal_position`, database)
 	if err != nil {
@@ -206,7 +207,7 @@ func CollectExplain(digests map[string]models.MetricGroupValue, field_sorting st
 	//logger.Println(pairs)
 	// Sort slice based on values
 	sort.Slice(pairs, func(i, j int) bool {
-		return pairs[i][1].(int) > pairs[j][1].(int)
+		return int(pairs[i][1].(float64)) > int(pairs[j][1].(float64))
 	})
 
 	for _, p := range pairs {
@@ -215,10 +216,10 @@ func CollectExplain(digests map[string]models.MetricGroupValue, field_sorting st
 			break
 		}
 
-		if digests[k]["schema_name"].(string) == "postgres" ||
-			digests[k]["schema_name"].(string) == "template0" ||
-			digests[k]["schema_name"].(string) == "template1" ||
-			digests[k]["schema_name"].(string) == "NULL" ||
+		if digests[k]["datname"].(string) == "postgres" ||
+			digests[k]["datname"].(string) == "template0" ||
+			digests[k]["datname"].(string) == "template1" ||
+			digests[k]["datname"].(string) == "NULL" ||
 			!(strings.Contains(digests[k]["query_text"].(string), "SELECT ") || strings.Contains(digests[k]["query_text"].(string), "select ")) ||
 			digests[k]["explain"] != nil {
 			continue
@@ -229,17 +230,17 @@ func CollectExplain(digests map[string]models.MetricGroupValue, field_sorting st
 		if strings.Contains(digests[k]["query_text"].(string), "EXPLAIN (FORMAT JSON)") {
 			continue
 		}
-		if u.IsSchemaNameExclude(digests[k]["schema_name"].(string), configuration.DatabasesQueryOptimization) {
+		if u.IsSchemaNameExclude(digests[k]["datname"].(string), configuration.DatabasesQueryOptimization) {
 			continue
 		}
 
-		if schema_name_conn != digests[k]["schema_name"].(string) {
+		if schema_name_conn != digests[k]["datname"].(string) {
 			if db != nil {
 				db.Close()
 			}
-			db = u.ConnectionDatabase(configuration, logger, digests[k]["schema_name"].(string))
+			db = u.ConnectionDatabase(configuration, logger, digests[k]["datname"].(string))
 			defer db.Close()
-			schema_name_conn = digests[k]["schema_name"].(string)
+			schema_name_conn = digests[k]["datname"].(string)
 		}
 		query_explain, err := ExecuteExplain(db, digests[k]["query_text"].(string), logger)
 		if err != nil {

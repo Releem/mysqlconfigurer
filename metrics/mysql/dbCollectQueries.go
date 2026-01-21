@@ -61,7 +61,7 @@ func (DBCollectQueriesOptimization *DBCollectQueriesOptimization) GetMetrics(met
 			}
 		} else {
 			for rows.Next() {
-				err := rows.Scan(&schema_name, &query_id, &query, &calls, &avg_time_us, &sum_time_us, &SUM_LOCK_TIME, &SUM_ERRORS, &SUM_WARNINGS, &SUM_ROWS_AFFECTED, &SUM_ROWS_SENT, &SUM_ROWS_EXAMINED, &SUM_CREATED_TMP_DISK_TABLES, &SUM_CREATED_TMP_TABLES, &SUM_SELECT_FULL_JOIN, &SUM_SELECT_FULL_RANGE_JOIN, &SUM_SELECT_RANGE, &SUM_SELECT_RANGE_CHECK, &SUM_SELECT_SCAN, &SUM_SORT_MERGE_PASSES, &SUM_SORT_RANGE, &SUM_SORT_ROWS, &SUM_SORT_SCAN, &SUM_NO_INDEX_USED)
+				err := rows.Scan(&schema_name, &query_id, &query, &calls, &avg_time_us, &sum_time_us, &SUM_LOCK_TIME, &SUM_ERRORS, &SUM_WARNINGS, &SUM_ROWS_AFFECTED, &SUM_ROWS_SENT, &SUM_ROWS_EXAMINED, &SUM_CREATED_TMP_DISK_TABLES, &SUM_CREATED_TMP_TABLES, &SUM_SELECT_FULL_JOIN, &SUM_SELECT_FULL_RANGE_JOIN, &SUM_SELECT_RANGE, &SUM_SELECT_RANGE_CHECK, &SUM_SELECT_SCAN, &SUM_SORT_MERGE_PASSES, &SUM_SORT_RANGE, &SUM_SORT_ROWS, &SUM_SORT_SCAN, &SUM_NO_INDEX_USED, &SUM_NO_GOOD_INDEX_USED)
 				if err != nil {
 					DBCollectQueriesOptimization.logger.Error(err)
 					return err

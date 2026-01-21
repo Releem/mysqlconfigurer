@@ -33,7 +33,7 @@ type Config struct {
 	PgUser                                string        `hcl:"pg_user"`
 	PgHost                                string        `hcl:"pg_host"`
 	PgPort                                string        `hcl:"pg_port"`
-	PgSslMode                             string        `hcl:"pg_ssl_mode"`
+	PgSslMode                             bool          `hcl:"pg_ssl_mode"`
 	PgConfDir                             string        `hcl:"pg_cnf_dir"`
 	PgRestartService                      string        `hcl:"pg_restart_service"`
 	ReleemConfDir                         string        `hcl:"releem_cnf_dir"`
@@ -93,9 +93,6 @@ func LoadConfigFromString(data string, logger logging.Logger) (*Config, error) {
 	}
 	if config.PgPort == "" {
 		config.PgPort = "5432"
-	}
-	if config.PgSslMode == "" {
-		config.PgSslMode = "disable"
 	}
 	if config.ReleemDir == "" {
 		config.ReleemDir = "/opt/releem"

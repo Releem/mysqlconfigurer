@@ -13,40 +13,6 @@ import (
 	"github.com/hashicorp/go-version"
 )
 
-var PG_STAT_VIEWS = []string{
-	"pg_stat_archiver", "pg_stat_bgwriter", "pg_stat_database",
-	"pg_stat_database_conflicts", "pg_stat_checkpointer",
-}
-
-var PG_STAT_PER_DB_VIEWS = []string{
-	"pg_stat_user_tables", "pg_statio_user_tables",
-	"pg_stat_user_indexes", "pg_statio_user_indexes",
-}
-
-var PG_STAT_STATEMENTS = `
-SELECT
-	COALESCE(d.datname, 'NULL') as datname,
-	s.queryid as queryid,
-	sum(s.calls) AS calls,
-	sum(s.total_exec_time) AS total_exec_time,
-	sum(s.total_exec_time) / sum(s.calls) AS mean_exec_time
-FROM pg_stat_statements s
-LEFT JOIN pg_database d ON d.oid = s.dbid
-GROUP BY d.datname, s.queryid
-`
-
-var PG_STAT_STATEMENTS_OLD_VERSION = `
-SELECT
-	COALESCE(d.datname, 'NULL') as datname,
-	s.queryid::text as queryid,
-	sum(s.calls) AS calls,
-	sum(s.total_time) AS total_exec_time,
-	sum(s.total_time) / sum(s.calls) AS mean_exec_time
-FROM pg_stat_statements s
-LEFT JOIN pg_database d ON d.oid = s.dbid
-GROUP BY d.datname, s.queryid
-`
-
 type DBMetricsBaseGatherer struct {
 	logger        logging.Logger
 	configuration *config.Config
@@ -114,7 +80,7 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 				if val, ok := pg_stat[view].([]models.MetricGroupValue); ok {
 					existing = val
 				}
-				pg_stat[view] = append(existing, utils.GetPostgreSQLMetrics(rows, DBMetricsBase.logger)...)
+				pg_stat[view] = append(existing, utils.ScanRows(rows, DBMetricsBase.logger)...)
 			}
 		}
 
@@ -174,23 +140,33 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 		}
 		metrics.DB.Metrics.Databases = output
 	}
-	// Query latency from pg_stat_statements if available
-	{
+
+	if models.PgStatStatementsEnabled {
 		var dealloc uint64
 		var stats_reset string
-		if models.PgStatStatementsEnabled {
-			err := models.DB.QueryRow("SELECT dealloc, stats_reset FROM pg_stat_statements_info").Scan(&dealloc, &stats_reset)
-			if err != nil {
-				if !strings.Contains(err.Error(), "relation \"pg_stat_statements_info\" does not exist") {
-					DBMetricsBase.logger.Error(err)
-				}
+
+		err := models.DB.QueryRow("SELECT dealloc, stats_reset FROM pg_stat_statements_info").Scan(&dealloc, &stats_reset)
+		if err != nil {
+			if !strings.Contains(err.Error(), "relation \"pg_stat_statements_info\" does not exist") {
+				DBMetricsBase.logger.Error(err)
 			}
 		}
 		metrics.DB.Metrics.Status["pg_stat_statements_info"] = models.MetricGroupValue{
 			"dealloc":     dealloc,
 			"stats_reset": stats_reset,
 		}
+
+		var count_statements uint64
+
+		err = models.DB.QueryRow("SELECT COUNT(*) FROM pg_stat_statements").Scan(&count_statements)
+		if err != nil {
+			if err != sql.ErrNoRows {
+				DBMetricsBase.logger.Error(err)
+			}
+		}
+		metrics.DB.Metrics.CountQueriesLatency = count_statements
 	}
+
 	DBMetricsBase.logger.V(5).Info("CollectMetrics DBMetricsBase ", metrics.DB.Metrics)
 
 	return nil
@@ -261,7 +237,7 @@ func (DBMetricsConfig *DBMetricsConfigGatherer) GetMetrics(metrics *models.Metri
 			if val, ok := metrics.DB.Metrics.Status[view].([]models.MetricGroupValue); ok {
 				existing = val
 			}
-			metrics.DB.Metrics.Status[view] = append(existing, utils.GetPostgreSQLMetrics(rows, DBMetricsConfig.logger)...)
+			metrics.DB.Metrics.Status[view] = append(existing, utils.ScanRows(rows, DBMetricsConfig.logger)...)
 		}
 		// Total tables count
 		err := db.QueryRow("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema NOT IN ('information_schema', 'pg_catalog')").Scan(&row)
@@ -307,21 +283,6 @@ func (DBMetricsConfig *DBMetricsConfigGatherer) GetMetrics(metrics *models.Metri
 	metrics.DB.Metrics.Engine = output
 	metrics.DB.Metrics.TotalTables = total_tables
 
-	// Query latency from pg_stat_statements if available
-	{
-		var count_statements uint64
-		count_statements = 0
-		if models.PgStatStatementsEnabled {
-			err := models.DB.QueryRow("SELECT COUNT(*) FROM pg_stat_statements").Scan(&count_statements)
-			if err != nil {
-				if err != sql.ErrNoRows {
-					DBMetricsConfig.logger.Error(err)
-				}
-			}
-		}
-		metrics.DB.Metrics.CountQueriesLatency = count_statements
-	}
-
 	DBMetricsConfig.logger.V(5).Info("CollectMetrics DBMetricsConfig ", metrics.DB.Metrics)
 	return nil
 }
@@ -339,12 +300,11 @@ func (DBMetrics *DBMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 
 	// Query latency from pg_stat_statements if available
 	{
-		var output []models.MetricGroupValue
-		var queryid, datname string
-		var calls int
-		var total_exec_time, mean_exec_time float64
-
 		if models.PgStatStatementsEnabled {
+			var output []models.MetricGroupValue
+			var queryid, query, datname string
+			var calls int
+			var total_exec_time, mean_exec_time float64
 			// Collect query statistics from pg_stat_statements
 			rows, err := models.DB.Query(pgStatStatements)
 
@@ -356,7 +316,7 @@ func (DBMetrics *DBMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 				defer rows.Close()
 
 				for rows.Next() {
-					err := rows.Scan(&datname, &queryid, &calls, &total_exec_time, &mean_exec_time)
+					err := rows.Scan(&datname, &queryid, &query, &calls, &total_exec_time, &mean_exec_time)
 					if err != nil {
 						DBMetrics.logger.Error(err)
 						return err
@@ -374,8 +334,8 @@ func (DBMetrics *DBMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 					})
 				}
 			}
+			metrics.DB.Queries = output
 		}
-		metrics.DB.Queries = output
 	}
 
 	// // Process list from pg_stat_activity

@@ -32,7 +32,7 @@ func ApplyConfLocal(metrics *models.Metrics, repeaters models.MetricsRepeater, g
 	error_exist := false
 
 	recommend_var := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Configurations", Type: "GetJson"})
-	err := json.Unmarshal([]byte(recommend_var.(string)), &result_data)
+	err := json.Unmarshal([]byte(recommend_var), &result_data)
 	if err != nil {
 		logger.Error(err)
 	}
@@ -179,7 +179,7 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 	}
 	result_data := models.MetricGroupValue{}
 	recommend_var := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Configurations", Type: "GetJson"})
-	err = json.Unmarshal([]byte(recommend_var.(string)), &result_data)
+	err = json.Unmarshal([]byte(recommend_var), &result_data)
 	if err != nil {
 		logger.Error(err)
 		task_output = task_output + err.Error()
@@ -356,7 +356,7 @@ func ApplyConfGcpCloudSQL(repeaters models.MetricsRepeater, gatherers []models.M
 
 	recommendedVars := models.MetricGroupValue{}
 	recommend_var := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Configurations", Type: "GetJson"})
-	err = json.Unmarshal([]byte(recommend_var.(string)), &recommendedVars)
+	err = json.Unmarshal([]byte(recommend_var), &recommendedVars)
 	if err != nil {
 		logger.Error(err)
 		task_output = task_output + err.Error()

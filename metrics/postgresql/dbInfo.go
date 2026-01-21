@@ -2,7 +2,6 @@ package postgresql
 
 import (
 	"os"
-	"runtime"
 	"strings"
 
 	"github.com/Releem/mysqlconfigurer/config"
@@ -40,7 +39,7 @@ func (DBInfoBase *DBInfoBaseGatherer) GetMetrics(metrics *models.Metrics) error 
 	pg_version := verStr[0] + "." + verStr[1]
 
 	info["Version"] = pg_version
-	err = os.WriteFile(DBInfoBase.configuration.ReleemConfDir+PostgreSQLVersionFile(), []byte(pg_version), 0644)
+	err = os.WriteFile(DBInfoBase.configuration.ReleemConfDir+utils.DBVersionFileName(), []byte(pg_version), 0644)
 	if err != nil {
 		DBInfoBase.logger.Error("WriteFile: Error write to file: ", err)
 	}
@@ -52,13 +51,4 @@ func (DBInfoBase *DBInfoBaseGatherer) GetMetrics(metrics *models.Metrics) error 
 	DBInfoBase.logger.V(5).Info("CollectMetrics DBInfoBase ", info)
 
 	return nil
-}
-
-func PostgreSQLVersionFile() string {
-	switch runtime.GOOS {
-	case "windows":
-		return "\\DB_Version.txt"
-	default: // для Linux и других UNIX-подобных систем
-		return "/db_version"
-	}
 }

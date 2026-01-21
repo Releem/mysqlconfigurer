@@ -62,12 +62,12 @@ type Metric map[string]MetricGroupValue
 // }
 
 type Task struct {
-	ID          int    `json:"task_id"`
-	TypeID      int    `json:"task_type_id"`
-	Description string `json:"task_details"`
-	Status      int    `json:"task_status"`
-	Output      string `json:"task_output"`
-	ExitCode    int    `json:"task_exit_code"`
+	ID       int    `json:"task_id"`
+	TypeID   int    `json:"task_type_id"`
+	Details  string `json:"task_details"`
+	Status   int    `json:"task_status"`
+	Output   string `json:"task_output"`
+	ExitCode int    `json:"task_exit_code"`
 }
 
 type MetricContext interface {
@@ -82,7 +82,7 @@ type MetricsGatherer interface {
 }
 
 type MetricsRepeater interface {
-	ProcessMetrics(context MetricContext, metrics Metrics, Mode ModeType) (interface{}, error)
+	ProcessMetrics(context MetricContext, metrics Metrics, Mode ModeType) (string, error)
 }
 
 type SqlTextType struct {

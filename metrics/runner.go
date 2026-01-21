@@ -72,7 +72,7 @@ loop:
 					response := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: ""})
 					if response == "Task" {
 						logger.Info("* A task received by the agent...")
-						f := task.ProcessTaskFunc(metrics, repeaters, gatherers, logger, configuration)
+						f := task.ProcessTaskFunc(repeaters, gatherers, logger, configuration)
 						time.AfterFunc(5*time.Second, f)
 					}
 				}

@@ -3,7 +3,9 @@ package utils
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -17,7 +19,7 @@ import (
 )
 
 func ProcessRepeaters(metrics *models.Metrics, repeaters models.MetricsRepeater,
-	configuration *config.Config, logger logging.Logger, Mode models.ModeType) interface{} {
+	configuration *config.Config, logger logging.Logger, Mode models.ModeType) string {
 	defer HandlePanic(configuration, logger)
 
 	result, err := repeaters.ProcessMetrics(configuration, *metrics, Mode)
@@ -194,7 +196,7 @@ func IsSchemaNameExclude(SchemaName string, DatabasesQueryOptimization string) b
 	return true
 }
 
-func GetPostgreSQLMetrics(rows *sql.Rows, logger logging.Logger) []models.MetricGroupValue {
+func ScanRows(rows *sql.Rows, logger logging.Logger) []models.MetricGroupValue {
 
 	cols, err := rows.Columns()
 	if err != nil {
@@ -236,4 +238,63 @@ func GetPostgreSQLMetrics(rows *sql.Rows, logger logging.Logger) []models.Metric
 		processListConverted[i] = models.MetricGroupValue(row)
 	}
 	return processListConverted
+}
+
+func DBVersionFileName() string {
+	switch runtime.GOOS {
+	case "windows":
+		return "\\DB_Version.txt"
+	default: // для Linux и других UNIX-подобных систем
+		return "/db_version"
+	}
+}
+
+func MergeJSONStrings(leftJSON, rightJSON string, key string) (string, error) {
+	if leftJSON == "" {
+		return rightJSON, nil
+	}
+	if rightJSON == "" {
+		return leftJSON, nil
+	}
+
+	var leftValue interface{}
+	if err := json.Unmarshal([]byte(leftJSON), &leftValue); err != nil {
+		return "", err
+	}
+	var rightValue interface{}
+	if err := json.Unmarshal([]byte(rightJSON), &rightValue); err != nil {
+		return "", err
+	}
+
+	switch leftTyped := leftValue.(type) {
+	case map[string]interface{}:
+		if rightTyped, ok := rightValue.(map[string]interface{}); ok {
+			if key != "" {
+				leftTyped[key] = rightTyped
+			} else {
+				for key, value := range rightTyped {
+					leftTyped[key] = value
+				}
+			}
+			mergedBytes, err := json.Marshal(leftTyped)
+			if err != nil {
+				return "", err
+			}
+			return string(mergedBytes), nil
+		}
+	case []interface{}:
+		if rightTyped, ok := rightValue.([]interface{}); ok {
+			mergedBytes, err := json.Marshal(append(leftTyped, rightTyped...))
+			if err != nil {
+				return "", err
+			}
+			return string(mergedBytes), nil
+		}
+	}
+
+	mergedBytes, err := json.Marshal([]interface{}{leftValue, rightValue})
+	if err != nil {
+		return "", err
+	}
+	return string(mergedBytes), nil
 }

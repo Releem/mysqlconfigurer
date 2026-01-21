@@ -3,7 +3,6 @@ package mysql
 import (
 	"os"
 	"regexp"
-	"runtime"
 	"strings"
 
 	"github.com/Releem/mysqlconfigurer/config"
@@ -58,7 +57,7 @@ func (DbInfoBase *DbInfoBaseGatherer) GetMetrics(metrics *models.Metrics) error 
 		mysql_version = row.Value
 	}
 	info["Version"] = mysql_version
-	err = os.WriteFile(DbInfoBase.configuration.ReleemConfDir+MysqlVersionFile(), []byte(mysql_version), 0644)
+	err = os.WriteFile(DbInfoBase.configuration.ReleemConfDir+utils.DBVersionFileName(), []byte(mysql_version), 0644)
 	if err != nil {
 		DbInfoBase.logger.Error("WriteFile: Error write to file: ", err)
 	}
@@ -237,13 +236,4 @@ func users_security_check(DBInfoConfig *DBInfoConfigGatherer, metrics *models.Me
 		users_check = append(users_check, models.MetricGroupValue{"Blank_Password": user["Blank_Password"], "Password_As_User": user["Password_As_User"], "Remote_Conn_Root": remoteConnRoot, "Anonymous_User": anonymousUser})
 	}
 	return users_check
-}
-
-func MysqlVersionFile() string {
-	switch runtime.GOOS {
-	case "windows":
-		return "\\DB_Version.txt"
-	default: // для Linux и других UNIX-подобных систем
-		return "/db_version"
-	}
 }

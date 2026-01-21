@@ -14,34 +14,35 @@ import (
 	logging "github.com/google/logger"
 )
 
-type DbCollectQueriesOptimization struct {
+type DBCollectQueriesOptimization struct {
 	logger        logging.Logger
 	configuration *config.Config
 }
 
-func NewDBCollectQueriesOptimization(logger logging.Logger, configuration *config.Config) *DbCollectQueriesOptimization {
-	return &DbCollectQueriesOptimization{
+func NewDBCollectQueriesOptimization(logger logging.Logger, configuration *config.Config) *DBCollectQueriesOptimization {
+	return &DBCollectQueriesOptimization{
 		logger:        logger,
 		configuration: configuration,
 	}
 }
-func FilterQueryString(DatabasesQueryOptimization string, FieldName string) string {
-	var DatabasesString string
-	if DatabasesQueryOptimization != "" {
-		DatabasesQueryOptimizationSlice := strings.Split(DatabasesQueryOptimization, `,`)
-		for i, DbName := range DatabasesQueryOptimizationSlice {
-			DatabasesString += "'" + DbName + "'"
-			if i < (len(DatabasesQueryOptimizationSlice) - 1) {
-				DatabasesString += ","
-			}
-		}
-		return " WHERE " + FieldName + " IN (" + DatabasesString + ")"
-	} else {
-		return ""
-	}
-}
-func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(metrics *models.Metrics) error {
-	defer u.HandlePanic(DbCollectQueriesOptimization.configuration, DbCollectQueriesOptimization.logger)
+
+//	func FilterQueryString(DatabasesQueryOptimization string, FieldName string) string {
+//		var DatabasesString string
+//		if DatabasesQueryOptimization != "" {
+//			DatabasesQueryOptimizationSlice := strings.Split(DatabasesQueryOptimization, `,`)
+//			for i, DbName := range DatabasesQueryOptimizationSlice {
+//				DatabasesString += "'" + DbName + "'"
+//				if i < (len(DatabasesQueryOptimizationSlice) - 1) {
+//					DatabasesString += ","
+//				}
+//			}
+//			return " WHERE " + FieldName + " IN (" + DatabasesString + ")"
+//		} else {
+//			return ""
+//		}
+//	}
+func (DBCollectQueriesOptimization *DBCollectQueriesOptimization) GetMetrics(metrics *models.Metrics) error {
+	defer u.HandlePanic(DBCollectQueriesOptimization.configuration, DBCollectQueriesOptimization.logger)
 
 	var schema_name, query, query_text, query_id string
 	var SUM_LOCK_TIME, SUM_ERRORS, SUM_WARNINGS, SUM_ROWS_AFFECTED, SUM_ROWS_SENT, SUM_ROWS_EXAMINED, SUM_CREATED_TMP_DISK_TABLES, SUM_CREATED_TMP_TABLES, SUM_SELECT_FULL_JOIN, SUM_SELECT_FULL_RANGE_JOIN, SUM_SELECT_RANGE, SUM_SELECT_RANGE_CHECK, SUM_SELECT_SCAN, SUM_SORT_MERGE_PASSES, SUM_SORT_RANGE, SUM_SORT_ROWS, SUM_SORT_SCAN, SUM_NO_INDEX_USED, SUM_NO_GOOD_INDEX_USED uint64
@@ -51,18 +52,18 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 	rows, err := models.DB.Query("SELECT IFNULL(schema_name, 'NULL') as schema_name, IFNULL(digest, 'NULL') as query_id, IFNULL(digest_text, 'NULL') as query, IFNULL(QUERY_SAMPLE_TEXT, 'NULL') as query_text, count_star as calls, round(avg_timer_wait/1000000, 0) as avg_time_us, round(SUM_TIMER_WAIT/1000000, 0) as sum_time_us, IFNULL(SUM_LOCK_TIME, 'NULL') as SUM_LOCK_TIME, IFNULL(SUM_ERRORS, 'NULL') as SUM_ERRORS, IFNULL(SUM_WARNINGS, 'NULL') as SUM_WARNINGS, IFNULL(SUM_ROWS_AFFECTED, 'NULL') as SUM_ROWS_AFFECTED, IFNULL(SUM_ROWS_SENT, 'NULL') as SUM_ROWS_SENT, IFNULL(SUM_ROWS_EXAMINED, 'NULL') as SUM_ROWS_EXAMINED, IFNULL(SUM_CREATED_TMP_DISK_TABLES, 'NULL') as SUM_CREATED_TMP_DISK_TABLES, IFNULL(SUM_CREATED_TMP_TABLES, 'NULL') as SUM_CREATED_TMP_TABLES, IFNULL(SUM_SELECT_FULL_JOIN, 'NULL') as SUM_SELECT_FULL_JOIN, IFNULL(SUM_SELECT_FULL_RANGE_JOIN, 'NULL') as SUM_SELECT_FULL_RANGE_JOIN, IFNULL(SUM_SELECT_RANGE, 'NULL') as SUM_SELECT_RANGE, IFNULL(SUM_SELECT_RANGE_CHECK, 'NULL') as SUM_SELECT_RANGE_CHECK, IFNULL(SUM_SELECT_SCAN, 'NULL') as SUM_SELECT_SCAN, IFNULL(SUM_SORT_MERGE_PASSES, 'NULL') as SUM_SORT_MERGE_PASSES, IFNULL(SUM_SORT_RANGE, 'NULL') as SUM_SORT_RANGE, IFNULL(SUM_SORT_ROWS, 'NULL') as SUM_SORT_ROWS, IFNULL(SUM_SORT_SCAN, 'NULL') as SUM_SORT_SCAN, IFNULL(SUM_NO_INDEX_USED, 'NULL') as SUM_NO_INDEX_USED, IFNULL(SUM_NO_GOOD_INDEX_USED, 'NULL') as SUM_NO_GOOD_INDEX_USED FROM performance_schema.events_statements_summary_by_digest")
 	if err != nil {
 		if err != sql.ErrNoRows && !strings.Contains(err.Error(), "Unknown column") {
-			DbCollectQueriesOptimization.logger.Error(err)
+			DBCollectQueriesOptimization.logger.Error(err)
 		}
 		rows, err = models.DB.Query("SELECT IFNULL(schema_name, 'NULL') as schema_name, IFNULL(digest, 'NULL') as query_id, IFNULL(digest_text, 'NULL') as query, count_star as calls, round(avg_timer_wait/1000000, 0) as avg_time_us, round(SUM_TIMER_WAIT/1000000, 0) as sum_time_us, IFNULL(SUM_LOCK_TIME, 'NULL') as SUM_LOCK_TIME, IFNULL(SUM_ERRORS, 'NULL') as SUM_ERRORS, IFNULL(SUM_WARNINGS, 'NULL') as SUM_WARNINGS, IFNULL(SUM_ROWS_AFFECTED, 'NULL') as SUM_ROWS_AFFECTED, IFNULL(SUM_ROWS_SENT, 'NULL') as SUM_ROWS_SENT, IFNULL(SUM_ROWS_EXAMINED, 'NULL') as SUM_ROWS_EXAMINED, IFNULL(SUM_CREATED_TMP_DISK_TABLES, 'NULL') as SUM_CREATED_TMP_DISK_TABLES, IFNULL(SUM_CREATED_TMP_TABLES, 'NULL') as SUM_CREATED_TMP_TABLES, IFNULL(SUM_SELECT_FULL_JOIN, 'NULL') as SUM_SELECT_FULL_JOIN, IFNULL(SUM_SELECT_FULL_RANGE_JOIN, 'NULL') as SUM_SELECT_FULL_RANGE_JOIN, IFNULL(SUM_SELECT_RANGE, 'NULL') as SUM_SELECT_RANGE, IFNULL(SUM_SELECT_RANGE_CHECK, 'NULL') as SUM_SELECT_RANGE_CHECK, IFNULL(SUM_SELECT_SCAN, 'NULL') as SUM_SELECT_SCAN, IFNULL(SUM_SORT_MERGE_PASSES, 'NULL') as SUM_SORT_MERGE_PASSES, IFNULL(SUM_SORT_RANGE, 'NULL') as SUM_SORT_RANGE, IFNULL(SUM_SORT_ROWS, 'NULL') as SUM_SORT_ROWS, IFNULL(SUM_SORT_SCAN, 'NULL') as SUM_SORT_SCAN, IFNULL(SUM_NO_INDEX_USED, 'NULL') as SUM_NO_INDEX_USED, IFNULL(SUM_NO_GOOD_INDEX_USED, 'NULL') as SUM_NO_GOOD_INDEX_USED FROM performance_schema.events_statements_summary_by_digest")
 		if err != nil {
 			if err != sql.ErrNoRows {
-				DbCollectQueriesOptimization.logger.Error(err)
+				DBCollectQueriesOptimization.logger.Error(err)
 			}
 		} else {
 			for rows.Next() {
-				err := rows.Scan(&schema_name, &query_id, &query, &calls, &avg_time_us, &sum_time_us, &SUM_LOCK_TIME, &SUM_ERRORS, &SUM_WARNINGS, &SUM_ROWS_AFFECTED, &SUM_ROWS_SENT, &SUM_ROWS_EXAMINED, &SUM_CREATED_TMP_DISK_TABLES, &SUM_CREATED_TMP_TABLES, &SUM_SELECT_FULL_JOIN, &SUM_SELECT_FULL_RANGE_JOIN, &SUM_SELECT_RANGE, &SUM_SELECT_RANGE_CHECK, &SUM_SELECT_SCAN, &SUM_SORT_MERGE_PASSES, &SUM_SORT_RANGE, &SUM_SORT_ROWS, &SUM_SORT_SCAN, &SUM_NO_INDEX_USED, &SUM_NO_GOOD_INDEX_USED)
+				err := rows.Scan(&schema_name, &query_id, &query, &calls, &avg_time_us, &sum_time_us, &SUM_LOCK_TIME, &SUM_ERRORS, &SUM_WARNINGS, &SUM_ROWS_AFFECTED, &SUM_ROWS_SENT, &SUM_ROWS_EXAMINED, &SUM_CREATED_TMP_DISK_TABLES, &SUM_CREATED_TMP_TABLES, &SUM_SELECT_FULL_JOIN, &SUM_SELECT_FULL_RANGE_JOIN, &SUM_SELECT_RANGE, &SUM_SELECT_RANGE_CHECK, &SUM_SELECT_SCAN, &SUM_SORT_MERGE_PASSES, &SUM_SORT_RANGE, &SUM_SORT_ROWS, &SUM_SORT_SCAN, &SUM_NO_INDEX_USED)
 				if err != nil {
-					DbCollectQueriesOptimization.logger.Error(err)
+					DBCollectQueriesOptimization.logger.Error(err)
 					return err
 				}
 				models.SqlTextMutex.RLock()
@@ -84,7 +85,7 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 		for rows.Next() {
 			err := rows.Scan(&schema_name, &query_id, &query, &query_text, &calls, &avg_time_us, &sum_time_us, &SUM_LOCK_TIME, &SUM_ERRORS, &SUM_WARNINGS, &SUM_ROWS_AFFECTED, &SUM_ROWS_SENT, &SUM_ROWS_EXAMINED, &SUM_CREATED_TMP_DISK_TABLES, &SUM_CREATED_TMP_TABLES, &SUM_SELECT_FULL_JOIN, &SUM_SELECT_FULL_RANGE_JOIN, &SUM_SELECT_RANGE, &SUM_SELECT_RANGE_CHECK, &SUM_SELECT_SCAN, &SUM_SORT_MERGE_PASSES, &SUM_SORT_RANGE, &SUM_SORT_ROWS, &SUM_SORT_SCAN, &SUM_NO_INDEX_USED, &SUM_NO_GOOD_INDEX_USED)
 			if err != nil {
-				DbCollectQueriesOptimization.logger.Error(err)
+				DBCollectQueriesOptimization.logger.Error(err)
 				return err
 			}
 			output_digest[schema_name+query_id] = models.MetricGroupValue{"schema_name": schema_name, "query_id": query_id, "query": query, "query_text": query_text, "calls": calls, "avg_time_us": avg_time_us, "sum_time_us": sum_time_us, "SUM_LOCK_TIME": SUM_LOCK_TIME, "SUM_ERRORS": SUM_ERRORS, "SUM_WARNINGS": SUM_WARNINGS, "SUM_ROWS_AFFECTED": SUM_ROWS_AFFECTED, "SUM_ROWS_SENT": SUM_ROWS_SENT, "SUM_ROWS_EXAMINED": SUM_ROWS_EXAMINED, "SUM_CREATED_TMP_DISK_TABLES": SUM_CREATED_TMP_DISK_TABLES, "SUM_CREATED_TMP_TABLES": SUM_CREATED_TMP_TABLES, "SUM_SELECT_FULL_JOIN": SUM_SELECT_FULL_JOIN, "SUM_SELECT_FULL_RANGE_JOIN": SUM_SELECT_FULL_RANGE_JOIN, "SUM_SELECT_RANGE": SUM_SELECT_RANGE, "SUM_SELECT_RANGE_CHECK": SUM_SELECT_RANGE_CHECK, "SUM_SELECT_SCAN": SUM_SELECT_SCAN, "SUM_SORT_MERGE_PASSES": SUM_SORT_MERGE_PASSES, "SUM_SORT_RANGE": SUM_SORT_RANGE, "SUM_SORT_ROWS": SUM_SORT_ROWS, "SUM_SORT_SCAN": SUM_SORT_SCAN, "SUM_NO_INDEX_USED": SUM_NO_INDEX_USED, "SUM_NO_GOOD_INDEX_USED": SUM_NO_GOOD_INDEX_USED}
@@ -92,9 +93,9 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 		rows.Close()
 	}
 
-	if DbCollectQueriesOptimization.configuration.QueryOptimization {
-		CollectExplain(output_digest, "sum_time_us", DbCollectQueriesOptimization.logger, DbCollectQueriesOptimization.configuration)
-		CollectExplain(output_digest, "avg_time_us", DbCollectQueriesOptimization.logger, DbCollectQueriesOptimization.configuration)
+	if DBCollectQueriesOptimization.configuration.QueryOptimization {
+		CollectExplain(output_digest, "sum_time_us", DBCollectQueriesOptimization.logger, DBCollectQueriesOptimization.configuration)
+		CollectExplain(output_digest, "avg_time_us", DBCollectQueriesOptimization.logger, DBCollectQueriesOptimization.configuration)
 	}
 	if len(output_digest) != 0 {
 		for _, value := range output_digest {
@@ -104,27 +105,25 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 		metrics.DB.Queries = nil
 	}
 
-	if !DbCollectQueriesOptimization.configuration.QueryOptimization {
+	if !DBCollectQueriesOptimization.configuration.QueryOptimization {
 		return nil
 	}
 
 	metrics.DB.QueriesOptimization = make(map[string][]models.MetricGroupValue)
 	i := 0
 	for _, database := range metrics.DB.Metrics.Databases {
-		if u.IsSchemaNameExclude(database, DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization) {
+		if u.IsSchemaNameExclude(database, DBCollectQueriesOptimization.configuration.DatabasesQueryOptimization) {
 			continue
 		}
-		err := CollectDbSchema(database, DbCollectQueriesOptimization.logger, metrics)
-		if err != nil {
-			return err
-		}
+		CollectDbSchema(database, DBCollectQueriesOptimization.logger, metrics)
+
 		i += 1
 		if i%25 == 0 {
 			time.Sleep(3 * time.Second)
 		}
 	}
-	DbCollectQueriesOptimization.logger.V(5).Info("collectMetrics ", metrics.DB.Queries)
-	DbCollectQueriesOptimization.logger.V(5).Info("collectMetrics ", metrics.DB.QueriesOptimization)
+	DBCollectQueriesOptimization.logger.V(5).Info("collectMetrics ", metrics.DB.Queries)
+	DBCollectQueriesOptimization.logger.V(5).Info("collectMetrics ", metrics.DB.QueriesOptimization)
 
 	return nil
 }
@@ -301,14 +300,14 @@ func CollectDbSchema(database string, logger logging.Logger, metrics *models.Met
 	// }
 	// var performance_schema_table_io_waits_summary_by_index_usage performance_schema_table_io_waits_summary_by_index_usage_type
 
-	// rows, err = models.DB.Query("SELECT IFNULL(OBJECT_TYPE, 'NULL') as OBJECT_TYPE, IFNULL(OBJECT_SCHEMA, 'NULL') as  OBJECT_SCHEMA, IFNULL(OBJECT_NAME, 'NULL') as  OBJECT_NAME, IFNULL(INDEX_NAME, 'NULL') as  INDEX_NAME, IFNULL(COUNT_STAR, 'NULL') as  COUNT_STAR, IFNULL(SUM_TIMER_WAIT, 'NULL') as  SUM_TIMER_WAIT, IFNULL(MIN_TIMER_WAIT, 'NULL') as  MIN_TIMER_WAIT, IFNULL(AVG_TIMER_WAIT, 'NULL') as  AVG_TIMER_WAIT, IFNULL(MAX_TIMER_WAIT, 'NULL') as  MAX_TIMER_WAIT, IFNULL(COUNT_READ, 'NULL') as  COUNT_READ, IFNULL(SUM_TIMER_READ, 'NULL') as  SUM_TIMER_READ, IFNULL(MIN_TIMER_READ, 'NULL') as  MIN_TIMER_READ, IFNULL(AVG_TIMER_READ, 'NULL') as  AVG_TIMER_READ, IFNULL(MAX_TIMER_READ, 'NULL') as  MAX_TIMER_READ, IFNULL(COUNT_WRITE, 'NULL') as  COUNT_WRITE, IFNULL(SUM_TIMER_WRITE, 'NULL') as  SUM_TIMER_WRITE, IFNULL(MIN_TIMER_WRITE, 'NULL') as  MIN_TIMER_WRITE, IFNULL(AVG_TIMER_WRITE, 'NULL') as  AVG_TIMER_WRITE, IFNULL(MAX_TIMER_WRITE, 'NULL') as  MAX_TIMER_WRITE, IFNULL(COUNT_FETCH, 'NULL') as  COUNT_FETCH, IFNULL(SUM_TIMER_FETCH, 'NULL') as  SUM_TIMER_FETCH, IFNULL(MIN_TIMER_FETCH, 'NULL') as  MIN_TIMER_FETCH, IFNULL(AVG_TIMER_FETCH, 'NULL') as  AVG_TIMER_FETCH, IFNULL(MAX_TIMER_FETCH, 'NULL') as  MAX_TIMER_FETCH, IFNULL(COUNT_INSERT, 'NULL') as  COUNT_INSERT, IFNULL(SUM_TIMER_INSERT, 'NULL') as  SUM_TIMER_INSERT, IFNULL(MIN_TIMER_INSERT, 'NULL') as  MIN_TIMER_INSERT, IFNULL(AVG_TIMER_INSERT, 'NULL') as  AVG_TIMER_INSERT, IFNULL(MAX_TIMER_INSERT, 'NULL') as  MAX_TIMER_INSERT, IFNULL(COUNT_UPDATE, 'NULL') as  COUNT_UPDATE, IFNULL(SUM_TIMER_UPDATE, 'NULL') as  SUM_TIMER_UPDATE, IFNULL(MIN_TIMER_UPDATE, 'NULL') as  MIN_TIMER_UPDATE, IFNULL(AVG_TIMER_UPDATE, 'NULL') as  AVG_TIMER_UPDATE, IFNULL(MAX_TIMER_UPDATE, 'NULL') as  MAX_TIMER_UPDATE, IFNULL(COUNT_DELETE, 'NULL') as  COUNT_DELETE, IFNULL(SUM_TIMER_DELETE, 'NULL') as  SUM_TIMER_DELETE, IFNULL(MIN_TIMER_DELETE, 'NULL') as  MIN_TIMER_DELETE, IFNULL(AVG_TIMER_DELETE, 'NULL') as  AVG_TIMER_DELETE, IFNULL(MAX_TIMER_DELETE, 'NULL') as  MAX_TIMER_DELETE FROM performance_schema.table_io_waits_summary_by_index_usage" + FilterQueryString(DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "OBJECT_SCHEMA"))
+	// rows, err = models.DB.Query("SELECT IFNULL(OBJECT_TYPE, 'NULL') as OBJECT_TYPE, IFNULL(OBJECT_SCHEMA, 'NULL') as  OBJECT_SCHEMA, IFNULL(OBJECT_NAME, 'NULL') as  OBJECT_NAME, IFNULL(INDEX_NAME, 'NULL') as  INDEX_NAME, IFNULL(COUNT_STAR, 'NULL') as  COUNT_STAR, IFNULL(SUM_TIMER_WAIT, 'NULL') as  SUM_TIMER_WAIT, IFNULL(MIN_TIMER_WAIT, 'NULL') as  MIN_TIMER_WAIT, IFNULL(AVG_TIMER_WAIT, 'NULL') as  AVG_TIMER_WAIT, IFNULL(MAX_TIMER_WAIT, 'NULL') as  MAX_TIMER_WAIT, IFNULL(COUNT_READ, 'NULL') as  COUNT_READ, IFNULL(SUM_TIMER_READ, 'NULL') as  SUM_TIMER_READ, IFNULL(MIN_TIMER_READ, 'NULL') as  MIN_TIMER_READ, IFNULL(AVG_TIMER_READ, 'NULL') as  AVG_TIMER_READ, IFNULL(MAX_TIMER_READ, 'NULL') as  MAX_TIMER_READ, IFNULL(COUNT_WRITE, 'NULL') as  COUNT_WRITE, IFNULL(SUM_TIMER_WRITE, 'NULL') as  SUM_TIMER_WRITE, IFNULL(MIN_TIMER_WRITE, 'NULL') as  MIN_TIMER_WRITE, IFNULL(AVG_TIMER_WRITE, 'NULL') as  AVG_TIMER_WRITE, IFNULL(MAX_TIMER_WRITE, 'NULL') as  MAX_TIMER_WRITE, IFNULL(COUNT_FETCH, 'NULL') as  COUNT_FETCH, IFNULL(SUM_TIMER_FETCH, 'NULL') as  SUM_TIMER_FETCH, IFNULL(MIN_TIMER_FETCH, 'NULL') as  MIN_TIMER_FETCH, IFNULL(AVG_TIMER_FETCH, 'NULL') as  AVG_TIMER_FETCH, IFNULL(MAX_TIMER_FETCH, 'NULL') as  MAX_TIMER_FETCH, IFNULL(COUNT_INSERT, 'NULL') as  COUNT_INSERT, IFNULL(SUM_TIMER_INSERT, 'NULL') as  SUM_TIMER_INSERT, IFNULL(MIN_TIMER_INSERT, 'NULL') as  MIN_TIMER_INSERT, IFNULL(AVG_TIMER_INSERT, 'NULL') as  AVG_TIMER_INSERT, IFNULL(MAX_TIMER_INSERT, 'NULL') as  MAX_TIMER_INSERT, IFNULL(COUNT_UPDATE, 'NULL') as  COUNT_UPDATE, IFNULL(SUM_TIMER_UPDATE, 'NULL') as  SUM_TIMER_UPDATE, IFNULL(MIN_TIMER_UPDATE, 'NULL') as  MIN_TIMER_UPDATE, IFNULL(AVG_TIMER_UPDATE, 'NULL') as  AVG_TIMER_UPDATE, IFNULL(MAX_TIMER_UPDATE, 'NULL') as  MAX_TIMER_UPDATE, IFNULL(COUNT_DELETE, 'NULL') as  COUNT_DELETE, IFNULL(SUM_TIMER_DELETE, 'NULL') as  SUM_TIMER_DELETE, IFNULL(MIN_TIMER_DELETE, 'NULL') as  MIN_TIMER_DELETE, IFNULL(AVG_TIMER_DELETE, 'NULL') as  AVG_TIMER_DELETE, IFNULL(MAX_TIMER_DELETE, 'NULL') as  MAX_TIMER_DELETE FROM performance_schema.table_io_waits_summary_by_index_usage" + FilterQueryString(DBCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "OBJECT_SCHEMA"))
 	// if err != nil {
-	// 	DbCollectQueriesOptimization.logger.Error(err)
+	// 	DBCollectQueriesOptimization.logger.Error(err)
 	// } else {
 	// 	for rows.Next() {
 	// 		err := rows.Scan(&performance_schema_table_io_waits_summary_by_index_usage.OBJECT_TYPE, &performance_schema_table_io_waits_summary_by_index_usage.OBJECT_SCHEMA, &performance_schema_table_io_waits_summary_by_index_usage.OBJECT_NAME, &performance_schema_table_io_waits_summary_by_index_usage.INDEX_NAME, &performance_schema_table_io_waits_summary_by_index_usage.COUNT_STAR, &performance_schema_table_io_waits_summary_by_index_usage.SUM_TIMER_WAIT, &performance_schema_table_io_waits_summary_by_index_usage.MIN_TIMER_WAIT, &performance_schema_table_io_waits_summary_by_index_usage.AVG_TIMER_WAIT, &performance_schema_table_io_waits_summary_by_index_usage.MAX_TIMER_WAIT, &performance_schema_table_io_waits_summary_by_index_usage.COUNT_READ, &performance_schema_table_io_waits_summary_by_index_usage.SUM_TIMER_READ, &performance_schema_table_io_waits_summary_by_index_usage.MIN_TIMER_READ, &performance_schema_table_io_waits_summary_by_index_usage.AVG_TIMER_READ, &performance_schema_table_io_waits_summary_by_index_usage.MAX_TIMER_READ, &performance_schema_table_io_waits_summary_by_index_usage.COUNT_WRITE, &performance_schema_table_io_waits_summary_by_index_usage.SUM_TIMER_WRITE, &performance_schema_table_io_waits_summary_by_index_usage.MIN_TIMER_WRITE, &performance_schema_table_io_waits_summary_by_index_usage.AVG_TIMER_WRITE, &performance_schema_table_io_waits_summary_by_index_usage.MAX_TIMER_WRITE, &performance_schema_table_io_waits_summary_by_index_usage.COUNT_FETCH, &performance_schema_table_io_waits_summary_by_index_usage.SUM_TIMER_FETCH, &performance_schema_table_io_waits_summary_by_index_usage.MIN_TIMER_FETCH, &performance_schema_table_io_waits_summary_by_index_usage.AVG_TIMER_FETCH, &performance_schema_table_io_waits_summary_by_index_usage.MAX_TIMER_FETCH, &performance_schema_table_io_waits_summary_by_index_usage.COUNT_INSERT, &performance_schema_table_io_waits_summary_by_index_usage.SUM_TIMER_INSERT, &performance_schema_table_io_waits_summary_by_index_usage.MIN_TIMER_INSERT, &performance_schema_table_io_waits_summary_by_index_usage.AVG_TIMER_INSERT, &performance_schema_table_io_waits_summary_by_index_usage.MAX_TIMER_INSERT, &performance_schema_table_io_waits_summary_by_index_usage.COUNT_UPDATE, &performance_schema_table_io_waits_summary_by_index_usage.SUM_TIMER_UPDATE, &performance_schema_table_io_waits_summary_by_index_usage.MIN_TIMER_UPDATE, &performance_schema_table_io_waits_summary_by_index_usage.AVG_TIMER_UPDATE, &performance_schema_table_io_waits_summary_by_index_usage.MAX_TIMER_UPDATE, &performance_schema_table_io_waits_summary_by_index_usage.COUNT_DELETE, &performance_schema_table_io_waits_summary_by_index_usage.SUM_TIMER_DELETE, &performance_schema_table_io_waits_summary_by_index_usage.MIN_TIMER_DELETE, &performance_schema_table_io_waits_summary_by_index_usage.AVG_TIMER_DELETE, &performance_schema_table_io_waits_summary_by_index_usage.MAX_TIMER_DELETE)
 	// 		if err != nil {
-	// 			DbCollectQueriesOptimization.logger.Error(err)
+	// 			DBCollectQueriesOptimization.logger.Error(err)
 	// 			return err
 	// 		}
 	// 		metrics.DB.QueriesOptimization["performance_schema_table_io_waits_summary_by_index_usage"] = append(metrics.DB.QueriesOptimization["performance_schema_table_io_waits_summary_by_index_usage"], models.MetricGroupValue{"OBJECT_TYPE": performance_schema_table_io_waits_summary_by_index_usage.OBJECT_TYPE, "OBJECT_SCHEMA": performance_schema_table_io_waits_summary_by_index_usage.OBJECT_SCHEMA, "OBJECT_NAME": performance_schema_table_io_waits_summary_by_index_usage.OBJECT_NAME, "INDEX_NAME": performance_schema_table_io_waits_summary_by_index_usage.INDEX_NAME, "COUNT_STAR": performance_schema_table_io_waits_summary_by_index_usage.COUNT_STAR, "SUM_TIMER_WAIT": performance_schema_table_io_waits_summary_by_index_usage.SUM_TIMER_WAIT, "MIN_TIMER_WAIT": performance_schema_table_io_waits_summary_by_index_usage.MIN_TIMER_WAIT, "AVG_TIMER_WAIT": performance_schema_table_io_waits_summary_by_index_usage.AVG_TIMER_WAIT, "MAX_TIMER_WAIT": performance_schema_table_io_waits_summary_by_index_usage.MAX_TIMER_WAIT, "COUNT_READ": performance_schema_table_io_waits_summary_by_index_usage.COUNT_READ, "SUM_TIMER_READ": performance_schema_table_io_waits_summary_by_index_usage.SUM_TIMER_READ, "MIN_TIMER_READ": performance_schema_table_io_waits_summary_by_index_usage.MIN_TIMER_READ, "AVG_TIMER_READ": performance_schema_table_io_waits_summary_by_index_usage.AVG_TIMER_READ, "MAX_TIMER_READ": performance_schema_table_io_waits_summary_by_index_usage.MAX_TIMER_READ, "COUNT_WRITE": performance_schema_table_io_waits_summary_by_index_usage.COUNT_WRITE, "SUM_TIMER_WRITE": performance_schema_table_io_waits_summary_by_index_usage.SUM_TIMER_WRITE, "MIN_TIMER_WRITE": performance_schema_table_io_waits_summary_by_index_usage.MIN_TIMER_WRITE, "AVG_TIMER_WRITE": performance_schema_table_io_waits_summary_by_index_usage.AVG_TIMER_WRITE, "MAX_TIMER_WRITE": performance_schema_table_io_waits_summary_by_index_usage.MAX_TIMER_WRITE, "COUNT_FETCH": performance_schema_table_io_waits_summary_by_index_usage.COUNT_FETCH, "SUM_TIMER_FETCH": performance_schema_table_io_waits_summary_by_index_usage.SUM_TIMER_FETCH, "MIN_TIMER_FETCH": performance_schema_table_io_waits_summary_by_index_usage.MIN_TIMER_FETCH, "AVG_TIMER_FETCH": performance_schema_table_io_waits_summary_by_index_usage.AVG_TIMER_FETCH, "MAX_TIMER_FETCH": performance_schema_table_io_waits_summary_by_index_usage.MAX_TIMER_FETCH, "COUNT_INSERT": performance_schema_table_io_waits_summary_by_index_usage.COUNT_INSERT, "SUM_TIMER_INSERT": performance_schema_table_io_waits_summary_by_index_usage.SUM_TIMER_INSERT, "MIN_TIMER_INSERT": performance_schema_table_io_waits_summary_by_index_usage.MIN_TIMER_INSERT, "AVG_TIMER_INSERT": performance_schema_table_io_waits_summary_by_index_usage.AVG_TIMER_INSERT, "MAX_TIMER_INSERT": performance_schema_table_io_waits_summary_by_index_usage.MAX_TIMER_INSERT, "COUNT_UPDATE": performance_schema_table_io_waits_summary_by_index_usage.COUNT_UPDATE, "SUM_TIMER_UPDATE": performance_schema_table_io_waits_summary_by_index_usage.SUM_TIMER_UPDATE, "MIN_TIMER_UPDATE": performance_schema_table_io_waits_summary_by_index_usage.MIN_TIMER_UPDATE, "AVG_TIMER_UPDATE": performance_schema_table_io_waits_summary_by_index_usage.AVG_TIMER_UPDATE, "MAX_TIMER_UPDATE": performance_schema_table_io_waits_summary_by_index_usage.MAX_TIMER_UPDATE, "COUNT_DELETE": performance_schema_table_io_waits_summary_by_index_usage.COUNT_DELETE, "SUM_TIMER_DELETE": performance_schema_table_io_waits_summary_by_index_usage.SUM_TIMER_DELETE, "MIN_TIMER_DELETE": performance_schema_table_io_waits_summary_by_index_usage.MIN_TIMER_DELETE, "AVG_TIMER_DELETE": performance_schema_table_io_waits_summary_by_index_usage.AVG_TIMER_DELETE, "MAX_TIMER_DELETE": performance_schema_table_io_waits_summary_by_index_usage.MAX_TIMER_DELETE})
@@ -347,12 +346,12 @@ func CollectDbSchema(database string, logger logging.Logger, metrics *models.Met
 
 	// rows, err = models.DB.Query("SELECT IFNULL(FILE_NAME, 'NULL') as FILE_NAME, IFNULL(EVENT_NAME, 'NULL') as EVENT_NAME, IFNULL(OBJECT_INSTANCE_BEGIN, 'NULL') as OBJECT_INSTANCE_BEGIN, IFNULL(COUNT_STAR, 'NULL') as COUNT_STAR, IFNULL(SUM_TIMER_WAIT, 'NULL') as SUM_TIMER_WAIT, IFNULL(MIN_TIMER_WAIT, 'NULL') as MIN_TIMER_WAIT, IFNULL(AVG_TIMER_WAIT, 'NULL') as AVG_TIMER_WAIT, IFNULL(MAX_TIMER_WAIT, 'NULL') as MAX_TIMER_WAIT, IFNULL(COUNT_READ, 'NULL') as COUNT_READ, IFNULL(SUM_TIMER_READ, 'NULL') as SUM_TIMER_READ, IFNULL(MIN_TIMER_READ, 'NULL') as MIN_TIMER_READ, IFNULL(AVG_TIMER_READ, 'NULL') as AVG_TIMER_READ, IFNULL(MAX_TIMER_READ, 'NULL') as MAX_TIMER_READ, IFNULL(SUM_NUMBER_OF_BYTES_READ, 'NULL') as SUM_NUMBER_OF_BYTES_READ, IFNULL(COUNT_WRITE, 'NULL') as COUNT_WRITE, IFNULL(SUM_TIMER_WRITE, 'NULL') as SUM_TIMER_WRITE, IFNULL(MIN_TIMER_WRITE, 'NULL') as MIN_TIMER_WRITE, IFNULL(AVG_TIMER_WRITE, 'NULL') as AVG_TIMER_WRITE, IFNULL(MAX_TIMER_WRITE, 'NULL') as MAX_TIMER_WRITE, IFNULL(SUM_NUMBER_OF_BYTES_WRITE, 'NULL') as SUM_NUMBER_OF_BYTES_WRITE, IFNULL(COUNT_MISC, 'NULL') as COUNT_MISC, IFNULL(SUM_TIMER_MISC, 'NULL') as SUM_TIMER_MISC, IFNULL(MIN_TIMER_MISC, 'NULL') as MIN_TIMER_MISC, IFNULL(AVG_TIMER_MISC, 'NULL') as AVG_TIMER_MISC, IFNULL(MAX_TIMER_MISC, 'NULL') as MAX_TIMER_MISC FROM performance_schema.file_summary_by_instance")
 	// if err != nil {
-	// 	DbCollectQueriesOptimization.logger.Error(err)
+	// 	DBCollectQueriesOptimization.logger.Error(err)
 	// } else {
 	// 	for rows.Next() {
 	// 		err := rows.Scan(&performance_schema_file_summary_by_instance.FILE_NAME, &performance_schema_file_summary_by_instance.EVENT_NAME, &performance_schema_file_summary_by_instance.OBJECT_INSTANCE_BEGIN, &performance_schema_file_summary_by_instance.COUNT_STAR, &performance_schema_file_summary_by_instance.SUM_TIMER_WAIT, &performance_schema_file_summary_by_instance.MIN_TIMER_WAIT, &performance_schema_file_summary_by_instance.AVG_TIMER_WAIT, &performance_schema_file_summary_by_instance.MAX_TIMER_WAIT, &performance_schema_file_summary_by_instance.COUNT_READ, &performance_schema_file_summary_by_instance.SUM_TIMER_READ, &performance_schema_file_summary_by_instance.MIN_TIMER_READ, &performance_schema_file_summary_by_instance.AVG_TIMER_READ, &performance_schema_file_summary_by_instance.MAX_TIMER_READ, &performance_schema_file_summary_by_instance.SUM_NUMBER_OF_BYTES_READ, &performance_schema_file_summary_by_instance.COUNT_WRITE, &performance_schema_file_summary_by_instance.SUM_TIMER_WRITE, &performance_schema_file_summary_by_instance.MIN_TIMER_WRITE, &performance_schema_file_summary_by_instance.AVG_TIMER_WRITE, &performance_schema_file_summary_by_instance.MAX_TIMER_WRITE, &performance_schema_file_summary_by_instance.SUM_NUMBER_OF_BYTES_WRITE, &performance_schema_file_summary_by_instance.COUNT_MISC, &performance_schema_file_summary_by_instance.SUM_TIMER_MISC, &performance_schema_file_summary_by_instance.MIN_TIMER_MISC, &performance_schema_file_summary_by_instance.AVG_TIMER_MISC, &performance_schema_file_summary_by_instance.MAX_TIMER_MISC)
 	// 		if err != nil {
-	// 			DbCollectQueriesOptimization.logger.Error(err)
+	// 			DBCollectQueriesOptimization.logger.Error(err)
 	// 			return err
 	// 		}
 	// 		metrics.DB.QueriesOptimization["performance_schema_file_summary_by_instance"] = append(metrics.DB.QueriesOptimization["performance_schema_file_summary_by_instance"], models.MetricGroupValue{"FILE_NAME": performance_schema_file_summary_by_instance.FILE_NAME, "EVENT_NAME": performance_schema_file_summary_by_instance.EVENT_NAME, "OBJECT_INSTANCE_BEGIN": performance_schema_file_summary_by_instance.OBJECT_INSTANCE_BEGIN, "COUNT_STAR": performance_schema_file_summary_by_instance.COUNT_STAR, "SUM_TIMER_WAIT": performance_schema_file_summary_by_instance.SUM_TIMER_WAIT, "MIN_TIMER_WAIT": performance_schema_file_summary_by_instance.MIN_TIMER_WAIT, "AVG_TIMER_WAIT": performance_schema_file_summary_by_instance.AVG_TIMER_WAIT, "MAX_TIMER_WAIT": performance_schema_file_summary_by_instance.MAX_TIMER_WAIT, "COUNT_READ": performance_schema_file_summary_by_instance.COUNT_READ, "SUM_TIMER_READ": performance_schema_file_summary_by_instance.SUM_TIMER_READ, "MIN_TIMER_READ": performance_schema_file_summary_by_instance.MIN_TIMER_READ, "AVG_TIMER_READ": performance_schema_file_summary_by_instance.AVG_TIMER_READ, "MAX_TIMER_READ": performance_schema_file_summary_by_instance.MAX_TIMER_READ, "SUM_NUMBER_OF_BYTES_READ": performance_schema_file_summary_by_instance.SUM_NUMBER_OF_BYTES_READ, "COUNT_WRITE": performance_schema_file_summary_by_instance.COUNT_WRITE, "SUM_TIMER_WRITE": performance_schema_file_summary_by_instance.SUM_TIMER_WRITE, "MIN_TIMER_WRITE": performance_schema_file_summary_by_instance.MIN_TIMER_WRITE, "AVG_TIMER_WRITE": performance_schema_file_summary_by_instance.AVG_TIMER_WRITE, "MAX_TIMER_WRITE": performance_schema_file_summary_by_instance.MAX_TIMER_WRITE, "SUM_NUMBER_OF_BYTES_WRITE": performance_schema_file_summary_by_instance.SUM_NUMBER_OF_BYTES_WRITE, "COUNT_MISC": performance_schema_file_summary_by_instance.COUNT_MISC, "SUM_TIMER_MISC": performance_schema_file_summary_by_instance.SUM_TIMER_MISC, "MIN_TIMER_MISC": performance_schema_file_summary_by_instance.MIN_TIMER_MISC, "AVG_TIMER_MISC": performance_schema_file_summary_by_instance.AVG_TIMER_MISC, "MAX_TIMER_MISC": performance_schema_file_summary_by_instance.MAX_TIMER_MISC})
@@ -546,6 +545,9 @@ func ExecuteExplain(db *sql.DB, queryText string, logger logging.Logger) (string
 		if strings.Contains(err.Error(), "SELECT command denied to user") || strings.Contains(err.Error(), "Access denied for user") {
 			explain_error = errors.New("need_grant_permission")
 			return explain, explain_error
+		} else if strings.Contains(err.Error(), "command denied to user") {
+			explain_error = err
+			return explain, explain_error
 		} else {
 			explain_error = err
 		}
@@ -561,6 +563,9 @@ func ExecuteExplain(db *sql.DB, queryText string, logger logging.Logger) (string
 		if strings.Contains(err_1.Error(), "SELECT command denied to user") || strings.Contains(err_1.Error(), "Access denied for user") {
 			explain_error = errors.New("need_grant_permission")
 			return explain, explain_error
+		} else if strings.Contains(err_1.Error(), "command denied to user") {
+			explain_error = err_1
+			return explain, explain_error
 		} else {
 			explain_error = err_1
 		}
@@ -575,6 +580,9 @@ func ExecuteExplain(db *sql.DB, queryText string, logger logging.Logger) (string
 		logger.Error("Explain Error: ", err_2)
 		if strings.Contains(err_2.Error(), "SELECT command denied to user") || strings.Contains(err_2.Error(), "Access denied for user") {
 			explain_error = errors.New("need_grant_permission")
+			return explain, explain_error
+		} else if strings.Contains(err_2.Error(), "command denied to user") {
+			explain_error = err_2
 			return explain, explain_error
 		} else {
 			explain_error = err_2

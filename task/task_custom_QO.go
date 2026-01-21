@@ -23,16 +23,16 @@ type QueryExplainTaskResult struct {
 	EventsStatementsHistory models.MetricGroupValue              `json:"events_statements_history"`
 }
 
-func ProcessQueryExplainTask(description string, logger logging.Logger, configuration *config.Config, metrics *models.Metrics) (int, int, string) {
+func ProcessQueryExplainTask(task_details string, logger logging.Logger, configuration *config.Config, metrics *models.Metrics) (int, int, string) {
 	var task_exit_code, task_status int = 0, 1
 	var task_output string
 
-	logger.Info(description)
-	// Parse JSON from Description
+	logger.Info(task_details)
+	// Parse JSON from Task Details
 	var input QueryExplainTaskInput
-	err := json.Unmarshal([]byte(description), &input)
+	err := json.Unmarshal([]byte(task_details), &input)
 	if err != nil {
-		logger.Error("Failed to parse task description JSON: ", err)
+		logger.Error("Failed to parse task task_details JSON: ", err)
 		task_exit_code = 8
 		task_status = 4
 		task_output = fmt.Sprintf("Error parsing JSON: %v\n", err)

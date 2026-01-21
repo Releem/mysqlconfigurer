@@ -3,9 +3,11 @@ package repeater
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
@@ -20,13 +22,13 @@ type ReleemConfigurationsRepeater struct {
 	configuration *config.Config
 }
 
-func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.MetricContext, metrics models.Metrics, Mode models.ModeType) (interface{}, error) {
+func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.MetricContext, metrics models.Metrics, Mode models.ModeType) (string, error) {
 	defer utils.HandlePanic(repeater.configuration, repeater.logger)
 	repeater.logger.V(5).Info(Mode.Name, Mode.Type)
 	var buffer bytes.Buffer
 	encoder := json.NewEncoder(&buffer)
 	if err := encoder.Encode(metrics); err != nil {
-		repeater.logger.Error("Failed to encode metrics: ", err)
+		return "", errors.New("Failed to encode metrics: " + err.Error())
 	}
 	repeater.logger.V(5).Info("Result Send data: ", buffer.String())
 	var api_domain, subdomain, domain string
@@ -90,8 +92,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 
 	req, err := http.NewRequest(http.MethodPost, api_domain, &buffer)
 	if err != nil {
-		repeater.logger.Error("Request: could not create request: ", err)
-		return nil, err
+		return "", errors.New("Request: could not create request: " + err.Error())
 	}
 	req.Header.Set("x-releem-api-key", context.GetApiKey())
 	if Mode.Name == "Configurations" && Mode.Type == "GetJson" {
@@ -102,20 +103,16 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		repeater.logger.Error("Request: error making http request: ", err)
-		return nil, err
+		return "", errors.New("Request: error making http request: " + err.Error())
 	}
 	defer res.Body.Close()
 
 	body_res, err := io.ReadAll(res.Body)
 	if err != nil {
-		repeater.logger.Error("Response: error read body request: ", err)
-		return nil, err
+		return "", errors.New("Response: error read body request: " + err.Error())
 	}
 	if res.StatusCode != 200 && res.StatusCode != 201 {
-		repeater.logger.Error("Response: status code: ", res.StatusCode)
-		repeater.logger.Error("Response: body:\n", string(body_res))
-		return nil, err
+		return "", errors.New("Response: status code: " + strconv.Itoa(res.StatusCode) + " Response: body:\n" + string(body_res))
 	}
 	repeater.logger.V(5).Info("Response: status code: ", res.StatusCode)
 	repeater.logger.V(5).Info("Response: body:\n", string(body_res))
@@ -137,12 +134,10 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 		}
 		err = os.WriteFile(context.GetReleemConfDir()+"/"+config_filename, body_res, 0644)
 		if err != nil {
-			repeater.logger.Error("WriteFile: Error write to file: ", err)
-			return nil, err
+			return "", errors.New("WriteFile: Error write to file: " + err.Error())
 		}
-
 	}
-	return string(body_res), err
+	return string(body_res), nil
 }
 
 func NewReleemConfigurationsRepeater(configuration *config.Config, logger logging.Logger) ReleemConfigurationsRepeater {

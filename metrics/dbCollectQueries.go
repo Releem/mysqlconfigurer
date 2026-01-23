@@ -422,7 +422,7 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 		REFERENCED_COLUMN_NAME        string
 	}
 	var information_schema_key_column_usage information_schema_key_column_usage_type
-	rows, err = models.DB.Query("SELECT IFNULL(CONSTRAINT_SCHEMA, 'NULL') as CONSTRAINT_SCHEMA, IFNULL(CONSTRAINT_NAME, 'NULL') as CONSTRAINT_NAME, IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(ORDINAL_POSITION, 'NULL') as ORDINAL_POSITION, IFNULL(POSITION_IN_UNIQUE_CONSTRAINT, 'NULL') as POSITION_IN_UNIQUE_CONSTRAINT, IFNULL(REFERENCED_TABLE_SCHEMA, 'NULL') as REFERENCED_TABLE_SCHEMA, IFNULL(REFERENCED_TABLE_NAME, 'NULL') as REFERENCED_TABLE_NAME, IFNULL(REFERENCED_COLUMN_NAME, 'NULL') as REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE" + FilterQueryString(DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "CONSTRAINT_SCHEMA"))
+	rows, err = models.DB.Query("SELECT IFNULL(CONSTRAINT_SCHEMA, 'NULL') as CONSTRAINT_SCHEMA, IFNULL(CONSTRAINT_NAME, 'NULL') as CONSTRAINT_NAME, IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(COLUMN_NAME, 'NULL') as COLUMN_NAME, IFNULL(ORDINAL_POSITION, 'NULL') as ORDINAL_POSITION, IFNULL(POSITION_IN_UNIQUE_CONSTRAINT, 'NULL') as POSITION_IN_UNIQUE_CONSTRAINT, IFNULL(REFERENCED_TABLE_SCHEMA, 'NULL') as REFERENCED_TABLE_SCHEMA, IFNULL(REFERENCED_TABLE_NAME, 'NULL') as REFERENCED_TABLE_NAME, IFNULL(REFERENCED_COLUMN_NAME, 'NULL') as REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE" + FilterQueryString(DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "TABLE_SCHEMA"))
 	if err != nil {
 		DbCollectQueriesOptimization.logger.Error(err)
 	} else {
@@ -445,7 +445,7 @@ func (DbCollectQueriesOptimization *DbCollectQueriesOptimization) GetMetrics(met
 		CONSTRAINT_TYPE   string
 	}
 	var information_schema_table_constraints information_schema_table_constraints_type
-	rows, err = models.DB.Query("SELECT IFNULL(CONSTRAINT_SCHEMA, 'NULL') as CONSTRAINT_SCHEMA, IFNULL(CONSTRAINT_NAME, 'NULL') as CONSTRAINT_NAME, IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(CONSTRAINT_TYPE, 'NULL') as CONSTRAINT_TYPE FROM information_schema.TABLE_CONSTRAINTS" + FilterQueryString(DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "CONSTRAINT_SCHEMA"))
+	rows, err = models.DB.Query("SELECT IFNULL(CONSTRAINT_SCHEMA, 'NULL') as CONSTRAINT_SCHEMA, IFNULL(CONSTRAINT_NAME, 'NULL') as CONSTRAINT_NAME, IFNULL(TABLE_SCHEMA, 'NULL') as TABLE_SCHEMA, IFNULL(TABLE_NAME, 'NULL') as TABLE_NAME, IFNULL(CONSTRAINT_TYPE, 'NULL') as CONSTRAINT_TYPE FROM information_schema.TABLE_CONSTRAINTS" + FilterQueryString(DbCollectQueriesOptimization.configuration.DatabasesQueryOptimization, "TABLE_SCHEMA"))
 	if err != nil {
 		DbCollectQueriesOptimization.logger.Error(err)
 	} else {

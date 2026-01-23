@@ -46,11 +46,40 @@ mysql_ssl_mode=${DB_SSL:-false}
 
 # CommandRestartService string `hcl:"mysql_restart_service"`
 # Defaults to 3600 seconds, command to restart service mysql.
-mysql_restart_service=" /bin/systemctl restart mysql"
+mysql_restart_service=""${RELEEM_MYSQL_RESTART_SERVICE:-/bin/systemctl restart mysql}"
 
 # MysqlConfDir string `hcl:"mysql_cnf_dir"`
 # The path to copy the recommended config.
-mysql_cnf_dir="/etc/mysql/releem.conf.d"
+mysql_cnf_dir="${RELEEM_MYSQL_CONF_DIR:-/etc/mysql/releem.conf.d}"
+
+# PgUser string`hcl:"pg_user"`
+# PostgreSQL user name for collection metrics.
+pg_user="${RELEEM_PG_LOGIN:-${PG_USER:-}}"
+
+# PgPassword string `hcl:"pg_password"`
+# PostgreSQL user password for collection metrics.
+pg_password="${RELEEM_PG_PASSWORD:-${PG_PASSWORD:-}}"
+
+# PgHost string `hcl:"pg_host"`
+# PostgreSQL host for collection metrics.
+pg_host="${RELEEM_PG_HOST:-${PG_HOST:-127.0.0.1}}"
+
+# PgPort string `hcl:"pg_port"`
+# PostgreSQL port for collection metrics.
+pg_port="${RELEEM_PG_PORT:-${PG_PORT:-5432}}"
+
+#PgSslMode bool `hcl:"pg_ssl_mode"`
+# Enable SSL connection to PostgreSQL
+pg_ssl_mode=${RELEEM_PG_SSL_MODE:-${PG_SSL:-false}}
+
+# CommandRestartService string `hcl:"pg_restart_service"`
+# Defaults to 3600 seconds, command to restart service postgresql.
+pg_restart_service="${RELEEM_PG_RESTART_SERVICE:-/bin/systemctl restart postgresql}"
+
+# PgConfDir string `hcl:"pg_cnf_dir"`
+# The path to copy the recommended config.
+pg_cnf_dir="${RELEEM_PG_CONF_DIR:-/etc/postgresql/releem.conf.d}"
+
 
 # ReleemConfDir string `hcl:"releem_cnf_dir"`
 # Releem Agent configuration path.

@@ -105,29 +105,40 @@ func ConnectionDatabase(configuration *config.Config, logger logging.Logger, DBn
 	return db
 }
 
-func EnableEventsStatementsConsumers(configuration *config.Config, logger logging.Logger, uptime_str string) uint64 {
-	var count_setup_consumers uint64
+func EnableEventsStatementsConsumers(configuration *config.Config, logger logging.Logger, uptime_str string) {
 	uptime, err := strconv.Atoi(uptime_str)
 	if err != nil {
 		logger.Error(err)
 	}
-	count_setup_consumers = 0
 	if configuration.QueryOptimization && uptime < 120 {
-		err := models.DB.QueryRow("SELECT count(name) FROM performance_schema.setup_consumers WHERE enabled = 'YES' AND name LIKE 'events_statements_%' AND name != 'events_statements_cpu'").Scan(&count_setup_consumers)
+		err := models.DB.QueryRow("SELECT count(name) FROM performance_schema.setup_consumers WHERE enabled = 'YES' AND name LIKE 'events_statements_%' AND name != 'events_statements_cpu'").Scan(&models.CountEnabledConsumers)
 		if err != nil {
 			logger.Error(err)
-			count_setup_consumers = 0
 		}
-		logger.Info("DEBUG: Found enabled performance_schema statements consumers: ", count_setup_consumers)
-		if count_setup_consumers < 3 && configuration.InstanceType == "aws/rds" {
+		logger.Info("DEBUG: Found enabled performance_schema statements consumers: ", models.CountEnabledConsumers)
+		if models.CountEnabledConsumers < 3 && configuration.InstanceType == "aws/rds" {
 			_, err := models.DB.Query("CALL releem.enable_events_statements_consumers()")
 			if err != nil {
 				logger.Error("Failed to enable events_statements consumers", err)
 			} else {
 				logger.Info("Enable events_statements_consumers")
 			}
+			err = models.DB.QueryRow("SELECT count(name) FROM performance_schema.setup_consumers WHERE enabled = 'YES' AND name LIKE 'events_statements_%' AND name != 'events_statements_cpu'").Scan(&models.CountEnabledConsumers)
+			if err != nil {
+				logger.Error(err)
+			}
+			logger.Info("DEBUG: Found enabled performance_schema statements consumers: ", models.CountEnabledConsumers)
 		}
 	}
+}
 
-	return count_setup_consumers
+func GetSampleCollectionStrategy(configuration *config.Config, logger logging.Logger, uptime_str string) {
+	EnableEventsStatementsConsumers(configuration, logger, uptime_str)
+	if models.CountEnabledConsumers >= 2 {
+		configuration.QueryOptimizationCollectSqlTextPeriod = 10
+	} else if models.CountEnabledConsumers > 0 {
+		configuration.QueryOptimizationCollectSqlTextPeriod = 1
+	} else if models.CountEnabledConsumers == 0 {
+		configuration.QueryOptimizationCollectSqlTextPeriod = 0
+	}
 }

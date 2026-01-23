@@ -82,6 +82,7 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 			metrics.DB.Metrics.InnoDBEngineStatus = status
 		}
 	}
+	metrics.DB.Metrics.CountEnabledEventsStatementsConsumers = models.CountEnabledConsumers
 
 	DbMetricsBase.logger.V(5).Info("CollectMetrics DbMetricsBase ", metrics.DB.Metrics)
 

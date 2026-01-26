@@ -129,7 +129,7 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 			TaskStruct.Details, logger, configuration, metrics)
 		TaskStruct.Output = TaskStruct.Output + task_output
 		RepeaterResponse := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskByName", Type: "custom_queries_optimization"})
-		mergedJSON, err := utils.MergeJSONStrings(TaskStruct.Details, RepeaterResponse, "query_optimization_result")
+		mergedJSON, err := utils.MergeJSONStrings(TaskStruct.Details, RepeaterResponse, "custom_queries_optimization_response")
 		if err != nil {
 			logger.Error("Failed to merge task_details JSON: ", err)
 		} else {

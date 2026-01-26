@@ -41,9 +41,9 @@ type Metrics struct {
 		Conf struct {
 			Variables MetricGroupValue
 		}
-		Info                MetricGroupValue
-		Queries             []MetricGroupValue
-		QueriesOptimization map[string][]MetricGroupValue
+		Info           MetricGroupValue
+		Queries        []MetricGroupValue
+		DatabaseSchema map[string][]MetricGroupValue
 	}
 	ReleemAgent struct {
 		Info  MetricGroupValue

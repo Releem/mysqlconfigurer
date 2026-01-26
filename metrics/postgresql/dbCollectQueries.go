@@ -90,7 +90,7 @@ func (DBCollectQueriesOptimization *DBCollectQueriesOptimization) GetMetrics(met
 		return nil
 	}
 
-	metrics.DB.QueriesOptimization = make(map[string][]models.MetricGroupValue)
+	metrics.DB.DatabaseSchema = make(map[string][]models.MetricGroupValue)
 	i := 0
 	for _, database := range metrics.DB.Metrics.Databases {
 		if u.IsSchemaNameExclude(database, DBCollectQueriesOptimization.configuration.DatabasesQueryOptimization) {
@@ -104,7 +104,7 @@ func (DBCollectQueriesOptimization *DBCollectQueriesOptimization) GetMetrics(met
 		}
 	}
 	DBCollectQueriesOptimization.logger.V(5).Info("collectMetrics ", metrics.DB.Queries)
-	DBCollectQueriesOptimization.logger.V(5).Info("collectMetrics ", metrics.DB.QueriesOptimization)
+	DBCollectQueriesOptimization.logger.V(5).Info("collectMetrics ", metrics.DB.DatabaseSchema)
 
 	return nil
 }
@@ -133,8 +133,8 @@ func CollectDbSchema(database string, logger logging.Logger, metrics *models.Met
 				logger.Error(err)
 				return err
 			}
-			metrics.DB.QueriesOptimization["information_schema_tables"] = append(
-				metrics.DB.QueriesOptimization["information_schema_tables"],
+			metrics.DB.DatabaseSchema["information_schema_tables"] = append(
+				metrics.DB.DatabaseSchema["information_schema_tables"],
 				models.MetricGroupValue{
 					"TABLE_SCHEMA": information_schema_table.TABLE_SCHEMA,
 					"TABLE_NAME":   information_schema_table.TABLE_NAME,
@@ -175,8 +175,8 @@ func CollectDbSchema(database string, logger logging.Logger, metrics *models.Met
 				logger.Error(err)
 				return err
 			}
-			metrics.DB.QueriesOptimization["information_schema_columns"] = append(
-				metrics.DB.QueriesOptimization["information_schema_columns"],
+			metrics.DB.DatabaseSchema["information_schema_columns"] = append(
+				metrics.DB.DatabaseSchema["information_schema_columns"],
 				models.MetricGroupValue{
 					"TABLE_SCHEMA":     information_schema_column.TABLE_SCHEMA,
 					"TABLE_NAME":       information_schema_column.TABLE_NAME,
@@ -189,7 +189,7 @@ func CollectDbSchema(database string, logger logging.Logger, metrics *models.Met
 		}
 	}
 
-	logger.V(5).Info("collectMetrics ", metrics.DB.QueriesOptimization)
+	logger.V(5).Info("collectMetrics ", metrics.DB.DatabaseSchema)
 
 	return nil
 }

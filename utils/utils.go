@@ -295,6 +295,26 @@ func MergeJSONStrings(leftJSON, rightJSON string, key string) (string, error) {
 				return "", err
 			}
 			return string(mergedBytes), nil
+		} else if rightTyped, ok := rightValue.(map[string]interface{}); ok {
+			for i, k := range leftTyped {
+				typedItem, ok := k.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if key != "" {
+					typedItem[key] = rightTyped
+				} else {
+					for key, value := range rightTyped {
+						typedItem[key] = value
+					}
+				}
+				leftTyped[i] = typedItem
+			}
+			mergedBytes, err := json.Marshal(leftTyped)
+			if err != nil {
+				return "", err
+			}
+			return string(mergedBytes), nil
 		}
 	}
 

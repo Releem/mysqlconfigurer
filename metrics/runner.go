@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"database/sql"
 	"os"
 	"os/signal"
 	"sync"
@@ -47,7 +48,7 @@ func RunWorker(gatherers []models.MetricsGatherer, gatherers_metrics []models.Me
 		QueryOptimizationCollectSqlText.Stop()
 	}
 	terminator := makeTerminateChannel()
-
+	utils.GetSampleCollectionStrategy(configuration, logger, "0")
 loop:
 	for {
 		select {
@@ -68,7 +69,7 @@ loop:
 							uptime_str = uptime_str_val
 						}
 					}
-					metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, uptime_str)
+					utils.GetSampleCollectionStrategy(configuration, logger, uptime_str)
 					response := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: ""})
 					if response == "Task" {
 						logger.Info("* A task received by the agent...")
@@ -95,7 +96,7 @@ loop:
 					metrics = utils.CollectMetrics(gatherers_configuration, logger, configuration)
 				}
 				if metrics != nil {
-					metrics.DB.Metrics.CountEnableEventsStatementsConsumers = utils.EnableEventsStatementsConsumers(configuration, logger, "0")
+					utils.GetSampleCollectionStrategy(configuration, logger, "0")
 					logger.Info("* Sending metrics to the Releem Cloud Platform...")
 					utils.ProcessRepeaters(metrics, repeaters, configuration, logger, Mode)
 					if Mode.Name == "Configurations" {
@@ -120,14 +121,24 @@ loop:
 				logger.Info("* Database metrics for Query Analytics are saved...")
 			}()
 		case <-QueryOptimizationCollectSqlText.C:
-			QueryOptimizationCollectSqlText.Reset(configuration.QueryOptimizationCollectSqlTextPeriod * time.Second)
+
 			go func() {
 				defer utils.HandlePanic(configuration, logger)
-				Ready = false
-
 				// Only collect SQL text for MySQL
 				if configuration.GetDatabaseType() == "mysql" {
-					rows, err := models.DB.Query("SELECT t2.`CURRENT_SCHEMA`, t2.`DIGEST`, t2.`SQL_TEXT` FROM (SELECT `CURRENT_SCHEMA`, `DIGEST`, MAX(`TIMER_START`) AS MAX_TIMER_START FROM `performance_schema`.`events_statements_history` WHERE `DIGEST` IS NOT NULL AND `CURRENT_SCHEMA` IS NOT NULL GROUP BY `CURRENT_SCHEMA`, `DIGEST` ) t1 JOIN `performance_schema`.`events_statements_history` t2 ON t2.`TIMER_START`=t1.`MAX_TIMER_START` AND t2.`CURRENT_SCHEMA`=t1.`CURRENT_SCHEMA` AND t2.`DIGEST`=t1.`DIGEST`")
+					var rows *sql.Rows
+					var err error
+					if configuration.QueryOptimizationCollectSqlTextPeriod == 0 {
+						QueryOptimizationCollectSqlText.Reset(10 * time.Minute)
+						logger.Info("* SQL text collection is disabled...")
+						return
+					} else if configuration.QueryOptimizationCollectSqlTextPeriod == 1 {
+						QueryOptimizationCollectSqlText.Reset(configuration.QueryOptimizationCollectSqlTextPeriod * time.Second)
+						rows, err = models.DB.Query("SELECT t2.`CURRENT_SCHEMA`, t2.`DIGEST`, t2.`SQL_TEXT` FROM (SELECT `CURRENT_SCHEMA`, `DIGEST`, MAX(`TIMER_START`) AS MAX_TIMER_START FROM `performance_schema`.`events_statements_current` WHERE `DIGEST` IS NOT NULL AND `CURRENT_SCHEMA` IS NOT NULL GROUP BY `CURRENT_SCHEMA`, `DIGEST` ) t1 JOIN `performance_schema`.`events_statements_current` t2 ON t2.`TIMER_START`=t1.`MAX_TIMER_START` AND t2.`CURRENT_SCHEMA`=t1.`CURRENT_SCHEMA` AND t2.`DIGEST`=t1.`DIGEST`")
+					} else {
+						QueryOptimizationCollectSqlText.Reset(configuration.QueryOptimizationCollectSqlTextPeriod * time.Second)
+						rows, err = models.DB.Query("SELECT t2.`CURRENT_SCHEMA`, t2.`DIGEST`, t2.`SQL_TEXT` FROM (SELECT `CURRENT_SCHEMA`, `DIGEST`, MAX(`TIMER_START`) AS MAX_TIMER_START FROM `performance_schema`.`events_statements_history` WHERE `DIGEST` IS NOT NULL AND `CURRENT_SCHEMA` IS NOT NULL GROUP BY `CURRENT_SCHEMA`, `DIGEST` ) t1 JOIN `performance_schema`.`events_statements_history` t2 ON t2.`TIMER_START`=t1.`MAX_TIMER_START` AND t2.`CURRENT_SCHEMA`=t1.`CURRENT_SCHEMA` AND t2.`DIGEST`=t1.`DIGEST`")
+					}
 					if err != nil {
 						logger.Error(err)
 					} else {

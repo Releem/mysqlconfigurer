@@ -28,15 +28,15 @@ type Metrics struct {
 	}
 	DB struct {
 		Metrics struct {
-			Status                               MetricGroupValue
-			TotalTables                          uint64
-			TotalMyisamIndexes                   uint64
-			Engine                               map[string]MetricGroupValue
-			CountQueriesLatency                  uint64
-			Databases                            []string
-			InnoDBEngineStatus                   string
-			CountEnableEventsStatementsConsumers uint64
-			ProcessList                          []MetricGroupValue
+			Status                                MetricGroupValue
+			TotalTables                           uint64
+			TotalMyisamIndexes                    uint64
+			Engine                                map[string]MetricGroupValue
+			CountQueriesLatency                   uint64
+			Databases                             []string
+			InnoDBEngineStatus                    string
+			CountEnabledEventsStatementsConsumers uint64
+			ProcessList                           []MetricGroupValue
 		}
 		Conf struct {
 			Variables MetricGroupValue
@@ -92,9 +92,9 @@ type SqlTextType struct {
 }
 
 var (
-	DB           *sql.DB
-	SqlText      map[string]map[string]string
-	SqlTextMutex sync.RWMutex
+	DB                      *sql.DB
+	SqlText                 map[string]map[string]string
+	SqlTextMutex            sync.RWMutex
+	CountEnabledConsumers   uint64
+	PgStatStatementsEnabled bool
 )
-
-var PgStatStatementsEnabled bool

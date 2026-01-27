@@ -101,7 +101,7 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 		}
 		metrics.DB.Metrics.TotalTables = row
 	}
-
+	metrics.DB.Metrics.CountEnabledEventsStatementsConsumers = models.CountEnabledConsumers
 	DBMetricsBase.logger.V(5).Info("CollectMetrics DBMetricsBase ", metrics.DB.Metrics)
 
 	return nil

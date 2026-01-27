@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	ReleemAgentVersion = "1.22.4"
+	ReleemAgentVersion = "1.22.6"
 )
 
 type Config struct {
@@ -80,7 +80,7 @@ func LoadConfigFromString(data string, logger logging.Logger) (*Config, error) {
 		config.QueryOptimizationPeriod = 3600
 	}
 	if config.QueryOptimizationCollectSqlTextPeriod == 0 {
-		config.QueryOptimizationCollectSqlTextPeriod = 5
+		config.QueryOptimizationCollectSqlTextPeriod = 10
 	}
 	if config.MysqlHost == "" {
 		config.MysqlHost = "127.0.0.1"

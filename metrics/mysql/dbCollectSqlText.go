@@ -30,10 +30,8 @@ func (DBCollectSampleQueries *DBCollectSampleQueriesGatherer) GetMetrics(metrics
 
 	if DBCollectSampleQueries.configuration.CollectSampleQueriesPeriod == 1 {
 		CollectSampleQueries = CollectSampleQueriesCurrent
-		DBCollectSampleQueries.logger.Info("* Starting to collect SQL text for current period...")
 	} else if DBCollectSampleQueries.configuration.CollectSampleQueriesPeriod == 10 {
 		CollectSampleQueries = CollectSampleQueriesHistory
-		DBCollectSampleQueries.logger.Info("* Starting to collect SQL text for history period...")
 	} else {
 		DBCollectSampleQueries.logger.Info("* SQL text collection is disabled...")
 		return nil

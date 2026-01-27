@@ -3,6 +3,7 @@ package task
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/metrics/mysql"
@@ -13,8 +14,9 @@ import (
 )
 
 type QueryExplainTaskInput struct {
-	SchemaName string `json:"schema_name"`
-	QueryText  string `json:"query_text"`
+	SchemaName          string `json:"schema_name"`
+	QueryText           string `json:"query_text"`
+	QueryOptimizationID string `json:"query_optimization_id"`
 }
 
 type QueryExplainTaskResult struct {
@@ -35,16 +37,20 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 		logger.Error("Failed to parse task task_details JSON: ", err)
 		task_exit_code = 8
 		task_status = 4
-		task_output = fmt.Sprintf("Error parsing JSON: %v\n", err)
-		return task_exit_code, task_status, task_output
+		task_output = task_output + fmt.Sprintf("Error parsing JSON: %v\n", err)
+		// return task_exit_code, task_status, task_output
+	} else {
+		task_output = task_output + "Successfully parsed task_details JSON\n"
 	}
 
 	if len(inputs) == 0 {
 		logger.Error("task_details array is empty")
 		task_exit_code = 8
 		task_status = 4
-		task_output = "Error: task_details must contain at least one item\n"
-		return task_exit_code, task_status, task_output
+		task_output = task_output + "Error: task_details must contain at least one item\n"
+		// return task_exit_code, task_status, task_output
+	} else {
+		task_output = task_output + "task_details array is not empty\n"
 	}
 
 	metrics.DB.DatabaseSchema = make(map[string][]models.MetricGroupValue)
@@ -56,10 +62,18 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 			logger.Error("schema_name or query_text is empty")
 			task_exit_code = 8
 			task_status = 4
-			task_output = "Error: schema_name and query_text are required\n"
-			return task_exit_code, task_status, task_output
+			task_output = task_output + "Error: schema_name and query_text are required\n"
+			// return task_exit_code, task_status, task_output
+		} else {
+			task_output = task_output + "schema_name and query_text are not empty\n"
 		}
-
+		query_data := models.MetricGroupValue{
+			"schema_name": input.SchemaName,
+			"query_text":  input.QueryText,
+			"avg_time_us": 0,
+			"calls":       0,
+			"sum_time_us": 0,
+		}
 		if _, ok := collectedSchemas[input.SchemaName]; !ok {
 			// Collect schema
 			err = mysql.CollectDbSchema(input.SchemaName, logger, metrics)
@@ -67,10 +81,12 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 				logger.Error("Failed to collect schema: ", err)
 				task_exit_code = 8
 				task_status = 4
-				task_output = fmt.Sprintf("Error collecting schema: %v\n", err)
-				return task_exit_code, task_status, task_output
+				task_output = task_output + fmt.Sprintf("Error collecting schema for schema_name: %s: %v\n", input.SchemaName, err)
+				// return task_exit_code, task_status, task_output
+			} else {
+				collectedSchemas[input.SchemaName] = struct{}{}
+				task_output = task_output + fmt.Sprintf("Successfully collected schema for schema_name: %s\n", input.SchemaName)
 			}
-			collectedSchemas[input.SchemaName] = struct{}{}
 		}
 
 		// Connect to the database
@@ -91,10 +107,20 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 		// Execute EXPLAIN
 		explainResult, explain_error := mysql.ExecuteExplain(db, input.QueryText, logger)
 		// explainResult, err := executeExplain(db, input.QueryText, logger)
-		if explain_error != nil {
-			logger.Error("Failed to execute EXPLAIN: ", explain_error)
-			// Continue even if EXPLAIN fails, but note it in the result
-			explainResult = fmt.Sprintf("Error: %v", explain_error)
+		if explainResult != "" {
+			query_data["explain"] = explainResult
+			task_output = task_output + fmt.Sprintf("Successfully executed EXPLAIN for QueryOptimizationID: %s\n", input.QueryOptimizationID)
+		} else if explain_error != nil {
+			logger.Errorf("Failed to execute EXPLAIN for QueryOptimizationID: %s: %v\n", input.QueryOptimizationID, explain_error)
+			query_data["explain_error"] = explain_error.Error()
+			task_status = 4
+			if strings.Contains(explain_error.Error(), "need_grant_permission") {
+				task_exit_code = 9
+				task_output = task_output + fmt.Sprintf("Need grant permission for QueryOptimizationID: %s\n", input.QueryOptimizationID)
+			} else {
+				task_exit_code = 8
+				task_output = task_output + fmt.Sprintf("Failed to execute EXPLAIN for QueryOptimizationID: %s: %v\n", input.QueryOptimizationID, explain_error)
+			}
 		}
 
 		// // Get last row from events_statements_history for THREAD_ID
@@ -120,14 +146,7 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 		db.Close()
 
 		// Build result
-		metrics.DB.Queries = append(metrics.DB.Queries, models.MetricGroupValue{
-			"schema_name": input.SchemaName,
-			"query_text":  input.QueryText,
-			"explain":     explainResult,
-			"avg_time_us": 0,
-			"calls":       0,
-			"sum_time_us": 0,
-		})
+		metrics.DB.Queries = append(metrics.DB.Queries, query_data)
 	}
 
 	return task_exit_code, task_status, task_output

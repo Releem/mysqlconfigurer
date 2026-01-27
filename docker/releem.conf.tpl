@@ -46,7 +46,7 @@ mysql_ssl_mode=${DB_SSL:-false}
 
 # CommandRestartService string `hcl:"mysql_restart_service"`
 # Defaults to 3600 seconds, command to restart service mysql.
-mysql_restart_service=""${RELEEM_MYSQL_RESTART_SERVICE:-/bin/systemctl restart mysql}"
+mysql_restart_service="${RELEEM_MYSQL_RESTART_SERVICE:-/bin/systemctl restart mysql}"
 
 # MysqlConfDir string `hcl:"mysql_cnf_dir"`
 # The path to copy the recommended config.

@@ -1,7 +1,6 @@
 package metrics
 
 import (
-	"database/sql"
 	"os"
 	"os/signal"
 	"sync"
@@ -26,10 +25,15 @@ func makeTerminateChannel() <-chan os.Signal {
 	return ch
 }
 
-func RunWorker(gatherers []models.MetricsGatherer, gatherers_metrics []models.MetricsGatherer, gatherers_configuration []models.MetricsGatherer, gatherers_query_optimization []models.MetricsGatherer, repeaters models.MetricsRepeater, logger logging.Logger,
+func RunWorker(gatherers map[string][]models.MetricsGatherer, repeaters models.MetricsRepeater, logger logging.Logger,
 	configuration *config.Config, Mode models.ModeType) {
-	var GenerateTimer, timer, QueryOptimizationTimer *time.Timer
 	defer utils.HandlePanic(configuration, logger)
+
+	var GenerateTimer, timer, QueryOptimizationTimer *time.Timer
+
+	models.SampleQueries = make(map[string]string)
+	models.SampleQueriesMutex = sync.RWMutex{}
+	terminator := makeTerminateChannel()
 
 	if (Mode.Name == "Configurations" && Mode.Type != "Default") || Mode.Name == "Event" || Mode.Name == "TaskByName" {
 		GenerateTimer = time.NewTimer(1 * time.Second)
@@ -40,15 +44,11 @@ func RunWorker(gatherers []models.MetricsGatherer, gatherers_metrics []models.Me
 		timer = time.NewTimer(1 * time.Second)
 		QueryOptimizationTimer = time.NewTimer(1 * time.Minute)
 	}
-	QueryOptimizationCollectSqlText := time.NewTimer(1 * time.Second)
-	models.SqlText = make(map[string]map[string]string)
-	models.SqlTextMutex = sync.RWMutex{}
-
+	CollectSampleQueries := time.NewTimer(1 * time.Second)
 	if !configuration.QueryOptimization {
-		QueryOptimizationCollectSqlText.Stop()
+		CollectSampleQueries.Stop()
 	}
-	terminator := makeTerminateChannel()
-	utils.GetSampleCollectionStrategy(configuration, logger, "0")
+	utils.GetStrategyCollectionSampleQueries(configuration, logger, "0")
 loop:
 	for {
 		select {
@@ -60,23 +60,18 @@ loop:
 			timer.Reset(configuration.MetricsPeriod * time.Second)
 			go func() {
 				defer utils.HandlePanic(configuration, logger)
-				metrics := utils.CollectMetrics(gatherers_metrics, logger, configuration)
-				if metrics != nil {
-					// Safely get uptime value - use "0" as default if not available
-					var uptime_str string = "0"
-					if uptime_val, exists := metrics.DB.Metrics.Status["Uptime"]; exists && uptime_val != nil {
-						if uptime_str_val, ok := uptime_val.(string); ok {
-							uptime_str = uptime_str_val
-						}
-					}
-					utils.GetSampleCollectionStrategy(configuration, logger, uptime_str)
-					response := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: ""})
-					if response == "Task" {
-						logger.Info("* A task received by the agent...")
-						f := task.ProcessTaskFunc(repeaters, gatherers, logger, configuration)
-						time.AfterFunc(5*time.Second, f)
-					}
+				metrics := utils.CollectMetrics(append(gatherers["default"], gatherers["metrics"]...), logger, configuration)
+				if metrics == nil {
+					return
 				}
+				utils.GetStrategyCollectionSampleQueries(configuration, logger, utils.ConvertUptimeToStr(metrics.DB.Metrics.Status))
+				response := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: ""})
+				if response == "Task" {
+					logger.Info("* A task received by the agent...")
+					f := task.ProcessTaskFunc(repeaters, gatherers["default"], logger, configuration)
+					time.AfterFunc(5*time.Second, f)
+				}
+
 				logger.Info("* Database Metrics are saved...")
 			}()
 		case <-GenerateTimer.C:
@@ -88,21 +83,23 @@ loop:
 				defer utils.HandlePanic(configuration, logger)
 				if Mode.Name == "TaskByName" {
 					if Mode.Type == "queries_optimization" {
-						metrics = utils.CollectMetrics(gatherers_query_optimization, logger, configuration)
+						metrics = utils.CollectMetrics(append(gatherers["default"], gatherers["query_optimization"]...), logger, configuration)
 					} else {
-						metrics = utils.CollectMetrics(gatherers_configuration, logger, configuration)
+						metrics = utils.CollectMetrics(append(gatherers["default"], gatherers["configuration"]...), logger, configuration)
 					}
 				} else {
-					metrics = utils.CollectMetrics(gatherers_configuration, logger, configuration)
+					metrics = utils.CollectMetrics(append(gatherers["default"], gatherers["configuration"]...), logger, configuration)
 				}
-				if metrics != nil {
-					utils.GetSampleCollectionStrategy(configuration, logger, "0")
-					logger.Info("* Sending metrics to the Releem Cloud Platform...")
-					utils.ProcessRepeaters(metrics, repeaters, configuration, logger, Mode)
-					if Mode.Name == "Configurations" {
-						logger.Info("* The recommended Database configuration has been downloaded to: ", configuration.GetReleemConfDir())
-					}
+				if metrics == nil {
+					return
 				}
+				utils.GetStrategyCollectionSampleQueries(configuration, logger, "0")
+				logger.Info("* Sending metrics to the Releem Cloud Platform...")
+				utils.ProcessRepeaters(metrics, repeaters, configuration, logger, Mode)
+				if Mode.Name == "Configurations" {
+					logger.Info("* The recommended Database configuration has been downloaded to: ", configuration.GetReleemConfDir())
+				}
+
 				if (Mode.Name == "Configurations" && Mode.Type != "Default") || Mode.Name == "Event" || Mode.Name == "TaskByName" {
 					logger.Info("Exiting")
 					os.Exit(0)
@@ -114,69 +111,18 @@ loop:
 			QueryOptimizationTimer.Reset(configuration.QueryOptimizationPeriod * time.Second)
 			go func() {
 				defer utils.HandlePanic(configuration, logger)
-				metrics := utils.CollectMetrics(gatherers_query_optimization, logger, configuration)
-				if metrics != nil {
-					utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: "Queries"})
+				metrics := utils.CollectMetrics(append(gatherers["default"], gatherers["query_optimization"]...), logger, configuration)
+				if metrics == nil {
+					return
 				}
+				utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: "Queries"})
 				logger.Info("* Database metrics for Query Analytics are saved...")
 			}()
-		case <-QueryOptimizationCollectSqlText.C:
-
+		case <-CollectSampleQueries.C:
+			CollectSampleQueries.Reset(configuration.CollectSampleQueriesPeriod * time.Second)
 			go func() {
 				defer utils.HandlePanic(configuration, logger)
-				// Only collect SQL text for MySQL
-				if configuration.GetDatabaseType() == "mysql" {
-					var rows *sql.Rows
-					var err error
-					if configuration.QueryOptimizationCollectSqlTextPeriod == 0 {
-						QueryOptimizationCollectSqlText.Reset(10 * time.Minute)
-						logger.Info("* SQL text collection is disabled...")
-						return
-					} else if configuration.QueryOptimizationCollectSqlTextPeriod == 1 {
-						QueryOptimizationCollectSqlText.Reset(configuration.QueryOptimizationCollectSqlTextPeriod * time.Second)
-						rows, err = models.DB.Query("SELECT t2.`CURRENT_SCHEMA`, t2.`DIGEST`, t2.`SQL_TEXT` FROM (SELECT `CURRENT_SCHEMA`, `DIGEST`, MAX(`TIMER_START`) AS MAX_TIMER_START FROM `performance_schema`.`events_statements_current` WHERE `DIGEST` IS NOT NULL AND `CURRENT_SCHEMA` IS NOT NULL GROUP BY `CURRENT_SCHEMA`, `DIGEST` ) t1 JOIN `performance_schema`.`events_statements_current` t2 ON t2.`TIMER_START`=t1.`MAX_TIMER_START` AND t2.`CURRENT_SCHEMA`=t1.`CURRENT_SCHEMA` AND t2.`DIGEST`=t1.`DIGEST`")
-					} else {
-						QueryOptimizationCollectSqlText.Reset(configuration.QueryOptimizationCollectSqlTextPeriod * time.Second)
-						rows, err = models.DB.Query("SELECT t2.`CURRENT_SCHEMA`, t2.`DIGEST`, t2.`SQL_TEXT` FROM (SELECT `CURRENT_SCHEMA`, `DIGEST`, MAX(`TIMER_START`) AS MAX_TIMER_START FROM `performance_schema`.`events_statements_history` WHERE `DIGEST` IS NOT NULL AND `CURRENT_SCHEMA` IS NOT NULL GROUP BY `CURRENT_SCHEMA`, `DIGEST` ) t1 JOIN `performance_schema`.`events_statements_history` t2 ON t2.`TIMER_START`=t1.`MAX_TIMER_START` AND t2.`CURRENT_SCHEMA`=t1.`CURRENT_SCHEMA` AND t2.`DIGEST`=t1.`DIGEST`")
-					}
-					if err != nil {
-						logger.Error(err)
-					} else {
-						defer rows.Close()
-
-						// Batch collect data to reduce mutex contention
-						tempData := make(map[string]map[string]string)
-						var schema, digest, sqlText string
-
-						for rows.Next() {
-							err := rows.Scan(&schema, &digest, &sqlText)
-							if err != nil {
-								logger.Error(err)
-								continue
-							}
-
-							if tempData[schema] == nil {
-								tempData[schema] = make(map[string]string)
-							}
-							tempData[schema][digest] = sqlText
-						}
-
-						// Single mutex lock for batch update
-						if len(tempData) > 0 {
-							models.SqlTextMutex.Lock()
-							for schema, digestMap := range tempData {
-								if models.SqlText[schema] == nil {
-									models.SqlText[schema] = make(map[string]string)
-								}
-								for digest, sqlText := range digestMap {
-									models.SqlText[schema][digest] = sqlText
-								}
-							}
-							models.SqlTextMutex.Unlock()
-						}
-					}
-				}
-
+				utils.CollectMetrics(gatherers["sample_queries"], logger, configuration)
 			}()
 		}
 	}

@@ -119,7 +119,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 
 	if Mode.Name == "Configurations" {
 		var config_filename string
-		if Mode.Type == "Initial" {
+		if Mode.Type == "GetInitial" {
 			config_filename = "initial_config_mysql.cnf"
 		} else {
 			db_type := repeater.configuration.GetDatabaseType()

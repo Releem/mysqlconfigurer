@@ -85,16 +85,10 @@ type MetricsRepeater interface {
 	ProcessMetrics(context MetricContext, metrics Metrics, Mode ModeType) (string, error)
 }
 
-type SqlTextType struct {
-	CURRENT_SCHEMA string
-	DIGEST         string
-	SQL_TEXT       string
-}
-
 var (
 	DB                      *sql.DB
-	SqlText                 map[string]map[string]string
-	SqlTextMutex            sync.RWMutex
+	SampleQueries           map[string]string
+	SampleQueriesMutex      sync.RWMutex
 	CountEnabledConsumers   uint64
 	PgStatStatementsEnabled bool
 )

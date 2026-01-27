@@ -187,14 +187,14 @@ func EnableEventsStatementsConsumers(configuration *config.Config, logger loggin
 	}
 }
 
-func GetSampleCollectionStrategy(configuration *config.Config, logger logging.Logger, uptime_str string) {
+func GetStrategyCollectionSampleQueries(configuration *config.Config, logger logging.Logger, uptime_str string) {
 	EnableEventsStatementsConsumers(configuration, logger, uptime_str)
 	if models.CountEnabledConsumers >= 2 {
-		configuration.QueryOptimizationCollectSqlTextPeriod = 10
+		configuration.CollectSampleQueriesPeriod = 10 // 10 seconds
 	} else if models.CountEnabledConsumers > 0 {
-		configuration.QueryOptimizationCollectSqlTextPeriod = 1
+		configuration.CollectSampleQueriesPeriod = 1 // 1 second
 	} else if models.CountEnabledConsumers == 0 {
-		configuration.QueryOptimizationCollectSqlTextPeriod = 0
+		configuration.CollectSampleQueriesPeriod = 600 // 10 minutes
 	}
 }
 
@@ -332,4 +332,15 @@ func MergeJSONStrings(leftJSON, rightJSON string, key string) (string, error) {
 		return "", err
 	}
 	return string(mergedBytes), nil
+}
+
+func ConvertUptimeToStr(Status models.MetricGroupValue) string {
+	// Safely get uptime value - use "0" as default if not available
+	var uptime_str string = "0"
+	if uptime_val, exists := Status["Uptime"]; exists && uptime_val != nil {
+		if uptime_str_val, ok := uptime_val.(string); ok {
+			uptime_str = uptime_str_val
+		}
+	}
+	return uptime_str
 }

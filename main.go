@@ -55,7 +55,8 @@ func (programm *Programm) Start() {
 }
 
 func (programm *Programm) Run() {
-	var gatherers, gatherers_metrics, gatherers_configuration, gatherers_query_optimization []models.MetricsGatherer
+	// var gatherers map[string][]models.MetricsGatherer
+	gatherers := make(map[string][]models.MetricsGatherer)
 	var Mode models.ModeType
 
 	// Do something, call your goroutines, etc
@@ -128,7 +129,7 @@ func (programm *Programm) Run() {
 		if result != nil && len(result.DBInstances) == 1 {
 			configuration.Hostname = configuration.AwsRDSDB
 			configuration.MysqlHost = *result.DBInstances[0].Endpoint.Address
-			gatherers = append(gatherers, system.NewAWSRDSEnhancedMetricsGatherer(logger, result.DBInstances[0], cwlogsclient, configuration))
+			gatherers["default"] = append(gatherers["default"], system.NewAWSRDSEnhancedMetricsGatherer(logger, result.DBInstances[0], cwlogsclient, configuration))
 			logger.Info("AWS RDS DB instance found: ", configuration.AwsRDSDB)
 		} else if result != nil && len(result.DBInstances) > 1 {
 			logger.Infof("RDS.DescribeDBInstances: Database has %d instances. Clusters are not supported", len(result.DBInstances))
@@ -193,11 +194,11 @@ func (programm *Programm) Run() {
 		}
 
 		// Add GCP gatherer
-		gatherers = append(gatherers, system.NewGCPCloudSQLEnhancedMetricsGatherer(logger, monitoringClient, sqlAdminService, configuration))
+		gatherers["default"] = append(gatherers["default"], system.NewGCPCloudSQLEnhancedMetricsGatherer(logger, monitoringClient, sqlAdminService, configuration))
 
 	default:
 		logger.Info("InstanceType is Local")
-		gatherers = append(gatherers, system.NewOSMetricsGatherer(logger, configuration))
+		gatherers["default"] = append(gatherers["default"], system.NewOSMetricsGatherer(logger, configuration))
 
 	}
 
@@ -223,45 +224,38 @@ func (programm *Programm) Run() {
 	//Init gatherers based on database type
 	switch dbType {
 	case "postgresql":
-		gatherers = append(gatherers,
+		gatherers["default"] = append(gatherers["default"],
 			postgresql.NewDBConfGatherer(logger, configuration),
 			postgresql.NewDBInfoBaseGatherer(logger, configuration),
 			postgresql.NewDBMetricsBaseGatherer(logger, configuration),
 			metrics.NewAgentMetricsGatherer(logger, configuration))
 
-		gatherers_metrics = make([]models.MetricsGatherer, len(gatherers))
-		copy(gatherers_metrics, gatherers)
-		gatherers_metrics = append(gatherers_metrics, postgresql.NewDBMetricsGatherer(logger, configuration))
+		gatherers["metrics"] = append(gatherers["metrics"], postgresql.NewDBMetricsGatherer(logger, configuration))
 
-		gatherers_configuration = make([]models.MetricsGatherer, len(gatherers))
-		copy(gatherers_configuration, gatherers)
-		gatherers_configuration = append(gatherers_configuration, postgresql.NewDBMetricsConfigGatherer(logger, configuration))
+		gatherers["configuration"] = append(gatherers["configuration"], postgresql.NewDBMetricsConfigGatherer(logger, configuration))
 
-		gatherers_query_optimization = make([]models.MetricsGatherer, len(gatherers))
-		copy(gatherers_query_optimization, gatherers)
-		gatherers_query_optimization = append(gatherers_query_optimization, postgresql.NewDBCollectQueriesOptimization(logger, configuration))
+		gatherers["query_optimization"] = append(gatherers["query_optimization"], postgresql.NewDBCollectQueriesOptimization(logger, configuration))
+
+		gatherers["sample_queries"] = []models.MetricsGatherer{}
+
 	case "mysql":
 		fallthrough
 	default:
-		gatherers = append(gatherers,
+		gatherers["default"] = append(gatherers["default"],
 			mysql.NewDBConfGatherer(logger, configuration),
 			mysql.NewDBInfoBaseGatherer(logger, configuration),
 			mysql.NewDBMetricsBaseGatherer(logger, configuration),
 			metrics.NewAgentMetricsGatherer(logger, configuration))
 
-		gatherers_metrics = make([]models.MetricsGatherer, len(gatherers))
-		copy(gatherers_metrics, gatherers)
-		gatherers_metrics = append(gatherers_metrics, mysql.NewDBMetricsGatherer(logger, configuration))
+		gatherers["metrics"] = append(gatherers["metrics"], mysql.NewDBMetricsGatherer(logger, configuration))
 
-		gatherers_configuration = make([]models.MetricsGatherer, len(gatherers))
-		copy(gatherers_configuration, gatherers)
-		gatherers_configuration = append(gatherers_configuration, mysql.NewDBMetricsConfigGatherer(logger, configuration), mysql.NewDBInfoConfigGatherer(logger, configuration))
+		gatherers["configuration"] = append(gatherers["configuration"], mysql.NewDBMetricsConfigGatherer(logger, configuration), mysql.NewDBInfoConfigGatherer(logger, configuration))
 
-		gatherers_query_optimization = make([]models.MetricsGatherer, len(gatherers))
-		copy(gatherers_query_optimization, gatherers)
-		gatherers_query_optimization = append(gatherers_query_optimization, mysql.NewDBCollectQueriesOptimization(logger, configuration))
+		gatherers["query_optimization"] = append(gatherers["query_optimization"], mysql.NewDBCollectQueriesOptimization(logger, configuration))
+
+		gatherers["sample_queries"] = append(gatherers["sample_queries"], mysql.NewDBCollectSampleQueriesGatherer(logger, configuration))
 	}
-	metrics.RunWorker(gatherers, gatherers_metrics, gatherers_configuration, gatherers_query_optimization, repeaters, logger, configuration, Mode)
+	metrics.RunWorker(gatherers, repeaters, logger, configuration, Mode)
 
 }
 

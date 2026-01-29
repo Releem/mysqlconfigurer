@@ -82,6 +82,16 @@ func (DbMetricsBase *DbMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 			metrics.DB.Metrics.InnoDBEngineStatus = status
 		}
 	}
+	//Total table
+	{
+		var row uint64
+		err := models.DB.QueryRow("SELECT COUNT(*) as count FROM information_schema.tables").Scan(&row)
+		if err != nil {
+			DbMetricsBase.logger.Error(err)
+			return err
+		}
+		metrics.DB.Metrics.TotalTables = row
+	}
 	metrics.DB.Metrics.CountEnabledEventsStatementsConsumers = models.CountEnabledConsumers
 
 	DbMetricsBase.logger.V(5).Info("CollectMetrics DbMetricsBase ", metrics.DB.Metrics)

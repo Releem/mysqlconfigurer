@@ -26,6 +26,7 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 	var task_output string
 
 	RepeaterResponse := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Get"})
+	logger.Info("RepeaterResponse: ", RepeaterResponse)
 	if RepeaterResponse == "" {
 		return
 	}

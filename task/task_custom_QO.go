@@ -16,7 +16,7 @@ import (
 type QueryExplainTaskInput struct {
 	SchemaName          string `json:"schema_name"`
 	QueryText           string `json:"query_text"`
-	QueryOptimizationID string `json:"query_optimization_id"`
+	QueryOptimizationID int    `json:"id"`
 }
 
 type QueryExplainTaskResult struct {
@@ -38,7 +38,7 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 		task_exit_code = 8
 		task_status = 4
 		task_output = task_output + fmt.Sprintf("Error parsing JSON: %v\n", err)
-		// return task_exit_code, task_status, task_output
+		return task_exit_code, task_status, task_output
 	} else {
 		task_output = task_output + "Successfully parsed task_details JSON\n"
 	}
@@ -48,7 +48,7 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 		task_exit_code = 8
 		task_status = 4
 		task_output = task_output + "Error: task_details must contain at least one item\n"
-		// return task_exit_code, task_status, task_output
+		return task_exit_code, task_status, task_output
 	} else {
 		task_output = task_output + "task_details array is not empty\n"
 	}
@@ -63,9 +63,24 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 			task_exit_code = 8
 			task_status = 4
 			task_output = task_output + "Error: schema_name and query_text are required\n"
-			// return task_exit_code, task_status, task_output
+			return task_exit_code, task_status, task_output
 		} else {
 			task_output = task_output + "schema_name and query_text are not empty\n"
+		}
+		// Check that input.SchemaName exists in metrics.DB.Metrics.Databases
+		found := false
+		for _, dbName := range metrics.DB.Metrics.Databases {
+			if dbName == input.SchemaName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			logger.Error("schema_name does not exist in metrics.DB.Metrics.Databases: ", input.SchemaName)
+			task_exit_code = 8
+			task_status = 4
+			task_output = task_output + fmt.Sprintf("Error: schema_name '%s' does not exist\n", input.SchemaName)
+			return task_exit_code, task_status, task_output
 		}
 		query_data := models.MetricGroupValue{
 			"schema_name": input.SchemaName,
@@ -82,7 +97,7 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 				task_exit_code = 8
 				task_status = 4
 				task_output = task_output + fmt.Sprintf("Error collecting schema for schema_name: %s: %v\n", input.SchemaName, err)
-				// return task_exit_code, task_status, task_output
+				return task_exit_code, task_status, task_output
 			} else {
 				collectedSchemas[input.SchemaName] = struct{}{}
 				task_output = task_output + fmt.Sprintf("Successfully collected schema for schema_name: %s\n", input.SchemaName)
@@ -109,17 +124,17 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 		// explainResult, err := executeExplain(db, input.QueryText, logger)
 		if explainResult != "" {
 			query_data["explain"] = explainResult
-			task_output = task_output + fmt.Sprintf("Successfully executed EXPLAIN for QueryOptimizationID: %s\n", input.QueryOptimizationID)
+			task_output = task_output + fmt.Sprintf("Successfully executed EXPLAIN for QueryOptimizationID: %d\n", input.QueryOptimizationID)
 		} else if explain_error != nil {
-			logger.Errorf("Failed to execute EXPLAIN for QueryOptimizationID: %s: %v\n", input.QueryOptimizationID, explain_error)
+			logger.Errorf("Failed to execute EXPLAIN for QueryOptimizationID: %d: %v\n", input.QueryOptimizationID, explain_error)
 			query_data["explain_error"] = explain_error.Error()
 			task_status = 4
 			if strings.Contains(explain_error.Error(), "need_grant_permission") {
 				task_exit_code = 9
-				task_output = task_output + fmt.Sprintf("Need grant permission for QueryOptimizationID: %s\n", input.QueryOptimizationID)
+				task_output = task_output + fmt.Sprintf("Need grant permission for QueryOptimizationID: %d\n", input.QueryOptimizationID)
 			} else {
 				task_exit_code = 8
-				task_output = task_output + fmt.Sprintf("Failed to execute EXPLAIN for QueryOptimizationID: %s: %v\n", input.QueryOptimizationID, explain_error)
+				task_output = task_output + fmt.Sprintf("Failed to execute EXPLAIN for QueryOptimizationID: %d: %v\n", input.QueryOptimizationID, explain_error)
 			}
 		}
 

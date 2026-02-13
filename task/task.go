@@ -20,24 +20,23 @@ func ProcessTaskFunc(repeaters models.MetricsRepeater, gatherers []models.Metric
 
 func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer, logger logging.Logger, configuration *config.Config) {
 	defer utils.HandlePanic(configuration, logger)
-	TaskStruct := models.Task{}
-	metrics := utils.CollectMetrics(gatherers, logger, configuration)
-
+	var TaskStruct *models.Task
 	var task_output string
 
+	metrics := utils.CollectMetrics(gatherers, logger, configuration)
 	RepeaterResponse := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Get"})
 	logger.Info("RepeaterResponse: ", RepeaterResponse)
-	if RepeaterResponse == "" {
-		return
-	}
+
 	err := json.Unmarshal([]byte(RepeaterResponse), &TaskStruct)
 	if err != nil {
 		logger.Error("Failed to parse task description JSON: ", err)
 		return
 	}
-	TaskStruct.Status = 3
-	TaskStruct.Output = ""
-	metrics.ReleemAgent.Tasks = TaskStruct
+	if TaskStruct == nil {
+		return
+	}
+
+	metrics.ReleemAgent.Tasks = models.Task{ID: TaskStruct.ID, TypeID: TaskStruct.TypeID, Status: 3}
 	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Status"})
 	logger.Info(" * Task with id - ", TaskStruct.ID, " and type id - ", TaskStruct.TypeID, " is being started...")
 
@@ -138,13 +137,15 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 				TaskStruct.Details = mergedJSON
 			}
 		}
-
+	default:
+		TaskStruct.ExitCode = 4 // unknown task type
+		TaskStruct.Status = 4
 	}
 
 	time.Sleep(10 * time.Second)
 	metrics = utils.CollectMetrics(gatherers, logger, configuration)
 	logger.Info(" * Task with id - ", TaskStruct.ID, " and type id - ", TaskStruct.TypeID, " completed with code ", TaskStruct.ExitCode)
-	metrics.ReleemAgent.Tasks = TaskStruct
+	metrics.ReleemAgent.Tasks = *TaskStruct
 
 	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Status"})
 }

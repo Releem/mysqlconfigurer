@@ -23,7 +23,7 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 	TaskStruct := models.Task{}
 	metrics := utils.CollectMetrics(gatherers, logger, configuration)
 
-	var task_output, task_error string
+	var task_output string
 
 	RepeaterResponse := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Get"})
 	logger.Info("RepeaterResponse: ", RepeaterResponse)

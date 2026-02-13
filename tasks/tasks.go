@@ -19,6 +19,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	logging "github.com/google/logger"
 	"google.golang.org/api/sqladmin/v1"
+	"github.com/Releem/mysqlconfigurer/task-automator/pkg/phase1"
+	"github.com/Releem/mysqlconfigurer/task-automator/pkg/phase2"
 
 	config_aws "github.com/aws/aws-sdk-go-v2/config"
 )
@@ -34,6 +36,7 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 	output := make(models.MetricGroupValue)
 	//metrics := collectMetrics(gatherers, logger)
 	var task_output string
+	ApplySchemaChanges(metrics, repeaters, gatherers, logger, configuration)
 	task := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskGet", Type: ""})
 	if task == nil || task.(models.Task).TaskTypeID == nil {
 		return
@@ -51,6 +54,7 @@ func ProcessTask(metrics *models.Metrics, repeaters models.MetricsRepeater, gath
 	metrics.ReleemAgent.Tasks = output
 	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskStatus", Type: ""})
 	logger.Info(" * Task with id - ", TaskID, " and type id - ", TaskTypeID, " is being started...")
+
 
 	switch TaskTypeID {
 	case 0:
@@ -185,6 +189,61 @@ func execCmd(cmd_path string, environment []string, logger logging.Logger) (int,
 		task_status = 1
 	}
 	task_output = task_output + stdout.String() + stderr.String()
+	return task_exit_code, task_status, task_output
+}
+
+
+func ApplySchemaChanges(metrics *models.Metrics, repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer, logger logging.Logger, configuration *config.Config) (int, int, string) {
+	var task_exit_code, task_status int
+	var task_output string
+	var sql_statement string
+	sql_statement = "ALTER TABLE airportdb.airport ADD COLUMN email VARCHAR(255)"
+	logger.Info("* Validating schema changes...")
+
+	// Use existing models.DB connection for validation
+	validator := phase1.NewValidator(models.DB)
+	result, err := validator.ValidateStatements([]string{sql_statement})
+	if err != nil {
+		logger.Error(err)
+		task_output = task_output + err.Error()
+		logger.Info("* Schema changes validation failed: ", err.Error())
+		task_exit_code = 1
+		task_status = 4
+	} else {
+		logger.Info("* Schema changes validation successful: ", result.Summary())
+		if len(result.ValidationErrors) > 0 {
+			task_output = task_output + "Validation errors: " + strings.Join(result.ValidationErrors, "; ")
+			task_exit_code = 1
+			task_status = 4
+		} else if len(result.ValidationWarnings) > 0 {
+			task_output = task_output + "Validation warnings: " + strings.Join(result.ValidationWarnings, "; ")
+		}
+	}
+
+	for i, stmt := range result.Statements {
+		if stmt.StorageEngineValid == true {
+			logger.Info("* Statement ", i, " - InnoDB storage engine - executing schema changes...")
+				executor := phase2.NewExecutor(models.DB)
+				_, err = executor.Execute(phase2.ExecuteOptions{
+					SQL: sql_statement,
+					TableName: "airportdb.airport",
+					BackupMethod: phase2.BackupNone,
+					UsePTOnlineSchemaChange: true,
+					Config: configuration,
+					Debug: true,
+				})
+				if err != nil {
+					logger.Error(err)
+					task_output = task_output + err.Error()
+					logger.Info("* Schema changes execution failed: ", err.Error())
+					task_exit_code = 1
+					task_status = 4
+				} else {
+					logger.Info("* Schema changes execution successful: ", result.Summary())
+				}
+		}
+	}
+
 	return task_exit_code, task_status, task_output
 }
 

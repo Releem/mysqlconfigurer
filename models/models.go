@@ -67,6 +67,7 @@ type Task struct {
 	Details  string `json:"task_details"`
 	Status   int    `json:"task_status"`
 	Output   string `json:"task_output"`
+	Error    string `json:"task_error"`
 	ExitCode int    `json:"task_exit_code"`
 }
 

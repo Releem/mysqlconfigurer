@@ -23,7 +23,7 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 	TaskStruct := models.Task{}
 	metrics := utils.CollectMetrics(gatherers, logger, configuration)
 
-	var task_output string
+	var task_output, task_error string
 
 	RepeaterResponse := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Get"})
 	logger.Info("RepeaterResponse: ", RepeaterResponse)
@@ -126,9 +126,9 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 		}
 
 	case 7:
-		TaskStruct.ExitCode, TaskStruct.Status, task_output = ProcessQueryExplainTask(
+		TaskStruct.ExitCode, TaskStruct.Status, TaskStruct.Output, TaskStruct.Error = ProcessQueryExplainTask(
 			TaskStruct.Details, logger, configuration, metrics)
-		TaskStruct.Output = TaskStruct.Output + task_output
+
 		if TaskStruct.ExitCode == 0 {
 			RepeaterResponse := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskByName", Type: "custom_queries_optimization"})
 			mergedJSON, err := utils.MergeJSONStrings(TaskStruct.Details, RepeaterResponse, "custom_queries_optimization_response")

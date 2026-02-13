@@ -25,9 +25,9 @@ type QueryExplainTaskResult struct {
 	EventsStatementsHistory models.MetricGroupValue              `json:"events_statements_history"`
 }
 
-func ProcessQueryExplainTask(task_details string, logger logging.Logger, configuration *config.Config, metrics *models.Metrics) (int, int, string) {
+func ProcessQueryExplainTask(task_details string, logger logging.Logger, configuration *config.Config, metrics *models.Metrics) (int, int, string, string) {
 	var task_exit_code, task_status int = 0, 1
-	var task_output string
+	var task_output, task_error string
 
 	logger.Info(task_details)
 	// Parse JSON from Task Details
@@ -35,20 +35,22 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 	err := json.Unmarshal([]byte(task_details), &inputs)
 	if err != nil {
 		logger.Error("Failed to parse task task_details JSON: ", err)
-		task_exit_code = 8
+		task_exit_code = 2
 		task_status = 4
+		task_error = task_error + "Failed to collect data to optimization your query. Please send an email to hello@releem.com or ask in chat.\nWe will do our best to resolve the issue.\n"
 		task_output = task_output + fmt.Sprintf("Error parsing JSON: %v\n", err)
-		return task_exit_code, task_status, task_output
+		return task_exit_code, task_status, task_output, task_error
 	} else {
 		task_output = task_output + "Successfully parsed task_details JSON\n"
 	}
 
 	if len(inputs) == 0 {
 		logger.Error("task_details array is empty")
-		task_exit_code = 8
+		task_exit_code = 2
 		task_status = 4
+		task_error = task_error + "Failed to collect data to optimization your query. Please send an email to hello@releem.com or ask in chat.\nWe will do our best to resolve the issue.\n"
 		task_output = task_output + "Error: task_details must contain at least one item\n"
-		return task_exit_code, task_status, task_output
+		return task_exit_code, task_status, task_output, task_error
 	} else {
 		task_output = task_output + "task_details array is not empty\n"
 	}
@@ -58,12 +60,13 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 	collectedSchemas := make(map[string]struct{})
 
 	for _, input := range inputs {
-		if input.SchemaName == "" || input.QueryText == "" {
+		if input.SchemaName == "" || input.QueryText == "" || strings.TrimSpace(input.SchemaName) == "" || strings.TrimSpace(input.QueryText) == "" {
 			logger.Error("schema_name or query_text is empty")
-			task_exit_code = 8
+			task_exit_code = 3
 			task_status = 4
-			task_output = task_output + "Error: schema_name and query_text are required\n"
-			return task_exit_code, task_status, task_output
+			task_error = task_error + "Failed to parse data:\n The Database name and SQL query are required\n"
+			task_output = task_output + "Failed to parse data:\n The Database name and SQL query are required\n"
+			return task_exit_code, task_status, task_output, task_error
 		} else {
 			task_output = task_output + "schema_name and query_text are not empty\n"
 		}
@@ -77,10 +80,11 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 		}
 		if !found {
 			logger.Error("schema_name does not exist in metrics.DB.Metrics.Databases: ", input.SchemaName)
-			task_exit_code = 8
+			task_exit_code = 4
 			task_status = 4
-			task_output = task_output + fmt.Sprintf("Error: schema_name '%s' does not exist\n", input.SchemaName)
-			return task_exit_code, task_status, task_output
+			task_error = task_error + fmt.Sprintf("Failed to collect schema for the `%s` database:\nThe `%s` database does not exist\nPlease check the database name and try again.\n", input.SchemaName, input.SchemaName)
+			task_output = task_output + fmt.Sprintf("Failed to collect schema for the `%s` database:\nThe `%s` database does not exist\n", input.SchemaName, input.SchemaName)
+			return task_exit_code, task_status, task_output, task_error
 		}
 		query_data := models.MetricGroupValue{
 			"schema_name": input.SchemaName,
@@ -94,10 +98,11 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 			err = mysql.CollectDbSchema(input.SchemaName, logger, metrics)
 			if err != nil {
 				logger.Error("Failed to collect schema: ", err)
-				task_exit_code = 8
+				task_exit_code = 5
 				task_status = 4
-				task_output = task_output + fmt.Sprintf("Error collecting schema for schema_name: %s: %v\n", input.SchemaName, err)
-				return task_exit_code, task_status, task_output
+				task_error = task_error + fmt.Sprintf("Failed to collect schema for the `%s` database:\n%v\n", input.SchemaName, err)
+				task_output = task_output + fmt.Sprintf("Failed to collect schema for the `%s` database:\n%v\n", input.SchemaName, err)
+				return task_exit_code, task_status, task_output, task_error
 			} else {
 				collectedSchemas[input.SchemaName] = struct{}{}
 				task_output = task_output + fmt.Sprintf("Successfully collected schema for schema_name: %s\n", input.SchemaName)
@@ -115,7 +120,7 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 		// 	task_exit_code = 8
 		// 	task_status = 4
 		// 	task_output = fmt.Sprintf("Error getting THREAD_ID: %v\n", err)
-		// 	return task_exit_code, task_status, task_output
+		// 	return task_exit_code, task_status, task_output, task_error
 		// }
 		// logger.Info("THREAD_ID: ", threadID)
 
@@ -130,10 +135,12 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 			query_data["explain_error"] = explain_error.Error()
 			task_status = 4
 			if strings.Contains(explain_error.Error(), "need_grant_permission") {
-				task_exit_code = 9
+				task_exit_code = 6
+				task_error = task_error + "Failed to execute EXPLAIN:\nMySQL 'releem' user lacks required permissions.\nPlease grant the necessary permissions to the user and try again.\n"
 				task_output = task_output + fmt.Sprintf("Need grant permission for QueryOptimizationID: %d\n", input.QueryOptimizationID)
 			} else {
-				task_exit_code = 8
+				task_exit_code = 7
+				task_error = task_error + fmt.Sprintf("Failed to execute EXPLAIN:\n %v\nPlease check the query and try again.\n", explain_error)
 				task_output = task_output + fmt.Sprintf("Failed to execute EXPLAIN for QueryOptimizationID: %d: %v\n", input.QueryOptimizationID, explain_error)
 			}
 		}
@@ -146,7 +153,7 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 		// 	task_exit_code = 8
 		// 	task_status = 4
 		// 	task_output = fmt.Sprintf("Failed to get digest hash: %v\n", err)
-		// 	return task_exit_code, task_status, task_output
+		// 	return task_exit_code, task_status, task_output, task_error
 		// }
 		// defer rows.Close()
 
@@ -164,7 +171,7 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 		metrics.DB.Queries = append(metrics.DB.Queries, query_data)
 	}
 
-	return task_exit_code, task_status, task_output
+	return task_exit_code, task_status, task_output, task_error
 }
 
 // func getEventsStatementsHistory(db *sql.DB, threadID uint64, logger logging.Logger) (models.MetricGroupValue, error) {

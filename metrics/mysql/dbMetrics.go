@@ -101,6 +101,19 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 		}
 		metrics.DB.Metrics.TotalTables = row
 	}
+	// count of queries latency
+	{
+		var count_events_statements_summary_by_digest uint64
+
+		err := models.DB.QueryRow("SELECT count(*) FROM performance_schema.events_statements_summary_by_digest").Scan(&count_events_statements_summary_by_digest)
+		if err != nil {
+			if err != sql.ErrNoRows {
+				DBMetricsBase.logger.Error(err)
+			}
+		} else {
+			metrics.DB.Metrics.CountQueriesLatency = count_events_statements_summary_by_digest
+		}
+	}
 	metrics.DB.Metrics.CountEnabledEventsStatementsConsumers = models.CountEnabledConsumers
 	DBMetricsBase.logger.V(5).Info("CollectMetrics DBMetricsBase ", metrics.DB.Metrics)
 
@@ -294,19 +307,7 @@ func NewDBMetricsConfigGatherer(logger logging.Logger, configuration *config.Con
 
 func (DBMetricsConfig *DBMetricsConfigGatherer) GetMetrics(metrics *models.Metrics) error {
 	defer utils.HandlePanic(DBMetricsConfig.configuration, DBMetricsConfig.logger)
-	// count of queries latency
-	{
-		var count_events_statements_summary_by_digest uint64
 
-		err := models.DB.QueryRow("SELECT count(*) FROM performance_schema.events_statements_summary_by_digest").Scan(&count_events_statements_summary_by_digest)
-		if err != nil {
-			if err != sql.ErrNoRows {
-				DBMetricsConfig.logger.Error(err)
-			}
-		} else {
-			metrics.DB.Metrics.CountQueriesLatency = count_events_statements_summary_by_digest
-		}
-	}
 	//Stat mysql Engine
 	{
 		var engine_db, engineenabled string

@@ -243,13 +243,13 @@ func (programm *Programm) Run() {
 	default:
 		gatherers["default"] = append(gatherers["default"],
 			mysql.NewDBConfGatherer(logger, configuration),
-			mysql.NewDBInfoBaseGatherer(logger, configuration),
+			mysql.NewDBInfoGatherer(logger, configuration),
 			mysql.NewDBMetricsBaseGatherer(logger, configuration),
 			metrics.NewAgentMetricsGatherer(logger, configuration))
 
 		gatherers["metrics"] = append(gatherers["metrics"], mysql.NewDBMetricsGatherer(logger, configuration))
 
-		gatherers["configuration"] = append(gatherers["configuration"], mysql.NewDBMetricsConfigGatherer(logger, configuration), mysql.NewDBInfoConfigGatherer(logger, configuration))
+		gatherers["configuration"] = append(gatherers["configuration"], mysql.NewDBMetricsConfigGatherer(logger, configuration))
 
 		gatherers["query_optimization"] = append(gatherers["query_optimization"], mysql.NewDBCollectQueriesOptimization(logger, configuration))
 

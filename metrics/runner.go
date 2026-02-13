@@ -9,7 +9,7 @@ import (
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
-	"github.com/Releem/mysqlconfigurer/task"
+	"github.com/Releem/mysqlconfigurer/tasks"
 	"github.com/Releem/mysqlconfigurer/utils"
 	logging "github.com/google/logger"
 )
@@ -68,7 +68,7 @@ loop:
 				response := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Metrics", Type: ""})
 				if response == "Task" {
 					logger.Info("* A task received by the agent...")
-					f := task.ProcessTaskFunc(repeaters, gatherers["default"], logger, configuration)
+					f := tasks.ProcessTaskFunc(repeaters, gatherers["default"], logger, configuration)
 					time.AfterFunc(5*time.Second, f)
 				}
 

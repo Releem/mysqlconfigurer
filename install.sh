@@ -566,6 +566,23 @@ function setting_up_local_postgresql_instance() {
     create_postgresql_user    
 }
 
+
+# Detect API key based on environment variables
+apikey=
+if [ -n "$RELEEM_API_KEY" ]; then
+    apikey=$RELEEM_API_KEY
+else
+    if test -f $RELEEM_CONF_FILE ; then
+        . $RELEEM_CONF_FILE
+    fi
+fi
+if [ ! "$apikey" ]; then
+    printf "\033[31mReleem API key is not available in RELEEM_API_KEY environment variable. Please sign up at https://releem.com\033[0m\n"
+    on_error
+    exit 1;
+fi
+
+
 if [ "$0" == "uninstall" ];
 then
     trap - EXIT
@@ -593,39 +610,6 @@ then
     exit 0
 fi
 
-# OS/Distro Detection
-# Try lsb_release, fallback with /etc/issue then uname command
-KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|Amazon)"
-DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
-
-if [ -f /etc/debian_version ] || [ "$DISTRIBUTION" == "Debian" ] || [ "$DISTRIBUTION" == "Ubuntu" ]; then
-    OS="Debian"
-elif [ -f /etc/redhat-release ] || [ "$DISTRIBUTION" == "RedHat" ] || [ "$DISTRIBUTION" == "CentOS" ] || [ "$DISTRIBUTION" == "Amazon" ]; then
-    OS="RedHat"
-# Some newer distros like Amazon may not have a redhat-release file
-elif [ -f /etc/system-release ] || [ "$DISTRIBUTION" == "Amazon" ]; then
-    OS="RedHat"
-# Arista is based off of Fedora14/18 but do not have /etc/redhat-release
-elif [ -f /etc/Eos-release ] || [ "$DISTRIBUTION" == "Arista" ]; then
-    OS="RedHat"
-fi
-
-
-
-# Detect API key based on environment variables
-apikey=
-if [ -n "$RELEEM_API_KEY" ]; then
-    apikey=$RELEEM_API_KEY
-else
-    if test -f $RELEEM_CONF_FILE ; then
-        . $RELEEM_CONF_FILE
-    fi
-fi
-if [ ! "$apikey" ]; then
-    printf "\033[31mReleem API key is not available in RELEEM_API_KEY environment variable. Please sign up at https://releem.com\033[0m\n"
-    on_error
-    exit 1;
-fi
 
 # Parse parameters
 while getopts "u" option
@@ -655,6 +639,7 @@ if [ "$instance_type" == "local" ]; then
         configure_local_mysql_instance
     fi
 fi
+
 
 #Enable Query Optimitsation
 if [ "$0" == "enable_query_optimization" ];
@@ -696,12 +681,26 @@ then
 fi
 
 
+# OS/Distro Detection
+# Try lsb_release, fallback with /etc/issue then uname command
+KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|Amazon)"
+DISTRIBUTION=$(lsb_release -d 2>/dev/null | grep -Eo $KNOWN_DISTRIBUTION  || grep -Eo $KNOWN_DISTRIBUTION /etc/issue 2>/dev/null || grep -Eo $KNOWN_DISTRIBUTION /etc/Eos-release 2>/dev/null || grep -m1 -Eo $KNOWN_DISTRIBUTION /etc/os-release 2>/dev/null || uname -s)
 
-
+if [ -f /etc/debian_version ] || [ "$DISTRIBUTION" == "Debian" ] || [ "$DISTRIBUTION" == "Ubuntu" ]; then
+    OS="Debian"
+elif [ -f /etc/redhat-release ] || [ "$DISTRIBUTION" == "RedHat" ] || [ "$DISTRIBUTION" == "CentOS" ] || [ "$DISTRIBUTION" == "Amazon" ]; then
+    OS="RedHat"
+# Some newer distros like Amazon may not have a redhat-release file
+elif [ -f /etc/system-release ] || [ "$DISTRIBUTION" == "Amazon" ]; then
+    OS="RedHat"
+# Arista is based off of Fedora14/18 but do not have /etc/redhat-release
+elif [ -f /etc/Eos-release ] || [ "$DISTRIBUTION" == "Arista" ]; then
+    OS="RedHat"
+fi
 
 # Install the necessary package sources
 if [ "$OS" = "RedHat" ]; then
-    echo -e "\033[37m\n * Installing dependencies.\n\033[0m"
+    echo -e "\033[37m\n * Checking installed dependencies.\n\033[0m"
 
     if [ -x "/usr/bin/dnf" ]; then
         package_manager='dnf'
@@ -711,7 +710,7 @@ if [ "$OS" = "RedHat" ]; then
     which curl &> /dev/null || $sudo_cmd $package_manager -y install curl
     which crontab &> /dev/null || $sudo_cmd $package_manager -y install cronie
 elif [ "$OS" = "Debian" ]; then
-    printf "\033[37m\n * Installing dependencies.\n\033[0m\n"
+    printf "\033[37m\n * Checking installed dependencies.\n\033[0m\n"
     which curl &> /dev/null || ($sudo_cmd apt-get update ; $sudo_cmd apt-get install -y --force-yes curl)
     which crontab &> /dev/null || ($sudo_cmd apt-get update ; $sudo_cmd apt-get install -y --force-yes cron)
 else

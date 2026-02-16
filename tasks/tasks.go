@@ -25,7 +25,7 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 
 	metrics := utils.CollectMetrics(gatherers, logger, configuration)
 	RepeaterResponse := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Get"})
-	logger.Info("RepeaterResponse: ", RepeaterResponse)
+	logger.Infof("Task details: %s", RepeaterResponse)
 
 	err := json.Unmarshal([]byte(RepeaterResponse), &TaskStruct)
 	if err != nil {
@@ -38,7 +38,7 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 
 	metrics.ReleemAgent.Tasks = models.Task{ID: TaskStruct.ID, TypeID: TaskStruct.TypeID, Status: 3}
 	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Status"})
-	logger.Info(" * Task with id - ", TaskStruct.ID, " and type id - ", TaskStruct.TypeID, " is being started...")
+	logger.Infof(" * Task with id - %d and type id - %d is being started...", TaskStruct.ID, TaskStruct.TypeID)
 
 	switch TaskStruct.TypeID {
 	case 0:
@@ -127,9 +127,10 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 	case 7:
 		TaskStruct.ExitCode, TaskStruct.Status, TaskStruct.Output, TaskStruct.Error = ProcessQueryExplainTask(
 			TaskStruct.Details, logger, configuration, metrics)
-
 		if TaskStruct.ExitCode == 0 {
+			metrics.ReleemAgent.Tasks = *TaskStruct
 			RepeaterResponse := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskByName", Type: "custom_queries_optimization"})
+
 			mergedJSON, err := utils.MergeJSONStrings(TaskStruct.Details, RepeaterResponse, "custom_queries_optimization_response")
 			if err != nil {
 				logger.Error("Failed to merge task_details JSON: ", err)
@@ -144,8 +145,8 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 
 	time.Sleep(10 * time.Second)
 	metrics = utils.CollectMetrics(gatherers, logger, configuration)
-	logger.Info(" * Task with id - ", TaskStruct.ID, " and type id - ", TaskStruct.TypeID, " completed with code ", TaskStruct.ExitCode)
-	metrics.ReleemAgent.Tasks = *TaskStruct
+	logger.Infof(" * Task with id - %d and type id - %d completed with code %d", TaskStruct.ID, TaskStruct.TypeID, TaskStruct.ExitCode)
 
+	metrics.ReleemAgent.Tasks = *TaskStruct
 	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Status"})
 }

@@ -29,7 +29,6 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 	var task_exit_code, task_status int = 0, 1
 	var task_output, task_error string
 
-	logger.Info(task_details)
 	// Parse JSON from Task Details
 	var inputs []QueryExplainTaskInput
 	err := json.Unmarshal([]byte(task_details), &inputs)

@@ -81,7 +81,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	case "Task":
 		switch Mode.Type {
 		case "Get":
-			api_domain = api_domain + "tasks/pull"
+			api_domain = api_domain + "tasks/get"
 		case "Status":
 			api_domain = api_domain + "tasks/status"
 		}

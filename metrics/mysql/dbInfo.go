@@ -1,6 +1,8 @@
-package metrics
+package mysql
 
 import (
+	"os"
+	"regexp"
 	"strings"
 
 	"github.com/Releem/mysqlconfigurer/config"
@@ -10,32 +12,56 @@ import (
 	"github.com/hashicorp/go-version"
 )
 
-type DbInfoGatherer struct {
+type DBInfoGatherer struct {
 	logger        logging.Logger
 	configuration *config.Config
 }
 
-func NewDbInfoGatherer(logger logging.Logger, configuration *config.Config) *DbInfoGatherer {
-	return &DbInfoGatherer{
+func NewDBInfoGatherer(logger logging.Logger, configuration *config.Config) *DBInfoGatherer {
+	return &DBInfoGatherer{
 		logger:        logger,
 		configuration: configuration,
 	}
 }
 
-func (DbInfo *DbInfoGatherer) GetMetrics(metrics *models.Metrics) error {
-	defer utils.HandlePanic(DbInfo.configuration, DbInfo.logger)
+func (DBInfo *DBInfoGatherer) GetMetrics(metrics *models.Metrics) error {
+	defer utils.HandlePanic(DBInfo.configuration, DBInfo.logger)
+
 	var row models.MetricValue
+	var mysql_version string
+	metrics.DB.Info = make(models.MetricGroupValue)
+	// Mysql version
+	err := models.DB.QueryRow("select VERSION()").Scan(&row.Value)
+	if err != nil {
+		DBInfo.logger.Error(err)
+		return nil
+	}
+	re := regexp.MustCompile(`(.*?)\-.*`)
+	version := re.FindStringSubmatch(row.Value)
+	if len(version) > 0 {
+		mysql_version = version[1]
+	} else {
+		mysql_version = row.Value
+	}
+	metrics.DB.Info["Version"] = mysql_version
+	err = os.WriteFile(DBInfo.configuration.ReleemConfDir+utils.DBVersionFileName(), []byte(mysql_version), 0644)
+	if err != nil {
+		DBInfo.logger.Error("WriteFile: Error write to file: ", err)
+	}
+	// Mysql force memory limit
+	metrics.DB.Info["MemoryLimit"] = DBInfo.configuration.GetMemoryLimit()
+	metrics.DB.Info["Type"] = "mysql"
 
 	var output []string
 	rows, err := models.DB.Query("SHOW GRANTS")
 	if err != nil {
-		DbInfo.logger.Error(err)
+		DBInfo.logger.Error(err)
 		return err
 	}
 	for rows.Next() {
 		err := rows.Scan(&row.Value)
 		if err != nil {
-			DbInfo.logger.Error(err)
+			DBInfo.logger.Error(err)
 			return err
 		}
 		output = append(output, row.Value)
@@ -43,14 +69,14 @@ func (DbInfo *DbInfoGatherer) GetMetrics(metrics *models.Metrics) error {
 	rows.Close()
 	metrics.DB.Info["Grants"] = output
 
-	metrics.DB.Info["UsersSecurityCheck"] = users_security_check(DbInfo, metrics)
+	metrics.DB.Info["UsersSecurityCheck"] = users_security_check(DBInfo, metrics)
 
-	DbInfo.logger.V(5).Info("CollectMetrics DbInfo ", metrics.DB.Info)
+	DBInfo.logger.V(5).Info("CollectMetrics DBInfo ", metrics.DB.Info)
+
 	return nil
-
 }
 
-func users_security_check(DbInfo *DbInfoGatherer, metrics *models.Metrics) []models.MetricGroupValue {
+func users_security_check(DBInfo *DBInfoGatherer, metrics *models.Metrics) []models.MetricGroupValue {
 	var output_users, users_check []models.MetricGroupValue
 
 	var password_column_exists, authstring_column_exists int
@@ -70,33 +96,33 @@ func users_security_check(DbInfo *DbInfoGatherer, metrics *models.Metrics) []mod
 		} else if authstring_column_exists == 1 {
 			PASS_COLUMN_NAME = "authentication_string"
 		} else if password_column_exists != 1 {
-			DbInfo.logger.Info("DEBUG: Skipped due to none of known auth columns exists")
+			DBInfo.logger.Info("DEBUG: Skipped due to none of known auth columns exists")
 			return output_users
 		}
 	}
-	DbInfo.logger.Info("DEBUG: Password column = ", PASS_COLUMN_NAME)
+	DBInfo.logger.Info("DEBUG: Password column = ", PASS_COLUMN_NAME)
 
 	var Username, User, Host, Password_As_User string
 	rows_users, err := models.DB.Query("SELECT CONCAT(QUOTE(user), '@', QUOTE(host)), user, host, (CAST(" + PASS_COLUMN_NAME + " as Binary) = PASSWORD(user) OR CAST(" + PASS_COLUMN_NAME + " as Binary) = PASSWORD(UPPER(user)) ) as Password_As_User FROM mysql.user")
 	if err != nil || !rows_users.Next() {
 		if err != nil {
 			if strings.Contains(err.Error(), "Error 1064 (42000): You have an error in your SQL syntax") {
-				DbInfo.logger.Info("DEBUG: PASSWORD() function is not supported. Try another query...")
+				DBInfo.logger.Info("DEBUG: PASSWORD() function is not supported. Try another query...")
 			} else {
-				DbInfo.logger.Error(err)
+				DBInfo.logger.Error(err)
 			}
 		} else {
-			DbInfo.logger.Info("DEBUG: Plugin validate_password is activated. Try another query...")
+			DBInfo.logger.Info("DEBUG: Plugin validate_password is activated. Try another query...")
 		}
 		rows_users, err = models.DB.Query("SELECT CONCAT(QUOTE(user), '@', QUOTE(host)), user, host, (CAST(" + PASS_COLUMN_NAME + " as Binary) = CONCAT('*',UPPER(SHA1(UNHEX(SHA1(user))))) OR CAST(" + PASS_COLUMN_NAME + " as Binary) = CONCAT('*',UPPER(SHA1(UNHEX(SHA1(UPPER(user)))))) ) as Password_As_User FROM mysql.user")
 		if err != nil {
-			DbInfo.logger.Error(err)
+			DBInfo.logger.Error(err)
 		} else {
 			defer rows_users.Close()
 			for rows_users.Next() {
 				err := rows_users.Scan(&Username, &User, &Host, &Password_As_User)
 				if err != nil {
-					DbInfo.logger.Error(err)
+					DBInfo.logger.Error(err)
 				} else {
 					output_users = append(output_users, models.MetricGroupValue{"Username": Username, "User": User, "Host": Host, "Password_As_User": Password_As_User})
 				}
@@ -106,14 +132,14 @@ func users_security_check(DbInfo *DbInfoGatherer, metrics *models.Metrics) []mod
 		defer rows_users.Close()
 		err := rows_users.Scan(&Username, &User, &Host, &Password_As_User)
 		if err != nil {
-			DbInfo.logger.Error(err)
+			DBInfo.logger.Error(err)
 		} else {
 			output_users = append(output_users, models.MetricGroupValue{"Username": Username, "User": User, "Host": Host, "Password_As_User": Password_As_User})
 		}
 		for rows_users.Next() {
 			err := rows_users.Scan(&Username, &User, &Host, &Password_As_User)
 			if err != nil {
-				DbInfo.logger.Error(err)
+				DBInfo.logger.Error(err)
 			} else {
 				output_users = append(output_users, models.MetricGroupValue{"Username": Username, "User": User, "Host": Host, "Password_As_User": Password_As_User})
 			}
@@ -124,19 +150,19 @@ func users_security_check(DbInfo *DbInfoGatherer, metrics *models.Metrics) []mod
 	rows_users, err = models.DB.Query("SELECT CONCAT(QUOTE(user), '@', QUOTE(host)) FROM mysql.global_priv WHERE ( user != '' AND JSON_CONTAINS(Priv, '\"mysql_native_password\"', '$.plugin') AND JSON_CONTAINS(Priv, '\"\"', '$.authentication_string') AND NOT JSON_CONTAINS(Priv, 'true', '$.account_locked'))")
 	if err != nil {
 		if strings.Contains(err.Error(), "Error 1146 (42S02): Table 'mysql.global_priv' doesn't exist") {
-			DbInfo.logger.Info("DEBUG: Not MariaDB, try another query...")
+			DBInfo.logger.Info("DEBUG: Not MariaDB, try another query...")
 		} else {
-			DbInfo.logger.Error(err)
+			DBInfo.logger.Error(err)
 		}
 		rows_users, err = models.DB.Query("SELECT CONCAT(QUOTE(user), '@', QUOTE(host)) FROM mysql.user WHERE (" + PASS_COLUMN_NAME + " = '' OR " + PASS_COLUMN_NAME + " IS NULL) AND user != '' /*!50501 AND plugin NOT IN ('auth_socket', 'unix_socket', 'win_socket', 'auth_pam_compat') */  /*!80000 AND account_locked = 'N' AND password_expired = 'N' */")
 		if err != nil {
-			DbInfo.logger.Error(err)
+			DBInfo.logger.Error(err)
 		} else {
 			defer rows_users.Close()
 			for rows_users.Next() {
 				err := rows_users.Scan(&Username)
 				if err != nil {
-					DbInfo.logger.Error(err)
+					DBInfo.logger.Error(err)
 				} else {
 					output_user_blank_password[Username] = 1
 				}
@@ -147,7 +173,7 @@ func users_security_check(DbInfo *DbInfoGatherer, metrics *models.Metrics) []mod
 		for rows_users.Next() {
 			err := rows_users.Scan(&Username)
 			if err != nil {
-				DbInfo.logger.Error(err)
+				DBInfo.logger.Error(err)
 			} else {
 				output_user_blank_password[Username] = 1
 			}
@@ -159,9 +185,9 @@ func users_security_check(DbInfo *DbInfoGatherer, metrics *models.Metrics) []mod
 
 		if ok &&
 			user["User"].(string) != "mariadb.sys" &&
-			!(DbInfo.configuration.InstanceType == "aws/rds" &&
+			!(DBInfo.configuration.InstanceType == "aws/rds" &&
 				user["User"].(string) == "rdsadmin") &&
-			!(DbInfo.configuration.InstanceType == "gcp/cloudsql" &&
+			!(DBInfo.configuration.InstanceType == "gcp/cloudsql" &&
 				(strings.Contains(user["User"].(string), "cloudsql") ||
 					user["User"].(string) == "root")) {
 
@@ -174,7 +200,7 @@ func users_security_check(DbInfo *DbInfoGatherer, metrics *models.Metrics) []mod
 	for _, user := range output_users {
 		remoteConnRoot := 0
 		anonymousUser := 0
-		if DbInfo.configuration.InstanceType == "local" &&
+		if DBInfo.configuration.InstanceType == "local" &&
 			user["User"].(string) == "root" &&
 			user["Host"].(string) != "localhost" &&
 			user["Host"].(string) != "127.0.0.1" &&

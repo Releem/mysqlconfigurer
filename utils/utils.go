@@ -3,7 +3,9 @@ package utils
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -12,11 +14,12 @@ import (
 	"github.com/Releem/mysqlconfigurer/models"
 	_ "github.com/go-sql-driver/mysql"
 	logging "github.com/google/logger"
+	_ "github.com/lib/pq"
 	"github.com/pkg/errors"
 )
 
 func ProcessRepeaters(metrics *models.Metrics, repeaters models.MetricsRepeater,
-	configuration *config.Config, logger logging.Logger, Mode models.ModeType) interface{} {
+	configuration *config.Config, logger logging.Logger, Mode models.ModeType) string {
 	defer HandlePanic(configuration, logger)
 
 	result, err := repeaters.ProcessMetrics(configuration, *metrics, Mode)
@@ -66,6 +69,25 @@ func IsPath(path string, logger logging.Logger) bool {
 }
 
 func ConnectionDatabase(configuration *config.Config, logger logging.Logger, DBname string) *sql.DB {
+	dbType := configuration.GetDatabaseType()
+
+	switch dbType {
+	case "postgresql":
+		if DBname == "" {
+			DBname = "postgres"
+		}
+		return ConnectionPostgreSQL(configuration, logger, DBname)
+	case "mysql":
+		fallthrough
+	default:
+		if DBname == "" {
+			DBname = "mysql"
+		}
+		return ConnectionMySQL(configuration, logger, DBname)
+	}
+}
+
+func ConnectionMySQL(configuration *config.Config, logger logging.Logger, DBname string) *sql.DB {
 	var db *sql.DB
 	var err error
 	var TypeConnection string
@@ -105,6 +127,35 @@ func ConnectionDatabase(configuration *config.Config, logger logging.Logger, DBn
 	return db
 }
 
+func ConnectionPostgreSQL(configuration *config.Config, logger logging.Logger, DBname string) *sql.DB {
+	var db *sql.DB
+	var err error
+	var sslmode string
+
+	if configuration.PgSslMode {
+		sslmode = "require"
+	} else {
+		sslmode = "disable"
+	}
+	// Build PostgreSQL connection string
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		configuration.PgHost, configuration.PgPort, configuration.PgUser,
+		configuration.PgPassword, DBname, sslmode)
+
+	db, err = sql.Open("postgres", connStr)
+	if err != nil {
+		logger.Error("PostgreSQL connection opening failed ", err)
+	}
+
+	err = db.Ping()
+	if err != nil {
+		logger.Info("PostgreSQL connection failed to DB ", DBname, " via tcp ", configuration.PgHost, ":", configuration.PgPort)
+	} else {
+		logger.Info("PostgreSQL connection successful to DB ", DBname, " via tcp ", configuration.PgHost, ":", configuration.PgPort)
+	}
+	return db
+}
+
 func EnableEventsStatementsConsumers(configuration *config.Config, logger logging.Logger, uptime_str string) {
 	uptime, err := strconv.Atoi(uptime_str)
 	if err != nil {
@@ -132,13 +183,163 @@ func EnableEventsStatementsConsumers(configuration *config.Config, logger loggin
 	}
 }
 
-func GetSampleCollectionStrategy(configuration *config.Config, logger logging.Logger, uptime_str string) {
-	EnableEventsStatementsConsumers(configuration, logger, uptime_str)
-	if models.CountEnabledConsumers >= 2 {
-		configuration.QueryOptimizationCollectSqlTextPeriod = 10
-	} else if models.CountEnabledConsumers > 0 {
-		configuration.QueryOptimizationCollectSqlTextPeriod = 1
-	} else if models.CountEnabledConsumers == 0 {
-		configuration.QueryOptimizationCollectSqlTextPeriod = 0
+func GetStrategyCollectionSampleQueries(configuration *config.Config, logger logging.Logger, uptime_str string) {
+	// Only applicable to MySQL
+	if configuration.GetDatabaseType() == "mysql" {
+		EnableEventsStatementsConsumers(configuration, logger, uptime_str)
 	}
+	if models.CountEnabledConsumers >= 2 {
+		configuration.CollectSampleQueriesPeriod = 10 // 10 seconds
+	} else if models.CountEnabledConsumers > 0 {
+		configuration.CollectSampleQueriesPeriod = 1 // 1 second
+	} else if models.CountEnabledConsumers == 0 {
+		configuration.CollectSampleQueriesPeriod = 600 // 10 minutes
+	}
+}
+
+// IsSchemaNameExclude checks if a schema name should be excluded from query optimization
+func IsSchemaNameExclude(SchemaName string, DatabasesQueryOptimization string) bool {
+	if DatabasesQueryOptimization == "" {
+		return false
+	}
+	for _, DbName := range strings.Split(DatabasesQueryOptimization, `,`) {
+		if SchemaName == DbName {
+			return false
+		}
+	}
+	return true
+}
+
+func ScanRows(rows *sql.Rows, logger logging.Logger) []models.MetricGroupValue {
+
+	cols, err := rows.Columns()
+	if err != nil {
+		logger.Error(err)
+	}
+	var out []map[string]any
+
+	for rows.Next() {
+		// Готовим приёмники под каждую колонку
+		values := make([]any, len(cols))
+		ptrs := make([]any, len(cols))
+		for i := range values {
+			ptrs[i] = &values[i]
+		}
+		err := rows.Scan(ptrs...)
+		if err != nil {
+			logger.Error(err)
+			return nil
+		}
+
+		row := make(map[string]any, len(cols))
+		for i, col := range cols {
+			v := values[i]
+			switch vv := v.(type) {
+			case []byte:
+				row[col] = string(vv)
+			case nil:
+				row[col] = nil
+			default:
+				row[col] = vv // может быть nil, time.Time, int64, float64, bool и т.д.
+			}
+
+		}
+		out = append(out, row)
+	}
+	// Convert []map[string]any to []models.MetricGroupValue
+	processListConverted := make([]models.MetricGroupValue, len(out))
+	for i, row := range out {
+		processListConverted[i] = models.MetricGroupValue(row)
+	}
+	return processListConverted
+}
+
+func DBVersionFileName() string {
+	switch runtime.GOOS {
+	case "windows":
+		return "\\DB_Version.txt"
+	default: // для Linux и других UNIX-подобных систем
+		return "/db_version"
+	}
+}
+
+func MergeJSONStrings(leftJSON, rightJSON string, key string) (string, error) {
+	if leftJSON == "" {
+		return rightJSON, nil
+	}
+	if rightJSON == "" {
+		return leftJSON, nil
+	}
+
+	var leftValue interface{}
+	if err := json.Unmarshal([]byte(leftJSON), &leftValue); err != nil {
+		return "", err
+	}
+	var rightValue interface{}
+	if err := json.Unmarshal([]byte(rightJSON), &rightValue); err != nil {
+		return "", err
+	}
+
+	switch leftTyped := leftValue.(type) {
+	case map[string]interface{}:
+		if rightTyped, ok := rightValue.(map[string]interface{}); ok {
+			if key != "" {
+				leftTyped[key] = rightTyped
+			} else {
+				for key, value := range rightTyped {
+					leftTyped[key] = value
+				}
+			}
+			mergedBytes, err := json.Marshal(leftTyped)
+			if err != nil {
+				return "", err
+			}
+			return string(mergedBytes), nil
+		}
+	case []interface{}:
+		if rightTyped, ok := rightValue.([]interface{}); ok {
+			mergedBytes, err := json.Marshal(append(leftTyped, rightTyped...))
+			if err != nil {
+				return "", err
+			}
+			return string(mergedBytes), nil
+		} else if rightTyped, ok := rightValue.(map[string]interface{}); ok {
+			for i, k := range leftTyped {
+				typedItem, ok := k.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if key != "" {
+					typedItem[key] = rightTyped
+				} else {
+					for key, value := range rightTyped {
+						typedItem[key] = value
+					}
+				}
+				leftTyped[i] = typedItem
+			}
+			mergedBytes, err := json.Marshal(leftTyped)
+			if err != nil {
+				return "", err
+			}
+			return string(mergedBytes), nil
+		}
+	}
+
+	mergedBytes, err := json.Marshal([]interface{}{leftValue, rightValue})
+	if err != nil {
+		return "", err
+	}
+	return string(mergedBytes), nil
+}
+
+func ConvertUptimeToStr(Status models.MetricGroupValue) string {
+	// Safely get uptime value - use "0" as default if not available
+	var uptime_str string = "0"
+	if uptime_val, exists := Status["Uptime"]; exists && uptime_val != nil {
+		if uptime_str_val, ok := uptime_val.(string); ok {
+			uptime_str = uptime_str_val
+		}
+	}
+	return uptime_str
 }

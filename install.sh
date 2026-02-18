@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh - Version 1.22.7
+# install.sh - Version 1.23.0
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -9,15 +9,22 @@ export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/
 # using the package manager.
 
 set -e -E
-install_script_version=1.22.7
+install_script_version=1.23.0
 logfile="/var/log/releem-install.log"
 
-WORKDIR="/opt/releem"
-CONF="$WORKDIR/releem.conf"
-MYSQL_CONF_DIR="/etc/mysql/releem.conf.d"
-RELEEM_COMMAND="/bin/bash $WORKDIR/mysqlconfigurer.sh"
+RELEEM_WORKDIR="/opt/releem"
+RELEEM_CONF_FILE="$RELEEM_WORKDIR/releem.conf"
+RELEEM_COMMAND="/bin/bash $RELEEM_WORKDIR/mysqlconfigurer.sh"
+RELEEM_AGENT_BINARY_URL="https://releem.s3.amazonaws.com/v2/releem-agent-$(arch)"
+RELEEM_AGENT_SCRIPT_URL="https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh"
 
-# Read configuration
+
+# Root user detection
+if [ "$(echo "$UID")" = "0" ]; then
+    sudo_cmd=''
+else
+    sudo_cmd='sudo'
+fi
 
 # Set up a named pipe for logging
 npipe=/tmp/$$.install.tmp
@@ -49,88 +56,50 @@ trap on_error ERR
 trap on_exit EXIT
 
 function releem_set_cron() {
-    ($sudo_cmd crontab -l 2>/dev/null | grep -v "$WORKDIR/mysqlconfigurer.sh" || true; echo "$RELEEM_CRON") | $sudo_cmd crontab -
+    ($sudo_cmd crontab -l 2>/dev/null | grep -v "$RELEEM_WORKDIR/mysqlconfigurer.sh" || true; echo "$RELEEM_CRON") | $sudo_cmd crontab -
 }
 
 function releem_update() {
     printf "\033[37m\n * Downloading latest version of Releem Agent.\033[0m\n"
-    $sudo_cmd find /usr/ -name 'mysqladmin' || true
-    $sudo_cmd find /usr/ -name 'mysql' || true
-    $sudo_cmd curl -w "%{http_code}" -L -o $WORKDIR/releem-agent.new https://releem.s3.amazonaws.com/v2/releem-agent-$(arch)
-    $sudo_cmd curl -w "%{http_code}" -L -o $WORKDIR/mysqlconfigurer.sh.new https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh
-    $sudo_cmd $WORKDIR/releem-agent  stop || true
-    #$sudo_cmd $WORKDIR/releem-agent  remove || true
-    $sudo_cmd mv $WORKDIR/releem-agent.new $WORKDIR/releem-agent
-    $sudo_cmd mv $WORKDIR/mysqlconfigurer.sh.new $WORKDIR/mysqlconfigurer.sh
-    $sudo_cmd chmod 755 $WORKDIR/mysqlconfigurer.sh   $WORKDIR/releem-agent
-    #$sudo_cmd $WORKDIR/releem-agent  install || true
-    $sudo_cmd $WORKDIR/releem-agent start || true
-    $sudo_cmd $WORKDIR/releem-agent -f
+
+    $sudo_cmd curl -w "%{http_code}" -L -o $RELEEM_WORKDIR/releem-agent.new $RELEEM_AGENT_BINARY_URL
+    $sudo_cmd curl -w "%{http_code}" -L -o $RELEEM_WORKDIR/mysqlconfigurer.sh.new $RELEEM_AGENT_SCRIPT_URL
+    $sudo_cmd $RELEEM_WORKDIR/releem-agent  stop || true
+    $sudo_cmd mv $RELEEM_WORKDIR/releem-agent.new $RELEEM_WORKDIR/releem-agent
+    $sudo_cmd mv $RELEEM_WORKDIR/mysqlconfigurer.sh.new $RELEEM_WORKDIR/mysqlconfigurer.sh
+    $sudo_cmd chmod 755 $RELEEM_WORKDIR/mysqlconfigurer.sh   $RELEEM_WORKDIR/releem-agent
+    $sudo_cmd $RELEEM_WORKDIR/releem-agent start || true
+    $sudo_cmd $RELEEM_WORKDIR/releem-agent -f
     
     echo
     echo
     echo -e "Releem Agent updated successfully."
     echo
-    echo -e "To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics"
+    echo -e "To check Releem Performance Score please visit https://app.releem.com/dashboard?menu=metrics"
     echo
 
     exit 0
 }
 
-if [ "$0" == "uninstall" ];
-then
-    trap - EXIT
-    $WORKDIR/releem-agent --event=agent_uninstall > /dev/null
-    printf "\033[37m\n * Configuring crontab\033[0m\n"
-    ($sudo_cmd crontab -l 2>/dev/null | grep -v "$WORKDIR/mysqlconfigurer.sh" || true) | $sudo_cmd crontab -
-    printf "\033[37m\n * Stopping Releem Agent service.\033[0m\n"
-    releem_agent_stop=$($sudo_cmd $WORKDIR/releem-agent  stop)
-    if [ $? -eq 0 ]; then
-        printf "\033[32m\n Releem Agent stopped successfully.\033[0m\n"
+function detect_database_type() {
+    printf "\033[37m\n * Detecting database type based on environment variables.\033[0m\n"
+    # Database type detection
+    database_type="mysql"  # Default to MySQL for backward compatibility
+    
+    # Check for PostgreSQL environment variables
+    if [[ -v RELEEM_PG_HOST ]] || [[ -v RELEEM_PG_LOGIN ]] || [[ -v RELEEM_PG_PASSWORD ]] || [[ -v RELEEM_PG_ROOT_PASSWORD ]]; then
+        database_type="postgresql"
+        printf "\033[37m   Detected PostgreSQL configuration.\033[0m\n"
+    # Check for MySQL environment variables (fallback)
+    elif [[ -v RELEEM_MYSQL_HOST ]] || [[ -v RELEEM_MYSQL_LOGIN ]] || [[ -v RELEEM_MYSQL_PASSWORD ]] || [[ -v RELEEM_MYSQL_ROOT_PASSWORD ]]; then
+        database_type="mysql"
+        printf "\033[37m   Detected MySQL configuration.\033[0m\n"
     else
-        echo $releem_agent_stop
-        printf "\033[31m\n Releem Agent failed to stop.\033[0m\n"
+        # Default to MySQL for backward compatibility
+        database_type="mysql"
+        printf "\033[37m   No specific database configuration detected, defaulting to MySQL.\033[0m\n"
     fi
-    printf "\033[37m\n * Uninstalling Releem Agent service.\033[0m\n"
-    releem_agent_remove=$($sudo_cmd $WORKDIR/releem-agent remove)
-    if [ $? -eq 0 ]; then
-        printf "\033[32m\n Releem Agent uninstalled successfully.\033[0m\n"
-    else
-        echo $releem_agent_remove
-        printf "\033[31m\n Releem Agent failed to  uninstall.\033[0m\n"
-    fi
-    printf "\033[37m\n * Removing files Releem Agent\033[0m\n"
-    $sudo_cmd rm -rf $WORKDIR
-    exit 0
-fi
-
-apikey=
-if [ -n "$RELEEM_API_KEY" ]; then
-    apikey=$RELEEM_API_KEY
-else
-    if test -f $CONF ; then
-        . $CONF
-    fi
-fi
-
-if [ ! "$apikey" ]; then
-    printf "\033[31mReleem API key is not available in RELEEM_API_KEY environment variable. Please sign up at https://releem.com\033[0m\n"
-    on_error
-    exit 1;
-fi
-
-if [ -n "$RELEEM_INSTANCE_TYPE" ]; then
-    instance_type=$RELEEM_INSTANCE_TYPE
-else
-    instance_type="local"
-fi
-
-# Root user detection
-if [ "$(echo "$UID")" = "0" ]; then
-    sudo_cmd=''
-else
-    sudo_cmd='sudo'
-fi
+}
 
 # ================================================================================
 # FUNCTIONS FOR LOCAL INSTANCE CONFIGURATION
@@ -161,6 +130,36 @@ function detect_mysql_commands() {
     # Export as global variables
     mysqladmincmd="$mysqladmin_cmd"
     mysqlcmd="$mysql_cmd"
+}
+
+function detect_postgresql_commands() {
+    local psql_cmd=""
+    local pg_isready_cmd=""
+    
+    printf "\033[37m\n * Detecting PostgreSQL commands.\033[0m\n"
+    
+    # Detect psql
+    psql_cmd=$(which psql 2>/dev/null || true)
+    if [ -z "$psql_cmd" ]; then
+        printf "\033[31m Couldn't find psql in your \$PATH. Please install PostgreSQL client tools or correct the \$PATH variable \033[0m\n"
+        on_error
+        exit 1
+    fi
+
+    # Detect pg_isready
+    pg_isready_cmd=$(which pg_isready 2>/dev/null || true)
+    # if [ -z "$pg_isready_cmd" ]; then
+    #     printf "\033[31m Couldn't find pg_isready in your \$PATH. Please install PostgreSQL client tools \033[0m\n"
+    #     on_error
+    #     exit 1
+    # fi    
+
+    # Export as global variables
+    psqlcmd="$psql_cmd"
+    pg_isreadycmd="$pg_isready_cmd"
+
+    printf "\033[37m   Found psql: %s\033[0m\n" "$psql_cmd"
+    printf "\033[37m   Found pg_isready: %s\033[0m\n" "$pg_isready_cmd"
 }
 
 function setup_mysql_connection_string() {
@@ -203,6 +202,35 @@ function setup_mysql_connection_string() {
     fi
 }
 
+function setup_postgresql_connection_string() {
+    printf "\033[37m\n * Setting up PostgreSQL connection parameters.\033[0m\n"
+    
+    pg_connection_string=""
+    pg_root_connection_string=""
+    pg_root_peer_connection=""
+
+    # Set PostgreSQL host
+    if [ -z "$RELEEM_PG_ROOT_PASSWORD" ]; then
+        pg_root_connection_string="${pg_root_connection_string}"
+        pg_root_peer_connection="sudo -u postgres "
+    else
+        pg_root_connection_string="${pg_root_connection_string} -h ${RELEEM_PG_HOST:-127.0.0.1}"            
+    fi
+    pg_connection_string="${pg_connection_string} -h ${RELEEM_PG_HOST:-127.0.0.1}"            
+
+
+    # Set PostgreSQL port
+    pg_connection_string="${pg_connection_string} -p ${RELEEM_PG_PORT:-5432}"
+    pg_root_connection_string="${pg_root_connection_string} -p ${RELEEM_PG_PORT:-5432}"
+
+    printf "\033[37m   Using connection params: admin - '%s psql %s', user - '%s'\033[0m\n" "$pg_root_peer_connection" "$pg_root_connection_string" "$pg_connection_string"
+
+    # Set database name (default to postgres)
+    pg_database="${RELEEM_PG_DATABASE:-postgres}"
+    pg_connection_string="${pg_connection_string} -d ${pg_database}"
+    pg_root_connection_string="${pg_root_connection_string} -d ${pg_database}"
+}
+
 function detect_mysql_service() {
     printf "\033[37m\n * Detecting MySQL service name for database server restart.\033[0m\n"
 
@@ -238,7 +266,46 @@ function detect_mysql_service() {
     fi
 }
 
+function detect_postgresql_service() {
+    printf "\033[37m\n * Detecting PostgreSQL service name for database server restart.\033[0m\n"
+
+    local systemctl_cmd
+    systemctl_cmd=$(which systemctl 2>/dev/null || true)
+
+    if [ -n "$systemctl_cmd" ]; then
+        # Check if PostgreSQL is running
+        if $sudo_cmd $systemctl_cmd status postgresql >/dev/null 2>&1; then
+            pg_service_name_cmd="$sudo_cmd $systemctl_cmd restart postgresql"
+        elif $sudo_cmd $systemctl_cmd status postgresql-* >/dev/null 2>&1; then
+            # Try to find versioned PostgreSQL service
+            pg_service=$(systemctl list-units --type=service | grep -o 'postgresql-[0-9][0-9]*\.service' | head -n1 | sed 's/\.service//')
+            if [ -n "$pg_service" ]; then
+                pg_service_name_cmd="$sudo_cmd $systemctl_cmd restart $pg_service"
+            else
+                printf "\033[31m\n * Failed to determine PostgreSQL systemd service to restart.\033[0m"
+            fi
+        else
+            printf "\033[31m\n * Failed to determine PostgreSQL systemd service to restart.\033[0m"
+        fi
+    else
+        # Check if PostgreSQL is running with init.d
+        if [ -f /etc/init.d/postgresql ]; then
+            pg_service_name_cmd="$sudo_cmd /etc/init.d/postgresql restart"
+        else
+            printf "\033[31m\n * Failed to determine PostgreSQL init.d service to restart.\033[0m"
+        fi
+    fi
+    
+    if [ -z "$pg_service_name_cmd" ]; then
+        printf "\033[31m\n   The automatic applying PostgreSQL configuration will not work. \n\033[0m"
+    else
+        printf "\033[37m   PostgreSQL restart command: %s\033[0m\n" "$pg_service_name_cmd"
+    fi
+}
+
 function setup_mysql_config_directory() {
+    MYSQL_CONF_DIR="/etc/mysql/releem.conf.d"
+
     printf "\033[37m\n * Setting up MySQL configuration directory.\033[0m\n"
     if [ -n "$RELEEM_MYSQL_MY_CNF_PATH" ]; then
         MYSQL_MY_CNF_PATH=$RELEEM_MYSQL_MY_CNF_PATH
@@ -267,6 +334,46 @@ function setup_mysql_config_directory() {
             echo -e "\n!includedir $MYSQL_CONF_DIR" | $sudo_cmd tee -a $MYSQL_MY_CNF_PATH >/dev/null
         fi
     fi    
+}
+
+function setup_postgresql_config_directory() {
+    printf "\033[37m\n * Setting up PostgreSQL configuration directory.\033[0m\n"
+    
+    # Find PostgreSQL configuration file
+    if [ -n "$RELEEM_PG_CONF_DIR" ]; then
+        PG_CONF_DIR="$RELEEM_PG_CONF_DIR"
+        printf "\033[37m   Using provided conf.d directory: %s\033[0m\n" "$PG_CONF_DIR"
+    else
+        # Try common PostgreSQL configuration paths
+        for pg_version in 18 17 16 15 14 13 12 11 10 9.6 9.5; do
+            if [ -f "/etc/postgresql/${pg_version}/main/postgresql.conf" ]; then
+                PG_CONF_DIR="/etc/postgresql/${pg_version}/main/conf.d"
+                break
+            elif [ -f "/var/lib/pgsql/${pg_version}/data/postgresql.conf" ]; then
+                PG_CONF_DIR="/var/lib/pgsql/${pg_version}/data/conf.d"
+                break
+            fi
+        done
+        
+        # Try generic paths
+        if [ -z "$PG_CONF_DIR" ]; then
+            if [ -f "/etc/postgresql/postgresql.conf" ]; then
+                PG_CONF_DIR="/etc/postgresql/conf.d"
+            elif [ -f "/var/lib/pgsql/data/postgresql.conf" ]; then
+                PG_CONF_DIR="/var/lib/pgsql/data/conf.d"
+            else
+                printf "\033[33m Warning: PostgreSQL configuration directory not found in standard locations.\033[0m\n"
+                printf "\033[33m Please set RELEEM_PG_CONF_DIR environment variable.\033[0m\n"
+                return
+            fi
+        fi
+    fi
+    
+    if [ ! -d "$PG_CONF_DIR" ]; then
+        printf "\033[31m * File $PG_CONF_DIR not found. The automatic applying PostgreSQL configuration is disabled.\033[0m\n"
+    else
+        printf "\033[37m   Using PostgreSQL configuration directory: %s\033[0m\n" "$PG_CONF_DIR"
+    fi
 }
 
 function create_mysql_user() {
@@ -352,14 +459,84 @@ function create_mysql_user() {
     fi
 }
 
+function create_postgresql_user() {
+    printf "\033[37m\n * Configuring the PostgreSQL user for metrics collection.\033[0m\n"
+    FLAG_SUCCESS=0
+    
+    if [ -n "$RELEEM_PG_PASSWORD" ] && [ -n "$RELEEM_PG_LOGIN" ]; then
+        printf "\033[37m - Using PostgreSQL login and password from environment variables\033[0m\n"
+        FLAG_SUCCESS=1
+    else
+        printf "\033[37m - Using PostgreSQL superuser for user creation.\033[0m\n"        
+        # Test connection with superuser (usually postgres)
+        pg_superuser="${RELEEM_PG_ROOT_LOGIN:-postgres}"            
+        if PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "SELECT VERSION()" >/dev/null 2>&1; then
 
-function configure_local_instance() {   
+            printf "\033[37m - PostgreSQL connection successful.\033[0m\n"
+            
+            # Set default user and generate password
+            RELEEM_PG_LOGIN="releem"
+            RELEEM_PG_PASSWORD=$(cat /dev/urandom | tr -cd '%*)?@#~' | head -c2 ; cat /dev/urandom | tr -cd '%*)?@#~A-Za-z0-9%*)?@#~' | head -c16 ; cat /dev/urandom | tr -cd '%*)?@#~' | head -c2 )
+            
+            # Drop user if exists and create new one
+            PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "DROP USER IF EXISTS ${RELEEM_PG_LOGIN};" 2>/dev/null || true
+            PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "CREATE USER ${RELEEM_PG_LOGIN} WITH PASSWORD '${RELEEM_PG_PASSWORD}';" 2>/dev/null 
+            
+            # Grant necessary permissions
+            PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "GRANT pg_monitor TO ${RELEEM_PG_LOGIN};" 2>/dev/null 
+            
+            # # Try to grant access to pg_stat_statements if available
+            # if $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements';" | grep -q 1; then
+            #     $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "GRANT SELECT ON pg_stat_statements TO ${RELEEM_PG_LOGIN};" 2>/dev/null || true
+            #     printf "\033[37m   Granted access to pg_stat_statements extension.\033[0m\n"
+            # fi
+            # Check if pg_stat_statements extension is available
+            FLAG_PG_STAT_STATEMENTS=1
+            if PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements';" 2>/dev/null  | grep -q "1" 2>/dev/null; then
+                printf "\033[32m - pg_stat_statements extension is available for query performance monitoring.\033[0m\n"
+            else
+                printf "\033[37m - Installing pg_stat_statements extension.\033[0m\n"
+                
+                if PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;" 2>/dev/null; then
+                    printf "\033[32m   Successfully installed pg_stat_statements extension.\033[0m\n"
+                else
+                    FLAG_PG_STAT_STATEMENTS=0
+                    printf "\033[33m   Warning: Failed to install pg_stat_statements extension. Query performance monitoring may be limited.\033[0m\n"
+                fi
+            fi            
+            printf "\033[32m   Created new PostgreSQL user \`${RELEEM_PG_LOGIN}\`\033[0m\n"
+            FLAG_SUCCESS=1
+        else
+            printf "\033[31m\n%s\n%s\033[0m\n" "PostgreSQL connection failed with superuser ${pg_superuser}." "Check that PostgreSQL is running and accessible, or set RELEEM_PG_ROOT_PASSWORD if authentication is required."
+            on_error
+            exit 1        
+        fi
+    fi
+    
+    # Test connection with the monitoring user
+    if [ "$FLAG_SUCCESS" == "1" ]; then
+        if PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -c "SELECT VERSION()" >/dev/null 2>&1; then
+            printf "\033[32m\n   PostgreSQL connection with user \`${RELEEM_PG_LOGIN}\` - successful. \033[0m\n"
+            PG_LOGIN=$RELEEM_PG_LOGIN
+            PG_PASSWORD=$RELEEM_PG_PASSWORD
+        else
+            printf "\033[31m\n%s\n%s\033[0m\n" "PostgreSQL connection failed with user \`${RELEEM_PG_LOGIN}\`." "Check that the host, user and password are correct and the user has necessary permissions."
+            PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -c "SELECT VERSION()" || true
+            on_error
+            exit 1
+        fi
+    fi
+}
+
+function configure_local_mysql_instance() {   
     # Step 1: Detect MySQL commands
     detect_mysql_commands
     
     # Step 2: Setup connection parameters
     setup_mysql_connection_string
-    
+}
+
+function setting_up_local_mysql_instance() {
     # Step 3: Detect MySQL service
     detect_mysql_service
     
@@ -367,8 +544,102 @@ function configure_local_instance() {
     setup_mysql_config_directory
     
     # Step 5: Create MySQL user
-    create_mysql_user
+    create_mysql_user    
 }
+
+function configure_local_postgresql_instance() {   
+    # Step 1: Detect PostgreSQL commands
+    detect_postgresql_commands
+    
+    # Step 2: Setup connection parameters
+    setup_postgresql_connection_string
+}
+
+function setting_up_local_postgresql_instance() {
+    # Step 3: Detect PostgreSQL service
+    detect_postgresql_service
+    
+    # Step 4: Setup configuration directory
+    setup_postgresql_config_directory
+    
+    # Step 5: Create PostgreSQL user
+    create_postgresql_user    
+}
+
+
+# Detect API key based on environment variables
+apikey=
+if [ -n "$RELEEM_API_KEY" ]; then
+    apikey=$RELEEM_API_KEY
+else
+    if test -f $RELEEM_CONF_FILE ; then
+        . $RELEEM_CONF_FILE
+    fi
+fi
+if [ ! "$apikey" ]; then
+    printf "\033[31mReleem API key is not available in RELEEM_API_KEY environment variable. Please sign up at https://releem.com\033[0m\n"
+    on_error
+    exit 1;
+fi
+
+
+if [ "$0" == "uninstall" ];
+then
+    trap - EXIT
+    $RELEEM_WORKDIR/releem-agent --event=agent_uninstall > /dev/null
+    printf "\033[37m\n * Configuring crontab\033[0m\n"
+    ($sudo_cmd crontab -l 2>/dev/null | grep -v "$RELEEM_WORKDIR/mysqlconfigurer.sh" || true) | $sudo_cmd crontab -
+    printf "\033[37m\n * Stopping Releem Agent service.\033[0m\n"
+    releem_agent_stop=$($sudo_cmd $RELEEM_WORKDIR/releem-agent  stop)
+    if [ $? -eq 0 ]; then
+        printf "\033[32m\n Releem Agent stopped successfully.\033[0m\n"
+    else
+        echo $releem_agent_stop
+        printf "\033[31m\n Releem Agent failed to stop.\033[0m\n"
+    fi
+    printf "\033[37m\n * Uninstalling Releem Agent service.\033[0m\n"
+    releem_agent_remove=$($sudo_cmd $RELEEM_WORKDIR/releem-agent remove)
+    if [ $? -eq 0 ]; then
+        printf "\033[32m\n Releem Agent uninstalled successfully.\033[0m\n"
+    else
+        echo $releem_agent_remove
+        printf "\033[31m\n Releem Agent failed to  uninstall.\033[0m\n"
+    fi
+    printf "\033[37m\n * Removing files Releem Agent\033[0m\n"
+    $sudo_cmd rm -rf $RELEEM_WORKDIR
+    exit 0
+fi
+
+
+# Parse parameters
+while getopts "u" option
+do
+case "${option}"
+in
+u) releem_update;;
+esac
+done
+
+
+# Detect instance type based on environment variables
+if [ -n "$RELEEM_INSTANCE_TYPE" ]; then
+    instance_type=$RELEEM_INSTANCE_TYPE
+else
+    instance_type="local"
+fi
+
+# Detect database type based on environment variables
+detect_database_type
+
+# Setting up local instance using dedicated function
+if [ "$instance_type" == "local" ]; then
+    if [ "$database_type" == "postgresql" ]; then
+        configure_local_postgresql_instance
+    elif [ "$database_type" == "mysql" ]; then
+        configure_local_mysql_instance
+    fi
+fi
+
 
 #Enable Query Optimitsation
 if [ "$0" == "enable_query_optimization" ];
@@ -381,13 +652,13 @@ then
     done
 
     if [ -z "$query_optimization" ]; then
-        echo "query_optimization=true" | $sudo_cmd tee -a $CONF
+        echo "query_optimization=true" | $sudo_cmd tee -a $RELEEM_CONF_FILE
     fi    
     
     set +e
     trap - ERR
-    releem_agent_stop=$($sudo_cmd $WORKDIR/releem-agent  stop)
-    releem_agent_start=$($sudo_cmd $WORKDIR/releem-agent  start)
+    releem_agent_stop=$($sudo_cmd $RELEEM_WORKDIR/releem-agent  stop)
+    releem_agent_start=$($sudo_cmd $RELEEM_WORKDIR/releem-agent  start)
     if [ $? -eq 0 ]; then
         printf "\033[32m\n Restarting Releem Agent - successful\033[0m\n"
     else
@@ -410,15 +681,6 @@ then
 fi
 
 
-# Parse parameters
-while getopts "u" option
-do
-case "${option}"
-in
-u) releem_update;;
-esac
-done
-
 # OS/Distro Detection
 # Try lsb_release, fallback with /etc/issue then uname command
 KNOWN_DISTRIBUTION="(Debian|Ubuntu|RedHat|CentOS|Amazon)"
@@ -438,7 +700,7 @@ fi
 
 # Install the necessary package sources
 if [ "$OS" = "RedHat" ]; then
-    echo -e "\033[37m\n * Installing dependencies.\n\033[0m"
+    echo -e "\033[37m\n * Checking installed dependencies.\n\033[0m"
 
     if [ -x "/usr/bin/dnf" ]; then
         package_manager='dnf'
@@ -448,7 +710,7 @@ if [ "$OS" = "RedHat" ]; then
     which curl &> /dev/null || $sudo_cmd $package_manager -y install curl
     which crontab &> /dev/null || $sudo_cmd $package_manager -y install cronie
 elif [ "$OS" = "Debian" ]; then
-    printf "\033[37m\n * Installing dependencies.\n\033[0m\n"
+    printf "\033[37m\n * Checking installed dependencies.\n\033[0m\n"
     which curl &> /dev/null || ($sudo_cmd apt-get update ; $sudo_cmd apt-get install -y --force-yes curl)
     which crontab &> /dev/null || ($sudo_cmd apt-get update ; $sudo_cmd apt-get install -y --force-yes cron)
 else
@@ -456,29 +718,18 @@ else
     exit 0
 fi
 
-$sudo_cmd rm -rf $WORKDIR
+$sudo_cmd rm -rf $RELEEM_WORKDIR
 # Create work directory
-if [ ! -e $CONF ]; then
-    $sudo_cmd mkdir -p $WORKDIR
-    $sudo_cmd mkdir -p $WORKDIR/conf
+if [ ! -e $RELEEM_CONF_FILE ]; then
+    $sudo_cmd mkdir -p $RELEEM_WORKDIR
+    $sudo_cmd mkdir -p $RELEEM_WORKDIR/conf
 fi
 
 printf "\033[37m\n * Downloading Releem Agent, architecture $(arch).\033[0m\n"
-$sudo_cmd curl -L -o $WORKDIR/mysqlconfigurer.sh https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh
-$sudo_cmd curl -L -o $WORKDIR/releem-agent https://releem.s3.amazonaws.com/v2/releem-agent-$(arch)
+$sudo_cmd curl -L -o $RELEEM_WORKDIR/releem-agent $RELEEM_AGENT_BINARY_URL
+$sudo_cmd curl -L -o $RELEEM_WORKDIR/mysqlconfigurer.sh $RELEEM_AGENT_SCRIPT_URL
 
-
-$sudo_cmd chmod 755 $WORKDIR/mysqlconfigurer.sh $WORKDIR/releem-agent
-
-# Configure local instance using dedicated function
-if [ "$instance_type" == "local" ]; then
-    configure_local_instance
-else
-    printf "\033[37m\n * Using MySQL login and password from environment variables\033[0m\n"
-    MYSQL_LOGIN=$RELEEM_MYSQL_LOGIN
-    MYSQL_PASSWORD=$RELEEM_MYSQL_PASSWORD
-fi
-
+$sudo_cmd chmod 755 $RELEEM_WORKDIR/mysqlconfigurer.sh $RELEEM_WORKDIR/releem-agent
 
 # printf "\033[37m\n * Checking ~/.my.cnf.\033[0m\n"
 # if [ ! -e ~/.my.cnf ]; then
@@ -496,118 +747,171 @@ fi
 #     fi
 # fi
 
-
-printf "\033[37m\n * Configuring MySQL memory limit\033[0m\n"
-if [ -n "$RELEEM_MYSQL_MEMORY_LIMIT" ]; then
-    if [ "$RELEEM_MYSQL_MEMORY_LIMIT" -gt 0 ]; then
-        MYSQL_LIMIT=$RELEEM_MYSQL_MEMORY_LIMIT
+printf "\033[37m\n * Configuring DB memory limit\033[0m\n"
+if [ -n "$RELEEM_DB_MEMORY_LIMIT" ]; then
+    if [ "$RELEEM_DB_MEMORY_LIMIT" -gt 0 ]; then
+        DB_MEMORY_LIMIT=$RELEEM_DB_MEMORY_LIMIT
     fi
+elif [ -n "$RELEEM_MYSQL_MEMORY_LIMIT" ]; then
+    if [ "$RELEEM_MYSQL_MEMORY_LIMIT" -gt 0 ]; then
+        DB_MEMORY_LIMIT=$RELEEM_MYSQL_MEMORY_LIMIT
+    fi    
 else
     echo
-    printf "\033[37m\n In case you are using MySQL in Docker or it isn't dedicated server for MySQL.\033[0m\n"
-    read -p "Should we limit memory for MySQL database? (Y/N) " -n 1 -r
+    printf "\033[37m\n In case you are using Database in Docker or it isn't dedicated server for Database.\033[0m\n"
+    read -p "Should we limit memory for Database? (Y/N) " -n 1 -r
     echo    # move to a new line
     if [[ $REPLY =~ ^[Yy]$ ]]
     then
-        read -p "Please set MySQL Memory Limit (megabytes):" -r
+        read -p "Please set Database Memory Limit (megabytes):" -r
         echo    # move to a new line
-        MYSQL_LIMIT=$REPLY
+        DB_MEMORY_LIMIT=$REPLY
     fi
 fi
 
+# Setting up local instance using dedicated function
+if [ "$instance_type" == "local" ]; then
+    if [ "$database_type" == "postgresql" ]; then
+        setting_up_local_postgresql_instance
+    elif [ "$database_type" == "mysql" ]; then
+        setting_up_local_mysql_instance
+    fi
+else
+    printf "\033[37m\n * Using login and password from environment variables\033[0m\n"
+    if [ "$database_type" == "postgresql" ]; then
+        PG_LOGIN=$RELEEM_PG_LOGIN
+        PG_PASSWORD=$RELEEM_PG_PASSWORD
+    elif [ "$database_type" == "mysql" ]; then
+        MYSQL_LOGIN=$RELEEM_MYSQL_LOGIN
+        MYSQL_PASSWORD=$RELEEM_MYSQL_PASSWORD
+    fi
+fi
+
+
 printf "\033[37m\n * Saving variables to Releem Agent configuration\033[0m\n"
 
-printf "\033[37m\n - Adding API key to the Releem Agent configuration: $CONF\n\033[0m"
-echo "apikey=\"$apikey\"" | $sudo_cmd tee -a $CONF >/dev/null
-if [ -d "$WORKDIR/conf" ]; then
-    printf "\033[37m - Adding Releem Configuration Directory $WORKDIR/conf to Releem Agent configuration: $CONF\n\033[0m"
-    echo "releem_cnf_dir=\"$WORKDIR/conf\"" | $sudo_cmd tee -a $CONF >/dev/null
+printf "\033[37m - Adding API key to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+echo "apikey=\"$apikey\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+if [ -d "$RELEEM_WORKDIR/conf" ]; then
+    printf "\033[37m - Adding Releem Configuration Directory $RELEEM_WORKDIR/conf to Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+    echo "releem_cnf_dir=\"$RELEEM_WORKDIR/conf\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
 fi
-if [ -n "$MYSQL_LOGIN" ] && [ -n "$MYSQL_PASSWORD" ]; then
-    printf "\033[37m - Adding user and password mysql to the Releem Agent configuration: $CONF\n\033[0m"
-	echo "mysql_user=\"$MYSQL_LOGIN\"" | $sudo_cmd tee -a $CONF >/dev/null
-	echo "mysql_password=\"$MYSQL_PASSWORD\"" | $sudo_cmd tee -a $CONF >/dev/null
+# Add database-specific configuration based on detected database type
+if [ "$database_type" == "postgresql" ]; then
+    # PostgreSQL configuration
+    if [ -n "$PG_LOGIN" ] && [ -n "$PG_PASSWORD" ]; then
+        printf "\033[37m - Adding PostgreSQL user and password to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+        echo "pg_user=\"$PG_LOGIN\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+        echo "pg_password=\"$PG_PASSWORD\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+    fi
+    if [ -n "$RELEEM_PG_HOST" ]; then
+        printf "\033[37m - Adding PostgreSQL host to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+        echo "pg_host=\"$RELEEM_PG_HOST\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+    fi
+    if [ -n "$RELEEM_PG_PORT" ]; then
+        printf "\033[37m - Adding PostgreSQL port to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+        echo "pg_port=\"$RELEEM_PG_PORT\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+    fi
+    if [ -n "$RELEEM_PG_SSL_MODE" ]; then
+        printf "\033[37m - Adding PostgreSQL SSL mode to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+        echo "pg_ssl_mode=\"$RELEEM_PG_SSL_MODE\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+    fi
+    if [ -n "$pg_service_name_cmd" ]; then
+        printf "\033[37m - Adding PostgreSQL restart command to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+        echo "pg_restart_service=\"$pg_service_name_cmd\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+    fi
+    if [ -d "$PG_CONF_DIR" ]; then
+        printf "\033[37m - Adding PostgreSQL conf.d directory to the Releem Agent configuration $RELEEM_CONF_FILE.\n\033[0m"
+        echo "pg_cnf_dir=\"$PG_CONF_DIR\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+    fi    
+elif [ "$database_type" == "mysql" ]; then
+    # MySQL configuration (default)
+    if [ -n "$MYSQL_LOGIN" ] && [ -n "$MYSQL_PASSWORD" ]; then
+        printf "\033[37m - Adding user and password mysql to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+        echo "mysql_user=\"$MYSQL_LOGIN\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+        echo "mysql_password=\"$MYSQL_PASSWORD\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+    fi
+    if [ -n "$RELEEM_MYSQL_HOST" ]; then
+        printf "\033[37m - Adding MySQL host to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+        echo "mysql_host=\"$RELEEM_MYSQL_HOST\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+    fi
+    if [ -n "$RELEEM_MYSQL_PORT" ]; then
+        printf "\033[37m - Adding MySQL port to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+        echo "mysql_port=\"$RELEEM_MYSQL_PORT\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+    fi
+    if [ -n "$RELEEM_MYSQL_SSL_MODE" ]; then
+        echo "mysql_ssl_mode=$RELEEM_MYSQL_SSL_MODE" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+    fi    
+    if [ -n "$service_name_cmd" ]; then
+        printf "\033[37m - Adding MySQL restart command to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+        echo "mysql_restart_service=\"$service_name_cmd\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+    fi
+    if [ -d "$MYSQL_CONF_DIR" ]; then
+        printf "\033[37m - Adding MySQL include directory to the Releem Agent configuration $RELEEM_CONF_FILE.\n\033[0m"
+        echo "mysql_cnf_dir=\"$MYSQL_CONF_DIR\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+    fi
 fi
-if [ -n "$RELEEM_MYSQL_HOST" ]; then
-    printf "\033[37m - Adding MySQL host to the Releem Agent configuration: $CONF\n\033[0m"
-	echo "mysql_host=\"$RELEEM_MYSQL_HOST\"" | $sudo_cmd tee -a $CONF >/dev/null
-fi
-if [ -n "$RELEEM_MYSQL_PORT" ]; then
-    printf "\033[37m - Adding MySQL port to the Releem Agent configuration: $CONF\n\033[0m"
-	echo "mysql_port=\"$RELEEM_MYSQL_PORT\"" | $sudo_cmd tee -a $CONF >/dev/null
-fi
-if [ -n "$MYSQL_LIMIT" ]; then
-    printf "\033[37m - Adding Memory Limit to the Releem Agent configuration: $CONF\n\033[0m"
-	echo "memory_limit=\"$MYSQL_LIMIT\"" | $sudo_cmd tee -a $CONF >/dev/null
-fi
-if [ -n "$service_name_cmd" ]; then
-    printf "\033[37m - Adding MySQL restart command to the Releem Agent configuration: $CONF\n\033[0m"
-	echo "mysql_restart_service=\"$service_name_cmd\"" | $sudo_cmd tee -a $CONF >/dev/null
-fi
-if [ -d "$MYSQL_CONF_DIR" ]; then
-	printf "\033[37m - Adding MySQL include directory to the Releem Agent configuration $CONF.\n\033[0m"
-	echo "mysql_cnf_dir=\"$MYSQL_CONF_DIR\"" | $sudo_cmd tee -a $CONF >/dev/null
+if [ -n "$DB_MEMORY_LIMIT" ]; then
+    printf "\033[37m - Adding Memory Limit to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+    echo "memory_limit=\"$DB_MEMORY_LIMIT\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
 fi
 if [ -n "$RELEEM_HOSTNAME" ]; then
-    printf "\033[37m - Adding hostname to the Releem Agent configuration: $CONF\n\033[0m"
-	echo "hostname=\"$RELEEM_HOSTNAME\"" | $sudo_cmd tee -a $CONF >/dev/null
+    printf "\033[37m - Adding hostname to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+    echo "hostname=\"$RELEEM_HOSTNAME\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
 else
     RELEEM_HOSTNAME=$(hostname 2>&1)
     if [ $? -eq 0 ];
     then
-        printf "\033[37m - Adding autodetected hostname to the Releem Agent configuration: $CONF\n\033[0m"
-	    echo "hostname=\"$RELEEM_HOSTNAME\"" | $sudo_cmd tee -a $CONF >/dev/null        
+        printf "\033[37m - Adding autodetected hostname to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+        echo "hostname=\"$RELEEM_HOSTNAME\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null        
     else
         printf "\033[31m The variable RELEEM_HOSTNAME is not defined and the hostname could not be determined automatically with error\033[0m\n $RELEEM_HOSTNAME.\n\033[0m"
     fi
 fi
 if [ -n "$RELEEM_ENV" ]; then
-	echo "env=\"$RELEEM_ENV\"" | $sudo_cmd tee -a $CONF >/dev/null
+    echo "env=\"$RELEEM_ENV\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
 fi
 if [ -n "$RELEEM_DEBUG" ]; then
-	echo "debug=$RELEEM_DEBUG" | $sudo_cmd tee -a $CONF >/dev/null
-fi
-if [ -n "$RELEEM_MYSQL_SSL_MODE" ]; then
-	echo "mysql_ssl_mode=$RELEEM_MYSQL_SSL_MODE" | $sudo_cmd tee -a $CONF >/dev/null
+    echo "debug=$RELEEM_DEBUG" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
 fi
 if [ -n "$RELEEM_QUERY_OPTIMIZATION" ]; then
-    printf "\033[37m - Enabling query optimization to the Releem Agent configuration: $CONF\n\033[0m"
-	echo "query_optimization=$RELEEM_QUERY_OPTIMIZATION" | $sudo_cmd tee -a $CONF >/dev/null
+    printf "\033[37m - Adding query optimization parameter to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+    echo "query_optimization=$RELEEM_QUERY_OPTIMIZATION" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
 fi
 if [ -n "$RELEEM_DATABASES_QUERY_OPTIMIZATION" ]; then
-    printf "\033[37m - Adding list databases for query optimization ${RELEEM_DATABASES_QUERY_OPTIMIZATION} to the Releem Agent configuration: $CONF\n\033[0m"
-	echo "databases_query_optimization=\"$RELEEM_DATABASES_QUERY_OPTIMIZATION\"" | $sudo_cmd tee -a $CONF >/dev/null
+    printf "\033[37m - Adding list databases for query optimization ${RELEEM_DATABASES_QUERY_OPTIMIZATION} to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+    echo "databases_query_optimization=\"$RELEEM_DATABASES_QUERY_OPTIMIZATION\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
 fi
 if [ -n "$RELEEM_REGION" ]; then
-    printf "\033[37m - Adding releem region ${RELEEM_REGION} to the Releem Agent configuration: $CONF\n\033[0m"
-	echo "releem_region=\"$RELEEM_REGION\"" | $sudo_cmd tee -a $CONF >/dev/null
+    printf "\033[37m - Adding releem region ${RELEEM_REGION} to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+    echo "releem_region=\"$RELEEM_REGION\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
 fi
-printf "\033[37m - Adding releem instance type ${instance_type} to the Releem Agent configuration: $CONF\n\033[0m"
-echo "instance_type=\"$instance_type\"" | $sudo_cmd tee -a $CONF >/dev/null
+printf "\033[37m - Adding releem instance type ${instance_type} to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+echo "instance_type=\"$instance_type\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
 
 if [ "$instance_type" == "aws/rds" ]; then
     if [ -n "$RELEEM_AWS_REGION" ] && [ -n "$RELEEM_AWS_RDS_DB" ] && [ -n "$RELEEM_AWS_RDS_PARAMETER_GROUP" ]; then
-        printf "\033[37m - Adding AWS region ${RELEEM_AWS_REGION} to the Releem Agent configuration: $CONF\n\033[0m"
-        echo "aws_region=\"$RELEEM_AWS_REGION\"" | $sudo_cmd tee -a $CONF >/dev/null
-        printf "\033[37m - Adding AWS RDS DB ${RELEEM_AWS_RDS_DB} to the Releem Agent configuration: $CONF\n\033[0m"
-        echo "aws_rds_db=\"$RELEEM_AWS_RDS_DB\"" | $sudo_cmd tee -a $CONF >/dev/null
-        printf "\033[37m - Adding AWS RDS Parameter Group ${RELEEM_AWS_RDS_PARAMETER_GROUP} to the Releem Agent configuration: $CONF\n\033[0m"
-        echo "aws_rds_parameter_group=\"$RELEEM_AWS_RDS_PARAMETER_GROUP\"" | $sudo_cmd tee -a $CONF >/dev/null
+        printf "\033[37m - Adding AWS region ${RELEEM_AWS_REGION} to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+        echo "aws_region=\"$RELEEM_AWS_REGION\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+        printf "\033[37m - Adding AWS RDS DB ${RELEEM_AWS_RDS_DB} to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+        echo "aws_rds_db=\"$RELEEM_AWS_RDS_DB\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+        printf "\033[37m - Adding AWS RDS Parameter Group ${RELEEM_AWS_RDS_PARAMETER_GROUP} to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+        echo "aws_rds_parameter_group=\"$RELEEM_AWS_RDS_PARAMETER_GROUP\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
     else
         printf "\033[31m - AWS region, AWS RDS DB or AWS RDS Parameter Group is not set. Please set the variables RELEEM_AWS_REGION, RELEEM_AWS_RDS_DB and RELEEM_AWS_RDS_PARAMETER_GROUP\033[0m\n"
         exit 1
     fi
 elif [ "$instance_type" == "gcp/cloudsql" ]; then
     if [ -n "$RELEEM_GCP_PROJECT_ID" ] && [ -n "$RELEEM_GCP_REGION" ] && [ -n "$RELEEM_GCP_CLOUDSQL_INSTANCE" ]; then
-        printf "\033[37m - Adding GCP project ID ${RELEEM_GCP_PROJECT_ID} to the Releem Agent configuration: $CONF\n\033[0m"
-        echo "gcp_project_id=\"$RELEEM_GCP_PROJECT_ID\"" | $sudo_cmd tee -a $CONF >/dev/null
-        printf "\033[37m - Adding GCP region ${RELEEM_GCP_REGION} to the Releem Agent configuration: $CONF\n\033[0m"
-        echo "gcp_region=\"$RELEEM_GCP_REGION\"" | $sudo_cmd tee -a $CONF >/dev/null
-        printf "\033[37m - Adding GCP Cloud SQL instance ${RELEEM_GCP_CLOUDSQL_INSTANCE} to the Releem Agent configuration: $CONF\n\033[0m"
-        echo "gcp_cloudsql_instance=\"$RELEEM_GCP_CLOUDSQL_INSTANCE\"" | $sudo_cmd tee -a $CONF >/dev/null        
+        printf "\033[37m - Adding GCP project ID ${RELEEM_GCP_PROJECT_ID} to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+        echo "gcp_project_id=\"$RELEEM_GCP_PROJECT_ID\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+        printf "\033[37m - Adding GCP region ${RELEEM_GCP_REGION} to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+        echo "gcp_region=\"$RELEEM_GCP_REGION\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+        printf "\033[37m - Adding GCP Cloud SQL instance ${RELEEM_GCP_CLOUDSQL_INSTANCE} to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+        echo "gcp_cloudsql_instance=\"$RELEEM_GCP_CLOUDSQL_INSTANCE\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null        
         if [ -n "$RELEEM_GCP_CLOUDSQL_PUBLIC_CONNECTION" ]; then
-            printf "\033[37m - Adding GCP Cloud SQL public connection ${RELEEM_GCP_CLOUDSQL_PUBLIC_CONNECTION} to the Releem Agent configuration: $CONF\n\033[0m"
-            echo "gcp_cloudsql_public_connection=$RELEEM_GCP_CLOUDSQL_PUBLIC_CONNECTION" | $sudo_cmd tee -a $CONF >/dev/null
+            printf "\033[37m - Adding GCP Cloud SQL public connection ${RELEEM_GCP_CLOUDSQL_PUBLIC_CONNECTION} to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+            echo "gcp_cloudsql_public_connection=$RELEEM_GCP_CLOUDSQL_PUBLIC_CONNECTION" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
         fi        
     else
         printf "\033[31m - GCP project ID, GCP region or GCP Cloud SQL instance is not set. Please set the variables RELEEM_GCP_PROJECT_ID, RELEEM_GCP_REGION and RELEEM_GCP_CLOUDSQL_INSTANCE\033[0m\n"
@@ -615,7 +919,7 @@ elif [ "$instance_type" == "gcp/cloudsql" ]; then
     fi
 fi
 # Secure the configuration file
-$sudo_cmd chmod 640 $CONF
+$sudo_cmd chmod 640 $RELEEM_CONF_FILE
 
 printf "\033[37m\n * Configuring crontab.\033[0m\n"
 RELEEM_CRON="00 00 * * * PATH=/bin:/sbin:/usr/bin:/usr/sbin $RELEEM_COMMAND -u"
@@ -630,44 +934,56 @@ if [ -z "$RELEEM_CRON_ENABLE" ]; then
     fi
 elif [ "$RELEEM_CRON_ENABLE" -gt 0 ]; then
     releem_set_cron
-    if [ `$sudo_cmd crontab -l 2>/dev/null | grep -c "$WORKDIR/mysqlconfigurer.sh" || true` -eq 0 ]; then
-        printf "\033[31m\nCrontab configuration failed. Automatic updates are disabled.\033[0m\n"
+    if [ `$sudo_cmd crontab -l 2>/dev/null | grep -c "$RELEEM_WORKDIR/mysqlconfigurer.sh" || true` -eq 0 ]; then
+        printf "\033[31m   Crontab configuration failed. Automatic updates are disabled.\033[0m\n"
     else
-        printf "\033[32m\nCrontab configuration complete. Automatic updates are enabled.\033[0m\n"
+        printf "\033[32m   Crontab configuration complete. Automatic updates are enabled.\033[0m\n"
     fi
 else
-    printf "\033[31m\nCrontab configuration failed. Automatic updates are disabled.\033[0m\n"
+    printf "\033[31m   Crontab configuration failed. Automatic updates are disabled.\033[0m\n"
 fi
-
+# Enable monitoring of queries for local instances
+if [ "$instance_type" == "local" ]; then
+    if [ "$database_type" == "postgresql" ]; then
+        if [ "$FLAG_PG_STAT_STATEMENTS" -eq 1 ]; then
+            $sudo_cmd $RELEEM_COMMAND -p
+        else
+            printf "\033[31m\n pg_stat_statements extension is not enabled. \n Please install the postgresql-contrib package for your version of Postgresql and reinstall the Releem Agent.\033[0m\n"
+            exit 1
+        fi
+    elif [ "$database_type" == "mysql" ]; then
+        $sudo_cmd $RELEEM_COMMAND -p
+    fi
+fi
 set +e
 trap - ERR
 if [ -z "$RELEEM_AGENT_DISABLE" ]; then
-    # First run of Releem Agent to check MySQL Performance Score
+    # First run of Releem Agent to check Queries monitoring
     printf "\033[37m\n * Executing Releem Agent for the first time.\033[0m\n"
     printf "\033[37m This may take up to 15 minutes on servers with many databases.\033[0m\n\n"
-    $sudo_cmd $WORKDIR/releem-agent -f
-    $sudo_cmd timeout 3 $WORKDIR/releem-agent
+    $sudo_cmd $RELEEM_WORKDIR/releem-agent -f
+    $sudo_cmd timeout 3 $RELEEM_WORKDIR/releem-agent
 fi
 printf "\033[37m\n * Installing and starting Releem Agent service to collect metrics..\033[0m\n"
-releem_agent_remove=$($sudo_cmd $WORKDIR/releem-agent remove)
-releem_agent_install=$($sudo_cmd $WORKDIR/releem-agent install)
+releem_agent_remove=$($sudo_cmd $RELEEM_WORKDIR/releem-agent remove)
+releem_agent_install=$($sudo_cmd $RELEEM_WORKDIR/releem-agent install)
 if [ $? -eq 0 ]; then
-    printf "\033[32m\n The Releem Agent installation successful.\033[0m\n"
+    printf "\033[32m\n   The Releem Agent installation successful.\033[0m\n"
 else
     echo $releem_agent_remove
     echo $releem_agent_install
-    printf "\033[31m\n The Releem Agent installation failed.\033[0m\n"
+    printf "\033[31m\n   The Releem Agent installation failed.\033[0m\n"
 fi
-releem_agent_stop=$($sudo_cmd $WORKDIR/releem-agent  stop)
-releem_agent_start=$($sudo_cmd $WORKDIR/releem-agent  start)
+releem_agent_stop=$($sudo_cmd $RELEEM_WORKDIR/releem-agent  stop)
+releem_agent_start=$($sudo_cmd $RELEEM_WORKDIR/releem-agent  start)
 if [ $? -eq 0 ]; then
-    printf "\033[32m\n The Releem Agent restart successful.\033[0m\n"
+    printf "\033[32m\n   The Releem Agent restart successful.\033[0m\n"
 else
     echo $releem_agent_stop
     echo $releem_agent_start
-    printf "\033[31m\n The Releem Agent restart failed.\033[0m\n"
+    printf "\033[31m\n   The Releem Agent restart failed.\033[0m\n"
 fi
-# $sudo_cmd $WORKDIR/releem-agent  status
+# $sudo_cmd $RELEEM_WORKDIR/releem-agent  status
 # if [ $? -eq 0 ]; then
 #     echo "Status successfull"
 # else
@@ -682,13 +998,10 @@ if [ -z "$releem_agent_pid" ]; then
     on_error
     exit 1;
 fi
-# Enable performance schema for local instances
-if [ "$instance_type" == "local" ]; then
-    $sudo_cmd $RELEEM_COMMAND -p
-fi
+
 
 printf "\033[37m\n\033[0m"
 printf "\033[37m * Releem Agent has been successfully installed.\033[0m\n"
 printf "\033[37m\n\033[0m"
-printf "\033[37m * To view Releem recommendations and MySQL metrics, visit https://app.releem.com/dashboard\033[0m"
+printf "\033[37m * To view Releem recommendations and Database metrics, visit https://app.releem.com/dashboard\033[0m"
 printf "\033[37m\n\033[0m"

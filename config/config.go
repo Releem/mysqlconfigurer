@@ -9,40 +9,47 @@ import (
 )
 
 const (
-	ReleemAgentVersion = "1.22.7"
+	ReleemAgentVersion = "1.23.0"
 )
 
 type Config struct {
-	Debug                                 bool          `hcl:"debug"`
-	Env                                   string        `hcl:"env"`
-	Hostname                              string        `hcl:"hostname"`
-	ApiKey                                string        `hcl:"apikey"`
-	MetricsPeriod                         time.Duration `hcl:"interval_seconds"`
-	ReadConfigPeriod                      time.Duration `hcl:"interval_read_config_seconds"`
-	GenerateConfigPeriod                  time.Duration `hcl:"interval_generate_config_seconds"`
-	QueryOptimizationPeriod               time.Duration `hcl:"interval_query_optimization_seconds"`
-	QueryOptimizationCollectSqlTextPeriod time.Duration `hcl:"interval_query_optimization_collect_sqltext_seconds"`
-	MysqlPassword                         string        `hcl:"mysql_password" json:"-"`
-	MysqlUser                             string        `hcl:"mysql_user"`
-	MysqlHost                             string        `hcl:"mysql_host"`
-	MysqlPort                             string        `hcl:"mysql_port"`
-	MysqlSslMode                          bool          `hcl:"mysql_ssl_mode"`
-	CommandRestartService                 string        `hcl:"mysql_restart_service"`
-	MysqlConfDir                          string        `hcl:"mysql_cnf_dir"`
-	ReleemConfDir                         string        `hcl:"releem_cnf_dir"`
-	ReleemDir                             string        `hcl:"releem_dir"`
-	MemoryLimit                           int           `hcl:"memory_limit"`
-	InstanceType                          string        `hcl:"instance_type"`
-	AwsRegion                             string        `hcl:"aws_region"`
-	AwsRDSDB                              string        `hcl:"aws_rds_db"`
-	AwsRDSParameterGroup                  string        `hcl:"aws_rds_parameter_group"`
-	GcpProjectId                          string        `hcl:"gcp_project_id"`
-	GcpRegion                             string        `hcl:"gcp_region"`
-	GcpCloudSqlInstance                   string        `hcl:"gcp_cloudsql_instance"`
-	GcpCloudSqlPublicConnection           bool          `hcl:"gcp_cloudsql_public_connection"`
-	QueryOptimization                     bool          `hcl:"query_optimization"`
-	DatabasesQueryOptimization            string        `hcl:"databases_query_optimization"`
-	ReleemRegion                          string        `hcl:"releem_region"`
+	Debug                       bool          `hcl:"debug"`
+	Env                         string        `hcl:"env"`
+	Hostname                    string        `hcl:"hostname"`
+	ApiKey                      string        `hcl:"apikey"`
+	MetricsPeriod               time.Duration `hcl:"interval_seconds"`
+	ReadConfigPeriod            time.Duration `hcl:"interval_read_config_seconds"`
+	GenerateConfigPeriod        time.Duration `hcl:"interval_generate_config_seconds"`
+	QueryOptimizationPeriod     time.Duration `hcl:"interval_query_optimization_seconds"`
+	CollectSampleQueriesPeriod  time.Duration `hcl:"interval_collect_sample_queries_seconds"`
+	MysqlPassword               string        `hcl:"mysql_password" json:"-"`
+	MysqlUser                   string        `hcl:"mysql_user"`
+	MysqlHost                   string        `hcl:"mysql_host"`
+	MysqlPort                   string        `hcl:"mysql_port"`
+	MysqlSslMode                bool          `hcl:"mysql_ssl_mode"`
+	MysqlConfDir                string        `hcl:"mysql_cnf_dir"`
+	MysqlRestartService         string        `hcl:"mysql_restart_service"`
+	PgPassword                  string        `hcl:"pg_password" json:"-"`
+	PgUser                      string        `hcl:"pg_user"`
+	PgHost                      string        `hcl:"pg_host"`
+	PgPort                      string        `hcl:"pg_port"`
+	PgSslMode                   bool          `hcl:"pg_ssl_mode"`
+	PgConfDir                   string        `hcl:"pg_cnf_dir"`
+	PgRestartService            string        `hcl:"pg_restart_service"`
+	ReleemConfDir               string        `hcl:"releem_cnf_dir"`
+	ReleemDir                   string        `hcl:"releem_dir"`
+	MemoryLimit                 int           `hcl:"memory_limit"`
+	InstanceType                string        `hcl:"instance_type"`
+	AwsRegion                   string        `hcl:"aws_region"`
+	AwsRDSDB                    string        `hcl:"aws_rds_db"`
+	AwsRDSParameterGroup        string        `hcl:"aws_rds_parameter_group"`
+	GcpProjectId                string        `hcl:"gcp_project_id"`
+	GcpRegion                   string        `hcl:"gcp_region"`
+	GcpCloudSqlInstance         string        `hcl:"gcp_cloudsql_instance"`
+	GcpCloudSqlPublicConnection bool          `hcl:"gcp_cloudsql_public_connection"`
+	QueryOptimization           bool          `hcl:"query_optimization"`
+	DatabasesQueryOptimization  string        `hcl:"databases_query_optimization"`
+	ReleemRegion                string        `hcl:"releem_region"`
 }
 
 func LoadConfig(filename string, logger logging.Logger) (*Config, error) {
@@ -72,14 +79,20 @@ func LoadConfigFromString(data string, logger logging.Logger) (*Config, error) {
 	if config.QueryOptimizationPeriod == 0 {
 		config.QueryOptimizationPeriod = 3600
 	}
-	if config.QueryOptimizationCollectSqlTextPeriod == 0 {
-		config.QueryOptimizationCollectSqlTextPeriod = 10
+	if config.CollectSampleQueriesPeriod == 0 {
+		config.CollectSampleQueriesPeriod = 10
 	}
 	if config.MysqlHost == "" {
 		config.MysqlHost = "127.0.0.1"
 	}
 	if config.MysqlPort == "" {
 		config.MysqlPort = "3306"
+	}
+	if config.PgHost == "" {
+		config.PgHost = "127.0.0.1"
+	}
+	if config.PgPort == "" {
+		config.PgPort = "5432"
 	}
 	if config.ReleemDir == "" {
 		config.ReleemDir = "/opt/releem"
@@ -102,4 +115,18 @@ func (config *Config) GetMemoryLimit() int {
 }
 func (config *Config) GetReleemConfDir() string {
 	return config.ReleemConfDir
+}
+
+// GetDatabaseType returns the database type based on configuration parameters
+func (config *Config) GetDatabaseType() string {
+	// Check if PostgreSQL parameters are configured
+	if config.PgUser != "" && config.PgPassword != "" {
+		return "postgresql"
+	}
+	// Default to MySQL if MySQL parameters are configured or no specific DB params
+	if config.MysqlUser != "" && config.MysqlPassword != "" {
+		return "mysql"
+	}
+	// Default to MySQL for backward compatibility
+	return "mysql"
 }

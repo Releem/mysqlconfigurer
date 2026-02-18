@@ -32,7 +32,6 @@ type Metrics struct {
 			TotalTables                           uint64
 			TotalMyisamIndexes                    uint64
 			Engine                                map[string]MetricGroupValue
-			QueriesLatency                        []MetricGroupValue
 			CountQueriesLatency                   uint64
 			Databases                             []string
 			InnoDBEngineStatus                    string
@@ -42,13 +41,13 @@ type Metrics struct {
 		Conf struct {
 			Variables MetricGroupValue
 		}
-		Info                MetricGroupValue
-		Queries             []MetricGroupValue
-		QueriesOptimization map[string][]MetricGroupValue
+		Info           MetricGroupValue
+		Queries        []MetricGroupValue
+		DatabaseSchema map[string][]MetricGroupValue
 	}
 	ReleemAgent struct {
 		Info  MetricGroupValue
-		Tasks MetricGroupValue
+		Tasks Task
 		Conf  config.Config
 	}
 }
@@ -63,9 +62,13 @@ type Metric map[string]MetricGroupValue
 // }
 
 type Task struct {
-	TaskID     *int    `json:"task_id"`
-	TaskTypeID *int    `json:"task_type_id"`
-	IsExist    *string `json:"is_exist"`
+	ID       int    `json:"task_id"`
+	TypeID   int    `json:"task_type_id"`
+	Details  string `json:"task_details"`
+	Status   int    `json:"task_status"`
+	Output   string `json:"task_output"`
+	Error    string `json:"task_error"`
+	ExitCode int    `json:"task_exit_code"`
 }
 
 type MetricContext interface {
@@ -80,18 +83,13 @@ type MetricsGatherer interface {
 }
 
 type MetricsRepeater interface {
-	ProcessMetrics(context MetricContext, metrics Metrics, Mode ModeType) (interface{}, error)
-}
-
-type SqlTextType struct {
-	CURRENT_SCHEMA string
-	DIGEST         string
-	SQL_TEXT       string
+	ProcessMetrics(context MetricContext, metrics Metrics, Mode ModeType) (string, error)
 }
 
 var (
-	DB                    *sql.DB
-	SqlText               map[string]map[string]string
-	SqlTextMutex          sync.RWMutex
-	CountEnabledConsumers uint64
+	DB                      *sql.DB
+	SampleQueries           map[string]string
+	SampleQueriesMutex      sync.RWMutex
+	CountEnabledConsumers   uint64
+	PgStatStatementsEnabled bool
 )

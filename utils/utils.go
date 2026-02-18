@@ -157,10 +157,6 @@ func ConnectionPostgreSQL(configuration *config.Config, logger logging.Logger, D
 }
 
 func EnableEventsStatementsConsumers(configuration *config.Config, logger logging.Logger, uptime_str string) {
-	// Only applicable to MySQL
-	if configuration.GetDatabaseType() != "mysql" {
-		return
-	}
 	uptime, err := strconv.Atoi(uptime_str)
 	if err != nil {
 		logger.Error(err)
@@ -188,7 +184,10 @@ func EnableEventsStatementsConsumers(configuration *config.Config, logger loggin
 }
 
 func GetStrategyCollectionSampleQueries(configuration *config.Config, logger logging.Logger, uptime_str string) {
-	EnableEventsStatementsConsumers(configuration, logger, uptime_str)
+	// Only applicable to MySQL
+	if configuration.GetDatabaseType() == "mysql" {
+		EnableEventsStatementsConsumers(configuration, logger, uptime_str)
+	}
 	if models.CountEnabledConsumers >= 2 {
 		configuration.CollectSampleQueriesPeriod = 10 // 10 seconds
 	} else if models.CountEnabledConsumers > 0 {

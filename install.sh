@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh - Version 1.23.0
+# install.sh - Version 1.23.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -9,7 +9,7 @@ export PATH=$PATH:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/
 # using the package manager.
 
 set -e -E
-install_script_version=1.23.0
+install_script_version=1.23.1
 logfile="/var/log/releem-install.log"
 
 RELEEM_WORKDIR="/opt/releem"
@@ -653,7 +653,9 @@ then
 
     if [ -z "$query_optimization" ]; then
         echo "query_optimization=true" | $sudo_cmd tee -a $RELEEM_CONF_FILE
-    fi    
+    else
+        $sudo_cmd sed -i 's/query_optimization=.*/query_optimization=true/g' $RELEEM_CONF_FILE
+    fi
     
     set +e
     trap - ERR

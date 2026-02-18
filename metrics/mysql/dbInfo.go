@@ -100,19 +100,19 @@ func users_security_check(DBInfo *DBInfoGatherer, metrics *models.Metrics) []mod
 			return output_users
 		}
 	}
-	DBInfo.logger.Info("DEBUG: Password column = ", PASS_COLUMN_NAME)
+	DBInfo.logger.V(5).Info("DEBUG: Password column = ", PASS_COLUMN_NAME)
 
 	var Username, User, Host, Password_As_User string
 	rows_users, err := models.DB.Query("SELECT CONCAT(QUOTE(user), '@', QUOTE(host)), user, host, (CAST(" + PASS_COLUMN_NAME + " as Binary) = PASSWORD(user) OR CAST(" + PASS_COLUMN_NAME + " as Binary) = PASSWORD(UPPER(user)) ) as Password_As_User FROM mysql.user")
 	if err != nil || !rows_users.Next() {
 		if err != nil {
 			if strings.Contains(err.Error(), "Error 1064 (42000): You have an error in your SQL syntax") {
-				DBInfo.logger.Info("DEBUG: PASSWORD() function is not supported. Try another query...")
+				DBInfo.logger.V(5).Info("DEBUG: PASSWORD() function is not supported. Try another query...")
 			} else {
 				DBInfo.logger.Error(err)
 			}
 		} else {
-			DBInfo.logger.Info("DEBUG: Plugin validate_password is activated. Try another query...")
+			DBInfo.logger.V(5).Info("DEBUG: Plugin validate_password is activated. Try another query...")
 		}
 		rows_users, err = models.DB.Query("SELECT CONCAT(QUOTE(user), '@', QUOTE(host)), user, host, (CAST(" + PASS_COLUMN_NAME + " as Binary) = CONCAT('*',UPPER(SHA1(UNHEX(SHA1(user))))) OR CAST(" + PASS_COLUMN_NAME + " as Binary) = CONCAT('*',UPPER(SHA1(UNHEX(SHA1(UPPER(user)))))) ) as Password_As_User FROM mysql.user")
 		if err != nil {
@@ -150,7 +150,7 @@ func users_security_check(DBInfo *DBInfoGatherer, metrics *models.Metrics) []mod
 	rows_users, err = models.DB.Query("SELECT CONCAT(QUOTE(user), '@', QUOTE(host)) FROM mysql.global_priv WHERE ( user != '' AND JSON_CONTAINS(Priv, '\"mysql_native_password\"', '$.plugin') AND JSON_CONTAINS(Priv, '\"\"', '$.authentication_string') AND NOT JSON_CONTAINS(Priv, 'true', '$.account_locked'))")
 	if err != nil {
 		if strings.Contains(err.Error(), "Error 1146 (42S02): Table 'mysql.global_priv' doesn't exist") {
-			DBInfo.logger.Info("DEBUG: Not MariaDB, try another query...")
+			DBInfo.logger.V(5).Info("DEBUG: Not MariaDB, try another query...")
 		} else {
 			DBInfo.logger.Error(err)
 		}

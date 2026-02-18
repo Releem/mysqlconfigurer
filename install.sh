@@ -15,8 +15,8 @@ logfile="/var/log/releem-install.log"
 RELEEM_WORKDIR="/opt/releem"
 RELEEM_CONF_FILE="$RELEEM_WORKDIR/releem.conf"
 RELEEM_COMMAND="/bin/bash $RELEEM_WORKDIR/mysqlconfigurer.sh"
-RELEEM_AGENT_BINARY_URL="https://releem.s3.amazonaws.com/test/releem-agent-$(arch)"
-RELEEM_AGENT_SCRIPT_URL="https://releem.s3.amazonaws.com/test/mysqlconfigurer.sh"
+RELEEM_AGENT_BINARY_URL="https://releem.s3.amazonaws.com/v2/releem-agent-$(arch)"
+RELEEM_AGENT_SCRIPT_URL="https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh"
 
 
 # Root user detection

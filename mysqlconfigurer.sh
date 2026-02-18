@@ -20,9 +20,9 @@ RELEEM_CONF_FILE="/opt/releem/releem.conf"
 RELEEM_DB_VERSION_FILE="${RELEEM_CONF_DIR}db_version"
 RELEEM_INSTALL_FILE="${RELEEM_CONF_DIR}install.sh"
 DB_MEMORY_LIMIT=0
-RELEEM_AGENT_BINARY_URL="https://releem.s3.amazonaws.com/test/releem-agent-$(arch)"
-RELEEM_AGENT_SCRIPT_URL="https://releem.s3.amazonaws.com/test/mysqlconfigurer.sh"
-RELEEM_AGENT_INSTALL_SCRIPT_URL="https://releem.s3.amazonaws.com/test/install.sh"
+RELEEM_AGENT_BINARY_URL="https://releem.s3.amazonaws.com/v2/releem-agent-$(arch)"
+RELEEM_AGENT_SCRIPT_URL="https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh"
+RELEEM_AGENT_INSTALL_SCRIPT_URL="https://releem.s3.amazonaws.com/v2/install.sh"
 
 
 logfile="/var/log/releem-mysqlconfigurer.log"

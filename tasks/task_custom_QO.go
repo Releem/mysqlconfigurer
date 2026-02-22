@@ -36,7 +36,7 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 		logger.Error("Failed to parse task task_details JSON: ", err)
 		task_exit_code = 2
 		task_status = 4
-		task_error = task_error + "Failed to collect data to optimization your query. Please send an email to hello@releem.com or ask in chat.\nWe will do our best to resolve the issue.\n"
+		task_error = task_error + "Failed to collect data for optimizing your query. Please write us in the chat or send an email to hello@releem.com.\nWe will do our best to resolve the issue."
 		task_output = task_output + fmt.Sprintf("Error parsing JSON: %v\n", err)
 		return task_exit_code, task_status, task_output, task_error
 	} else {
@@ -47,7 +47,7 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 		logger.Error("task_details array is empty")
 		task_exit_code = 2
 		task_status = 4
-		task_error = task_error + "Failed to collect data to optimization your query. Please send an email to hello@releem.com or ask in chat.\nWe will do our best to resolve the issue.\n"
+		task_error = task_error + "Failed to collect data for optimizing your query. Please write us in the chat or send an email to hello@releem.com.\nWe will do our best to resolve the issue."
 		task_output = task_output + "Error: task_details must contain at least one item\n"
 		return task_exit_code, task_status, task_output, task_error
 	} else {
@@ -63,8 +63,8 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 			logger.Error("schema_name or query_text is empty")
 			task_exit_code = 3
 			task_status = 4
-			task_error = task_error + "Failed to parse data:\n The Database name and SQL query are required\n"
-			task_output = task_output + "Failed to parse data:\n The Database name and SQL query are required\n"
+			task_error = task_error + "The Database name and SQL query are required."
+			task_output = task_output + "Failed to parse data:\nThe Database name and SQL query are required\n"
 			return task_exit_code, task_status, task_output, task_error
 		} else {
 			task_output = task_output + "schema_name and query_text are not empty\n"
@@ -81,7 +81,7 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 			logger.Error("schema_name does not exist in metrics.DB.Metrics.Databases: ", input.SchemaName)
 			task_exit_code = 4
 			task_status = 4
-			task_error = task_error + fmt.Sprintf("Failed to collect schema for the `%s` database:\nThe `%s` database does not exist\nPlease check the database name and try again.\n", input.SchemaName, input.SchemaName)
+			task_error = task_error + fmt.Sprintf("The `%s` database does not exist.\nPlease check the database name and try again.\n", input.SchemaName)
 			task_output = task_output + fmt.Sprintf("Failed to collect schema for the `%s` database:\nThe `%s` database does not exist\n", input.SchemaName, input.SchemaName)
 			return task_exit_code, task_status, task_output, task_error
 		}
@@ -99,7 +99,7 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 				logger.Error("Failed to collect schema: ", err)
 				task_exit_code = 5
 				task_status = 4
-				task_error = task_error + fmt.Sprintf("Failed to collect schema for the `%s` database:\n%v\n", input.SchemaName, err)
+				task_error = task_error + fmt.Sprintf("Failed to collect schema for the `%s` database:\n%v\nPlease write us in the chat or send an email to hello@releem.com.\nWe will do our best to resolve the issue.", input.SchemaName, err)
 				task_output = task_output + fmt.Sprintf("Failed to collect schema for the `%s` database:\n%v\n", input.SchemaName, err)
 				return task_exit_code, task_status, task_output, task_error
 			} else {
@@ -135,11 +135,11 @@ func ProcessQueryExplainTask(task_details string, logger logging.Logger, configu
 			task_status = 4
 			if strings.Contains(explain_error.Error(), "need_grant_permission") {
 				task_exit_code = 6
-				task_error = task_error + "Failed to execute EXPLAIN:\nMySQL 'releem' user lacks required permissions.\nPlease grant the necessary permissions to the user and try again.\n"
+				task_error = task_error + "MySQL 'releem' user lacks required permissions.\nPlease grant the necessary permissions to the user and try again.\n"
 				task_output = task_output + fmt.Sprintf("Need grant permission for QueryOptimizationID: %d\n", input.QueryOptimizationID)
 			} else {
 				task_exit_code = 7
-				task_error = task_error + fmt.Sprintf("Failed to execute EXPLAIN:\n %v\nPlease check the query and try again.\n", explain_error)
+				task_error = task_error + fmt.Sprintf("Failed to execute EXPLAIN:\n%v\nPlease check the query and try again.\n", explain_error)
 				task_output = task_output + fmt.Sprintf("Failed to execute EXPLAIN for QueryOptimizationID: %d: %v\n", input.QueryOptimizationID, explain_error)
 			}
 		}

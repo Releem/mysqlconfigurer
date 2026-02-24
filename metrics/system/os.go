@@ -149,6 +149,9 @@ func (OS *OSMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 		OS.logger.Error(err)
 	}
 	for _, part := range Partitions {
+		if part.Mountpoint == "" {
+			continue
+		}
 		Usage, err := disk.Usage(part.Mountpoint)
 		if err != nil {
 			OS.logger.Error(err)

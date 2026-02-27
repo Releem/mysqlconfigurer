@@ -12,6 +12,9 @@ import (
 	"github.com/Releem/daemon"
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/metrics"
+	"github.com/Releem/mysqlconfigurer/metrics/mysql"
+	"github.com/Releem/mysqlconfigurer/metrics/postgresql"
+	"github.com/Releem/mysqlconfigurer/metrics/system"
 	"github.com/Releem/mysqlconfigurer/models"
 	r "github.com/Releem/mysqlconfigurer/repeater"
 	"github.com/Releem/mysqlconfigurer/utils"
@@ -19,7 +22,6 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	_ "github.com/go-sql-driver/mysql"
 	logging "github.com/google/logger"
 
@@ -53,20 +55,9 @@ func (programm *Programm) Start() {
 }
 
 func (programm *Programm) Run() {
-
-	var TypeConfiguration string
-	var gatherers, gatherers_metrics, gatherers_configuration, gatherers_query_optimization []models.MetricsGatherer
+	// var gatherers map[string][]models.MetricsGatherer
+	gatherers := make(map[string][]models.MetricsGatherer)
 	var Mode models.ModeType
-
-	if *SetConfigRun {
-		TypeConfiguration = "ForceSet"
-	} else if *InitialConfigRun {
-		TypeConfiguration = "ForceInitial"
-	} else if *GetConfigRun {
-		TypeConfiguration = "ForceGet"
-	} else {
-		TypeConfiguration = "Default"
-	}
 
 	// Do something, call your goroutines, etc
 	logger.Info("Releem-agent version is ", config.ReleemAgentVersion) //
@@ -87,11 +78,19 @@ func (programm *Programm) Run() {
 		Mode.Name = "Event"
 		Mode.Type = *AgentEvent
 	} else if len(*AgentTask) > 0 {
-		Mode.Name = "TaskSet"
+		Mode.Name = "TaskByName"
 		Mode.Type = *AgentTask
 	} else {
 		Mode.Name = "Configurations"
-		Mode.Type = TypeConfiguration
+		if *SetConfigRun {
+			Mode.Type = "Set"
+		} else if *InitialConfigRun {
+			Mode.Type = "GetInitial"
+		} else if *GetConfigRun {
+			Mode.Type = "Get"
+		} else {
+			Mode.Type = "Default"
+		}
 	}
 	// if Mode.Name != "Event" {
 	// Select how we collect instance metrics depending on InstanceType
@@ -122,22 +121,15 @@ func (programm *Programm) Run() {
 		result, err := rdsclient.DescribeDBInstances(context.TODO(), input)
 
 		if err != nil {
-			if aerr, ok := err.(awserr.Error); ok {
-				logger.Error(aerr.Error())
-				return
-			} else {
-				// Print the error, cast err to awserr.Error to get the Code and
-				// Message from an error.
-				logger.Error(err.Error())
-				return
-			}
+			logger.Error(err.Error())
+			return
 		}
 
 		// Request detailed instance info
 		if result != nil && len(result.DBInstances) == 1 {
 			configuration.Hostname = configuration.AwsRDSDB
 			configuration.MysqlHost = *result.DBInstances[0].Endpoint.Address
-			gatherers = append(gatherers, metrics.NewAWSRDSEnhancedMetricsGatherer(logger, result.DBInstances[0], cwlogsclient, configuration))
+			gatherers["default"] = append(gatherers["default"], system.NewAWSRDSEnhancedMetricsGatherer(logger, result.DBInstances[0], cwlogsclient, configuration))
 			logger.Info("AWS RDS DB instance found: ", configuration.AwsRDSDB)
 		} else if result != nil && len(result.DBInstances) > 1 {
 			logger.Infof("RDS.DescribeDBInstances: Database has %d instances. Clusters are not supported", len(result.DBInstances))
@@ -202,15 +194,17 @@ func (programm *Programm) Run() {
 		}
 
 		// Add GCP gatherer
-		gatherers = append(gatherers, metrics.NewGCPCloudSQLEnhancedMetricsGatherer(logger, monitoringClient, sqlAdminService, configuration))
+		gatherers["default"] = append(gatherers["default"], system.NewGCPCloudSQLEnhancedMetricsGatherer(logger, monitoringClient, sqlAdminService, configuration))
 
 	default:
 		logger.Info("InstanceType is Local")
-		gatherers = append(gatherers, metrics.NewOSMetricsGatherer(logger, configuration))
+		gatherers["default"] = append(gatherers["default"], system.NewOSMetricsGatherer(logger, configuration))
 
 	}
 
-	models.DB = utils.ConnectionDatabase(configuration, logger, "mysql")
+	// Initialize database connection based on database type
+	dbType := configuration.GetDatabaseType()
+	models.DB = utils.ConnectionDatabase(configuration, logger, "")
 	defer models.DB.Close()
 
 	//Init repeaters
@@ -223,21 +217,45 @@ func (programm *Programm) Run() {
 	// repeaters["TaskSet"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, Mode))
 	// repeaters["GetConfigurationJson"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, models.Mode{Name: "Configurations", Type: "ForceGetJson"}))
 	// repeaters["QueryOptimization"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, models.Mode{Name: "Metrics", Type: "QuerysOptimization"}))
-	// repeaters["QueriesOptimization"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, models.Mode{Name: "TaskSet", Type: "queries_optimization"}))
+	// repeaters["DatabaseSchema"] = models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, models.Mode{Name: "TaskSet", Type: "queries_optimization"}))
 	//var repeaters models.MetricsRepeater
 	repeaters := models.MetricsRepeater(r.NewReleemConfigurationsRepeater(configuration, logger))
 
-	//Init gatherers
-	gatherers = append(gatherers,
-		metrics.NewDbConfGatherer(logger, configuration),
-		metrics.NewDbInfoBaseGatherer(logger, configuration),
-		metrics.NewDbMetricsBaseGatherer(logger, configuration),
-		metrics.NewAgentMetricsGatherer(logger, configuration))
-	gatherers_metrics = append(gatherers_metrics, metrics.NewDbMetricsMetricsBaseGatherer(logger, configuration))
-	gatherers_configuration = append(gatherers_configuration, metrics.NewDbMetricsGatherer(logger, configuration), metrics.NewDbInfoGatherer(logger, configuration))
-	gatherers_query_optimization = append(gatherers_query_optimization, metrics.NewDbCollectQueriesOptimization(logger, configuration))
+	//Init gatherers based on database type
+	switch dbType {
+	case "postgresql":
+		gatherers["default"] = append(gatherers["default"],
+			postgresql.NewDBConfGatherer(logger, configuration),
+			postgresql.NewDBInfoBaseGatherer(logger, configuration),
+			postgresql.NewDBMetricsBaseGatherer(logger, configuration),
+			metrics.NewAgentMetricsGatherer(logger, configuration))
 
-	metrics.RunWorker(gatherers, gatherers_metrics, gatherers_configuration, gatherers_query_optimization, repeaters, logger, configuration, Mode)
+		gatherers["metrics"] = append(gatherers["metrics"], postgresql.NewDBMetricsGatherer(logger, configuration))
+
+		gatherers["configuration"] = append(gatherers["configuration"], postgresql.NewDBMetricsConfigGatherer(logger, configuration))
+
+		gatherers["query_optimization"] = append(gatherers["query_optimization"], postgresql.NewDBCollectQueriesOptimization(logger, configuration))
+
+		gatherers["sample_queries"] = []models.MetricsGatherer{}
+
+	case "mysql":
+		fallthrough
+	default:
+		gatherers["default"] = append(gatherers["default"],
+			mysql.NewDBConfGatherer(logger, configuration),
+			mysql.NewDBInfoGatherer(logger, configuration),
+			mysql.NewDBMetricsBaseGatherer(logger, configuration),
+			metrics.NewAgentMetricsGatherer(logger, configuration))
+
+		gatherers["metrics"] = append(gatherers["metrics"], mysql.NewDBMetricsGatherer(logger, configuration))
+
+		gatherers["configuration"] = append(gatherers["configuration"], mysql.NewDBMetricsConfigGatherer(logger, configuration))
+
+		gatherers["query_optimization"] = append(gatherers["query_optimization"], mysql.NewDBCollectQueriesOptimization(logger, configuration))
+
+		gatherers["sample_queries"] = append(gatherers["sample_queries"], mysql.NewDBCollectSampleQueriesGatherer(logger, configuration))
+	}
+	metrics.RunWorker(gatherers, repeaters, logger, configuration, Mode)
 
 }
 

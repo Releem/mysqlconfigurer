@@ -30,13 +30,10 @@ func (Agent *AgentMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 		output["Hostname"] = Agent.configuration.Hostname
 	}
 	output["QueryOptimization"] = Agent.configuration.QueryOptimization
-	models.SqlTextMutex.RLock()
-	total := 0
-	for _, row := range models.SqlText {
-		total += len(row)
-	}
-	models.SqlTextMutex.RUnlock()
-	output["QueryOptimizationSqlTextCount"] = total
+
+	models.SampleQueriesMutex.RLock()
+	output["SampleQueriesCount"] = len(models.SampleQueries)
+	models.SampleQueriesMutex.RUnlock()
 
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)

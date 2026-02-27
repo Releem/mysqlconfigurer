@@ -1,5 +1,17 @@
 Releem releases
 ---
+Releem 1.22.1, 2025-11-30 ([What's New At Releem | November 2025](https://releem.com/blog/whats-new-at-releem-november-2025))
+- Added Export to CSV in the process list. Closes #437
+- Added dark mode
+- Added the ability to [share a database server with other users](https://docs.releem.com/server-settings/invite-users-and-assign-roles). Closes #279
+- Improved the recommended configuration apply flow
+- Added history tracking for optimized query recommendations, showing which recommendations were applied
+- Implemented minor UI improvements and new notifications
+- Added [initial configuration](https://docs.releem.com/configuration-tuning/initial-mysql-configuration) options
+- Added a new event for high connection utilization
+- Fixed innodb_buffer_pool_size recommendations by reducing the value when memory utilization is high. Closes #481
+- Fixed an issue with index detection. Closes #475
+
 Releem 1.22.0.4, 2025-10-31 ([What's New At Releem | October 2025](https://releem.com/blog/whats-new-at-releem-october-2025))
 - Added Servers overview bar.
 - Added tooltips for the Security Check icons on the dashboard. Closed #429 

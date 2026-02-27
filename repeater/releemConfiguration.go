@@ -3,9 +3,11 @@ package repeater
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
@@ -20,13 +22,13 @@ type ReleemConfigurationsRepeater struct {
 	configuration *config.Config
 }
 
-func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.MetricContext, metrics models.Metrics, Mode models.ModeType) (interface{}, error) {
+func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.MetricContext, metrics models.Metrics, Mode models.ModeType) (string, error) {
 	defer utils.HandlePanic(repeater.configuration, repeater.logger)
 	repeater.logger.V(5).Info(Mode.Name, Mode.Type)
 	var buffer bytes.Buffer
 	encoder := json.NewEncoder(&buffer)
 	if err := encoder.Encode(metrics); err != nil {
-		repeater.logger.Error("Failed to encode metrics: ", err)
+		return "", errors.New("Failed to encode metrics: " + err.Error())
 	}
 	repeater.logger.V(5).Info("Result Send data: ", buffer.String())
 	var api_domain, subdomain, domain string
@@ -47,7 +49,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	} else {
 		domain = "releem.com"
 	}
-	if Mode.Name == "TaskSet" && Mode.Type == "queries_optimization" {
+	if Mode.Name == "TaskByName" {
 		api_domain = "https://api.queries." + subdomain + domain + "/v2/"
 	} else if Mode.Name == "Metrics" {
 		api_domain = "https://api.queries." + subdomain + domain + "/v2/"
@@ -58,94 +60,84 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	switch Mode.Name {
 	case "Configurations":
 		switch Mode.Type {
-		case "ForceSet":
-			api_domain = api_domain + "mysql"
-		case "ForceInitial":
-			api_domain = api_domain + "mysql/initial"
-		case "ForceGet":
-			api_domain = api_domain + "config"
-		case "ForceGetJson":
-			api_domain = api_domain + "config?json=1"
+		case "Set":
+			api_domain = api_domain + "db/config/set"
+		case "Get", "GetJson":
+			api_domain = api_domain + "db/config/get"
+		case "GetInitial":
+			api_domain = api_domain + "db/config/initial"
 		default:
-			api_domain = api_domain + "mysql"
+			api_domain = api_domain + "db/config/set"
 		}
 	case "Metrics":
 		switch Mode.Type {
-		case "QueryOptimization":
-			api_domain = api_domain + "queries/metrics"
+		case "Queries":
+			api_domain = api_domain + "db/metrics/queries"
 		default:
-			api_domain = api_domain + "mysql/metrics"
+			api_domain = api_domain + "db/metrics"
 		}
 	case "Event":
-		api_domain = api_domain + "event/" + Mode.Type
-	case "TaskGet":
-		api_domain = api_domain + "task/task_get"
-	case "TaskSet":
-		api_domain = api_domain + "task/" + Mode.Type
-	case "TaskStatus":
-		api_domain = api_domain + "task/task_status"
+		api_domain = api_domain + "events/" + Mode.Type
+	case "Task":
+		switch Mode.Type {
+		case "Get":
+			api_domain = api_domain + "tasks/get"
+		case "Status":
+			api_domain = api_domain + "tasks/status"
+		}
+	case "TaskByName":
+		api_domain = api_domain + "tasks/by-name/" + Mode.Type
 	}
 	repeater.logger.V(5).Info(api_domain)
 
 	req, err := http.NewRequest(http.MethodPost, api_domain, &buffer)
 	if err != nil {
-		repeater.logger.Error("Request: could not create request: ", err)
-		return nil, err
+		return "", errors.New("Request: could not create request: " + err.Error())
 	}
 	req.Header.Set("x-releem-api-key", context.GetApiKey())
-
+	if Mode.Name == "Configurations" && Mode.Type == "GetJson" {
+		req.Header.Set("Accept", "application/json")
+	}
 	client := http.Client{
 		Timeout: 10 * time.Minute,
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		repeater.logger.Error("Request: error making http request: ", err)
-		return nil, err
+		return "", errors.New("Request: error making http request: " + err.Error())
 	}
 	defer res.Body.Close()
 
 	body_res, err := io.ReadAll(res.Body)
 	if err != nil {
-		repeater.logger.Error("Response: error read body request: ", err)
-		return nil, err
+		return "", errors.New("Response: error read body request: " + err.Error())
 	}
 	if res.StatusCode != 200 && res.StatusCode != 201 {
-		repeater.logger.Error("Response: status code: ", res.StatusCode)
-		repeater.logger.Error("Response: body:\n", string(body_res))
-	} else {
-		repeater.logger.V(5).Info("Response: status code: ", res.StatusCode)
-		repeater.logger.V(5).Info("Response: body:\n", string(body_res))
+		return "", errors.New("Response: status code: " + strconv.Itoa(res.StatusCode) + " Response: body:\n" + string(body_res))
+	}
+	repeater.logger.V(5).Info("Response: status code: ", res.StatusCode)
+	repeater.logger.V(5).Info("Response: body:\n", string(body_res))
 
-		switch Mode.Name {
-		case "Configurations":
-			var config_filename string
-			if Mode.Type == "ForceInitial" {
-				config_filename = "initial_config_mysql.cnf"
-			} else {
+	if Mode.Name == "Configurations" {
+		var config_filename string
+		if Mode.Type == "GetInitial" {
+			config_filename = "initial_config_mysql.cnf"
+		} else {
+			db_type := repeater.configuration.GetDatabaseType()
+			switch db_type {
+			case "mysql":
+				config_filename = "z_aiops_mysql.cnf"
+			case "postgresql":
+				config_filename = "z_aiops_postgresql.conf"
+			default:
 				config_filename = "z_aiops_mysql.cnf"
 			}
-			err = os.WriteFile(context.GetReleemConfDir()+"/"+config_filename, body_res, 0644)
-			if err != nil {
-				repeater.logger.Error("WriteFile: Error write to file: ", err)
-				return nil, err
-			}
-			return string(body_res), err
-
-		case "Metrics":
-			return string(body_res), err
-		case "Event":
-			return nil, err
-		case "TaskGet":
-			result_data := models.Task{}
-			err := json.Unmarshal(body_res, &result_data)
-			return result_data, err
-		case "TaskSet":
-			return nil, err
-		case "TaskStatus":
-			return nil, err
+		}
+		err = os.WriteFile(context.GetReleemConfDir()+"/"+config_filename, body_res, 0644)
+		if err != nil {
+			return "", errors.New("WriteFile: Error write to file: " + err.Error())
 		}
 	}
-	return nil, err
+	return string(body_res), nil
 }
 
 func NewReleemConfigurationsRepeater(configuration *config.Config, logger logging.Logger) ReleemConfigurationsRepeater {

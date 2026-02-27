@@ -1,5 +1,18 @@
 Releem releases
 ---
+
+Releem 1.22.7, 2026-01-31 ([What's New At Releem | January 2026](https://releem.com/blog/whats-new-at-releem-january-2026))
+- Added recommendation filtering in Query Analytics. Closes #457
+- Added the ability to disable schema checks.
+- Added the ability to delete query recommendations
+- Added Google authentication
+- Updated Go and dependencies to the latest available versions
+- Fixed critical and high CVEs
+- Fixed the filtered field logic for queries performing full table scans.  Closes #493
+- Fixed duplicate entry error during multiple team member invitations. Closes #489
+- Fixed index key size detection for InnoDB. Closes #487
+- Fixed configuration application for RDS MariaDB. Closes #484
+
 Releem 1.22.1, 2025-11-30 ([What's New At Releem | November 2025](https://releem.com/blog/whats-new-at-releem-november-2025))
 - Added Export to CSV in the process list. Closes #437
 - Added dark mode
@@ -7,8 +20,8 @@ Releem 1.22.1, 2025-11-30 ([What's New At Releem | November 2025](https://releem
 - Improved the recommended configuration apply flow
 - Added history tracking for optimized query recommendations, showing which recommendations were applied
 - Implemented minor UI improvements and new notifications
-- Added [initial configuration](https://docs.releem.com/configuration-tuning/initial-mysql-configuration) options
-- Added a new event for high connection utilization
+- Added [initial configuration](https://docs.releem.com/configuration-tuning/initial-mysql-configuration) options. Closes #465
+- Added a new event for high connection utilization #473
 - Fixed innodb_buffer_pool_size recommendations by reducing the value when memory utilization is high. Closes #481
 - Fixed an issue with index detection. Closes #475
 

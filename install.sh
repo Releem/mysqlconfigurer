@@ -484,7 +484,9 @@ function create_postgresql_user() {
             
             # Grant necessary permissions
             PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "GRANT pg_monitor TO ${RELEEM_PG_LOGIN};" 2>/dev/null 
-            
+            PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "GRANT pg_read_all_stats TO ${RELEEM_PG_LOGIN};" 2>/dev/null        
+  
+                        
             # # Try to grant access to pg_stat_statements if available
             # if $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements';" | grep -q 1; then
             #     $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "GRANT SELECT ON pg_stat_statements TO ${RELEEM_PG_LOGIN};" 2>/dev/null || true

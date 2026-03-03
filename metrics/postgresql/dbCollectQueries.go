@@ -1,9 +1,12 @@
 package postgresql
 
 import (
+	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,6 +46,8 @@ func (DBCollectQueriesOptimization *DBCollectQueriesOptimization) GetMetrics(met
 
 	ver_current, _ := version.NewVersion(metrics.DB.Info["Version"].(string))
 	ver_postgresql, _ := version.NewVersion("13")
+	ver_plan_cache_mode, _ := version.NewVersion("12")
+	supportsParameterizedExplain := !ver_current.LessThan(ver_plan_cache_mode)
 	// Collect DBMS internal metrics
 	pgStatStatements := PG_STAT_STATEMENTS
 	if ver_current.LessThan(ver_postgresql) {
@@ -62,6 +67,7 @@ func (DBCollectQueriesOptimization *DBCollectQueriesOptimization) GetMetrics(met
 				DBCollectQueriesOptimization.logger.Error(err)
 				return err
 			}
+			queryid = normalizePgQueryID(queryid)
 
 			// Convert to microseconds for compatibility with MySQL metrics
 			total_exec_time_us := total_exec_time * 1000
@@ -70,7 +76,7 @@ func (DBCollectQueriesOptimization *DBCollectQueriesOptimization) GetMetrics(met
 				"datname":            datname,
 				"queryid":            queryid,
 				"query":              query,
-				"query_text":         "",
+				"query_text":         query,
 				"calls":              calls,
 				"total_exec_time_us": total_exec_time_us,
 				"mean_exec_time_us":  mean_exec_time_us,
@@ -79,8 +85,8 @@ func (DBCollectQueriesOptimization *DBCollectQueriesOptimization) GetMetrics(met
 	}
 
 	if DBCollectQueriesOptimization.configuration.QueryOptimization {
-		CollectExplain(output_digest, "total_exec_time_us", DBCollectQueriesOptimization.logger, DBCollectQueriesOptimization.configuration)
-		CollectExplain(output_digest, "mean_exec_time_us", DBCollectQueriesOptimization.logger, DBCollectQueriesOptimization.configuration)
+		CollectExplain(output_digest, "total_exec_time_us", supportsParameterizedExplain, DBCollectQueriesOptimization.logger, DBCollectQueriesOptimization.configuration)
+		CollectExplain(output_digest, "mean_exec_time_us", supportsParameterizedExplain, DBCollectQueriesOptimization.logger, DBCollectQueriesOptimization.configuration)
 	}
 	for _, value := range output_digest {
 		metrics.DB.Queries = append(metrics.DB.Queries, value)
@@ -195,7 +201,7 @@ func CollectDbSchema(database string, logger logging.Logger, metrics *models.Met
 }
 
 // PostgreSQL version of CollectionExplain - uses EXPLAIN (FORMAT JSON)
-func CollectExplain(digests map[string]models.MetricGroupValue, field_sorting string, logger logging.Logger, configuration *config.Config) {
+func CollectExplain(digests map[string]models.MetricGroupValue, field_sorting string, supportsParameterizedExplain bool, logger logging.Logger, configuration *config.Config) {
 	var schema_name_conn string
 	var i int
 	var db *sql.DB
@@ -230,6 +236,9 @@ func CollectExplain(digests map[string]models.MetricGroupValue, field_sorting st
 		if strings.Contains(digests[k]["query_text"].(string), "EXPLAIN (FORMAT JSON)") {
 			continue
 		}
+		if strings.Contains(digests[k]["query_text"].(string), "PREPARE") {
+			continue
+		}
 		if u.IsSchemaNameExclude(digests[k]["datname"].(string), configuration.DatabasesQueryOptimization) {
 			continue
 		}
@@ -242,28 +251,43 @@ func CollectExplain(digests map[string]models.MetricGroupValue, field_sorting st
 			defer db.Close()
 			schema_name_conn = digests[k]["datname"].(string)
 		}
-		query_explain, err := ExecuteExplain(db, digests[k]["query_text"].(string), logger)
+		query_explain, err := ExecuteExplain(db, digests[k]["queryid"].(string), digests[k]["query_text"].(string), supportsParameterizedExplain, logger)
 		if err != nil {
 			digests[k]["explain_error"] = err.Error()
 		}
 		if query_explain != "" {
-			logger.V(5).Info(i, "OK")
+			logger.Info(i, " OK")
+			logger.Info("queryText: ", digests[k]["query_text"].(string))
+			logger.Info("explain: ", query_explain)
 			digests[k]["explain"] = query_explain
 			i = i + 1
 		}
 	}
 }
 
-func ExecuteExplain(db *sql.DB, queryText string, logger logging.Logger) (string, error) {
+func ExecuteExplain(db *sql.DB, queryId string, queryText string, supportsParameterizedExplain bool, logger logging.Logger) (string, error) {
 	var explain, query_text string
 	var explain_error error
 	explain_error = nil
+
+	if supportsParameterizedExplain && containsUnquotedPgParameter(queryText) {
+		explainPrepared, errPrepared := executePreparedExplain(db, queryId, queryText)
+		if errPrepared != nil {
+			logger.Error("Explain prepared statement error: ", errPrepared, "; queryText: ", queryText)
+			if isExplainPermissionError(errPrepared) {
+				return explainPrepared, errors.New("need_grant_permission")
+			}
+			explain_error = errPrepared
+		} else {
+			return explainPrepared, nil
+		}
+	}
 
 	//Try exec EXPLAIN for origin query
 	err := db.QueryRow("EXPLAIN (FORMAT JSON) " + queryText).Scan(&explain)
 	if err != nil {
 		logger.Error("Explain Error: ", err)
-		if strings.Contains(err.Error(), "SELECT command denied to user") || strings.Contains(err.Error(), "Access denied for user") {
+		if isExplainPermissionError(err) {
 			explain_error = errors.New("need_grant_permission")
 			return explain, explain_error
 		} else {
@@ -278,7 +302,7 @@ func ExecuteExplain(db *sql.DB, queryText string, logger logging.Logger) (string
 	err_1 := db.QueryRow("EXPLAIN (FORMAT JSON) " + query_text).Scan(&explain)
 	if err_1 != nil {
 		logger.Error("Explain Error: ", err_1)
-		if strings.Contains(err_1.Error(), "SELECT command denied to user") || strings.Contains(err_1.Error(), "Access denied for user") {
+		if isExplainPermissionError(err_1) {
 			explain_error = errors.New("need_grant_permission")
 			return explain, explain_error
 		} else {
@@ -293,7 +317,7 @@ func ExecuteExplain(db *sql.DB, queryText string, logger logging.Logger) (string
 	err_2 := db.QueryRow("EXPLAIN (FORMAT JSON) " + query_text).Scan(&explain)
 	if err_2 != nil {
 		logger.Error("Explain Error: ", err_2)
-		if strings.Contains(err_2.Error(), "SELECT command denied to user") || strings.Contains(err_2.Error(), "Access denied for user") {
+		if isExplainPermissionError(err_2) {
 			explain_error = errors.New("need_grant_permission")
 			return explain, explain_error
 		} else {
@@ -304,4 +328,91 @@ func ExecuteExplain(db *sql.DB, queryText string, logger logging.Logger) (string
 	}
 
 	return explain, explain_error
+}
+
+func isExplainPermissionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errText := strings.ToLower(err.Error())
+	return strings.Contains(errText, "select command denied to user") ||
+		strings.Contains(errText, "access denied for user") ||
+		strings.Contains(errText, "permission denied")
+}
+
+func containsUnquotedPgParameter(query string) bool {
+	inSingleQuote := false
+	for i := 0; i < len(query); i++ {
+		ch := query[i]
+		if ch == '\'' {
+			if inSingleQuote && i+1 < len(query) && query[i+1] == '\'' {
+				i++
+				continue
+			}
+			inSingleQuote = !inSingleQuote
+			continue
+		}
+		if inSingleQuote || ch != '$' || i+1 >= len(query) {
+			continue
+		}
+		if query[i+1] < '0' || query[i+1] > '9' {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func executePreparedExplain(db *sql.DB, queryId string, queryText string) (string, error) {
+	ctx := context.Background()
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+
+	stmtName := "releem_" + queryId
+
+	if _, err = conn.ExecContext(ctx, "SET plan_cache_mode = force_generic_plan"); err != nil {
+		return "", err
+	}
+	query := fmt.Sprintf("PREPARE %s AS %s", stmtName, queryText)
+	if _, err = conn.ExecContext(ctx, query); err != nil {
+		return "", err
+	}
+	defer conn.ExecContext(ctx, "DEALLOCATE PREPARE "+stmtName)
+
+	var paramsCount int
+	if err = conn.QueryRowContext(ctx, "SELECT COALESCE(cardinality(parameter_types), 0) FROM pg_prepared_statements WHERE name = $1", stmtName).Scan(&paramsCount); err != nil {
+		return "", err
+	}
+
+	executeQuery := "EXPLAIN (FORMAT JSON) EXECUTE " + stmtName
+	if paramsCount > 0 {
+		nullParams := strings.TrimRight(strings.Repeat("NULL,", paramsCount), ",")
+		executeQuery += "(" + nullParams + ")"
+	}
+
+	var explain string
+	if err = conn.QueryRowContext(ctx, executeQuery).Scan(&explain); err != nil {
+		return "", err
+	}
+	return explain, nil
+}
+
+func normalizePgQueryID(queryID string) string {
+	trimmed := strings.TrimSpace(queryID)
+	if trimmed == "" {
+		return queryID
+	}
+
+	if signedValue, err := strconv.ParseInt(trimmed, 10, 64); err == nil {
+		return strconv.FormatUint(uint64(signedValue), 10)
+	}
+
+	if unsignedValue, err := strconv.ParseUint(trimmed, 10, 64); err == nil {
+		return strconv.FormatUint(unsignedValue, 10)
+	}
+
+	return queryID
 }

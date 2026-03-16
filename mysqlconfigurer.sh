@@ -65,7 +65,7 @@ function update_agent() {
         then
             printf "\033[37m\n * Updating script \e[31;1m%s\e[0m -> \e[32;1m%s\e[0m\n" "$VERSION" "$NEW_VER"
             curl -s -L $RELEEM_AGENT_INSTALL_SCRIPT_URL > "$RELEEM_INSTALL_FILE"
-            RELEEM_INSTANCE_TYPE=$RELEEM_INSTANCE_TYPE RELEEM_API_KEY=$RELEEM_API_KEY exec bash "$RELEEM_INSTALL_FILE" -u
+            RELEEM_INSTANCE_TYPE=$RELEEM_INSTANCE_TYPE RELEEM_API_KEY=$RELEEM_API_KEY exec bash "$RELEEM_INSTALL_FILE" update
             $RELEEM_WORKDIR/releem-agent --event=agent_updated > /dev/null
         fi
     fi
@@ -741,9 +741,6 @@ function detect_postgresql_commands() {
     # Export as global variables
     psqlcmd="$psql_cmd"
     pg_isreadycmd="$pg_isready_cmd"
-
-    printf "\033[37m   Found psql: %s\033[0m\n" "$psql_cmd"
-    printf "\033[37m   Found pg_isready: %s\033[0m\n" "$pg_isready_cmd"
 }
 
 

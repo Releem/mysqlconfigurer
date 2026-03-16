@@ -680,7 +680,7 @@ function configure_crontab() {
             printf "\033[32m   Crontab configuration complete. Automatic updates are enabled.\033[0m\n"
         fi
     else
-        printf "\033[31m   Crontab configuration failed. Automatic updates are disabled.\033[0m\n"
+        printf "\033[31m   Crontab isn't configured. Automatic updates are disabled.\033[0m\n"
     fi    
 }
 

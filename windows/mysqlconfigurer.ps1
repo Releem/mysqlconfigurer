@@ -184,6 +184,8 @@ function Find-MysqlExe {
 
 function Find-MyIniPath {
     foreach ($pattern in @(
+        'C:\MySQL\*\my.ini',
+        'C:\MySQL\my.ini',
         'C:\ProgramData\MySQL\MySQL Server *\my.ini',
         'C:\Program Files\MySQL\MySQL Server *\my.ini',
         'C:\Program Files\MariaDB*\data\my.ini'
@@ -507,8 +509,13 @@ try {
         }
         $liveCnfPath = Join-Path $mysql_cnf_dir $DbConfigFileName
 
-        # Prompt user for confirmation
-        $answer = Read-Host 'Restart MySQL service to rollback configuration? [Y/N]'
+        # Prompt user for confirmation (or allow non-interactive confirm via env var)
+        if ($env:RELEEM_ROLLBACK_CONFIRM -eq '1') {
+            $answer = 'Y'
+            Write-Log 'Rollback confirmation accepted via RELEEM_ROLLBACK_CONFIRM=1'
+        } else {
+            $answer = Read-Host 'Restart MySQL service to rollback configuration? [Y/N]'
+        }
         if ($answer -ne 'Y' -and $answer -ne 'y') {
             Write-Log 'User cancelled MySQL service restart. Rollback not performed.'
             $script:ExitCode = 5; return

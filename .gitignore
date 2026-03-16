@@ -5,3 +5,5 @@ test-project/
 .keys/
 .config/
 releem-agent/
+test-results/
+context.txt

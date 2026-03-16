@@ -688,9 +688,7 @@ function releem_apply_automatic() {
 function detect_mysql_commands() {
     local mysqladmin_cmd=""
     local mysql_cmd=""
-    
-    printf "\033[37m\n * Detecting MySQL/MariaDB commands.\033[0m\n"
-    
+
     # Detect mysqladmin/mariadb-admin
     mysqladmin_cmd=$(which mariadb-admin 2>/dev/null || which mysqladmin 2>/dev/null || true)
     if [ -z "$mysqladmin_cmd" ]; then
@@ -710,6 +708,7 @@ function detect_mysql_commands() {
     # Export as global variables
     mysqladmincmd="$mysqladmin_cmd"
     mysqlcmd="$mysql_cmd"
+    
     if [ -f "/etc/my.cnf" ]; then
         MYSQL_MY_CNF_PATH="/etc/my.cnf"
     elif [ -f "/etc/mysql/my.cnf" ]; then
@@ -722,9 +721,7 @@ function detect_mysql_commands() {
 function detect_postgresql_commands() {
     local psql_cmd=""
     local pg_isready_cmd=""
-    
-    printf "\033[37m\n * Detecting PostgreSQL commands.\033[0m\n"
-    
+   
     # Detect psql
     psql_cmd=$(which psql 2>/dev/null || true)
     if [ -z "$psql_cmd" ]; then

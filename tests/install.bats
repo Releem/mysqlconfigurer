@@ -225,7 +225,7 @@ exit 1
     [[ "$output" == *"Couldn't find mysqladmin/mariadb-admin"* ]]
 }
 
-@test "aws/rds mode writes aws keys to releem.conf" {
+@test "aws/rds mode writes aws keys and releem_dir to releem.conf" {
     prepare_common_install_mocks
     local workdir="${TEST_TMPDIR}/workdir"
     local conf="${workdir}/releem.conf"
@@ -247,8 +247,9 @@ exit 1
         bash "${INSTALL_SH}"
 
     [ "$status" -eq 0 ]
-    run grep -E "^(instance_type|aws_region|aws_rds_db|aws_rds_parameter_group)=" "${conf}"
+    run grep -E "^(releem_dir|instance_type|aws_region|aws_rds_db|aws_rds_parameter_group)=" "${conf}"
     [ "$status" -eq 0 ]
+    [[ "$output" == *"releem_dir=\"${workdir}\""* ]]
     [[ "$output" == *'instance_type="aws/rds"'* ]]
     [[ "$output" == *'aws_region="eu-west-1"'* ]]
 }

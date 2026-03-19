@@ -728,6 +728,8 @@ function configure_releem_agent() {
 
     printf "\033[37m - Adding API key to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
     echo "apikey=\"$apikey\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+    printf "\033[37m - Adding Releem Agent directory $RELEEM_WORKDIR to Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+    echo "releem_dir=\"$RELEEM_WORKDIR\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
     if [ -d "$RELEEM_WORKDIR/conf" ]; then
         printf "\033[37m - Adding Releem Configuration Directory $RELEEM_WORKDIR/conf to Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
         echo "releem_cnf_dir=\"$RELEEM_WORKDIR/conf\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null

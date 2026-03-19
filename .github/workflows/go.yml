@@ -20,6 +20,14 @@ jobs:
       with:
         go-version: '1.24.13'
 
+    - name: Install bats
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y bats
+
+    - name: Run shell tests
+      run: bats tests/install.bats tests/mysqlconfigurer.bats
+
     - name: Build
       run: bash build.sh
       

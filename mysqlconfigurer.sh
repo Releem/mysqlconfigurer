@@ -15,8 +15,9 @@ fi
 
 # Variables
 VERSION="1.23.3"
-RELEEM_CONF_DIR="/opt/releem/conf/"
-RELEEM_CONF_FILE="/opt/releem/releem.conf"
+RELEEM_WORKDIR="${RELEEM_WORKDIR:-/opt/releem}"
+RELEEM_CONF_DIR="$RELEEM_WORKDIR/conf/"
+RELEEM_CONF_FILE="$RELEEM_WORKDIR/releem.conf"
 RELEEM_DB_VERSION_FILE="${RELEEM_CONF_DIR}db_version"
 RELEEM_INSTALL_FILE="${RELEEM_CONF_DIR}install.sh"
 DB_MEMORY_LIMIT=0
@@ -26,39 +27,46 @@ RELEEM_AGENT_INSTALL_SCRIPT_URL="https://releem.s3.amazonaws.com/v2/install.sh"
 
 
 logfile="/var/log/releem-mysqlconfigurer.log"
+npipe=""
 
-# Set up a named pipe for logging
-npipe=/tmp/$$.mysqlconfigurer.tmp
-mknod $npipe p
-
-# Log all output to a log for error checking
-tee <$npipe $logfile &
-exec 1>&-
-exec 1>$npipe 2>&1
+function setup_logging() {
+    if [ -n "$RELEEM_TEST_MODE" ]; then
+        return 0
+    fi
+    # Set up a named pipe for logging 
+    npipe=/tmp/$$.mysqlconfigurer.tmp
+    mknod "$npipe" p
+    # Log all output to a log for error checking
+    tee <"$npipe" "$logfile" &
+    exec 1>&-
+    exec 1>"$npipe" 2>&1
+}
 
 function on_exit() {
+    if [ -n "$RELEEM_TEST_MODE" ]; then
+        return 0
+    fi
     if [[ "${RELEEM_REGION}" == "EU" ]]; then
         API_DOMAIN="api.eu.releem.com"
     else
         API_DOMAIN="api.releem.com"
     fi
-    curl -s -L -d @$logfile -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://${API_DOMAIN}/v2/events/configurer_log
-    rm -f $npipe
+    curl -s -L -d @"$logfile" -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST "https://${API_DOMAIN}/v2/events/configurer_log"
+    [ -n "$npipe" ] && rm -f "$npipe"
 }
-
 trap on_exit EXIT
 
 function update_agent() {
     trap - EXIT
-    /opt/releem/releem-agent start > /dev/null || true
+    $RELEEM_WORKDIR/releem-agent start > /dev/null || true
     NEW_VER=$(curl  -s -L https://releem.s3.amazonaws.com/v2/current_version_agent)
     if [ "$NEW_VER" != "$VERSION" ]; then
         if [ "$(printf '%s\n' "$NEW_VER" "$VERSION" | sort -V | head -n1)" = "$VERSION" ];
         then
             printf "\033[37m\n * Updating script \e[31;1m%s\e[0m -> \e[32;1m%s\e[0m\n" "$VERSION" "$NEW_VER"
             curl -s -L $RELEEM_AGENT_INSTALL_SCRIPT_URL > "$RELEEM_INSTALL_FILE"
-            RELEEM_INSTANCE_TYPE=$RELEEM_INSTANCE_TYPE RELEEM_API_KEY=$RELEEM_API_KEY exec bash "$RELEEM_INSTALL_FILE" -u
-            /opt/releem/releem-agent --event=agent_updated > /dev/null
+            RELEEM_INSTANCE_TYPE=$RELEEM_INSTANCE_TYPE RELEEM_API_KEY=$RELEEM_API_KEY exec bash "$RELEEM_INSTALL_FILE" update
+            $RELEEM_WORKDIR/releem-agent --event=agent_updated > /dev/null
         fi
     fi
 }
@@ -120,12 +128,12 @@ function check_db_version() {
         db_version=$(cat $RELEEM_DB_VERSION_FILE)
     else
         printf "\033[37m\n * Please try again later or run Releem Agent manually:\033[0m"
-        printf "\033[32m\n  /opt/releem/releem-agent -f \033[0m\n\n"
+        printf "\033[32m\n  $RELEEM_WORKDIR/releem-agent -f \033[0m\n\n"
         exit 1;
     fi
     if [ -z $db_version ]; then
         printf "\033[37m\n * Please try again later or run Releem Agent manually:\033[0m"
-        printf "\033[32m\n /opt/releem/releem-agent -f \033[0m\n\n"
+        printf "\033[32m\n $RELEEM_WORKDIR/releem-agent -f \033[0m\n\n"
         exit 1;
     fi
     requiredver="5.6.8"
@@ -195,7 +203,7 @@ function releem_rollback_config() {
     then
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m The ${DATABASE_NAME} service failed to restart. Check the ${DATABASE_NAME} error log. \033[0m\n" 
     fi
-    /opt/releem/releem-agent --event=config_rollback > /dev/null
+    $RELEEM_WORKDIR/releem-agent --event=config_rollback > /dev/null
     exit "${RESTART_CODE}"
 }
 
@@ -290,7 +298,7 @@ function releem_configure_mysql() {
         FLAG_RESTART_SERVICE=0
     fi
     if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
-        printf "\033[31m\n For appling change in configuration MySQL need to restart service.\n Run the command \`bash /opt/releem/mysqlconfigurer.sh -p\` when it is possible to restart the service.\033[0m\n"
+        printf "\033[31m\n For appling change in configuration MySQL need to restart service.\n Run the command \`bash $RELEEM_WORKDIR/mysqlconfigurer.sh -p\` when it is possible to restart the service.\033[0m\n"
         exit 0
     fi
     #echo "-------Test config-------"
@@ -359,7 +367,7 @@ function releem_configure_postgresql_libraries() {
         FLAG_RESTART_SERVICE=0
     fi
     if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
-        printf "\033[31m\n For appling change in configuration Postgresql need to restart service.\n Run the command \`bash /opt/releem/mysqlconfigurer.sh -p\` when it is possible to restart the service.\033[0m\n"
+        printf "\033[31m\n For appling change in configuration Postgresql need to restart service.\n Run the command \`bash $RELEEM_WORKDIR/mysqlconfigurer.sh -p\` when it is possible to restart the service.\033[0m\n"
         exit 0
     fi
     #echo "-------Test config-------"
@@ -427,7 +435,7 @@ function releem_configure_postgresql() {
         FLAG_RESTART_SERVICE=0
     fi
     if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
-        printf "\033[31m\n For appling change in configuration Postgresql need to restart service.\n Run the command \`bash /opt/releem/mysqlconfigurer.sh -p\` when it is possible to restart the service.\033[0m\n"
+        printf "\033[31m\n For appling change in configuration Postgresql need to restart service.\n Run the command \`bash $RELEEM_WORKDIR/mysqlconfigurer.sh -p\` when it is possible to restart the service.\033[0m\n"
         exit 0
     fi
     #echo "-------Test config-------"
@@ -467,7 +475,7 @@ function releem_apply_config() {
 }
  
 function releem_apply_auto() {
-    /opt/releem/releem-agent --task=apply_config > /dev/null
+    $RELEEM_WORKDIR/releem-agent --task=apply_config > /dev/null
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Sending request to create a job to apply the configuration.\033[0m\n"
     exit 0
 }
@@ -500,11 +508,11 @@ function releem_apply_manual() {
 
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended ${DATABASE_NAME} configuration.\033[0m\n"
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the latest up-to-date configuration.\033[0m\n"
-    /opt/releem/releem-agent -c >/dev/null 2>&1 || true
+    $RELEEM_WORKDIR/releem-agent -c >/dev/null 2>&1 || true
     if [ ! -f $RELEEM_DB_CONFIG_FILE ]; then
         printf "\033[37m\n * Recommended ${DATABASE_NAME} configuration was not found.\033[0m"
         printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"
-        printf "\033[32m\n /opt/releem/releem-agent -f \033[0m\n\n"
+        printf "\033[32m\n $RELEEM_WORKDIR/releem-agent -f \033[0m\n\n"
         exit 1;
     fi
     diff_cmd=$(which diff || true)
@@ -564,15 +572,15 @@ function releem_apply_manual() {
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Wait for the ${DATABASE_NAME} service to start and Check the ${DATABASE_NAME} error log.\033[0m\n"
 
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash $RELEEM_WORKDIR/mysqlconfigurer.sh -r\033[0m\n\n"
     elif [ $RESTART_CODE -eq 7 ];
     then
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m ${DATABASE_NAME} service failed to restart! Check the ${DATABASE_NAME} error log! \033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash $RELEEM_WORKDIR/mysqlconfigurer.sh -r\033[0m\n\n"
     fi
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Sending notification to Releem Platform. \033[0m\n"
-    /opt/releem/releem-agent --event=config_applied > /dev/null
+    $RELEEM_WORKDIR/releem-agent --event=config_applied > /dev/null
 
     exit "${RESTART_CODE}"
 }
@@ -606,15 +614,15 @@ function releem_apply_automatic() {
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended ${DATABASE_NAME} configuration.\033[0m\n"
     if [ "$1" == "initial" ]; then
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the initial configuration.\033[0m\n"
-        /opt/releem/releem-agent --initial >/dev/null 2>&1 || true
+        $RELEEM_WORKDIR/releem-agent --initial >/dev/null 2>&1 || true
     else
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the latest up-to-date configuration.\033[0m\n"
-        /opt/releem/releem-agent -c >/dev/null 2>&1 || true
+        $RELEEM_WORKDIR/releem-agent -c >/dev/null 2>&1 || true
     fi
     if [ ! -f $DB_CONFIG_FILE ]; then
         printf "\033[37m\n * Recommended ${DATABASE_NAME} configuration was not found.\033[0m"
         printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"
-        printf "\033[32m\n /opt/releem/releem-agent -f \033[0m\n\n"
+        printf "\033[32m\n $RELEEM_WORKDIR/releem-agent -f \033[0m\n\n"
         exit 1;
     fi
     FLAG_RESTART_SERVICE=1
@@ -661,159 +669,26 @@ function releem_apply_automatic() {
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Wait for the ${DATABASE_NAME} service to start and Check the ${DATABASE_NAME} error log.\033[0m\n"
 
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
-            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash $RELEEM_WORKDIR/mysqlconfigurer.sh -r\033[0m\n\n"
         elif [ $RESTART_CODE -eq 7 ];
         then
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m ${DATABASE_NAME} service failed to restart. Check the ${DATABASE_NAME} error log. \033[0m\n"
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
-            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash /opt/releem/mysqlconfigurer.sh -r\033[0m\n\n"
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash $RELEEM_WORKDIR/mysqlconfigurer.sh -r\033[0m\n\n"
         fi
     else
         RESTART_CODE=0
     fi
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Sending notification to Releem Platform. \033[0m\n"
-    /opt/releem/releem-agent --event=config_applied > /dev/null
+    $RELEEM_WORKDIR/releem-agent --event=config_applied > /dev/null
 
     exit "${RESTART_CODE}"
 }
 
-# function releem_runnig_cron() {
-#   HOUR=$(date +%I)
-#   MINUTE=$(date +%M)
-#   send_metrics
-#   if [ "${HOUR}" == "12" ] && [ "${MINUTE}" == "10" ];
-#   then
-#     get_config
-#     update_agent
-#   fi
-#   exit 0
-# }
-
-# function send_metrics() {
-#   #echo -e "\033[37m\n * Checking the environment.\033[0m"
-#   check_env
-#   ##### PARAMETERS #####
-#   CACHE_TTL="55"
-#   CACHE_FILE_STATUS="/tmp/releem.mysql.status.`echo $RELEEM_DB_CONFIG_FILE | md5sum | cut -d" " -f1`.cache"
-#   CACHE_FILE_VARIABLES="/tmp/releem.mysql.variables.`echo $RELEEM_DB_CONFIG_FILE | md5sum | cut -d" " -f1`.cache"
-#   EXEC_TIMEOUT="1"
-#   NOW_TIME=`date '+%s'`
-#   ##### RUN #####
-#   # Collect MySQL metrics
-#   #echo -e "\033[37m\n * Collecting metrics.\033[0m"
-
-#   if [ -s "${CACHE_FILE_STATUS}" ]; then
-#     CACHE_TIME=`stat -c"%Y" "${CACHE_FILE_STATUS}"`
-#   else
-#     CACHE_TIME=0
-#   fi
-#   DELTA_TIME=$((${NOW_TIME} - ${CACHE_TIME}))
-#   #
-#   if [ ${DELTA_TIME} -lt ${EXEC_TIMEOUT} ]; then
-#     sleep $((${EXEC_TIMEOUT} - ${DELTA_TIME}))
-#   elif [ ${DELTA_TIME} -gt ${CACHE_TTL} ]; then
-#     echo "" >> "${CACHE_FILE_STATUS}" # !!!
-#     DATACACHE=`mysql -sNe "show global status;"`
-#     echo "${DATACACHE}" > "${CACHE_FILE_STATUS}" # !!!
-#     chmod 640 "${CACHE_FILE_STATUS}"
-#   fi
-
-#   if [ -s "${CACHE_FILE_VARIABLES}" ]; then
-#     CACHE_TIME=`stat -c"%Y" "${CACHE_FILE_VARIABLES}"`
-#   else
-#     CACHE_TIME=0
-#   fi
-#   DELTA_TIME=$((${NOW_TIME} - ${CACHE_TIME}))
-#   #
-#   if [ ${DELTA_TIME} -lt ${EXEC_TIMEOUT} ]; then
-#     sleep $((${EXEC_TIMEOUT} - ${DELTA_TIME}))
-#   elif [ ${DELTA_TIME} -gt ${CACHE_TTL} ]; then
-#     echo "" >> "${CACHE_FILE_VARIABLES}" # !!!
-#     DATACACHE=`mysql -sNe "show global variables;"`
-#     echo "${DATACACHE}" > "${CACHE_FILE_VARIABLES}" # !!!
-#     chmod 640 "${CACHE_FILE_VARIABLES}"
-#   fi
-
-#   QUESTIONS=`cat ${CACHE_FILE_STATUS} | grep -w 'Questions' | awk '{print $2}'`
-#   TIMESTAMP=`stat -c"%Y" "${CACHE_FILE_STATUS}"`
-#   HOSTNAME=`cat ${CACHE_FILE_VARIABLES} | grep -w 'hostname' | awk '{print $2}'`
-
-#   JSON_STRING='{"Hostname": "'${HOSTNAME}'", "Timestamp":"'${TIMESTAMP}'", "ReleemMetrics": {"Questions": "'${QUESTIONS}'"}}'
-#   #echo -e "\033[37m\n * Sending metrics to Releem Cloud Platform.\033[0m"
-#   # Send metrics to Releem Platform. The answer is the configuration file for MySQL
-#   curl -s -d "$JSON_STRING" -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v1/mysql
-# }
-
-# function check_env() {
-#   # Check RELEEM_API_KEY is not empty
-#   if [ -z "$RELEEM_API_KEY" ]; then
-#       echo >&2 "RELEEM_API_KEY is empty please sign up at https://releem.com/appsignup to get your Releem API key. Aborting."
-#       exit 1;
-#   fi
-#   command -v curl >/dev/null 2>&1 || { echo >&2 "Curl is not installed. Please install Curl. Aborting."; exit 1; }
-
-# }
-
-# function get_config() {
-#   echo -e "\033[37m\n * Checking the environment.\033[0m"
-#   check_env
-
-#   command -v perl >/dev/null 2>&1 || { echo >&2 "Perl is not installed. Please install Perl. Aborting."; exit 1; }
-#   perl -e "use JSON;" >/dev/null 2>&1 || { echo >&2 "Perl module JSON is not installed. Please install Perl module JSON. Aborting."; exit 1; }
-
-#   # Check if the tmp folder exists
-#   if [ -d "$RELEEM_CONF_DIR" ]; then
-#       # Clear tmp directory
-#       rm $RELEEM_CONF_DIR/*
-#   else
-#       # Create tmp directory
-#       mkdir $RELEEM_CONF_DIR
-#   fi
-
-#   # Check if MySQLTuner already downloaded and download if it doesn't exist
-#   if [ ! -f "$MYSQLTUNER_FILENAME" ]; then
-#       # Download latest version of the MySQLTuner
-#       curl -s -o $MYSQLTUNER_FILENAME -L https://raw.githubusercontent.com/major/MySQLTuner-perl/fdd42e76857532002b8037cafddec3e38983dde8/mysqltuner.pl
-#       chmod +x $MYSQLTUNER_FILENAME
-#   fi
-
-#   echo -e "\033[37m\n * Collecting metrics to recommend a config.\033[0m"
-
-#   # Collect MySQL metrics
-#   if perl $MYSQLTUNER_FILENAME --json --verbose --notbstat --nocolstat --noidxstat --nopfstat --forcemem=$DB_MEMORY_LIMIT --outputfile="$MYSQLTUNER_REPORT" --user=${MYSQL_LOGIN} --pass=${MYSQL_PASSWORD}  ${mysql_connection_string}  > /dev/null; then
-
-#       echo -e "\033[37m\n * Sending metrics to Releem Cloud Platform.\033[0m"
-
-#       # Send metrics to Releem Platform. The answer is the configuration file for MySQL
-#       curl -s -d @$MYSQLTUNER_REPORT -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST https://api.releem.com/v1/mysql -o "$RELEEM_DB_CONFIG_FILE"
-
-#       echo -e "\033[37m\n * Downloading recommended MySQL configuration from Releem Cloud Platform.\033[0m"
-
-#       # Show recommended configuration and exit
-#       msg="\n\n#---------------Releem Agent Report-------------\n\n"
-#       printf "${msg}"
-
-#       echo -e "1. Recommended MySQL configuration downloaded to ${RELEEM_DB_CONFIG_FILE}"
-#       echo
-#       echo -e "2. To check MySQL Performance Score please visit https://app.releem.com/dashboard?menu=metrics"
-#       echo
-#       echo -e "3. To apply the recommended configuration please read documentation https://app.releem.com/dashboard"
-#   else
-#       # If error then show report and exit
-#       errormsg="    \
-#       \n\n\n\n--------Releem Agent completed with error--------\n   \
-#       \nCheck $MYSQLTUNER_REPORT for details \n \
-#       \n--------Please fix the error and run Releem Agent again--------\n"
-#       printf "${errormsg}" >&2
-#   fi
-
-# }
 function detect_mysql_commands() {
     local mysqladmin_cmd=""
     local mysql_cmd=""
-    
-    printf "\033[37m\n * Detecting MySQL/MariaDB commands.\033[0m\n"
-    
+
     # Detect mysqladmin/mariadb-admin
     mysqladmin_cmd=$(which mariadb-admin 2>/dev/null || which mysqladmin 2>/dev/null || true)
     if [ -z "$mysqladmin_cmd" ]; then
@@ -833,6 +708,7 @@ function detect_mysql_commands() {
     # Export as global variables
     mysqladmincmd="$mysqladmin_cmd"
     mysqlcmd="$mysql_cmd"
+    
     if [ -f "/etc/my.cnf" ]; then
         MYSQL_MY_CNF_PATH="/etc/my.cnf"
     elif [ -f "/etc/mysql/my.cnf" ]; then
@@ -845,9 +721,7 @@ function detect_mysql_commands() {
 function detect_postgresql_commands() {
     local psql_cmd=""
     local pg_isready_cmd=""
-    
-    printf "\033[37m\n * Detecting PostgreSQL commands.\033[0m\n"
-    
+   
     # Detect psql
     psql_cmd=$(which psql 2>/dev/null || true)
     if [ -z "$psql_cmd" ]; then
@@ -867,134 +741,144 @@ function detect_postgresql_commands() {
     # Export as global variables
     psqlcmd="$psql_cmd"
     pg_isreadycmd="$pg_isready_cmd"
-
-    printf "\033[37m   Found psql: %s\033[0m\n" "$psql_cmd"
-    printf "\033[37m   Found pg_isready: %s\033[0m\n" "$pg_isready_cmd"
 }
 
 
-mysql_connection_string=""
-pg_connection_string=""
-if test -f $RELEEM_CONF_FILE ; then
-    . $RELEEM_CONF_FILE
+function load_runtime_config() {
+    mysql_connection_string=""
+    pg_connection_string=""
+    if test -f "$RELEEM_CONF_FILE" ; then
+        . "$RELEEM_CONF_FILE"
 
-    if [ ! -z "$apikey" ]; then
-        RELEEM_API_KEY=$apikey
-    fi
-    if [ ! -z "$memory_limit" ]; then
-        DB_MEMORY_LIMIT=$memory_limit
-    fi
-    if [ ! -z "$query_optimization" ]; then
-        RELEEM_QUERY_OPTIMIZATION=$query_optimization
-    fi    
-    if [ ! -z "$releem_region" ]; then
-        RELEEM_REGION=$releem_region
-    fi
-    if [ ! -z "$instance_type" ]; then
-        RELEEM_INSTANCE_TYPE=$instance_type
-    else
-        RELEEM_INSTANCE_TYPE="local"
-    fi
-
-    # MySQL Configuration Variables
-    if [ ! -z "$mysql_cnf_dir" ]; then
-        RELEEM_MYSQL_CONFIG_DIR=$mysql_cnf_dir
-    fi
-    if [ ! -z "$mysql_restart_service" ]; then
-        RELEEM_MYSQL_RESTART_SERVICE=$mysql_restart_service
-    fi
-    if [ ! -z "$mysql_user" ]; then
-        MYSQL_LOGIN=$mysql_user
-    fi
-    if [ ! -z "$mysql_password" ]; then
-        MYSQL_PASSWORD=$mysql_password
-    fi
-    if [ ! -z "$mysql_host" ]; then
-        if [ -S "$mysql_host" ]; then
-            mysql_connection_string="${mysql_connection_string} --socket=$mysql_host"
-        else
-            mysql_connection_string="${mysql_connection_string} --host=$mysql_host"
+        if [ ! -z "$apikey" ]; then
+            RELEEM_API_KEY=$apikey
         fi
-    else
-        mysql_connection_string="${mysql_connection_string} --host=127.0.0.1"
-    fi
-    if [ ! -z "$mysql_port" ]; then
-        mysql_connection_string="${mysql_connection_string} --port=$mysql_port"
-    else
-        mysql_connection_string="${mysql_connection_string} --port=3306"
+        if [ ! -z "$memory_limit" ]; then
+            DB_MEMORY_LIMIT=$memory_limit
+        fi
+        if [ ! -z "$query_optimization" ]; then
+            RELEEM_QUERY_OPTIMIZATION=$query_optimization
+        fi
+        if [ ! -z "$releem_region" ]; then
+            RELEEM_REGION=$releem_region
+        fi
+        if [ ! -z "$instance_type" ]; then
+            RELEEM_INSTANCE_TYPE=$instance_type
+        else
+            RELEEM_INSTANCE_TYPE="local"
+        fi
+
+        # MySQL Configuration Variables
+        if [ ! -z "$mysql_cnf_dir" ]; then
+            RELEEM_MYSQL_CONFIG_DIR=$mysql_cnf_dir
+        fi
+        if [ ! -z "$mysql_restart_service" ]; then
+            RELEEM_MYSQL_RESTART_SERVICE=$mysql_restart_service
+        fi
+        if [ ! -z "$mysql_user" ]; then
+            MYSQL_LOGIN=$mysql_user
+        fi
+        if [ ! -z "$mysql_password" ]; then
+            MYSQL_PASSWORD=$mysql_password
+        fi
+        if [ ! -z "$mysql_host" ]; then
+            if [ -S "$mysql_host" ]; then
+                mysql_connection_string="${mysql_connection_string} --socket=$mysql_host"
+            else
+                mysql_connection_string="${mysql_connection_string} --host=$mysql_host"
+            fi
+        else
+            mysql_connection_string="${mysql_connection_string} --host=127.0.0.1"
+        fi
+        if [ ! -z "$mysql_port" ]; then
+            mysql_connection_string="${mysql_connection_string} --port=$mysql_port"
+        else
+            mysql_connection_string="${mysql_connection_string} --port=3306"
+        fi
+
+        # PostgreSQL Configuration Variables
+        if [ ! -z "$pg_cnf_dir" ]; then
+            RELEEM_PG_CONFIG_DIR=$pg_cnf_dir
+        fi
+        if [ ! -z "$pg_restart_service" ]; then
+            RELEEM_PG_RESTART_SERVICE=$pg_restart_service
+        fi
+        if [ ! -z "$pg_user" ]; then
+            PG_LOGIN=$pg_user
+        fi
+        if [ ! -z "$pg_password" ]; then
+            PG_PASSWORD=$pg_password
+        fi
+        if [ ! -z "$pg_host" ]; then
+            pg_connection_string="${pg_connection_string} -h $pg_host"
+        else
+            pg_connection_string="${pg_connection_string} -h 127.0.0.1"
+        fi
+        if [ ! -z "$pg_port" ]; then
+            pg_connection_string="${pg_connection_string} -p $pg_port"
+        else
+            pg_connection_string="${pg_connection_string} -p 5432"
+        fi
+        if [ ! -z "$pg_database" ]; then
+            pg_connection_string="${pg_connection_string} -d $pg_database"
+        else
+            pg_connection_string="${pg_connection_string} -d postgres"
+        fi
     fi
 
-    # PostgreSQL Configuration Variables
-    if [ ! -z "$pg_cnf_dir" ]; then
-        RELEEM_PG_CONFIG_DIR=$pg_cnf_dir
+    # Database Type Detection
+    DATABASE_TYPE="mysql"  # Default to MySQL for backward compatibility
+    if [ ! -z "$PG_LOGIN" ] && [ ! -z "$PG_PASSWORD" ]; then
+        DATABASE_TYPE="postgresql"
+        DATABASE_NAME="PostgreSQL"
+        RELEEM_DB_CONFIG_FILE_NAME="z_aiops_postgresql.conf"
+        RELEEM_DB_INITIAL_CONFIG_FILE_NAME="initial_config_postgresql.conf"
+        RELEEM_DB_CONFIG_DIR="${RELEEM_PG_CONFIG_DIR}"
+        RELEEM_COMMAND_RESTART_SERVICE="${RELEEM_PG_RESTART_SERVICE}"
+    elif [ ! -z "$MYSQL_LOGIN" ] && [ ! -z "$MYSQL_PASSWORD" ]; then
+        DATABASE_TYPE="mysql"
+        DATABASE_NAME="MySQL"
+        RELEEM_DB_CONFIG_FILE_NAME="z_aiops_mysql.cnf"
+        RELEEM_DB_INITIAL_CONFIG_FILE_NAME="initial_config_mysql.cnf"
+        RELEEM_DB_CONFIG_DIR="${RELEEM_MYSQL_CONFIG_DIR}"
+        RELEEM_COMMAND_RESTART_SERVICE="${RELEEM_MYSQL_RESTART_SERVICE}"
     fi
-    if [ ! -z "$pg_restart_service" ]; then
-        RELEEM_PG_RESTART_SERVICE=$pg_restart_service
+    RELEEM_DB_CONFIG_FILE="${RELEEM_CONF_DIR}${RELEEM_DB_CONFIG_FILE_NAME}"
+    RELEEM_DB_INITIAL_CONFIG_FILE="${RELEEM_CONF_DIR}${RELEEM_DB_INITIAL_CONFIG_FILE_NAME}"
+}
+
+function main() {
+    setup_logging
+    load_runtime_config
+
+    if [ "$RELEEM_INSTANCE_TYPE" == "local" ]; then
+        if [ "$DATABASE_TYPE" == "mysql" ]; then
+            detect_mysql_commands
+        elif [ "$DATABASE_TYPE" == "postgresql" ]; then
+            detect_postgresql_commands
+        fi
     fi
-    if [ ! -z "$pg_user" ]; then
-        PG_LOGIN=$pg_user
-    fi
-    if [ ! -z "$pg_password" ]; then
-        PG_PASSWORD=$pg_password
-    fi
-    if [ ! -z "$pg_host" ]; then
-        pg_connection_string="${pg_connection_string} -h $pg_host"        
-    else
-        pg_connection_string="${pg_connection_string} -h 127.0.0.1"
-    fi
-    if [ ! -z "$pg_port" ]; then
-        pg_connection_string="${pg_connection_string} -p $pg_port"        
-    else
-        pg_connection_string="${pg_connection_string} -p 5432"
-    fi
-    if [ ! -z "$pg_database" ]; then
-        pg_connection_string="${pg_connection_string} -d $pg_database"
-    else
-        pg_connection_string="${pg_connection_string} -d postgres"
-    fi
+
+    while getopts "k:m:s:arpu" option
+    do
+      case "${option}" in
+        k) RELEEM_API_KEY=${OPTARG};;
+        m) DB_MEMORY_LIMIT=${OPTARG};;
+        a) releem_apply_manual;;
+        s) releem_apply_config ${OPTARG};;
+        r) releem_rollback_config;;
+        p) releem_configure_database;;
+        u) update_agent; exit 0;;
+      esac
+    done
+
+    printf "\033[37m\n\033[0m"
+    printf "\033[37m * To run Releem Agent manually please use the following command:\033[0m\n"
+    printf "\033[32m $RELEEM_WORKDIR/releem-agent -f\033[0m\n\n"
+}
+
+if [[ -n "${RELEEM_TEST_MODE}" && "${BASH_SOURCE[0]}" != "$0" ]]; then
+    return 0
 fi
 
-# Database Type Detection
-DATABASE_TYPE="mysql"  # Default to MySQL for backward compatibility
-if [ ! -z "$PG_LOGIN" ] && [ ! -z "$PG_PASSWORD" ]; then
-    DATABASE_TYPE="postgresql"
-    DATABASE_NAME="PostgreSQL"
-    RELEEM_DB_CONFIG_FILE_NAME="z_aiops_postgresql.conf"
-    RELEEM_DB_INITIAL_CONFIG_FILE_NAME="initial_config_postgresql.conf"  
-    RELEEM_DB_CONFIG_DIR="${RELEEM_PG_CONFIG_DIR}"
-    RELEEM_COMMAND_RESTART_SERVICE="${RELEEM_PG_RESTART_SERVICE}"
-elif [ ! -z "$MYSQL_LOGIN" ] && [ ! -z "$MYSQL_PASSWORD" ]; then
-    DATABASE_TYPE="mysql"
-    DATABASE_NAME="MySQL"
-    RELEEM_DB_CONFIG_FILE_NAME="z_aiops_mysql.cnf"
-    RELEEM_DB_INITIAL_CONFIG_FILE_NAME="initial_config_mysql.cnf"
-    RELEEM_DB_CONFIG_DIR="${RELEEM_MYSQL_CONFIG_DIR}"
-    RELEEM_COMMAND_RESTART_SERVICE="${RELEEM_MYSQL_RESTART_SERVICE}"
-fi
-RELEEM_DB_CONFIG_FILE="${RELEEM_CONF_DIR}${RELEEM_DB_CONFIG_FILE_NAME}"    
-RELEEM_DB_INITIAL_CONFIG_FILE="${RELEEM_CONF_DIR}${RELEEM_DB_INITIAL_CONFIG_FILE_NAME}"
-
-if [ "$RELEEM_INSTANCE_TYPE" == "local" ]; then
-    if [ "$DATABASE_TYPE" == "mysql" ]; then
-        detect_mysql_commands
-    elif [ "$DATABASE_TYPE" == "postgresql" ]; then
-        detect_postgresql_commands
-    fi
-fi
-# Parse parameters
-while getopts "k:m:s:arpu" option
-do
-  case "${option}" in
-    k) RELEEM_API_KEY=${OPTARG};;
-    m) DB_MEMORY_LIMIT=${OPTARG};;
-    a) releem_apply_manual;;
-    s) releem_apply_config ${OPTARG};;
-    r) releem_rollback_config;;
-    p) releem_configure_database;;
-    u) update_agent; exit 0;;
-  esac
-done
-
-printf "\033[37m\n\033[0m"
-printf "\033[37m * To run Releem Agent manually please use the following command:\033[0m\n"
-printf "\033[32m /opt/releem/releem-agent -f\033[0m\n\n"
+main "$@"

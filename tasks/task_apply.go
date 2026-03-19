@@ -38,7 +38,7 @@ func ApplyConfLocal(metrics *models.Metrics, repeaters models.MetricsRepeater, g
 	}
 
 	for key := range result_data {
-		logger.Infof("%s: %v -> %v", key, result_data[key], metrics.DB.Conf.Variables[key])
+		logger.Infof("%s: %v -> %v", key, metrics.DB.Conf.Variables[key], result_data[key])
 
 		if result_data[key] != metrics.DB.Conf.Variables[key] {
 			query_set_var := "set global " + key + "=" + result_data[key].(string)
@@ -189,7 +189,7 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 	var value string
 	for key := range result_data {
 		if result_data[key] != metrics.DB.Conf.Variables[key] {
-			logger.Infof("%s: %v -> %v", key, result_data[key], metrics.DB.Conf.Variables[key])
+			logger.Infof("%s: %v -> %v", key, metrics.DB.Conf.Variables[key], result_data[key])
 			if key == "innodb_max_dirty_pages_pct" {
 				i, err := strconv.ParseFloat(result_data[key].(string), 32)
 				if err != nil {

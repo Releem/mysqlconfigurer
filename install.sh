@@ -484,9 +484,10 @@ function create_postgresql_user() {
             
             # Grant necessary permissions
             PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "GRANT pg_monitor TO ${RELEEM_PG_LOGIN};" 2>/dev/null 
-            PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "GRANT pg_read_all_stats TO ${RELEEM_PG_LOGIN};" 2>/dev/null        
-  
-                        
+            PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "GRANT SELECT ON pg_hba_file_rules TO ${RELEEM_PG_LOGIN};" 2>/dev/null 
+            PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "GRANT EXECUTE ON FUNCTION pg_hba_file_rules TO ${RELEEM_PG_LOGIN};" 2>/dev/null 
+
+
             # # Try to grant access to pg_stat_statements if available
             # if $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements';" | grep -q 1; then
             #     $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "GRANT SELECT ON pg_stat_statements TO ${RELEEM_PG_LOGIN};" 2>/dev/null || true
@@ -521,6 +522,44 @@ function create_postgresql_user() {
             printf "\033[32m\n   PostgreSQL connection with user \`${RELEEM_PG_LOGIN}\` - successful. \033[0m\n"
             PG_LOGIN=$RELEEM_PG_LOGIN
             PG_PASSWORD=$RELEEM_PG_PASSWORD
+
+            printf "\033[37m - Validating PostgreSQL access required for security collectors.\033[0m\n"
+
+            if PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -t -c "SELECT 1 FROM pg_extension LIMIT 1;" >/dev/null 2>&1; then
+                printf "\033[32m   Access to pg_extension is available.\033[0m\n"
+            else
+                printf "\033[33m   Warning: access to pg_extension is unavailable. Extension-based security checks may be incomplete.\033[0m\n"
+            fi
+
+            if PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -t -c "SELECT 1 FROM pg_roles LIMIT 1;" >/dev/null 2>&1; then
+                printf "\033[32m   Access to pg_roles is available.\033[0m\n"
+            else
+                printf "\033[33m   Warning: access to pg_roles is unavailable. Role-based security checks may be incomplete.\033[0m\n"
+            fi
+
+            if PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -t -c "SELECT 1 FROM pg_auth_members LIMIT 1;" >/dev/null 2>&1; then
+                printf "\033[32m   Access to pg_auth_members is available.\033[0m\n"
+            else
+                printf "\033[33m   Warning: access to pg_auth_members is unavailable. Role membership checks may be incomplete.\033[0m\n"
+            fi
+
+            if PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -t -c "SELECT * FROM pg_hba_file_rules LIMIT 1;" >/dev/null 2>&1; then
+                printf "\033[32m   Access to pg_hba_file_rules is available.\033[0m\n"
+            else
+                printf "\033[33m   Warning: access to pg_hba_file_rules is unavailable. pg_hba-based security checks may be incomplete.\033[0m\n"
+            fi
+
+            if PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -t -c "SELECT has_schema_privilege('public', 'public', 'USAGE');" >/dev/null 2>&1; then
+                printf "\033[32m   Access to schema privilege inspection is available.\033[0m\n"
+            else
+                printf "\033[33m   Warning: schema privilege inspection is unavailable. PUBLIC schema permission checks may be incomplete.\033[0m\n"
+            fi
+
+            if PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -t -c "SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind IN ('r', 'p') AND n.nspname NOT IN ('pg_catalog', 'information_schema') AND c.relrowsecurity);" >/dev/null 2>&1; then
+                printf "\033[32m   Access to RLS metadata is available.\033[0m\n"
+            else
+                printf "\033[33m   Warning: access to RLS metadata is unavailable. RLS reporting may be incomplete.\033[0m\n"
+            fi
         else
             printf "\033[31m\n%s\n%s\033[0m\n" "PostgreSQL connection failed with user \`${RELEEM_PG_LOGIN}\`." "Check that the host, user and password are correct and the user has necessary permissions."
             PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -c "SELECT VERSION()" || true

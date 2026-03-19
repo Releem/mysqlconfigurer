@@ -227,6 +227,7 @@ func (programm *Programm) Run() {
 		gatherers["default"] = append(gatherers["default"],
 			postgresql.NewDBConfGatherer(logger, configuration),
 			postgresql.NewDBInfoBaseGatherer(logger, configuration),
+			postgresql.NewDBInfoGatherer(logger, configuration),
 			postgresql.NewDBMetricsBaseGatherer(logger, configuration),
 			metrics.NewAgentMetricsGatherer(logger, configuration))
 

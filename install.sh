@@ -643,7 +643,7 @@ function restart_service_releem_agent() {
     fi
 }
 
-function install_service_releem_agent() {
+function reinstall_service_releem_agent() {
     printf "\033[37m\n * Installing Releem Agent service to collect metrics..\033[0m\n"
     set +e
     trap - ERR    
@@ -915,6 +915,8 @@ function detect_releem_api_key() {
 }
 
 function first_run_releem_agent() {
+    set +e
+    trap - ERR
     if [ -z "$RELEEM_AGENT_DISABLE" ]; then
         # First run of Releem Agent to check Queries monitoring
         printf "\033[37m\n * Executing Releem Agent for the first time.\033[0m\n"
@@ -922,6 +924,8 @@ function first_run_releem_agent() {
         $sudo_cmd $RELEEM_WORKDIR/releem-agent -f
         $sudo_cmd timeout --preserve-status 3 $RELEEM_WORKDIR/releem-agent
     fi
+    trap on_error ERR
+    set -e
 }
 
 function enable_collect_queries() {
@@ -953,7 +957,7 @@ function main() {
     configure_crontab
     enable_collect_queries
     first_run_releem_agent
-    install_service_releem_agent
+    reinstall_service_releem_agent
     restart_service_releem_agent
 }
 
@@ -973,9 +977,16 @@ done
 INSTALL_MODE="$(basename "$0")"
 if [ "$INSTALL_MODE" == "uninstall" ] || [ "$1" == "uninstall" ];
 then
-    detect_releem_api_key
     trap - EXIT
-    $RELEEM_WORKDIR/releem-agent --event=agent_uninstall > /dev/null
+    apikey=
+    if [ -n "$RELEEM_API_KEY" ]; then
+        apikey=$RELEEM_API_KEY
+    elif test -f "$RELEEM_CONF_FILE" ; then
+        . "$RELEEM_CONF_FILE"
+    fi
+    if [ -n "$apikey" ] && [ -x "$RELEEM_WORKDIR/releem-agent" ]; then
+        $RELEEM_WORKDIR/releem-agent --event=agent_uninstall > /dev/null || true
+    fi
     printf "\033[37m\n * Configuring crontab\033[0m\n"
     ($sudo_cmd crontab -l 2>/dev/null | grep -v "$RELEEM_WORKDIR/mysqlconfigurer.sh" || true) | $sudo_cmd crontab -
     printf "\033[37m\n * Stopping Releem Agent service.\033[0m\n"

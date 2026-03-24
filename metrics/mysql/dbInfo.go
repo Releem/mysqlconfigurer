@@ -80,17 +80,21 @@ func users_security_check(DBInfo *DBInfoGatherer, metrics *models.Metrics) []mod
 	var output_users, users_check []models.MetricGroupValue
 
 	var password_column_exists, authstring_column_exists int
+	versionValue := metricGroupString(metrics.DB.Info, "Version")
+	serverVersion := metricGroupString(metrics.DB.Conf.Variables, "version")
 
 	// New table schema available since mysql-5.7 and mariadb-10.2
 	// But need to be checked
 	models.DB.QueryRow("SELECT 1 FROM information_schema.columns WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user' AND COLUMN_NAME = 'password'").Scan(&password_column_exists)
 	models.DB.QueryRow("SELECT 1 FROM information_schema.columns WHERE TABLE_SCHEMA = 'mysql' AND TABLE_NAME = 'user' AND COLUMN_NAME = 'authentication_string'").Scan(&authstring_column_exists)
 	PASS_COLUMN_NAME := "password"
-	ver_current, _ := version.NewVersion(metrics.DB.Info["Version"].(string))
+	ver_current, err := version.NewVersion(versionValue)
 	ver_mariadb, _ := version.NewVersion("10.2.0")
 	ver_mysql, _ := version.NewVersion("5.7.0")
 
-	if (strings.Contains(metrics.DB.Conf.Variables["version"].(string), "MariaDB") && ver_current.GreaterThan(ver_mariadb)) || (!strings.Contains(metrics.DB.Conf.Variables["version"].(string), "MariaDB") && ver_current.GreaterThan(ver_mysql)) {
+	if err != nil {
+		DBInfo.logger.V(5).Info("DEBUG: Skipped version-specific auth column detection: invalid DB version ", versionValue)
+	} else if (strings.Contains(serverVersion, "MariaDB") && ver_current.GreaterThan(ver_mariadb)) || (!strings.Contains(serverVersion, "MariaDB") && ver_current.GreaterThan(ver_mysql)) {
 		if password_column_exists == 1 && authstring_column_exists == 1 {
 			PASS_COLUMN_NAME = "IF(plugin='mysql_native_password', authentication_string, password)"
 		} else if authstring_column_exists == 1 {
@@ -181,15 +185,17 @@ func users_security_check(DBInfo *DBInfoGatherer, metrics *models.Metrics) []mod
 	}
 
 	for i, user := range output_users {
-		_, ok := output_user_blank_password[user["Username"].(string)]
+		username_column := metricGroupString(user, "Username")
+		user_column := metricGroupString(user, "User")
+		_, ok := output_user_blank_password[username_column]
 
 		if ok &&
-			user["User"].(string) != "mariadb.sys" &&
+			user_column != "mariadb.sys" &&
 			!(DBInfo.configuration.InstanceType == "aws/rds" &&
-				user["User"].(string) == "rdsadmin") &&
+				user_column == "rdsadmin") &&
 			!(DBInfo.configuration.InstanceType == "gcp/cloudsql" &&
-				(strings.Contains(user["User"].(string), "cloudsql") ||
-					user["User"].(string) == "root")) {
+				(strings.Contains(user_column, "cloudsql") ||
+					user_column == "root")) {
 
 			output_users[i]["Blank_Password"] = 1
 		} else {
@@ -198,21 +204,38 @@ func users_security_check(DBInfo *DBInfoGatherer, metrics *models.Metrics) []mod
 	}
 
 	for _, user := range output_users {
+		user_column := metricGroupString(user, "User")
+		host_column := metricGroupString(user, "Host")
 		remoteConnRoot := 0
 		anonymousUser := 0
 		if DBInfo.configuration.InstanceType == "local" &&
-			user["User"].(string) == "root" &&
-			user["Host"].(string) != "localhost" &&
-			user["Host"].(string) != "127.0.0.1" &&
-			user["Host"].(string) != "::1" {
+			user_column == "root" &&
+			host_column != "localhost" &&
+			host_column != "127.0.0.1" &&
+			host_column != "::1" {
 
 			remoteConnRoot = 1
 		}
 
-		if strings.TrimSpace(user["User"].(string)) == "" {
+		if strings.TrimSpace(user_column) == "" {
 			anonymousUser = 1
 		}
 		users_check = append(users_check, models.MetricGroupValue{"Blank_Password": user["Blank_Password"], "Password_As_User": user["Password_As_User"], "Remote_Conn_Root": remoteConnRoot, "Anonymous_User": anonymousUser})
 	}
 	return users_check
+}
+
+func metricGroupString(values models.MetricGroupValue, key string) string {
+	if values == nil {
+		return ""
+	}
+	value, ok := values[key]
+	if !ok || value == nil {
+		return ""
+	}
+	valueString, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return valueString
 }

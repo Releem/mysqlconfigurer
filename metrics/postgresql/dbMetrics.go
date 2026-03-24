@@ -37,18 +37,6 @@ func NewDBMetricsConfigGatherer(logger logging.Logger, configuration *config.Con
 	}
 }
 
-type DBMetricsGatherer struct {
-	logger        logging.Logger
-	configuration *config.Config
-}
-
-func NewDBMetricsGatherer(logger logging.Logger, configuration *config.Config) *DBMetricsGatherer {
-	return &DBMetricsGatherer{
-		logger:        logger,
-		configuration: configuration,
-	}
-}
-
 func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) error {
 	defer utils.HandlePanic(DBMetricsBase.configuration, DBMetricsBase.logger)
 	{
@@ -84,29 +72,6 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 			}
 		}
 
-		// PostgreSQL Connection Statistics
-		{
-			var total_connections, active_connections, idle_connections string
-			output := make(models.MetricGroupValue)
-
-			err := models.DB.QueryRow(`
-			SELECT 
-				COUNT(*) as total_connections,
-				COUNT(CASE WHEN state = 'active' THEN 1 END) as active_connections,
-				COUNT(CASE WHEN state = 'idle' THEN 1 END) as idle_connections
-			FROM pg_stat_activity`).Scan(&total_connections, &active_connections, &idle_connections)
-
-			if err != nil {
-				if err != sql.ErrNoRows {
-					DBMetricsBase.logger.Error(err)
-				}
-			} else {
-				output["total_connections"] = total_connections
-				output["active_connections"] = active_connections
-				output["idle_connections"] = idle_connections
-			}
-			pg_stat["PgConnections"] = output
-		}
 		// PostgreSQL Uptime Statistics
 		{
 			var uptime, timestamp string
@@ -141,30 +106,95 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 		metrics.DB.Metrics.Databases = output
 	}
 
-	if models.PgStatStatementsEnabled {
-		var dealloc uint64
-		var stats_reset string
+	// Query latency from pg_stat_statements if available
+	{
+		ver_current, _ := version.NewVersion(metrics.DB.Info["Version"].(string))
+		ver_postgresql, _ := version.NewVersion("13")
+		// Collect DBMS internal metrics
+		pgStatStatements := PG_STAT_STATEMENTS
+		if ver_current.LessThan(ver_postgresql) {
+			pgStatStatements = PG_STAT_STATEMENTS_OLD_VERSION
+		}
+		if models.PgStatStatementsEnabled {
+			var dealloc uint64
+			var stats_reset string
 
-		err := models.DB.QueryRow("SELECT dealloc, stats_reset FROM pg_stat_statements_info").Scan(&dealloc, &stats_reset)
-		if err != nil {
-			if !strings.Contains(err.Error(), "relation \"pg_stat_statements_info\" does not exist") {
-				DBMetricsBase.logger.Error(err)
+			err := models.DB.QueryRow("SELECT dealloc, stats_reset FROM pg_stat_statements_info").Scan(&dealloc, &stats_reset)
+			if err != nil {
+				if !strings.Contains(err.Error(), "relation \"pg_stat_statements_info\" does not exist") {
+					DBMetricsBase.logger.Error(err)
+				}
 			}
-		}
-		metrics.DB.Metrics.Status["pg_stat_statements_info"] = models.MetricGroupValue{
-			"dealloc":     dealloc,
-			"stats_reset": stats_reset,
-		}
+			metrics.DB.Metrics.Status["pg_stat_statements_info"] = models.MetricGroupValue{
+				"dealloc":     dealloc,
+				"stats_reset": stats_reset,
+			}
 
-		var count_statements uint64
+			var count_statements uint64
 
-		err = models.DB.QueryRow("SELECT COUNT(*) FROM pg_stat_statements").Scan(&count_statements)
+			err = models.DB.QueryRow("SELECT COUNT(*) FROM pg_stat_statements").Scan(&count_statements)
+			if err != nil {
+				if err != sql.ErrNoRows {
+					DBMetricsBase.logger.Error(err)
+				}
+			}
+			metrics.DB.Metrics.CountQueriesLatency = count_statements
+
+			var output []models.MetricGroupValue
+			var queryid, query, datname string
+			var calls int
+			var total_exec_time, mean_exec_time float64
+			// Collect query statistics from pg_stat_statements
+			rows, err := models.DB.Query(pgStatStatements)
+
+			if err != nil {
+				if err != sql.ErrNoRows {
+					DBMetricsBase.logger.Error(err)
+				}
+			} else {
+				defer rows.Close()
+
+				for rows.Next() {
+					err := rows.Scan(&datname, &queryid, &query, &calls, &total_exec_time, &mean_exec_time)
+					if err != nil {
+						DBMetricsBase.logger.Error(err)
+						return err
+					}
+
+					// Convert to microseconds for compatibility with MySQL metrics
+					total_exec_time_us := total_exec_time * 1000
+					mean_exec_time_us := mean_exec_time * 1000
+					output = append(output, models.MetricGroupValue{
+						"datname":            datname,
+						"queryid":            queryid,
+						"calls":              calls,
+						"total_exec_time_us": total_exec_time_us,
+						"mean_exec_time_us":  mean_exec_time_us,
+					})
+				}
+			}
+			metrics.DB.Queries = output
+		}
+	}
+
+	// Process list from pg_stat_activity
+	{
+		var output []models.MetricGroupValue
+		rows, err := models.DB.Query(`
+			SELECT *
+			FROM pg_stat_activity
+			WHERE state IS NOT NULL
+			ORDER BY backend_start DESC`)
 		if err != nil {
 			if err != sql.ErrNoRows {
 				DBMetricsBase.logger.Error(err)
 			}
+		} else {
+			defer rows.Close()
+			output = append(output, utils.ScanRows(rows, DBMetricsBase.logger)...)
 		}
-		metrics.DB.Metrics.CountQueriesLatency = count_statements
+
+		metrics.DB.Metrics.ProcessList = output
 	}
 
 	DBMetricsBase.logger.V(5).Info("CollectMetrics DBMetricsBase ", metrics.DB.Metrics)
@@ -284,113 +314,5 @@ func (DBMetricsConfig *DBMetricsConfigGatherer) GetMetrics(metrics *models.Metri
 	metrics.DB.Metrics.TotalTables = total_tables
 
 	DBMetricsConfig.logger.V(5).Info("CollectMetrics DBMetricsConfig ", metrics.DB.Metrics)
-	return nil
-}
-
-func (DBMetrics *DBMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
-	defer utils.HandlePanic(DBMetrics.configuration, DBMetrics.logger)
-
-	ver_current, _ := version.NewVersion(metrics.DB.Info["Version"].(string))
-	ver_postgresql, _ := version.NewVersion("13")
-	// Collect DBMS internal metrics
-	pgStatStatements := PG_STAT_STATEMENTS
-	if ver_current.LessThan(ver_postgresql) {
-		pgStatStatements = PG_STAT_STATEMENTS_OLD_VERSION
-	}
-
-	// Query latency from pg_stat_statements if available
-	{
-		if models.PgStatStatementsEnabled {
-			var output []models.MetricGroupValue
-			var queryid, query, datname string
-			var calls int
-			var total_exec_time, mean_exec_time float64
-			// Collect query statistics from pg_stat_statements
-			rows, err := models.DB.Query(pgStatStatements)
-
-			if err != nil {
-				if err != sql.ErrNoRows {
-					DBMetrics.logger.Error(err)
-				}
-			} else {
-				defer rows.Close()
-
-				for rows.Next() {
-					err := rows.Scan(&datname, &queryid, &query, &calls, &total_exec_time, &mean_exec_time)
-					if err != nil {
-						DBMetrics.logger.Error(err)
-						return err
-					}
-
-					// Convert to microseconds for compatibility with MySQL metrics
-					total_exec_time_us := total_exec_time * 1000
-					mean_exec_time_us := mean_exec_time * 1000
-					output = append(output, models.MetricGroupValue{
-						"datname":            datname,
-						"queryid":            queryid,
-						"calls":              calls,
-						"total_exec_time_us": total_exec_time_us,
-						"mean_exec_time_us":  mean_exec_time_us,
-					})
-				}
-			}
-			metrics.DB.Queries = output
-		}
-	}
-
-	// // Process list from pg_stat_activity
-	// {
-	// 	var output []models.MetricGroupValue
-	// 	var datname, usename, application_name, client_addr, state, query string
-	// 	var pid int
-	// 	var query_start, state_change, backend_start string
-
-	// 	rows, err := models.DB.Query(`
-	// 		SELECT
-	// 			pid,
-	// 			COALESCE(datname, '') as datname,
-	// 			COALESCE(usename, '') as usename,
-	// 			COALESCE(application_name, '') as application_name,
-	// 			COALESCE(client_addr::text, '') as client_addr,
-	// 			COALESCE(state, '') as state,
-	// 			COALESCE(query_start::text, '') as query_start,
-	// 			COALESCE(state_change::text, '') as state_change,
-	// 			COALESCE(backend_start::text, '') as backend_start,
-	// 			COALESCE(query, '') as query
-	// 		FROM pg_stat_activity
-	// 		WHERE state IS NOT NULL
-	// 		ORDER BY backend_start DESC`)
-
-	// 	if err != nil {
-	// 		if err != sql.ErrNoRows {
-	// 			DBMetrics.logger.Error(err)
-	// 		}
-	// 	} else {
-	// 		for rows.Next() {
-	// 			err := rows.Scan(&pid, &datname, &usename, &application_name, &client_addr, &state, &query_start, &state_change, &backend_start, &query)
-	// 			if err != nil {
-	// 				DBMetrics.logger.Error(err)
-	// 				return err
-	// 			}
-	// 			output = append(output, models.MetricGroupValue{
-	// 				"pid":              pid,
-	// 				"datname":          datname,
-	// 				"usename":          usename,
-	// 				"application_name": application_name,
-	// 				"client_addr":      client_addr,
-	// 				"state":            state,
-	// 				"query_start":      query_start,
-	// 				"state_change":     state_change,
-	// 				"backend_start":    backend_start,
-	// 				"query":            query,
-	// 			})
-	// 		}
-	// 		rows.Close()
-	// 	}
-	// 	metrics.DB.Metrics.ProcessList = output
-	// }
-
-	DBMetrics.logger.V(5).Info("CollectMetrics DBMetrics  queries, ", len(metrics.DB.Metrics.ProcessList), " processes")
-
 	return nil
 }

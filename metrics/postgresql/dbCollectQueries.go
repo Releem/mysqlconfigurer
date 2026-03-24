@@ -43,6 +43,7 @@ func (DBCollectQueriesOptimization *DBCollectQueriesOptimization) GetMetrics(met
 	var calls int
 	var total_exec_time, mean_exec_time float64
 	output_digest := make(map[string]models.MetricGroupValue)
+	var output []models.MetricGroupValue
 
 	ver_current, _ := version.NewVersion(metrics.DB.Info["Version"].(string))
 	ver_postgresql, _ := version.NewVersion("13")
@@ -89,8 +90,9 @@ func (DBCollectQueriesOptimization *DBCollectQueriesOptimization) GetMetrics(met
 		CollectExplain(output_digest, "mean_exec_time_us", supportsParameterizedExplain, DBCollectQueriesOptimization.logger, DBCollectQueriesOptimization.configuration)
 	}
 	for _, value := range output_digest {
-		metrics.DB.Queries = append(metrics.DB.Queries, value)
+		output = append(output, value)
 	}
+	metrics.DB.Queries = output
 
 	if !DBCollectQueriesOptimization.configuration.QueryOptimization {
 		return nil
@@ -258,7 +260,6 @@ func CollectExplain(digests map[string]models.MetricGroupValue, field_sorting st
 		if query_explain != "" {
 			logger.Info(i, " OK")
 			logger.Info("queryText: ", digests[k]["query_text"].(string))
-			logger.Info("explain: ", query_explain)
 			digests[k]["explain"] = query_explain
 			i = i + 1
 		}

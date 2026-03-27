@@ -49,12 +49,19 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	} else {
 		domain = "releem.com"
 	}
+
+    _ = domain
+    _ = subdomain
+
 	if Mode.Name == "TaskByName" {
-		api_domain = "https://api.queries." + subdomain + domain + "/v2/"
+		//api_domain = "https://api.queries." + subdomain + domain + "/v2/"
+        api_domain = "http://localhost:8000/v2/"
 	} else if Mode.Name == "Metrics" {
-		api_domain = "https://api.queries." + subdomain + domain + "/v2/"
+		//api_domain = "https://api.queries." + subdomain + domain + "/v2/"
+        api_domain = "http://localhost:8000/v2/"
 	} else {
-		api_domain = "https://api." + subdomain + domain + "/v2/"
+		//api_domain = "https://api." + subdomain + domain + "/v2/"
+        api_domain = "http://localhost:3000/v2/"
 	}
 
 	switch Mode.Name {

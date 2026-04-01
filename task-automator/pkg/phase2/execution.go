@@ -16,8 +16,8 @@ import (
 type BackupMethod string
 
 const (
-	BackupNone      BackupMethod = "none"
-	BackupMysqldump BackupMethod = "mysqldump"
+	BackupNone       BackupMethod = "none"
+	BackupMysqldump  BackupMethod = "mysqldump"
 	BackupXtrabackup BackupMethod = "xtrabackup"
 )
 
@@ -33,23 +33,23 @@ func NewExecutor(conn *sql.DB) *Executor {
 
 // ExecuteOptions contains options for schema change execution
 type ExecuteOptions struct {
-	SQL                    string
-	TableName              string
-	DSN                    string // Database connection string (required for backups and pt-osc)
-	BackupMethod           BackupMethod
+	SQL                     string
+	TableName               string
+	DSN                     string // Database connection string (required for backups and pt-osc)
+	BackupMethod            BackupMethod
 	UsePTOnlineSchemaChange bool
-	Config                 *config.Config // Configuration with paths and directories
-	Debug                  bool           // Enable debug output (print commands and outputs)
+	Config                  *config.Config // Configuration with paths and directories
+	Debug                   bool           // Enable debug output (print commands and outputs)
 }
 
 // ExecuteResult represents the result of Phase 2 execution
 type ExecuteResult struct {
-	BackupPerformed    bool
-	BackupPath         string
-	ChangeExecuted     bool
-	MethodUsed         string
-	Warnings           []string
-	Errors             []string
+	BackupPerformed bool
+	BackupPath      string
+	ChangeExecuted  bool
+	MethodUsed      string
+	Warnings        []string
+	Errors          []string
 }
 
 // Execute performs Phase 2 schema change execution
@@ -90,13 +90,7 @@ func (e *Executor) Execute(options ExecuteOptions) (*ExecuteResult, error) {
 
 	// 2.3. Execute using Online DDL
 	if err := e.executeWithOnlineDDL(options, result); err != nil {
-		// 2.4. Fallback to regular ALTER if Online DDL fails
-		if err := e.executeWithRegularAlter(options, result); err != nil {
-			return nil, fmt.Errorf("schema change execution failed: %w", err)
-		}
-		result.ChangeExecuted = true
-		result.MethodUsed = "regular ALTER (with table lock warning)"
-		return result, nil
+		return nil, fmt.Errorf("schema change execution failed: %w", err)
 	}
 
 	result.ChangeExecuted = true
@@ -176,7 +170,7 @@ func (e *Executor) backupWithMysqldump(options ExecuteOptions) (string, error) {
 	}
 
 	cmd := exec.Command(mysqldump, args...)
-	
+
 	if options.Debug {
 		// Mask password in debug output
 		safeArgs := make([]string, len(args))
@@ -197,7 +191,7 @@ func (e *Executor) backupWithMysqldump(options ExecuteOptions) (string, error) {
 			fmt.Printf("[DEBUG] mysqldump output:\n%s\n", string(output))
 		}
 	}
-	
+
 	if err != nil {
 		if options.Debug {
 			fmt.Printf("[DEBUG] mysqldump error: %v\n", err)
@@ -257,7 +251,7 @@ func (e *Executor) backupWithXtrabackup(options ExecuteOptions) (string, error) 
 	// Step 1: Take backup of the table using --tables option
 	// Format: database.table
 	tableSpec := fmt.Sprintf("%s.%s", tableInfo.Database, tableInfo.Table)
-	
+
 	backupArgs := []string{
 		"--backup",
 		"--tables=" + tableSpec,
@@ -332,7 +326,7 @@ func (e *Executor) backupWithXtrabackup(options ExecuteOptions) (string, error) 
 // checkDiskSpace checks if there's enough disk space for the backup
 func (e *Executor) checkDiskSpace(options ExecuteOptions) error {
 	var estimatedSize int64
-	
+
 	// Parse table name to get database and table
 	tableInfo, err := ParseTableName(options.TableName, func() (string, error) {
 		var db string
@@ -421,7 +415,7 @@ func (e *Executor) estimateMysqldumpSize(dbName, tableName string) (float64, err
 
 	// mysqldump typically produces 1.5-2x the table size due to SQL format overhead
 	estimatedSizeMB := float64(totalBytes) * 2.0 / (1024 * 1024)
-	
+
 	return estimatedSizeMB, nil
 }
 
@@ -444,7 +438,7 @@ func (e *Executor) estimateXtrabackupSize(dbName string) (float64, error) {
 	// Xtrabackup includes all tables, indexes, and some overhead
 	// Estimate ~1.2x the database size
 	estimatedSizeMB := float64(totalBytes.Int64) * 1.2 / (1024 * 1024)
-	
+
 	return estimatedSizeMB, nil
 }
 
@@ -502,7 +496,7 @@ func (e *Executor) dryRunPTOSC(options ExecuteOptions) error {
 	}
 
 	cmd := exec.Command(ptosc, args...)
-	
+
 	if options.Debug {
 		// Mask password in debug output
 		safeArgs := make([]string, len(args))
@@ -531,7 +525,7 @@ func (e *Executor) dryRunPTOSC(options ExecuteOptions) error {
 		fmt.Printf("[DEBUG] pt-online-schema-change dry-run command: %s\n", ptosc)
 		fmt.Printf("[DEBUG] pt-online-schema-change dry-run args: %s\n", strings.Join(safeArgs, " "))
 	}
-	
+
 	output, err := cmd.CombinedOutput()
 	if options.Debug {
 		fmt.Printf("[DEBUG] pt-online-schema-change dry-run output:\n%s\n", string(output))
@@ -539,7 +533,7 @@ func (e *Executor) dryRunPTOSC(options ExecuteOptions) error {
 			fmt.Printf("[DEBUG] pt-online-schema-change dry-run error: %v\n", err)
 		}
 	}
-	
+
 	if err != nil {
 		return fmt.Errorf("pt-online-schema-change dry-run failed: %s", string(output))
 	}
@@ -590,7 +584,7 @@ func (e *Executor) runPTOSC(options ExecuteOptions) error {
 	}
 
 	cmd := exec.Command(ptosc, args...)
-	
+
 	if options.Debug {
 		// Mask password in debug output
 		safeArgs := make([]string, len(args))
@@ -619,7 +613,7 @@ func (e *Executor) runPTOSC(options ExecuteOptions) error {
 		fmt.Printf("[DEBUG] pt-online-schema-change execute command: %s\n", ptosc)
 		fmt.Printf("[DEBUG] pt-online-schema-change execute args: %s\n", strings.Join(safeArgs, " "))
 	}
-	
+
 	output, err := cmd.CombinedOutput()
 	if options.Debug {
 		fmt.Printf("[DEBUG] pt-online-schema-change execute output:\n%s\n", string(output))
@@ -627,7 +621,7 @@ func (e *Executor) runPTOSC(options ExecuteOptions) error {
 			fmt.Printf("[DEBUG] pt-online-schema-change execute error: %v\n", err)
 		}
 	}
-	
+
 	if err != nil {
 		return fmt.Errorf("pt-online-schema-change failed: %s", string(output))
 	}
@@ -639,14 +633,14 @@ func (e *Executor) executeWithOnlineDDL(options ExecuteOptions, result *ExecuteR
 	// Parse SQL to check if it already has ALGORITHM=INPLACE and LOCK=NONE
 	sql := strings.TrimSpace(options.SQL)
 	upperSQL := strings.ToUpper(sql)
-	
+
 	hasAlgorithm := strings.Contains(upperSQL, "ALGORITHM=")
 	hasLock := strings.Contains(upperSQL, "LOCK=")
-	
+
 	// Remove trailing semicolon if present
 	sql = strings.TrimSuffix(sql, ";")
 	sql = strings.TrimSpace(sql)
-	
+
 	if !hasAlgorithm && !hasLock {
 		sql += ", ALGORITHM=INPLACE, LOCK=NONE"
 	} else if !hasAlgorithm {
@@ -659,8 +653,8 @@ func (e *Executor) executeWithOnlineDDL(options ExecuteOptions, result *ExecuteR
 	if options.Debug {
 		fmt.Printf("[DEBUG] Executing Online DDL statement:\n%s\n", sql)
 	}
-	
-		_, err := e.conn.Exec(sql)
+
+	_, err := e.conn.Exec(sql)
 	if options.Debug {
 		if err != nil {
 			fmt.Printf("[DEBUG] Online DDL execution error: %v\n", err)
@@ -668,14 +662,14 @@ func (e *Executor) executeWithOnlineDDL(options ExecuteOptions, result *ExecuteR
 			fmt.Printf("[DEBUG] Online DDL execution successful\n")
 		}
 	}
-	
+
 	if err != nil {
 		// Check if error is due to Online DDL not being supported
 		errStr := err.Error()
-		if strings.Contains(errStr, "ALGORITHM=INPLACE") || 
-		   strings.Contains(errStr, "LOCK=NONE") ||
-		   strings.Contains(errStr, "ALGORITHM=INPLACE is not supported") {
-			result.Warnings = append(result.Warnings, 
+		if strings.Contains(errStr, "ALGORITHM=INPLACE") ||
+			strings.Contains(errStr, "LOCK=NONE") ||
+			strings.Contains(errStr, "ALGORITHM=INPLACE is not supported") {
+			result.Warnings = append(result.Warnings,
 				"Online DDL not supported for this operation")
 			return err
 		}
@@ -686,14 +680,14 @@ func (e *Executor) executeWithOnlineDDL(options ExecuteOptions, result *ExecuteR
 }
 
 func (e *Executor) executeWithRegularAlter(options ExecuteOptions, result *ExecuteResult) error {
-	result.Warnings = append(result.Warnings, 
+	result.Warnings = append(result.Warnings,
 		"Executing schema change without Online DDL - table may be locked during execution")
 
 	if options.Debug {
 		fmt.Printf("[DEBUG] Executing regular ALTER statement (without Online DDL):\n%s\n", options.SQL)
 	}
-	
-		_, err := e.conn.Exec(options.SQL)
+
+	_, err := e.conn.Exec(options.SQL)
 	if options.Debug {
 		if err != nil {
 			fmt.Printf("[DEBUG] Regular ALTER execution error: %v\n", err)
@@ -701,7 +695,7 @@ func (e *Executor) executeWithRegularAlter(options ExecuteOptions, result *Execu
 			fmt.Printf("[DEBUG] Regular ALTER execution successful\n")
 		}
 	}
-	
+
 	return err
 }
 
@@ -750,4 +744,3 @@ func (e *Executor) parseDSN(dsn string) (host, port, user, password, database st
 
 	return host, port, user, password, database
 }
-

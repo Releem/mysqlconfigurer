@@ -162,6 +162,7 @@ func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, tas
 	var task_exit_code, task_status int = 0, 0
 	var task_output string
 	var task_error string
+	var backupMethod phase2.BackupMethod
 
 	type schemaChangeAnalysisResults struct {
 		SchemaName             string      `json:"schema_name"`
@@ -178,6 +179,7 @@ func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, tas
 		SchemaName      string                      `json:"schema_name"`
 		DDLStatement    string                      `json:"ddl_statement"`
 		AnalysisResults schemaChangeAnalysisResults `json:"analysis_results"`
+		PreChangeBackup bool                        `json:"pre_change_bkp"`
 	}
 
 	parseTaskDetails := func() ([]schemaChangeTaskDetail, error) {
@@ -210,85 +212,90 @@ func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, tas
 		return details, nil
 	}
 
-	if current_task_status == 1 {
-		details, err := parseTaskDetails()
-		if err != nil {
-			logger.Error(err)
-			task_exit_code = 2
-			task_status = 4
-			task_error = err.Error()
-			task_output = task_output + err.Error()
-			return task_exit_code, task_status, task_output, task_error
-		}
-		if len(details) == 0 {
-			logger.Error("task_details list is empty")
-			task_exit_code = 3
-			task_status = 4
-			task_error = "task_details list is empty"
-			task_output = task_output + "Invalid task_details: empty schema change list."
-			return task_exit_code, task_status, task_output, task_error
-		}
+	details, err := parseTaskDetails()
+	if err != nil {
+		logger.Error(err)
+		task_exit_code = 2
+		task_status = 4
+		task_error = err.Error()
+		task_output = task_output + err.Error()
+		return task_exit_code, task_status, task_output, task_error
+	}
+	if len(details) == 0 {
+		logger.Error("task_details list is empty")
+		task_exit_code = 3
+		task_status = 4
+		task_error = "task_details list is empty"
+		task_output = task_output + "Invalid task_details: empty schema change list."
+		return task_exit_code, task_status, task_output, task_error
+	}
 
-		logger.Info("* Executing schema changes...")
-		executor := phase2.NewExecutor(models.DB)
-		executed := 0
-		for i, item := range details {
-			analysis := item.AnalysisResults
-			statement := strings.TrimSpace(item.DDLStatement)
-			tableName := analysis.SchemaName + "." + analysis.TableName
+	logger.Info("* Executing schema changes...")
+	executor := phase2.NewExecutor(models.DB)
+	executed := 0
+	for i, item := range details {
+		backupMethod = phase2.BackupNone
+		analysis := item.AnalysisResults
+		statement := strings.TrimSpace(item.DDLStatement)
+		tableName := analysis.SchemaName + "." + analysis.TableName
 
-			if !analysis.SyntaxValid {
-				errMsg := "syntax validation failed"
-				if analysis.SyntaxError != nil {
-					errMsg = fmt.Sprintf("syntax validation failed: %v", analysis.SyntaxError)
-				}
-				logger.Error("* Statement ", i, " - ", errMsg)
-				task_output += fmt.Sprintf("Statement %d skipped: %s\n", i, errMsg)
-				task_exit_code = 1
-				task_status = 4
-				continue
+		if !analysis.SyntaxValid {
+			errMsg := "syntax validation failed"
+			if analysis.SyntaxError != nil {
+				errMsg = fmt.Sprintf("syntax validation failed: %v", analysis.SyntaxError)
 			}
-
-			usePTOSC := !analysis.OKOnlineDDL && analysis.OKPTOSC
-			if !analysis.OKOnlineDDL && !analysis.OKPTOSC {
-				logger.Info("* Statement ", i, " - neither Online DDL nor pt-osc allowed by analysis; using regular path fallback")
-			}
-
-			if !strings.EqualFold(strings.TrimSpace(analysis.StorageEngine), "InnoDB") {
-				task_output += fmt.Sprintf("Statement %d warning: storage engine is %s\n", i, analysis.StorageEngine)
-			}
-
-			if !analysis.OKOnlinePhysicalBackup {
-				task_output += fmt.Sprintf("Statement %d note: online physical backup is not available\n", i)
-			}
-
-			logger.Info("* Statement ", i, " - executing schema changes on ", tableName, "...")
-			_, err = executor.Execute(phase2.ExecuteOptions{
-				SQL:                     statement,
-				TableName:               tableName,
-				BackupMethod:            phase2.BackupNone,
-				UsePTOnlineSchemaChange: usePTOSC,
-				Config:                  configuration,
-				Debug:                   true,
-			})
-			if err != nil {
-				logger.Error(err)
-				task_output += err.Error() + "\n"
-				logger.Info("* Schema changes execution failed: ", err.Error())
-				task_exit_code = 1
-				task_status = 4
-				continue
-			}
-
-			executed++
-			logger.Info("* Schema changes execution successful for statement ", i)
-		}
-
-		if executed == 0 && len(details) > 0 {
+			logger.Error("* Statement ", i, " - ", errMsg)
+			task_output += fmt.Sprintf("Statement %d skipped: %s\n", i, errMsg)
 			task_exit_code = 1
 			task_status = 4
-			task_output = task_output + "No schema changes were executed.\n"
+			continue
 		}
+
+		usePTOSC := !analysis.OKOnlineDDL && analysis.OKPTOSC
+		if !analysis.OKOnlineDDL && !analysis.OKPTOSC {
+			logger.Info("* Statement ", i, " - neither Online DDL nor pt-osc allowed by analysis; using regular path fallback")
+		}
+
+		if !strings.EqualFold(strings.TrimSpace(analysis.StorageEngine), "InnoDB") {
+			task_output += fmt.Sprintf("Statement %d warning: storage engine is %s\n", i, analysis.StorageEngine)
+		}
+
+		if details[i].PreChangeBackup {
+			if !analysis.OKOnlinePhysicalBackup {
+				task_output += fmt.Sprintf("Statement %d note: online physical backup is not available\n", i)
+				backupMethod = phase2.BackupMysqldump
+			} else {
+				backupMethod = phase2.BackupXtrabackup
+			}
+		}
+
+		logger.Info("* Statement ", i, " - executing schema changes on ", tableName, "...")
+		_, err = executor.Execute(phase2.ExecuteOptions{
+			SQL:                     statement,
+			TableName:               tableName,
+			BackupMethod:            backupMethod,
+			UsePTOnlineSchemaChange: usePTOSC,
+			Config:                  configuration,
+			Debug:                   false,
+		})
+		if err != nil {
+			logger.Error(err)
+			task_output += err.Error() + "\n"
+			logger.Info("* Schema changes execution failed: ", err.Error())
+			task_exit_code = 1
+			task_status = 4
+			continue
+		}
+
+		executed++
+		logger.Info("* Schema changes execution successful for statement ", i)
 	}
+
+	if executed == 0 && len(details) > 0 {
+		task_exit_code = 1
+		task_status = 4
+		task_output = task_output + "No schema changes were executed.\n"
+	}
+
 	return task_exit_code, task_status, task_output, task_error
 }

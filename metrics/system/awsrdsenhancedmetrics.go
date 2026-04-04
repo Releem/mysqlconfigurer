@@ -220,7 +220,7 @@ func (awsrdsenhancedmetrics *AWSRDSEnhancedMetricsGatherer) GetMetrics(metrics *
 		return errors.New("CloudWatchLogs.GetLogEvents No data")
 	}
 
-	osMetrics, err := parseOSMetrics([]byte(*result.Events[0].Message), true)
+	osMetrics, err := parseOSMetrics([]byte(*result.Events[0].Message), false)
 
 	if err != nil {
 		awsrdsenhancedmetrics.logger.Errorf("Failed to parse metrics: %s.", err)

@@ -263,11 +263,12 @@ func (awsrdsenhancedmetrics *AWSRDSEnhancedMetricsGatherer) GetMetrics(metrics *
 	awsrdsenhancedmetrics.logger.V(5).Info("CPU ", osMetrics.LoadAverageMinute)
 
 	info["Host"] = models.MetricGroupValue{
-		"InstanceType": "aws/rds",
-		"Timestamp":    osMetrics.Timestamp,
-		"Uptime":       osMetrics.Uptime,
-		"Engine":       osMetrics.Engine,
-		"Version":      osMetrics.Version,
+		"InstanceType":               "aws/rds",
+		"Timestamp":                  osMetrics.Timestamp,
+		"Uptime":                     osMetrics.Uptime,
+		"Engine":                     osMetrics.Engine,
+		"Version":                    osMetrics.Version,
+		"ServerlessDatabaseCapacity": osMetrics.ServerlessDatabaseCapacity,
 	}
 
 	metrics.System.Info = info

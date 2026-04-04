@@ -28,13 +28,14 @@ type AWSRDSEnhancedMetricsGatherer struct {
 }
 
 type osMetrics struct {
-	Engine             string    `json:"engine"             help:"The database engine for the DB instance."`
-	InstanceID         string    `json:"instanceID"         help:"The DB instance identifier."`
-	InstanceResourceID string    `json:"instanceResourceID" help:"A region-unique, immutable identifier for the DB instance, also used as the log stream identifier."`
-	NumVCPUs           int       `json:"numVCPUs"           help:"The number of virtual CPUs for the DB instance."`
-	Timestamp          time.Time `json:"timestamp"          help:"The time at which the metrics were taken."`
-	Uptime             string    `json:"uptime"             help:"The amount of time that the DB instance has been active."`
-	Version            float64   `json:"version"            help:"The version of the OS metrics' stream JSON format."`
+	Engine                     string    `json:"engine"             help:"The database engine for the DB instance."`
+	InstanceID                 string    `json:"instanceID"         help:"The DB instance identifier."`
+	InstanceResourceID         string    `json:"instanceResourceID" help:"A region-unique, immutable identifier for the DB instance, also used as the log stream identifier."`
+	NumVCPUs                   int       `json:"numVCPUs"           help:"The number of virtual CPUs for the DB instance."`
+	Timestamp                  time.Time `json:"timestamp"          help:"The time at which the metrics were taken."`
+	Uptime                     string    `json:"uptime"             help:"The amount of time that the DB instance has been active."`
+	Version                    float64   `json:"version"            help:"The version of the OS metrics' stream JSON format."`
+	ServerlessDatabaseCapacity float64   `json:"serverlessDatabaseCapacity" help:"The current capacity of the instance, in ACUs."`
 
 	CPUUtilization    cpuUtilization    `json:"cpuUtilization"`
 	DiskIO            []diskIO          `json:"diskIO"`

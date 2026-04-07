@@ -27,10 +27,7 @@ else
     sudo_cmd='sudo'
 fi
 
-function on_exit() {
-    if [ -n "$RELEEM_TEST_MODE" ]; then
-        return 0
-    fi    
+function on_exit() {  
     if [[ "${RELEEM_REGION}" == "EU" ]]; then
         API_DOMAIN="api.eu.releem.com"
     else
@@ -39,24 +36,22 @@ function on_exit() {
     curl -s -L -d @"$logfile" -H "x-releem-api-key: $apikey" -H "Content-Type: application/json" -X POST "https://${API_DOMAIN}/v2/events/saving_log"
     [ -n "$npipe" ] && rm -f "$npipe"
 }
-trap on_exit EXIT
+if [ -z "$RELEEM_TEST_MODE" ]; then
+    trap on_exit EXIT
+fi
 
 function on_error() {
-    if [ -n "$RELEEM_TEST_MODE" ]; then
-        return 0
-    fi    
     printf "\033[31m $ERROR_MESSAGE\n"
     printf "\033[31m It looks like you encountered an issue while installing the Releem.\n"
     printf "\033[31m If you are still experiencing problems, please send an email to hello@releem.com \n"
     printf "\033[31m with the contents of the $logfile. We will do our best to resolve the issue.\n"
     printf "\033[0m\n"
 }
-trap on_error ERR
+if [ -z "$RELEEM_TEST_MODE" ]; then
+    trap on_error ERR
+fi
 
 function setup_logging() {
-    if [ -n "$RELEEM_TEST_MODE" ]; then
-        return 0
-    fi
     # Set up a named pipe for logging 
     npipe=/tmp/$$.install.tmp
     mknod "$npipe" p
@@ -65,7 +60,9 @@ function setup_logging() {
     exec 1>&-
     exec 1>"$npipe" 2>&1
 }
-setup_logging
+if [ -z "$RELEEM_TEST_MODE" ]; then
+    setup_logging
+fi
 
 function releem_set_cron() {
     ($sudo_cmd crontab -l 2>/dev/null | grep -v "$RELEEM_WORKDIR/mysqlconfigurer.sh" || true; echo "$RELEEM_CRON") | $sudo_cmd crontab -

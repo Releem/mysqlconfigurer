@@ -358,7 +358,7 @@ function Invoke-ApplyConfig {
         [System.IO.File]::WriteAllText($BackupCnfPath, "[mysqld]`r`n", $noBomUtf8)
         Write-Log "Created baseline backup (no prior live config): $BackupCnfPath"
     }
-make
+
     # Copy staging config to MySQL conf dir
     New-Item -Path $mysql_cnf_dir -ItemType Directory -Force | Out-Null
     $stagingContent = Get-Content -Path $StagingCnfPath -Raw

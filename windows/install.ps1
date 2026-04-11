@@ -567,51 +567,36 @@ if ($InstanceType -ne 'aws/rds' -and $InstanceType -ne 'gcp/cloudsql') {
 # releem.conf generation with restricted ACL
 # ---------------------------------------------------------------------------
 
-# Silent mode: all primary env vars pre-set - no interactive prompts
-$SilentMode = ($env:RELEEM_API_KEY -and $env:RELEEM_MYSQL_HOST -and $env:RELEEM_MYSQL_PORT -and
-               $env:RELEEM_MYSQL_LOGIN -and $env:RELEEM_MYSQL_PASSWORD)
-
-$writeConfig = $true
-if ((Test-Path $ConfigFilePath) -and (-not $SilentMode)) {
-    $overwriteChoice = Read-Host 'Config file already exists. Overwrite? [Y/n]'
-    if ($overwriteChoice -eq 'n' -or $overwriteChoice -eq 'N') {
-        Write-Log 'Skipping releem.conf - existing file kept.'
-        $writeConfig = $false
-    }
+$restartCmd = if ($MysqlServiceName) { "net stop $MysqlServiceName && net start $MysqlServiceName" } else { '' }
+$confDirEscaped = $ConfDirPath -replace '\\', '\\'
+$confLines = @(
+    "apikey=`"$ApiKey`"",
+    "releem_cnf_dir=`"$confDirEscaped`"",
+    "mysql_host=`"$MysqlHost`"",
+    "mysql_port=`"$MysqlPort`"",
+    "mysql_user=`"$ReleemMysqlLogin`"",
+    "mysql_password=`"$ReleemMysqlPassword`"",
+    "mysql_restart_service=`"$restartCmd`"",
+    "mysql_cnf_dir=`"$($MysqlConfDir -replace '\\', '\\')`"",
+    'interval_seconds=60',
+    'interval_read_config_seconds=3600',
+    "hostname=`"$env:COMPUTERNAME`"",
+    "instance_type=`"$InstanceType`""
+)
+$memoryLimit = if ($env:RELEEM_MYSQL_MEMORY_LIMIT) { $env:RELEEM_MYSQL_MEMORY_LIMIT } elseif ($env:RELEEM_DB_MEMORY_LIMIT) { $env:RELEEM_DB_MEMORY_LIMIT } else { $null }
+if ($null -ne $memoryLimit) {
+    $confLines += "memory_limit=$memoryLimit"
 }
-
-if ($writeConfig) {
-    $restartCmd = if ($MysqlServiceName) { "net stop $MysqlServiceName && net start $MysqlServiceName" } else { '' }
-    $confDirEscaped = $ConfDirPath -replace '\\', '\\'
-    $confLines = @(
-        "apikey=`"$ApiKey`"",
-        "releem_cnf_dir=`"$confDirEscaped`"",
-        "mysql_host=`"$MysqlHost`"",
-        "mysql_port=`"$MysqlPort`"",
-        "mysql_user=`"$ReleemMysqlLogin`"",
-        "mysql_password=`"$ReleemMysqlPassword`"",
-        "mysql_restart_service=`"$restartCmd`"",
-        "mysql_cnf_dir=`"$($MysqlConfDir -replace '\\', '\\')`"",
-        'interval_seconds=60',
-        'interval_read_config_seconds=3600',
-        "hostname=`"$env:COMPUTERNAME`"",
-        "instance_type=`"$InstanceType`""
-    )
-    $memoryLimit = if ($env:RELEEM_MYSQL_MEMORY_LIMIT) { $env:RELEEM_MYSQL_MEMORY_LIMIT } elseif ($env:RELEEM_DB_MEMORY_LIMIT) { $env:RELEEM_DB_MEMORY_LIMIT } else { $null }
-    if ($null -ne $memoryLimit) {
-        $confLines += "memory_limit=$memoryLimit"
-    }
-    if ($env:RELEEM_QUERY_OPTIMIZATION) {
-        $confLines += "query_optimization=$($env:RELEEM_QUERY_OPTIMIZATION)"
-    }
-    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-    [System.IO.File]::WriteAllText($ConfigFilePath, ($confLines -join "`r`n"), $utf8NoBom)
-    Write-Log "Created releem.conf: $ConfigFilePath"
-
-    # Restrict ACL: readable only by SYSTEM and Administrators
-    & icacls $ConfigFilePath /inheritance:r '/grant:r' 'SYSTEM:(R)' '/grant:r' 'Administrators:(M)' | Out-Null
-    Write-Log 'releem.conf permissions restricted to SYSTEM and Administrators.'
+if ($env:RELEEM_QUERY_OPTIMIZATION) {
+    $confLines += "query_optimization=$($env:RELEEM_QUERY_OPTIMIZATION)"
 }
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText($ConfigFilePath, ($confLines -join "`r`n"), $utf8NoBom)
+Write-Log "Created releem.conf: $ConfigFilePath"
+
+# Restrict ACL: readable only by SYSTEM and Administrators
+& icacls $ConfigFilePath /inheritance:r '/grant:r' 'SYSTEM:(R)' '/grant:r' 'Administrators:(M)' | Out-Null
+Write-Log 'releem.conf permissions restricted to SYSTEM and Administrators.'
 
 # ---------------------------------------------------------------------------
 # Windows Service installation and start

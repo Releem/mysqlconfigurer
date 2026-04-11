@@ -28,13 +28,14 @@ type AWSRDSEnhancedMetricsGatherer struct {
 }
 
 type osMetrics struct {
-	Engine             string    `json:"engine"             help:"The database engine for the DB instance."`
-	InstanceID         string    `json:"instanceID"         help:"The DB instance identifier."`
-	InstanceResourceID string    `json:"instanceResourceID" help:"A region-unique, immutable identifier for the DB instance, also used as the log stream identifier."`
-	NumVCPUs           int       `json:"numVCPUs"           help:"The number of virtual CPUs for the DB instance."`
-	Timestamp          time.Time `json:"timestamp"          help:"The time at which the metrics were taken."`
-	Uptime             string    `json:"uptime"             help:"The amount of time that the DB instance has been active."`
-	Version            float64   `json:"version"            help:"The version of the OS metrics' stream JSON format."`
+	Engine                     string    `json:"engine"             help:"The database engine for the DB instance."`
+	InstanceID                 string    `json:"instanceID"         help:"The DB instance identifier."`
+	InstanceResourceID         string    `json:"instanceResourceID" help:"A region-unique, immutable identifier for the DB instance, also used as the log stream identifier."`
+	NumVCPUs                   int       `json:"numVCPUs"           help:"The number of virtual CPUs for the DB instance."`
+	Timestamp                  time.Time `json:"timestamp"          help:"The time at which the metrics were taken."`
+	Uptime                     string    `json:"uptime"             help:"The amount of time that the DB instance has been active."`
+	Version                    float64   `json:"version"            help:"The version of the OS metrics' stream JSON format."`
+	ServerlessDatabaseCapacity float64   `json:"serverlessDatabaseCapacity" help:"The current capacity of the instance, in ACUs."`
 
 	CPUUtilization    cpuUtilization    `json:"cpuUtilization"`
 	DiskIO            []diskIO          `json:"diskIO"`
@@ -220,7 +221,7 @@ func (awsrdsenhancedmetrics *AWSRDSEnhancedMetricsGatherer) GetMetrics(metrics *
 		return errors.New("CloudWatchLogs.GetLogEvents No data")
 	}
 
-	osMetrics, err := parseOSMetrics([]byte(*result.Events[0].Message), true)
+	osMetrics, err := parseOSMetrics([]byte(*result.Events[0].Message), false)
 
 	if err != nil {
 		awsrdsenhancedmetrics.logger.Errorf("Failed to parse metrics: %s.", err)
@@ -262,11 +263,12 @@ func (awsrdsenhancedmetrics *AWSRDSEnhancedMetricsGatherer) GetMetrics(metrics *
 	awsrdsenhancedmetrics.logger.V(5).Info("CPU ", osMetrics.LoadAverageMinute)
 
 	info["Host"] = models.MetricGroupValue{
-		"InstanceType": "aws/rds",
-		"Timestamp":    osMetrics.Timestamp,
-		"Uptime":       osMetrics.Uptime,
-		"Engine":       osMetrics.Engine,
-		"Version":      osMetrics.Version,
+		"InstanceType":               "aws/rds",
+		"Timestamp":                  osMetrics.Timestamp,
+		"Uptime":                     osMetrics.Uptime,
+		"Engine":                     osMetrics.Engine,
+		"Version":                    osMetrics.Version,
+		"ServerlessDatabaseCapacity": osMetrics.ServerlessDatabaseCapacity,
 	}
 
 	metrics.System.Info = info

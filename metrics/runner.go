@@ -37,8 +37,8 @@ func RunWorker(gatherers map[string][]models.MetricsGatherer, repeaters models.M
 
 	if (Mode.Name == "Configurations" && Mode.Type != "Default") || Mode.Name == "Event" || Mode.Name == "TaskByName" {
 		GenerateTimer = time.NewTimer(1 * time.Second)
-		timer = time.NewTimer(1 * time.Hour)
-		QueryOptimizationTimer = time.NewTimer(1 * time.Hour)
+		timer = time.NewTimer(24 * time.Hour)
+		QueryOptimizationTimer = time.NewTimer(24 * time.Hour)
 	} else {
 		GenerateTimer = time.NewTimer(configuration.GenerateConfigPeriod * time.Second)
 		timer = time.NewTimer(1 * time.Second)

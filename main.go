@@ -227,10 +227,11 @@ func (programm *Programm) Run() {
 		gatherers["default"] = append(gatherers["default"],
 			postgresql.NewDBConfGatherer(logger, configuration),
 			postgresql.NewDBInfoBaseGatherer(logger, configuration),
+			postgresql.NewDBInfoGatherer(logger, configuration),
 			postgresql.NewDBMetricsBaseGatherer(logger, configuration),
 			metrics.NewAgentMetricsGatherer(logger, configuration))
 
-		gatherers["metrics"] = append(gatherers["metrics"], postgresql.NewDBMetricsGatherer(logger, configuration))
+		gatherers["metrics"] = []models.MetricsGatherer{}
 
 		gatherers["configuration"] = append(gatherers["configuration"], postgresql.NewDBMetricsConfigGatherer(logger, configuration))
 

@@ -18,7 +18,7 @@ while [[ $# -gt 0 ]]; do
         --test)    TEST_NUM="$2";   shift 2 ;;
         --keep-vm) KEEP_VM=true;      shift ;;
         -h|--help)
-            echo "Usage: $0 [--db mysql-8.0|mysql-8.4|mariadb-10] [--test 1|2|3|4|5|6|all] [--keep-vm]"
+            echo "Usage: $0 [--db mysql-8.0|mysql-8.4|mariadb-10] [--test 1|2|3|4|5|6|7|8|all] [--keep-vm]"
             exit 0
             ;;
         *) echo "Unknown option: $1"; exit 1 ;;
@@ -56,6 +56,8 @@ cp "$SCRIPT_DIR/windows/test_03_apply_config.ps1" "$PAYLOAD_DIR/test_03_apply_co
 cp "$SCRIPT_DIR/windows/test_04_rollback_config.ps1" "$PAYLOAD_DIR/test_04_rollback_config.ps1"
 cp "$SCRIPT_DIR/windows/test_05_update_delegation.ps1" "$PAYLOAD_DIR/test_05_update_delegation.ps1"
 cp "$SCRIPT_DIR/windows/test_06_reinstall_existing_install.ps1" "$PAYLOAD_DIR/test_06_reinstall_existing_install.ps1"
+cp "$SCRIPT_DIR/windows/test_07_apply_without_restart.ps1" "$PAYLOAD_DIR/test_07_apply_without_restart.ps1"
+cp "$SCRIPT_DIR/windows/test_08_queue_apply.ps1" "$PAYLOAD_DIR/test_08_queue_apply.ps1"
 
 PAYLOAD_ZIP="/tmp/releem-win-tests-${DB_SLUG}-$$.zip"
 rm -f "$PAYLOAD_ZIP"
@@ -133,7 +135,7 @@ echo "[INFO] Waiting for serial result markers (up to 60 min)..."
 SERIAL_TIMEOUT=3600
 SERIAL_ELAPSED=0
 TEST_EXIT=1
-EXPECTED_SUITE_PASSES=6
+EXPECTED_SUITE_PASSES=8
 if [[ "$TEST_NUM" != "all" ]]; then
     EXPECTED_SUITE_PASSES=1
 fi

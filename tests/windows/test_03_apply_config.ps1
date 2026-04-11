@@ -49,12 +49,12 @@ Write-Info "Running mysqlconfigurer.ps1 -Configure..."
 $configureExit = $LASTEXITCODE
 Assert-Zero "mysqlconfigurer.ps1 -Configure exited successfully" $configureExit
 
-# --- Apply configuration using mysqlconfigurer.ps1 -Automatic ---
-Write-Info "Running mysqlconfigurer.ps1 -Automatic..."
-& powershell.exe -ExecutionPolicy Bypass -File $ConfigurerScript -Automatic
+# --- Apply configuration using mysqlconfigurer.ps1 -Apply -NonInteractive ---
+Write-Info "Running mysqlconfigurer.ps1 -Apply -NonInteractive..."
+& powershell.exe -ExecutionPolicy Bypass -File $ConfigurerScript -Apply -NonInteractive
 $applyExit = $LASTEXITCODE
 
-Assert-Zero "mysqlconfigurer.ps1 -Automatic exited successfully" $applyExit
+Assert-Zero "mysqlconfigurer.ps1 -Apply -NonInteractive exited successfully" $applyExit
 
 # --- Local assertions ---
 Assert-FileExists     "Recommended config file created" $ConfigFile

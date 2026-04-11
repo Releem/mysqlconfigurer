@@ -2,7 +2,7 @@
 # Run all Releem agent Windows tests in sequence.
 #
 # Usage:
-#   .\run_all.ps1 [-Test 1|2|3|4|5|6|all]
+#   .\run_all.ps1 [-Test 1|2|3|4|5|6|7|8|all]
 #
 # Required env vars:
 #   RELEEM_API_KEY, MYSQL_ROOT_PASSWORD, OS_VERSION
@@ -66,17 +66,19 @@ function Invoke-Test {
 Invoke-Test "1" "test_01_install_auto.ps1"          "Test 1: Fresh install (auto user creation)"
 Invoke-Test "2" "test_02_install_existing_user.ps1" "Test 2: Install with pre-existing user"
 
-# Re-run test 1 to restore state for tests 3 and 4 (if running full suite)
+# Re-run test 1 to restore state for later config apply tests (if running full suite)
 if ($Test -eq "all") {
     Write-Host ""
-    Write-Host "[SUITE] Re-running Test 1 to restore state for Tests 3 and 4..."
+    Write-Host "[SUITE] Re-running Test 1 to restore state for Tests 3, 4, and 7..."
     & powershell.exe -ExecutionPolicy Bypass -File "$ScriptDir\test_01_install_auto.ps1" | Out-Null
 }
 
+Invoke-Test "7" "test_07_apply_without_restart.ps1" "Test 7: Apply without restart"
 Invoke-Test "3" "test_03_apply_config.ps1"    "Test 3: Apply configuration"
 Invoke-Test "4" "test_04_rollback_config.ps1" "Test 4: Rollback configuration"
 Invoke-Test "5" "test_05_update_delegation.ps1" "Test 5: Update delegation"
 Invoke-Test "6" "test_06_reinstall_existing_install.ps1" "Test 6: Reinstall existing installation"
+Invoke-Test "8" "test_08_queue_apply.ps1" "Test 8: Queue apply"
 
 Write-Host ""
 Write-Host "========================================="

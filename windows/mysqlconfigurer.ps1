@@ -10,8 +10,14 @@
 .PARAMETER Apply
     Apply the recommended MySQL configuration (with user confirmation).
 
-.PARAMETER Automatic
+.PARAMETER NonInteractive
     Apply the recommended MySQL configuration non-interactively.
+
+.PARAMETER NoRestart
+    Copy the recommended MySQL configuration without restarting MySQL.
+
+.PARAMETER QueueApply
+    Ask the Releem Agent to create an apply_config job instead of applying locally.
 
 .PARAMETER Rollback
     Restore the previous MySQL configuration from backup.
@@ -28,7 +34,9 @@
 .EXAMPLE
     .\mysqlconfigurer.ps1 -Configure
     .\mysqlconfigurer.ps1 -Apply
-    .\mysqlconfigurer.ps1 -Automatic
+    .\mysqlconfigurer.ps1 -Apply -NonInteractive
+    .\mysqlconfigurer.ps1 -Apply -NonInteractive -NoRestart
+    .\mysqlconfigurer.ps1 -QueueApply
     .\mysqlconfigurer.ps1 -Rollback
     .\mysqlconfigurer.ps1 -Update
 #>
@@ -37,8 +45,10 @@
 param(
     [Alias('a')]
     [switch]$Apply,
-    [Alias('s')]
-    [switch]$Automatic,
+    [Alias('Automatic')]
+    [switch]$NonInteractive,
+    [switch]$NoRestart,
+    [switch]$QueueApply,
     [Alias('r')]
     [switch]$Rollback,
     [Alias('p')]
@@ -68,7 +78,7 @@ $DbConfigFileName = 'z_aiops_mysql.cnf'
 $StagingCnfPath   = "${ReleemConfDir}${DbConfigFileName}"
 $BackupCnfPath    = "${ReleemConfDir}${DbConfigFileName}.bkp"
 $LogFilePath      = 'C:\ProgramData\ReleemAgent\releem-mysqlconfigurer.log'
-$AgentBinaryPath  = 'C:\Program Files\ReleemAgent\releem-agent.exe'
+$AgentBinaryPath  = if ($env:RELEEM_AGENT_BINARY_PATH) { $env:RELEEM_AGENT_BINARY_PATH } else { 'C:\Program Files\ReleemAgent\releem-agent.exe' }
 $InstallerScriptPath = 'C:\Program Files\ReleemAgent\install.ps1'
 $DbVersionFilePath = "${ReleemConfDir}DB_Version.txt"
 $CurrentVersionUrl = if ($env:RELEEM_CURRENT_VERSION_URL) { $env:RELEEM_CURRENT_VERSION_URL } else { 'https://releem.s3.us-east-1.amazonaws.com/v2/current_version_agent' }
@@ -290,14 +300,17 @@ function Restart-MySqlService {
 
 # ---------------------------------------------------------------------------
 # Helper: Invoke-ApplyConfig
-# Shared logic for -Apply and -Automatic flags.
-# $Interactive=$true  → prompt user before restarting MySQL
-# $Interactive=$false → restart immediately without prompting
+# Shared logic for local apply modes.
+# $Interactive=$true     → prompt user before restarting MySQL
+# $RestartService=$false → copy config without restarting MySQL
 # Sets $script:ExitCode and returns on error/cancellation.
 # ---------------------------------------------------------------------------
 
 function Invoke-ApplyConfig {
-    param([bool]$Interactive)
+    param(
+        [bool]$Interactive,
+        [bool]$RestartService
+    )
 
     # Check that recommended config file exists in staging area
     if (-not (Test-Path $StagingCnfPath)) {
@@ -330,8 +343,10 @@ function Invoke-ApplyConfig {
             Write-Log 'User cancelled MySQL service restart. Configuration not applied.'
             $script:ExitCode = 5; return
         }
+    } elseif ($RestartService) {
+        Write-Log 'Running in non-interactive mode - restarting MySQL without confirmation'
     } else {
-        Write-Log 'Running in automatic mode - restarting MySQL without confirmation'
+        Write-Log 'Running in non-interactive mode - copying configuration without restarting MySQL'
     }
 
     # Back up the current live config before applying
@@ -343,12 +358,20 @@ function Invoke-ApplyConfig {
         [System.IO.File]::WriteAllText($BackupCnfPath, "[mysqld]`r`n", $noBomUtf8)
         Write-Log "Created baseline backup (no prior live config): $BackupCnfPath"
     }
-
+make
     # Copy staging config to MySQL conf dir
     New-Item -Path $mysql_cnf_dir -ItemType Directory -Force | Out-Null
     $stagingContent = Get-Content -Path $StagingCnfPath -Raw
     [System.IO.File]::WriteAllText($liveCnfPath, $stagingContent, $noBomUtf8)
     Write-Log "Copied recommended config to $liveCnfPath"
+
+    if (-not $RestartService) {
+        & $AgentBinaryPath --event=config_applied
+        $applyEventCode = $LASTEXITCODE
+        Write-Log "Agent event 'config_applied' fired with exit code $applyEventCode"
+        Write-Log 'Configuration copied successfully without restart.'
+        return
+    }
 
     # Restart MySQL service
     $restartCode = Restart-MySqlService
@@ -430,16 +453,27 @@ $ApiBaseUrl = if ($env:RELEEM_REGION -eq 'EU') { 'https://api.eu.releem.com' } e
 
 try {
 
-    if (-not ($Apply -or $Automatic -or $Rollback -or $Configure -or $Update)) {
+    if ($NonInteractive -and -not $Apply) {
+        Write-Log 'ERROR: -NonInteractive can only be used together with -Apply.'
+        $script:ExitCode = 1; return
+    }
+    if ($NoRestart -and -not ($Apply -and $NonInteractive)) {
+        Write-Log 'ERROR: -NoRestart can only be used together with -Apply -NonInteractive.'
+        $script:ExitCode = 1; return
+    }
+
+    if (-not ($Apply -or $QueueApply -or $Rollback -or $Configure -or $Update)) {
         Write-Host ''
         Write-Host 'Usage: mysqlconfigurer.ps1 [flags] [-ApiKey <key>]'
         Write-Host ''
         Write-Host 'Flags:'
         Write-Host '  -Configure   Enable Performance Schema and slow query log in MySQL'
-        Write-Host '  -Apply       Apply Releem recommended MySQL config (with confirmation)'
-        Write-Host '  -Automatic   Apply Releem recommended MySQL config non-interactively'
+        Write-Host '  -Apply       Apply Releem recommended MySQL config locally'
+        Write-Host '  -NonInteractive   Use with -Apply to skip the restart confirmation prompt'
+        Write-Host '  -NoRestart   Use with -Apply -NonInteractive to copy config without restarting MySQL'
+        Write-Host '  -QueueApply  Ask Releem Agent to create an apply_config job'
         Write-Host '  -Rollback    Restore previous MySQL configuration from backup'
-        Write-Host '  -Update      Self-update this script to the latest version'
+        Write-Host '  -Update      Refresh install.ps1 and delegate the full agent update flow'
         Write-Host ''
         $script:ExitCode = 0; return
     }
@@ -493,13 +527,31 @@ try {
     }
 
     if ($Apply) {
-        Write-Log 'Starting -Apply: applying recommended MySQL configuration...'
-        Invoke-ApplyConfig -Interactive $true
+        if ($NonInteractive -and $NoRestart) {
+            Write-Log 'Starting -Apply -NonInteractive -NoRestart: copying recommended MySQL configuration without restarting MySQL...'
+        } elseif ($NonInteractive) {
+            Write-Log 'Starting -Apply -NonInteractive: applying recommended MySQL configuration non-interactively...'
+        } else {
+            Write-Log 'Starting -Apply: applying recommended MySQL configuration...'
+        }
+        Invoke-ApplyConfig -Interactive (-not $NonInteractive) -RestartService (-not $NoRestart)
     }
 
-    if ($Automatic) {
-        Write-Log 'Starting -Automatic: applying recommended MySQL configuration non-interactively...'
-        Invoke-ApplyConfig -Interactive $false
+    if ($QueueApply) {
+        Write-Log 'Starting -QueueApply: sending request to create an apply_config job...'
+        if (-not (Test-Path $AgentBinaryPath)) {
+            Write-Log "ERROR: Releem Agent binary not found: $AgentBinaryPath"
+            $script:ExitCode = 1; return
+        }
+
+        & $AgentBinaryPath --task=apply_config
+        $queueExitCode = $LASTEXITCODE
+        if ($queueExitCode -ne 0) {
+            Write-Log "ERROR: Failed to queue apply_config task. Releem Agent exited with code $queueExitCode."
+            $script:ExitCode = $queueExitCode; return
+        }
+
+        Write-Log 'Sending request to create a job to apply the configuration.'
     }
 
     if ($Rollback) {

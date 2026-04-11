@@ -24,14 +24,12 @@ locals {
     releem_api_key   = var.releem_api_key
     test_selection   = var.test_selection
     test_payload_b64 = var.test_payload_b64
-    ssh_public_key   = var.ssh_public_key
   }
 
   vm_metadata = var.os_type == "linux" ? {
     ssh-keys       = "${var.ssh_user}:${var.ssh_public_key}"
     startup-script = templatefile("${path.module}/startup/linux_bootstrap.sh", local.template_vars)
     } : {
-    ssh-keys                   = "Administrator:${var.ssh_public_key}"
     windows-startup-script-ps1 = templatefile("${path.module}/startup/windows_bootstrap.ps1", local.template_vars)
   }
 }
@@ -42,6 +40,7 @@ data "google_compute_image" "os_image" {
 }
 
 resource "google_compute_firewall" "allow_ssh_test" {
+  count   = var.os_type == "linux" ? 1 : 0
   name    = "${local.vm_name}-allow-ssh"
   network = var.network
 
@@ -58,8 +57,6 @@ resource "google_compute_instance" "test_vm" {
   name         = local.vm_name
   machine_type = var.machine_type
   zone         = var.zone
-
-  depends_on = [google_compute_firewall.allow_ssh_test]
 
   tags = ["releem-test"]
 

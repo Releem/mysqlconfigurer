@@ -15,5 +15,5 @@ output "hostname" {
 
 output "ssh_command" {
   description = "SSH command to connect to the test VM"
-  value       = "ssh -i <your_private_key> ${var.ssh_user}@${google_compute_instance.test_vm.network_interface[0].access_config[0].nat_ip}"
+  value       = var.os_type == "linux" ? "ssh -i <your_private_key> ${var.ssh_user}@${google_compute_instance.test_vm.network_interface[0].access_config[0].nat_ip}" : null
 }

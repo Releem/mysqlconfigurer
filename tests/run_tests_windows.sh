@@ -18,7 +18,7 @@ while [[ $# -gt 0 ]]; do
         --test)    TEST_NUM="$2";   shift 2 ;;
         --keep-vm) KEEP_VM=true;      shift ;;
         -h|--help)
-            echo "Usage: $0 [--db mysql-8.0|mysql-8.4|mariadb-10] [--test 1|2|3|4|all] [--keep-vm]"
+            echo "Usage: $0 [--db mysql-8.0|mysql-8.4|mariadb-10] [--test 1|2|3|4|5|all] [--keep-vm]"
             exit 0
             ;;
         *) echo "Unknown option: $1"; exit 1 ;;
@@ -32,21 +32,15 @@ MYSQL_ROOT_PASSWORD="${MYSQL_ROOT_PASSWORD:-ReleemRootPw$(date +%s)!}"
 GCP_ZONE="${GCP_ZONE:-us-central1-a}"
 OS_IMAGE_FAMILY="windows-2022"
 OS_IMAGE_PROJECT="windows-cloud"
-SSH_PUBLIC_KEY="${SSH_PUBLIC_KEY:-$(cat "$HOME/.ssh/releem_test_rsa.pub" 2>/dev/null || echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQD3x3b3Q1G3O2XJ2E5D4u3mPj9ZV8y8fP3Y5Lq4Q3Xq9bT2cS5N8f0K1l2m3n4p5q6r7s8t9u0v1w2x3y4z5 releem-test")}" 
 
 OS_SLUG="$(echo "$OS_VERSION" | tr '.' '-')"
 DB_SLUG="$(echo "$DB_VERSION" | tr '.' '-')"
 VM_NAME="releem-test-${OS_SLUG}-${DB_SLUG}"
-FW_NAME="${VM_NAME}-allow-ssh"
 
 echo "[INFO] Checking for stale GCP resources..."
 if gcloud compute instances describe "$VM_NAME" --zone="$GCP_ZONE" --project="$GCP_PROJECT" &>/dev/null; then
     echo "[INFO] Deleting stale VM: $VM_NAME"
     gcloud compute instances delete "$VM_NAME" --zone="$GCP_ZONE" --project="$GCP_PROJECT" --quiet
-fi
-if gcloud compute firewall-rules describe "$FW_NAME" --project="$GCP_PROJECT" &>/dev/null; then
-    echo "[INFO] Deleting stale firewall: $FW_NAME"
-    gcloud compute firewall-rules delete "$FW_NAME" --project="$GCP_PROJECT" --quiet
 fi
 
 PAYLOAD_DIR="$(mktemp -d /tmp/releem-win-payload-XXXX)"
@@ -60,6 +54,7 @@ cp "$SCRIPT_DIR/windows/test_01_install_auto.ps1" "$PAYLOAD_DIR/test_01_install_
 cp "$SCRIPT_DIR/windows/test_02_install_existing_user.ps1" "$PAYLOAD_DIR/test_02_install_existing_user.ps1"
 cp "$SCRIPT_DIR/windows/test_03_apply_config.ps1" "$PAYLOAD_DIR/test_03_apply_config.ps1"
 cp "$SCRIPT_DIR/windows/test_04_rollback_config.ps1" "$PAYLOAD_DIR/test_04_rollback_config.ps1"
+cp "$SCRIPT_DIR/windows/test_05_update_delegation.ps1" "$PAYLOAD_DIR/test_05_update_delegation.ps1"
 
 PAYLOAD_ZIP="/tmp/releem-win-tests-${DB_SLUG}-$$.zip"
 rm -f "$PAYLOAD_ZIP"
@@ -86,9 +81,6 @@ db_root_password = "$MYSQL_ROOT_PASSWORD"
 releem_api_key   = "$RELEEM_API_KEY"
 test_selection   = "$TEST_NUM"
 test_payload_b64 = "$TEST_PAYLOAD_B64"
-ssh_public_key   = "$SSH_PUBLIC_KEY"
-ssh_user         = "Administrator"
-allowed_ssh_cidr = "0.0.0.0/0"
 machine_type     = "e2-standard-2"
 use_spot         = true
 EOFVARS

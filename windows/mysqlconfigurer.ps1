@@ -20,7 +20,7 @@
     Enable Performance Schema and slow query log in MySQL.
 
 .PARAMETER Update
-    Self-update this script to the latest version from S3.
+    Refresh the installer script and delegate the full agent update flow.
 
 .PARAMETER ApiKey
     Releem API key (overrides value from releem.conf).
@@ -69,7 +69,10 @@ $StagingCnfPath   = "${ReleemConfDir}${DbConfigFileName}"
 $BackupCnfPath    = "${ReleemConfDir}${DbConfigFileName}.bkp"
 $LogFilePath      = 'C:\ProgramData\ReleemAgent\releem-mysqlconfigurer.log'
 $AgentBinaryPath  = 'C:\Program Files\ReleemAgent\releem-agent.exe'
+$InstallerScriptPath = 'C:\Program Files\ReleemAgent\install.ps1'
 $DbVersionFilePath = "${ReleemConfDir}DB_Version.txt"
+$CurrentVersionUrl = if ($env:RELEEM_CURRENT_VERSION_URL) { $env:RELEEM_CURRENT_VERSION_URL } else { 'https://releem.s3.us-east-1.amazonaws.com/v2/current_version_agent' }
+$InstallerScriptUrl = if ($env:RELEEM_INSTALLER_SCRIPT_URL) { $env:RELEEM_INSTALLER_SCRIPT_URL } else { 'https://releem.s3.us-east-1.amazonaws.com/v2/install.ps1' }
 
 # ---------------------------------------------------------------------------
 # Helper: Write-Log
@@ -563,19 +566,16 @@ try {
     }
 
     if ($Update) {
-        Write-Log 'Starting -Update: checking for latest mysqlconfigurer.ps1...'
+        Write-Log 'Starting -Update: checking for latest Releem Agent version...'
 
-        $versionUrl = 'https://releem.s3.us-east-1.amazonaws.com/v2/current_version_agent'
-        $scriptUrl  = 'https://releem.s3.us-east-1.amazonaws.com/v2/mysqlconfigurer.ps1'
-        $deployPath = 'C:\Program Files\ReleemAgent\mysqlconfigurer.ps1'
-        $tempPath   = "$env:TEMP\mysqlconfigurer_new.ps1"
+        $tempPath = Join-Path $env:TEMP 'install_new.ps1'
 
         # Fetch remote version
         $remoteVersionRaw = $null
         try {
-            $remoteVersionRaw = (Invoke-WebRequest -Uri $versionUrl -UseBasicParsing -ErrorAction Stop).Content.Trim()
+            $remoteVersionRaw = (Invoke-WebRequest -Uri $CurrentVersionUrl -UseBasicParsing -ErrorAction Stop).Content.Trim()
         } catch {
-            Write-Log "ERROR: Failed to fetch remote version from ${versionUrl}: $_"
+            Write-Log "ERROR: Failed to fetch remote version from ${CurrentVersionUrl}: $_"
             $script:ExitCode = 1; return
         }
 
@@ -594,36 +594,57 @@ try {
         }
 
         if (-not $isNewer) {
-            Write-Log "mysqlconfigurer.ps1 is up to date (version $ScriptVersion)"
+            Write-Log "Releem Agent is up to date (version $ScriptVersion)"
             $script:ExitCode = 0; return
         }
 
-        Write-Log "Newer version $remoteVersionRaw available - downloading..."
+        Write-Log "Newer version $remoteVersionRaw available. Refreshing installer script..."
 
-        # Download new script to temp location
+        # Download the latest installer script, then delegate update work to it.
         try {
-            Invoke-WebRequest -Uri $scriptUrl -OutFile $tempPath -UseBasicParsing -ErrorAction Stop
+            Invoke-WebRequest -Uri $InstallerScriptUrl -OutFile $tempPath -UseBasicParsing -ErrorAction Stop
         } catch {
-            Write-Log "ERROR: Failed to download new script from ${scriptUrl}: $_"
+            Write-Log "ERROR: Failed to download installer script from ${InstallerScriptUrl}: $_"
             $script:ExitCode = 1; return
         }
 
-        # Copy downloaded script to deployment location
         try {
-            Copy-Item -Path $tempPath -Destination $deployPath -Force -ErrorAction Stop
+            New-Item -Path ([System.IO.Path]::GetDirectoryName($InstallerScriptPath)) -ItemType Directory -Force | Out-Null
+            Copy-Item -Path $tempPath -Destination $InstallerScriptPath -Force -ErrorAction Stop
         } catch {
-            Write-Log "ERROR: Failed to copy new script to ${deployPath}: $_"
+            Write-Log "ERROR: Failed to copy installer script to ${InstallerScriptPath}: $_"
             $script:ExitCode = 1; return
         }
 
-        Write-Log "mysqlconfigurer.ps1 updated to version $remoteVersionRaw at $deployPath"
+        Write-Log "Installer script refreshed at $InstallerScriptPath"
+        Write-Log "Delegating update to $InstallerScriptPath -u"
 
-        # Fire agent_updated event (non-fatal)
-        & $AgentBinaryPath --event=agent_updated
-        $updateEventCode = $LASTEXITCODE
-        Write-Log "Agent event 'agent_updated' fired with exit code $updateEventCode"
+        $hadApiKey = Test-Path Env:RELEEM_API_KEY
+        $previousApiKey = $env:RELEEM_API_KEY
+        if ($apikey) {
+            $env:RELEEM_API_KEY = $apikey
+        }
+
+        try {
+            & powershell.exe -ExecutionPolicy Bypass -File $InstallerScriptPath -u
+            $installExitCode = $LASTEXITCODE
+        } finally {
+            if ($hadApiKey) {
+                $env:RELEEM_API_KEY = $previousApiKey
+            } else {
+                Remove-Item Env:RELEEM_API_KEY -ErrorAction SilentlyContinue
+            }
+        }
+
+        if ($installExitCode -ne 0) {
+            Write-Log "ERROR: install.ps1 -u failed with exit code $installExitCode."
+            $script:ExitCode = $installExitCode
+            return
+        }
 
         Write-Log '-Update completed successfully.'
+        $script:ExitCode = 0
+        return
     }
 
 } catch {

@@ -14,7 +14,6 @@ $DbRootPass     = '${db_root_password}'
 $ReleemApiKey   = '${releem_api_key}'
 $TestSelection  = '${test_selection}'
 $TestPayloadB64 = '${test_payload_b64}'
-$SshPublicKey   = '${ssh_public_key}'
 
 $LogFile = 'C:/bootstrap.log'
 function Write-Log {
@@ -44,32 +43,6 @@ trap {
 
 Write-Log ('Bootstrap started: DB={0}, Hostname={1}' -f $DbVersion, $Hostname)
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-
-Write-Log 'Installing OpenSSH Server...'
-$cap = Get-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0 -ErrorAction SilentlyContinue
-if ($cap -and $cap.State -ne 'Installed') {
-    Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0 | Out-Null
-}
-Start-Service sshd -ErrorAction SilentlyContinue
-Set-Service -Name sshd -StartupType Automatic -ErrorAction SilentlyContinue
-
-$sshConfDir = 'C:/ProgramData/ssh'
-New-Item -ItemType Directory -Path $sshConfDir -Force | Out-Null
-$adminKeysFile = Join-Path $sshConfDir 'administrators_authorized_keys'
-Set-Content -Path $adminKeysFile -Value $SshPublicKey -Encoding ASCII
-$adminSshDir = 'C:/Users/Administrator/.ssh'
-New-Item -ItemType Directory -Path $adminSshDir -Force | Out-Null
-$adminUserKeys = Join-Path $adminSshDir 'authorized_keys'
-Set-Content -Path $adminUserKeys -Value $SshPublicKey -Encoding ASCII
-icacls $adminKeysFile /inheritance:r | Out-Null
-icacls $adminKeysFile /grant 'SYSTEM:(F)' | Out-Null
-icacls $adminKeysFile /grant 'BUILTIN\Administrators:(F)' | Out-Null
-icacls $adminUserKeys /inheritance:r | Out-Null
-icacls $adminUserKeys /grant 'SYSTEM:(F)' | Out-Null
-icacls $adminUserKeys /grant 'BUILTIN\Administrators:(F)' | Out-Null
-New-NetFirewallRule -Name 'sshd-releem-test' -DisplayName 'OpenSSH Server (releem test)' -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 22 -ErrorAction SilentlyContinue | Out-Null
-Restart-Service sshd -ErrorAction SilentlyContinue
-Write-Log 'OpenSSH prepared'
 
 $mysqlDir = $null
 $DbServiceName = $null

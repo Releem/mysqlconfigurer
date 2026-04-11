@@ -2,7 +2,7 @@
 # Run all Releem agent Windows tests in sequence.
 #
 # Usage:
-#   .\run_all.ps1 [-Test 1|2|3|4|all]
+#   .\run_all.ps1 [-Test 1|2|3|4|5|all]
 #
 # Required env vars:
 #   RELEEM_API_KEY, MYSQL_ROOT_PASSWORD, OS_VERSION
@@ -75,6 +75,7 @@ if ($Test -eq "all") {
 
 Invoke-Test "3" "test_03_apply_config.ps1"    "Test 3: Apply configuration"
 Invoke-Test "4" "test_04_rollback_config.ps1" "Test 4: Rollback configuration"
+Invoke-Test "5" "test_05_update_delegation.ps1" "Test 5: Update delegation"
 
 Write-Host ""
 Write-Host "========================================="

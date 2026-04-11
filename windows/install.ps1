@@ -92,6 +92,49 @@ function Invoke-MySQL {
 }
 
 # ---------------------------------------------------------------------------
+# Helper: Stop-ReleemAgentForReplacement
+# Stops the running service and waits for the binary to be released so the
+# installer can safely overwrite releem-agent.exe on reinstall/update.
+# ---------------------------------------------------------------------------
+
+function Stop-ReleemAgentForReplacement {
+    param(
+        [string]$Reason = 'before replacing releem-agent.exe'
+    )
+
+    $svc = Get-Service -Name 'releem-agent' -ErrorAction SilentlyContinue
+    if (-not $svc) {
+        Write-Log "No existing Releem Agent service found; skipping stop $Reason."
+        return
+    }
+
+    Write-Log "Stopping Releem Agent service $Reason..."
+
+    if (Test-Path $AgentBinaryPath) {
+        & $AgentBinaryPath stop
+        Write-Log "releem-agent.exe stop exited with code: $LASTEXITCODE"
+    }
+
+    $svc = Get-Service -Name 'releem-agent' -ErrorAction SilentlyContinue
+    if ($svc -and $svc.Status -eq 'Running') {
+        Stop-Service -Name 'releem-agent' -ErrorAction SilentlyContinue
+    }
+
+    $waited = 0
+    while ($waited -lt 30) {
+        $svc = Get-Service -Name 'releem-agent' -ErrorAction SilentlyContinue
+        if (-not $svc -or $svc.Status -ne 'Running') {
+            Write-Log 'Releem Agent service is stopped.'
+            return
+        }
+        Start-Sleep -Seconds 1
+        $waited++
+    }
+
+    throw "Releem Agent service did not stop within 30 seconds $Reason."
+}
+
+# ---------------------------------------------------------------------------
 # Admin privilege check
 # ---------------------------------------------------------------------------
 
@@ -150,13 +193,7 @@ if ($u) {
     # ---------------------------------------------------------------------------
     # Stop the service
     # ---------------------------------------------------------------------------
-    Write-Log 'Stopping Releem Agent service...'
-    if (Test-Path $AgentBinaryPath) {
-        & $AgentBinaryPath stop
-        Write-Log "releem-agent.exe stop exited with code: $LASTEXITCODE"
-    } else {
-        Write-Log 'WARNING: releem-agent.exe not found; skipping stop.'
-    }
+    Stop-ReleemAgentForReplacement -Reason 'before update'
 
     # ---------------------------------------------------------------------------
     # Download the latest releem-agent.exe binary
@@ -373,6 +410,12 @@ Write-Log 'Directory ready: C:\ProgramData\ReleemAgent\conf.d'
 
 New-Item -Path 'C:\Program Files\ReleemAgent' -ItemType Directory -Force | Out-Null
 Write-Log 'Directory ready: C:\Program Files\ReleemAgent'
+
+# ---------------------------------------------------------------------------
+# Stop the existing agent before replacing the binary during reinstall.
+# ---------------------------------------------------------------------------
+
+Stop-ReleemAgentForReplacement -Reason 'before reinstall'
 
 # ---------------------------------------------------------------------------
 # Agent binary download from S3

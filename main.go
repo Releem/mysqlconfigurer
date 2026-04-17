@@ -211,7 +211,6 @@ func (programm *Programm) Run() {
 		if instance.Properties == nil || instance.Properties.FullyQualifiedDomainName == nil || *instance.Properties.FullyQualifiedDomainName == "" {
 			exitRunWithError("Azure Database for MySQL server has no fully qualified domain name")
 		}
-		logger.Info("Azure Database for MySQL server details: ", instance)
 		configuration.Hostname = configuration.AzureMySQLServer
 		configuration.MysqlHost = *instance.Properties.FullyQualifiedDomainName
 		logger.Info("Azure Database for MySQL server found: ", configuration.Hostname)

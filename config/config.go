@@ -47,6 +47,9 @@ type Config struct {
 	GcpRegion                   string        `hcl:"gcp_region"`
 	GcpCloudSqlInstance         string        `hcl:"gcp_cloudsql_instance"`
 	GcpCloudSqlPublicConnection bool          `hcl:"gcp_cloudsql_public_connection"`
+	AzureSubscriptionID         string        `hcl:"azure_subscription_id"`
+	AzureResourceGroup          string        `hcl:"azure_resource_group"`
+	AzureMySQLServer            string        `hcl:"azure_mysql_server"`
 	QueryOptimization           bool          `hcl:"query_optimization"`
 	DatabasesQueryOptimization  string        `hcl:"databases_query_optimization"`
 	ReleemRegion                string        `hcl:"releem_region"`

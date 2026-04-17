@@ -73,6 +73,9 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 		case "gcp/cloudsql":
 			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfGcpCloudSQL(repeaters, gatherers, logger, configuration)
 			TaskStruct.Output = TaskStruct.Output + task_output
+		case "azure/mysql":
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfAzureMySQL(repeaters, gatherers, logger, configuration, false)
+			TaskStruct.Output = TaskStruct.Output + task_output
 
 		default:
 			switch runtime.GOOS {
@@ -104,6 +107,9 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 			TaskStruct.Output = TaskStruct.Output + task_output
 		case "gcp/cloudsql":
 			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfGcpCloudSQL(repeaters, gatherers, logger, configuration)
+			TaskStruct.Output = TaskStruct.Output + task_output
+		case "azure/mysql":
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfAzureMySQL(repeaters, gatherers, logger, configuration, true)
 			TaskStruct.Output = TaskStruct.Output + task_output
 
 		default:

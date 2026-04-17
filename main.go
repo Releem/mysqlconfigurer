@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Releem/daemon"
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/metrics"
@@ -191,6 +192,32 @@ func (programm *Programm) Run() {
 
 		// Add GCP gatherer
 		gatherers["default"] = append(gatherers["default"], system.NewGCPCloudSQLEnhancedMetricsGatherer(logger, monitoringClient, sqlAdminService, configuration))
+
+	case "azure/mysql":
+		logger.Info("InstanceType is azure/mysql")
+		logger.Info("Loading Azure configuration")
+
+		credential, err := azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			exitRunWithError("Failed to create Azure credential", err)
+		}
+
+		azureGatherer := system.NewAzureMySQLEnhancedMetricsGatherer(logger, credential, configuration)
+		instance, err := azureGatherer.GetServer(context.Background())
+		if err != nil {
+			exitRunWithError("Failed to get Azure Database for MySQL server details", err)
+		}
+
+		if instance.Properties == nil || instance.Properties.FullyQualifiedDomainName == nil || *instance.Properties.FullyQualifiedDomainName == "" {
+			exitRunWithError("Azure Database for MySQL server has no fully qualified domain name")
+		}
+		logger.Info("Azure Database for MySQL server details: ", instance)
+		configuration.Hostname = configuration.AzureMySQLServer
+		configuration.MysqlHost = *instance.Properties.FullyQualifiedDomainName
+		logger.Info("Azure Database for MySQL server found: ", configuration.Hostname)
+		logger.Info("Using following host for Azure MySQL connection: ", configuration.MysqlHost)
+
+		gatherers["default"] = append(gatherers["default"], azureGatherer)
 
 	default:
 		logger.Info("InstanceType is Local")

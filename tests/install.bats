@@ -305,7 +305,7 @@ exit 1
     [[ "$output" == *'query_optimization=true'* ]]
 }
 
-@test "azure/mysql mode writes azure keys" {
+@test "azure/mysql mode writes azure keys and enables ssl by default" {
     prepare_common_install_mocks
     local workdir="${TEST_TMPDIR}/workdir"
     local conf="${workdir}/releem.conf"
@@ -327,12 +327,13 @@ exit 1
         bash "${INSTALL_SH}"
 
     [ "$status" -eq 0 ]
-    run grep -E "^(instance_type|azure_subscription_id|azure_resource_group|azure_mysql_server)=" "${conf}"
+    run grep -E "^(instance_type|azure_subscription_id|azure_resource_group|azure_mysql_server|mysql_ssl_mode)=" "${conf}"
     [ "$status" -eq 0 ]
     [[ "$output" == *'instance_type="azure/mysql"'* ]]
     [[ "$output" == *'azure_subscription_id="sub-1"'* ]]
     [[ "$output" == *'azure_resource_group="rg-1"'* ]]
     [[ "$output" == *'azure_mysql_server="mysql-1"'* ]]
+    [[ "$output" == *'mysql_ssl_mode=true'* ]]
 }
 
 @test "azure/mysql mode fails when mandatory azure vars are missing" {

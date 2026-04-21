@@ -905,6 +905,10 @@ function configure_releem_agent() {
             echo "azure_resource_group=\"$RELEEM_AZURE_RESOURCE_GROUP\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
             printf "\033[37m - Adding Azure MySQL server ${RELEEM_AZURE_MYSQL_SERVER} to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
             echo "azure_mysql_server=\"$RELEEM_AZURE_MYSQL_SERVER\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+            if [ -z "$RELEEM_MYSQL_SSL_MODE" ]; then
+                printf "\033[37m - Enabling MySQL SSL mode by default for Azure Database for MySQL: $RELEEM_CONF_FILE\n\033[0m"
+                echo "mysql_ssl_mode=true" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+            fi
         else
             printf "\033[31m - Azure subscription ID, resource group or MySQL server is not set. Please set RELEEM_AZURE_SUBSCRIPTION_ID, RELEEM_AZURE_RESOURCE_GROUP and RELEEM_AZURE_MYSQL_SERVER\033[0m\n"
             exit 1

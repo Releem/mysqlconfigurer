@@ -174,15 +174,17 @@ func (gcpmetrics *GCPCloudSQLEnhancedMetricsGatherer) GetMetrics(metrics *models
 	metricsMap["CPU"] = parsedMetrics.CPU
 
 	info["Host"] = models.MetricGroupValue{
-		"InstanceType":   "gcp/cloudsql",
-		"Engine":         parsedMetrics.Engine,
-		"InstanceTier":   parsedMetrics.InstanceTier,
-		"Timestamp":      parsedMetrics.Timestamp,
-		"Uptime":         parsedMetrics.Uptime,
-		"Version":        parsedMetrics.Version,
-		"State":          parsedMetrics.State,
-		"DataDiskSizeGb": parsedMetrics.DataDiskSizeGb,
-		"DataDiskType":   parsedMetrics.DataDiskType,
+		"InstanceType":    "gcp/cloudsql",
+		"platform":        "gcp",
+		"platformVersion": strings.TrimSpace(fmt.Sprintf("cloudsql %s", parsedMetrics.Version)),
+		"Engine":          parsedMetrics.Engine,
+		"InstanceTier":    parsedMetrics.InstanceTier,
+		"Timestamp":       parsedMetrics.Timestamp,
+		"Uptime":          parsedMetrics.Uptime,
+		"Version":         parsedMetrics.Version,
+		"State":           parsedMetrics.State,
+		"DataDiskSizeGb":  parsedMetrics.DataDiskSizeGb,
+		"DataDiskType":    parsedMetrics.DataDiskType,
 	}
 
 	metrics.System.Info = info

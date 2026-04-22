@@ -264,6 +264,8 @@ func (awsrdsenhancedmetrics *AWSRDSEnhancedMetricsGatherer) GetMetrics(metrics *
 
 	info["Host"] = models.MetricGroupValue{
 		"InstanceType":               "aws/rds",
+		"platform":                   "aws",
+		"platformVersion":            "rds " + osMetrics.Engine,
 		"Timestamp":                  osMetrics.Timestamp,
 		"Uptime":                     osMetrics.Uptime,
 		"Engine":                     osMetrics.Engine,

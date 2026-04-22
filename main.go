@@ -9,6 +9,7 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Releem/daemon"
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/metrics"
@@ -45,6 +46,11 @@ type Service struct {
 }
 type Programm struct{}
 
+func exitRunWithError(args ...interface{}) {
+	logger.Error(args...)
+	os.Exit(1)
+}
+
 func (programm *Programm) Stop() {
 	// Stop should not block. Return with a few seconds.
 }
@@ -63,8 +69,7 @@ func (programm *Programm) Run() {
 	logger.Info("Releem-agent version is ", config.ReleemAgentVersion) //
 	configuration, err := config.LoadConfig(*ConfigFile, logger)
 	if err != nil {
-		logger.Error("The agent configuration failed to load", err)
-		return
+		exitRunWithError("The agent configuration failed to load", err)
 	}
 	defer utils.HandlePanic(configuration, logger)
 
@@ -101,8 +106,7 @@ func (programm *Programm) Run() {
 
 		awscfg, err := awsconfig.LoadDefaultConfig(context.TODO(), awsconfig.WithRegion(configuration.AwsRegion))
 		if err != nil {
-			logger.Error("Load AWS configuration FAILED", err)
-			return
+			exitRunWithError("Load AWS configuration FAILED", err)
 		} else {
 			logger.Info("AWS configuration loaded SUCCESS")
 		}
@@ -121,8 +125,7 @@ func (programm *Programm) Run() {
 		result, err := rdsclient.DescribeDBInstances(context.TODO(), input)
 
 		if err != nil {
-			logger.Error(err.Error())
-			return
+			exitRunWithError(err.Error())
 		}
 
 		// Request detailed instance info
@@ -132,11 +135,9 @@ func (programm *Programm) Run() {
 			gatherers["default"] = append(gatherers["default"], system.NewAWSRDSEnhancedMetricsGatherer(logger, result.DBInstances[0], cwlogsclient, configuration))
 			logger.Info("AWS RDS DB instance found: ", configuration.AwsRDSDB)
 		} else if result != nil && len(result.DBInstances) > 1 {
-			logger.Infof("RDS.DescribeDBInstances: Database has %d instances. Clusters are not supported", len(result.DBInstances))
-			return
+			exitRunWithError("RDS.DescribeDBInstances: Database has ", len(result.DBInstances), " instances. Clusters are not supported")
 		} else {
-			logger.Info("RDS.DescribeDBInstances: No instances")
-			return
+			exitRunWithError("RDS.DescribeDBInstances: No instances")
 		}
 	case "gcp/cloudsql":
 		logger.Info("InstanceType is gcp/cloudsql")
@@ -148,23 +149,20 @@ func (programm *Programm) Run() {
 		// Create monitoring client
 		monitoringClient, err := monitoring.NewMetricClient(ctx)
 		if err != nil {
-			logger.Error("Failed to create GCP monitoring client", err)
-			return
+			exitRunWithError("Failed to create GCP monitoring client", err)
 		}
 		defer monitoringClient.Close()
 
 		// Create SQL Admin client
 		sqlAdminService, err := sqladmin.NewService(ctx)
 		if err != nil {
-			logger.Error("Failed to create GCP SQL Admin client", err)
-			return
+			exitRunWithError("Failed to create GCP SQL Admin client", err)
 		}
 		logger.Info("GSP configuration loaded SUCCESS")
 		// Get instance details
 		instance, err := sqlAdminService.Instances.Get(configuration.GcpProjectId, configuration.GcpCloudSqlInstance).Do()
 		if err != nil {
-			logger.Error("Failed to get Cloud SQL instance details", err)
-			return
+			exitRunWithError("Failed to get Cloud SQL instance details", err)
 		}
 
 		logger.Info("GCP Cloud SQL instance found: ", instance.Name)
@@ -189,12 +187,36 @@ func (programm *Programm) Run() {
 			configuration.MysqlHost = connectionIP
 			logger.Info("Using following IP for Cloud SQL connection: ", connectionIP)
 		} else {
-			logger.Error("No IP addresses found for Cloud SQL instance")
-			return
+			exitRunWithError("No IP addresses found for Cloud SQL instance")
 		}
 
 		// Add GCP gatherer
 		gatherers["default"] = append(gatherers["default"], system.NewGCPCloudSQLEnhancedMetricsGatherer(logger, monitoringClient, sqlAdminService, configuration))
+
+	case "azure/mysql":
+		logger.Info("InstanceType is azure/mysql")
+		logger.Info("Loading Azure configuration")
+
+		credential, err := azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			exitRunWithError("Failed to create Azure credential", err)
+		}
+
+		azureGatherer := system.NewAzureMySQLEnhancedMetricsGatherer(logger, credential, configuration)
+		instance, err := azureGatherer.GetServer(context.Background())
+		if err != nil {
+			exitRunWithError("Failed to get Azure Database for MySQL server details", err)
+		}
+
+		if instance.Properties == nil || instance.Properties.FullyQualifiedDomainName == nil || *instance.Properties.FullyQualifiedDomainName == "" {
+			exitRunWithError("Azure Database for MySQL server has no fully qualified domain name")
+		}
+		configuration.Hostname = configuration.AzureMySQLServer
+		configuration.MysqlHost = *instance.Properties.FullyQualifiedDomainName
+		logger.Info("Azure Database for MySQL server found: ", configuration.Hostname)
+		logger.Info("Using following host for Azure MySQL connection: ", configuration.MysqlHost)
+
+		gatherers["default"] = append(gatherers["default"], azureGatherer)
 
 	default:
 		logger.Info("InstanceType is Local")

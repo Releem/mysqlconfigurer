@@ -305,6 +305,59 @@ exit 1
     [[ "$output" == *'query_optimization=true'* ]]
 }
 
+@test "azure/mysql mode writes azure keys and enables ssl by default" {
+    prepare_common_install_mocks
+    local workdir="${TEST_TMPDIR}/workdir"
+    local conf="${workdir}/releem.conf"
+    mkdir -p "${workdir}"
+    PATH="${MOCK_BIN}:${PATH}" run env \
+        RELEEM_TEST_MODE=1 \
+        RELEEM_WORKDIR="${workdir}" \
+        RELEEM_CONF_FILE="${conf}" \
+        RELEEM_API_KEY="k1" \
+        RELEEM_INSTANCE_TYPE="azure/mysql" \
+        RELEEM_AZURE_SUBSCRIPTION_ID="sub-1" \
+        RELEEM_AZURE_RESOURCE_GROUP="rg-1" \
+        RELEEM_AZURE_MYSQL_SERVER="mysql-1" \
+        RELEEM_MYSQL_LOGIN="releem" \
+        RELEEM_MYSQL_PASSWORD="pwd" \
+        RELEEM_DB_MEMORY_LIMIT="0" \
+        RELEEM_CRON_ENABLE="1" \
+        RELEEM_AGENT_DISABLE="1" \
+        bash "${INSTALL_SH}"
+
+    [ "$status" -eq 0 ]
+    run grep -E "^(instance_type|azure_subscription_id|azure_resource_group|azure_mysql_server|mysql_ssl_mode)=" "${conf}"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *'instance_type="azure/mysql"'* ]]
+    [[ "$output" == *'azure_subscription_id="sub-1"'* ]]
+    [[ "$output" == *'azure_resource_group="rg-1"'* ]]
+    [[ "$output" == *'azure_mysql_server="mysql-1"'* ]]
+    [[ "$output" == *'mysql_ssl_mode=true'* ]]
+}
+
+@test "azure/mysql mode fails when mandatory azure vars are missing" {
+    prepare_common_install_mocks
+    local workdir="${TEST_TMPDIR}/workdir"
+    local conf="${workdir}/releem.conf"
+    mkdir -p "${workdir}"
+    PATH="${MOCK_BIN}:${PATH}" run env \
+        RELEEM_TEST_MODE=1 \
+        RELEEM_WORKDIR="${workdir}" \
+        RELEEM_CONF_FILE="${conf}" \
+        RELEEM_API_KEY="k1" \
+        RELEEM_INSTANCE_TYPE="azure/mysql" \
+        RELEEM_MYSQL_LOGIN="releem" \
+        RELEEM_MYSQL_PASSWORD="pwd" \
+        RELEEM_DB_MEMORY_LIMIT="0" \
+        RELEEM_CRON_ENABLE="1" \
+        RELEEM_AGENT_DISABLE="1" \
+        bash "${INSTALL_SH}"
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Azure subscription ID, resource group or MySQL server is not set"* ]]
+}
+
 @test "enable_query_optimization mode updates releem.conf and executes mysqlconfigurer" {
     prepare_common_install_mocks
     create_mock_cmd "mysqladmin" 'echo "mysqld is alive"'

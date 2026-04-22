@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh - Version 1.23.4.1
+# install.sh - Version 1.23.5
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -10,7 +10,7 @@ set -e -E
 # using the package manager.
 
 # Set defaults.
-install_script_version=1.23.4.1
+install_script_version=1.23.5
 logfile="/var/log/releem-install.log"
 npipe=""
 
@@ -27,10 +27,7 @@ else
     sudo_cmd='sudo'
 fi
 
-function on_exit() {
-    if [ -n "$RELEEM_TEST_MODE" ]; then
-        return 0
-    fi    
+function on_exit() {  
     if [[ "${RELEEM_REGION}" == "EU" ]]; then
         API_DOMAIN="api.eu.releem.com"
     else
@@ -39,24 +36,22 @@ function on_exit() {
     curl -s -L -d @"$logfile" -H "x-releem-api-key: $apikey" -H "Content-Type: application/json" -X POST "https://${API_DOMAIN}/v2/events/saving_log"
     [ -n "$npipe" ] && rm -f "$npipe"
 }
-trap on_exit EXIT
+if [ -z "$RELEEM_TEST_MODE" ]; then
+    trap on_exit EXIT
+fi
 
 function on_error() {
-    if [ -n "$RELEEM_TEST_MODE" ]; then
-        return 0
-    fi    
     printf "\033[31m $ERROR_MESSAGE\n"
     printf "\033[31m It looks like you encountered an issue while installing the Releem.\n"
     printf "\033[31m If you are still experiencing problems, please send an email to hello@releem.com \n"
     printf "\033[31m with the contents of the $logfile. We will do our best to resolve the issue.\n"
     printf "\033[0m\n"
 }
-trap on_error ERR
+if [ -z "$RELEEM_TEST_MODE" ]; then
+    trap on_error ERR
+fi
 
 function setup_logging() {
-    if [ -n "$RELEEM_TEST_MODE" ]; then
-        return 0
-    fi
     # Set up a named pipe for logging 
     npipe=/tmp/$$.install.tmp
     mknod "$npipe" p
@@ -65,7 +60,9 @@ function setup_logging() {
     exec 1>&-
     exec 1>"$npipe" 2>&1
 }
-setup_logging
+if [ -z "$RELEEM_TEST_MODE" ]; then
+    setup_logging
+fi
 
 function releem_set_cron() {
     ($sudo_cmd crontab -l 2>/dev/null | grep -v "$RELEEM_WORKDIR/mysqlconfigurer.sh" || true; echo "$RELEEM_CRON") | $sudo_cmd crontab -
@@ -900,6 +897,22 @@ function configure_releem_agent() {
             printf "\033[31m - GCP project ID, GCP region or GCP Cloud SQL instance is not set. Please set the variables RELEEM_GCP_PROJECT_ID, RELEEM_GCP_REGION and RELEEM_GCP_CLOUDSQL_INSTANCE\033[0m\n"
             exit 1
         fi
+    elif [ "$instance_type" == "azure/mysql" ]; then
+        if [ -n "$RELEEM_AZURE_SUBSCRIPTION_ID" ] && [ -n "$RELEEM_AZURE_RESOURCE_GROUP" ] && [ -n "$RELEEM_AZURE_MYSQL_SERVER" ]; then
+            printf "\033[37m - Adding Azure subscription ID ${RELEEM_AZURE_SUBSCRIPTION_ID} to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+            echo "azure_subscription_id=\"$RELEEM_AZURE_SUBSCRIPTION_ID\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+            printf "\033[37m - Adding Azure resource group ${RELEEM_AZURE_RESOURCE_GROUP} to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+            echo "azure_resource_group=\"$RELEEM_AZURE_RESOURCE_GROUP\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+            printf "\033[37m - Adding Azure MySQL server ${RELEEM_AZURE_MYSQL_SERVER} to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+            echo "azure_mysql_server=\"$RELEEM_AZURE_MYSQL_SERVER\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+            if [ -z "$RELEEM_MYSQL_SSL_MODE" ]; then
+                printf "\033[37m - Enabling MySQL SSL mode by default for Azure Database for MySQL: $RELEEM_CONF_FILE\n\033[0m"
+                echo "mysql_ssl_mode=true" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+            fi
+        else
+            printf "\033[31m - Azure subscription ID, resource group or MySQL server is not set. Please set RELEEM_AZURE_SUBSCRIPTION_ID, RELEEM_AZURE_RESOURCE_GROUP and RELEEM_AZURE_MYSQL_SERVER\033[0m\n"
+            exit 1
+        fi
     fi
     # Secure the configuration file
     $sudo_cmd chmod 640 $RELEEM_CONF_FILE
@@ -969,7 +982,7 @@ function first_run_releem_agent() {
         printf "\033[37m\n * Executing Releem Agent for the first time.\033[0m\n"
         printf "\033[37m This may take up to 15 minutes on servers with many databases.\033[0m\n\n"
         $sudo_cmd $RELEEM_WORKDIR/releem-agent -f
-        $sudo_cmd timeout --preserve-status 3 $RELEEM_WORKDIR/releem-agent
+        $sudo_cmd timeout --preserve-status 10 $RELEEM_WORKDIR/releem-agent
     fi
     trap on_error ERR
     set -e

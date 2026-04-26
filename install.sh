@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh - Version 1.23.5
+# install.sh - Version 1.23.5.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -10,7 +10,7 @@ set -e -E
 # using the package manager.
 
 # Set defaults.
-install_script_version=1.23.5
+install_script_version=1.23.5.1
 logfile="/var/log/releem-install.log"
 npipe=""
 
@@ -29,9 +29,9 @@ fi
 
 function on_exit() {  
     if [[ "${RELEEM_REGION}" == "EU" ]]; then
-        API_DOMAIN="api.eu.releem.com"
+        API_DOMAIN="api.queries.eu.releem.com"
     else
-        API_DOMAIN="api.releem.com"
+        API_DOMAIN="api.queries.releem.com"
     fi    
     curl -s -L -d @"$logfile" -H "x-releem-api-key: $apikey" -H "Content-Type: application/json" -X POST "https://${API_DOMAIN}/v2/events/saving_log"
     [ -n "$npipe" ] && rm -f "$npipe"

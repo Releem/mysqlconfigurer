@@ -20,26 +20,29 @@ func (repeater ReleemErrorsRepeater) ProcessErrors(message string) interface{} {
 	bodyReader := strings.NewReader(message)
 
 	repeater.logger.V(5).Info("Result Send data: ", message)
-	var api_domain, domain string
+	var api_domain, domain, subdomain string
 	if repeater.configuration != nil {
 		env = repeater.configuration.Env
 	} else {
 		env = "prod"
+	}
+	switch env {
+	case "dev2":
+		subdomain = "dev2."
+	case "dev":
+		subdomain = "dev."
+	case "stage":
+		subdomain = "stage."
+	default:
+		subdomain = ""
 	}
 	if repeater.configuration.ReleemRegion == "EU" {
 		domain = "eu.releem.com"
 	} else {
 		domain = "releem.com"
 	}
-	if env == "dev2" {
-		api_domain = "https://api.dev2." + domain + "/v2/events/agent_errors_log"
-	} else if env == "dev" {
-		api_domain = "https://api.dev." + domain + "/v2/events/agent_errors_log"
-	} else if env == "stage" {
-		api_domain = "https://api.stage." + domain + "/v2/events/agent_errors_log"
-	} else {
-		api_domain = "https://api." + domain + "/v2/events/agent_errors_log"
-	}
+	api_domain = "https://api.queries." + subdomain + domain + "/v2/events/agent_errors_log"
+
 	req, err := http.NewRequest(http.MethodPost, api_domain, bodyReader)
 	if err != nil {
 		repeater.logger.Error("Request: could not create request: ", err)

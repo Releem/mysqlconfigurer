@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mysqlconfigurer.sh - Version 1.23.5
+# mysqlconfigurer.sh - Version 1.23.5.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -14,7 +14,7 @@ else
 fi
 
 # Variables
-VERSION="1.23.5"
+VERSION="1.23.5.1"
 RELEEM_WORKDIR="${RELEEM_WORKDIR:-/opt/releem}"
 RELEEM_CONF_DIR="$RELEEM_WORKDIR/conf/"
 RELEEM_CONF_FILE="$RELEEM_WORKDIR/releem.conf"
@@ -47,9 +47,9 @@ function on_exit() {
         return 0
     fi
     if [[ "${RELEEM_REGION}" == "EU" ]]; then
-        API_DOMAIN="api.eu.releem.com"
+        API_DOMAIN="api.queries.eu.releem.com"
     else
-        API_DOMAIN="api.releem.com"
+        API_DOMAIN="api.queries.releem.com"
     fi
     curl -s -L -d @"$logfile" -H "x-releem-api-key: $RELEEM_API_KEY" -H "Content-Type: application/json" -X POST "https://${API_DOMAIN}/v2/events/configurer_log"
     [ -n "$npipe" ] && rm -f "$npipe"

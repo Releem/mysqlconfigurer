@@ -1,4 +1,4 @@
-# Release Notes for tags `1.2*.*`
+# Release Notes
 
 ## 1.20.0
 - Initial tag in selected range

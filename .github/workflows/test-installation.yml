@@ -1,0 +1,206 @@
+name: Test Releem Agent Installation
+
+on:
+  workflow_dispatch:
+    inputs:
+      os_version:
+        description: "OS version to test (or 'all')"
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - all
+          - ubuntu-22.04
+          - ubuntu-20.04
+          - debian-12
+          - debian-11
+          - rocky-8
+          - centos-7
+      db_version:
+        description: "DB version to test (or 'all')"
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - all
+          - mysql-8.0
+          - mysql-8.4
+          - mariadb-10
+      test_number:
+        description: "Which test to run (1-4 or all)"
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - all
+          - "1"
+          - "2"
+          - "3"
+          - "4"
+  schedule:
+    # Run full matrix every Monday at 06:00 UTC
+    - cron: "0 6 * * 1"
+
+concurrency:
+  group: releem-install-tests-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # -----------------------------------------------------------------
+  # Build matrix based on workflow_dispatch inputs or schedule
+  # -----------------------------------------------------------------
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      os_matrix: ${{ steps.matrix.outputs.os_matrix }}
+      db_matrix: ${{ steps.matrix.outputs.db_matrix }}
+    steps:
+      - id: matrix
+        run: |
+          ALL_OS='["ubuntu-22.04","ubuntu-20.04","debian-12","debian-11","rocky-8","centos-7"]'
+          ALL_DB='["mysql-8.0","mysql-8.4","mariadb-10"]'
+
+          INPUT_OS="${{ github.event.inputs.os_version }}"
+          INPUT_DB="${{ github.event.inputs.db_version }}"
+
+          if [[ -z "$INPUT_OS" || "$INPUT_OS" == "all" ]]; then
+            OS_MATRIX="$ALL_OS"
+          else
+            OS_MATRIX="[\"$INPUT_OS\"]"
+          fi
+
+          if [[ -z "$INPUT_DB" || "$INPUT_DB" == "all" ]]; then
+            DB_MATRIX="$ALL_DB"
+          else
+            DB_MATRIX="[\"$INPUT_DB\"]"
+          fi
+
+          echo "os_matrix=$OS_MATRIX" >> $GITHUB_OUTPUT
+          echo "db_matrix=$DB_MATRIX" >> $GITHUB_OUTPUT
+
+  # -----------------------------------------------------------------
+  # Linux tests
+  # -----------------------------------------------------------------
+  test-linux:
+    needs: prepare-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJson(needs.prepare-matrix.outputs.os_matrix) }}
+        db: ${{ fromJson(needs.prepare-matrix.outputs.db_matrix) }}
+
+    name: "Linux | ${{ matrix.os }} | ${{ matrix.db }}"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.7"
+
+      - name: Generate SSH key
+        run: |
+          ssh-keygen -t rsa -b 4096 -f ~/.ssh/releem_test_rsa -N "" -C "releem-ci"
+          echo "SSH_KEY_PATH=$HOME/.ssh/releem_test_rsa" >> $GITHUB_ENV
+
+      - name: Run tests
+        env:
+          RELEEM_API_KEY:      ${{ secrets.RELEEM_TEST_API_KEY }}
+          GCP_PROJECT:         ${{ secrets.GCP_PROJECT_ID }}
+          GCP_ZONE:            us-central1-a
+          MYSQL_ROOT_PASSWORD: ${{ secrets.RELEEM_TEST_MYSQL_ROOT_PASSWORD }}
+          ALLOWED_SSH_CIDR:    "0.0.0.0/0"
+        run: |
+          chmod +x tests/run_tests_local.sh
+          tests/run_tests_local.sh \
+            --os "${{ matrix.os }}" \
+            --db "${{ matrix.db }}" \
+            --test "${{ github.event.inputs.test_number || 'all' }}"
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: "test-logs-${{ matrix.os }}-${{ matrix.db }}"
+          path: test-results/
+          retention-days: 14
+
+  # -----------------------------------------------------------------
+  # Windows tests
+  # -----------------------------------------------------------------
+  test-windows:
+    needs: prepare-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["windows-server-2022"]
+        db: ${{ fromJson(needs.prepare-matrix.outputs.db_matrix) }}
+
+    name: "Windows | ${{ matrix.os }} | ${{ matrix.db }}"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.7"
+
+      - name: Run Windows tests via WinRM
+        env:
+          RELEEM_API_KEY:      ${{ secrets.RELEEM_TEST_API_KEY }}
+          GCP_PROJECT:         ${{ secrets.GCP_PROJECT_ID }}
+          GCP_ZONE:            us-central1-a
+          MYSQL_ROOT_PASSWORD: ${{ secrets.RELEEM_TEST_MYSQL_ROOT_PASSWORD }}
+        run: |
+          chmod +x tests/run_tests_windows.sh
+          tests/run_tests_windows.sh \
+            --os "${{ matrix.os }}" \
+            --db "${{ matrix.db }}" \
+            --test "${{ github.event.inputs.test_number || 'all' }}"
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: "test-logs-${{ matrix.os }}-${{ matrix.db }}"
+          path: test-results/
+          retention-days: 14
+
+  # -----------------------------------------------------------------
+  # Summary
+  # -----------------------------------------------------------------
+  test-summary:
+    needs: [test-linux, test-windows]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          LINUX_RESULT="${{ needs.test-linux.result }}"
+          WINDOWS_RESULT="${{ needs.test-windows.result }}"
+          echo "Linux tests:   $LINUX_RESULT"
+          echo "Windows tests: $WINDOWS_RESULT"
+          if [[ "$LINUX_RESULT" == "failure" || "$WINDOWS_RESULT" == "failure" ]]; then
+            echo "One or more test jobs failed"
+            exit 1
+          fi

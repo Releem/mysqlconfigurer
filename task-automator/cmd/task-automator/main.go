@@ -97,7 +97,7 @@ func main() {
 			usePTOSC = (nonSQLArgs[1] == "true")
 		}
 		
-		runPhase2(conn, dsn, sql, backupMethod, usePTOSC, debug, cfg)
+		runPhase2(conn, dsn, sql, backupMethod, usePTOSC, debug, cfg, logger)
 		
 	default:
 		log.Fatalf("Unknown command: %s", command)
@@ -124,8 +124,8 @@ func runPhase1(conn *sql.DB, ddlStatements []string) {
 	fmt.Print(result.Summary())
 }
 
-func runPhase2(conn *sql.DB, dsn, sql string, backupMethod phase2.BackupMethod, usePTOSC bool, debug bool, cfg *config.Config) {
-	executor := phase2.NewExecutor(conn)
+func runPhase2(conn *sql.DB, dsn, sql string, backupMethod phase2.BackupMethod, usePTOSC bool, debug bool, cfg *config.Config, logger *logging.Logger) {
+	executor := phase2.NewExecutor(conn, logger)
 	
 	if debug {
 		fmt.Println("[DEBUG] Debug mode enabled")
@@ -136,13 +136,14 @@ func runPhase2(conn *sql.DB, dsn, sql string, backupMethod phase2.BackupMethod, 
 	}
 	
 	options := phase2.ExecuteOptions{
-		SQL:                    sql,
-		TableName:              "", // Will be extracted from SQL
-		DSN:                    dsn,
-		BackupMethod:           backupMethod,
-		UsePTOnlineSchemaChange: usePTOSC,
-		Config:                 cfg,
-		Debug:                  debug,
+		SQL:          sql,
+		TableName:    "", // Will be extracted from SQL
+		DSN:          dsn,
+		BackupMethod: backupMethod,
+		OkPTOSC:      usePTOSC,
+		OkOnlineDDL:  !usePTOSC,
+		Config:       cfg,
+		Debug:        debug,
 	}
 	
 	result, err := executor.Execute(options)

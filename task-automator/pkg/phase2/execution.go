@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -22,24 +23,31 @@ const (
 )
 
 // Executor handles Phase 2 schema change execution
+type Logger interface {
+	Infof(format string, v ...interface{})
+	Errorf(format string, v ...interface{})
+}
+
 type Executor struct {
-	conn *sql.DB
+	conn   *sql.DB
+	logger Logger
 }
 
 // NewExecutor creates a new executor instance
-func NewExecutor(conn *sql.DB) *Executor {
-	return &Executor{conn: conn}
+func NewExecutor(conn *sql.DB, logger Logger) *Executor {
+	return &Executor{conn: conn, logger: logger}
 }
 
 // ExecuteOptions contains options for schema change execution
 type ExecuteOptions struct {
-	SQL                     string
-	TableName               string
-	DSN                     string // Database connection string (required for backups and pt-osc)
-	BackupMethod            BackupMethod
-	UsePTOnlineSchemaChange bool
-	Config                  *config.Config // Configuration with paths and directories
-	Debug                   bool           // Enable debug output (print commands and outputs)
+	SQL          string
+	TableName    string
+	DSN          string // Database connection string (required for backups and pt-osc)
+	BackupMethod BackupMethod
+	OkPTOSC      bool
+	OkOnlineDDL  bool
+	Config       *config.Config // Configuration with paths and directories
+	Debug        bool           // Enable debug output (print commands and outputs)
 }
 
 // ExecuteResult represents the result of Phase 2 execution
@@ -68,6 +76,13 @@ func (e *Executor) Execute(options ExecuteOptions) (*ExecuteResult, error) {
 		options.TableName = tableName
 	}
 
+	// Validate datadir filesystem headroom before attempting any schema change.
+	if options.Config == nil || !options.Config.DisableSpaceChecks {
+		if err := e.checkDataDirFilesystemCapacity(options); err != nil {
+			return nil, err
+		}
+	}
+
 	// 2.1. Perform backup if specified
 	if options.BackupMethod != BackupNone {
 		backupPath, err := e.performBackup(options)
@@ -78,30 +93,38 @@ func (e *Executor) Execute(options ExecuteOptions) (*ExecuteResult, error) {
 		result.BackupPath = backupPath
 	}
 
-	// 2.2. Execute change using pt-online-schema-change if specified
-	if options.UsePTOnlineSchemaChange {
+	// 2.3. Execute using Online DDL if allowed
+	if options.OkOnlineDDL {
+		if err := e.executeWithOnlineDDL(options, result); err != nil {
+			return nil, fmt.Errorf("schema change execution failed: %w", err)
+		}
+		// <<<<< TEST ONLINE DDL AGAINST EMPTY TABLE with SAME ENGINE AND SCHEMA
+		result.ChangeExecuted = true
+		result.MethodUsed = "Online DDL"
+		return result, nil
+	} else if options.OkPTOSC {
 		if err := e.executeWithPTOSC(options); err != nil {
 			return nil, fmt.Errorf("pt-online-schema-change execution failed: %w", err)
 		}
 		result.ChangeExecuted = true
 		result.MethodUsed = "pt-online-schema-change"
 		return result, nil
-	}
+	} else {
+		result.ChangeExecuted = false
+		return nil, fmt.Errorf("schema change could not be executed")
 
-	// 2.3. Execute using Online DDL
-	if err := e.executeWithOnlineDDL(options, result); err != nil {
-		return nil, fmt.Errorf("schema change execution failed: %w", err)
 	}
-
-	result.ChangeExecuted = true
-	result.MethodUsed = "Online DDL"
-	return result, nil
 }
 
 func (e *Executor) performBackup(options ExecuteOptions) (string, error) {
 	// Check disk space before performing backup
-	if err := e.checkDiskSpace(options); err != nil {
-		return "", err
+	if options.Config == nil || !options.Config.DisableSpaceChecks {
+		if err := e.checkDiskSpace(options); err != nil {
+			if e.logger != nil {
+				e.logger.Errorf("disk space check failed for table %s: %v", options.TableName, err)
+			}
+			return "", err
+		}
 	}
 
 	switch options.BackupMethod {
@@ -112,6 +135,76 @@ func (e *Executor) performBackup(options ExecuteOptions) (string, error) {
 	default:
 		return "", fmt.Errorf("unsupported backup method: %s", options.BackupMethod)
 	}
+}
+
+func (e *Executor) checkDataDirFilesystemCapacity(options ExecuteOptions) error {
+	tableInfo, err := ParseTableName(options.TableName, func() (string, error) {
+		var db string
+		err := e.conn.QueryRow("SELECT DATABASE()").Scan(&db)
+		return db, err
+	})
+	if err != nil {
+		return fmt.Errorf("failed to parse table name: %w", err)
+	}
+
+	var dataDirVar, dataDir sql.NullString
+	if err := e.conn.QueryRow("SHOW VARIABLES LIKE 'datadir'").Scan(&dataDirVar, &dataDir); err != nil {
+		return fmt.Errorf("failed to resolve datadir: %w", err)
+	}
+	if !dataDir.Valid || strings.TrimSpace(dataDir.String) == "" {
+		return fmt.Errorf("datadir is empty")
+	}
+
+	var dataLength, indexLength sql.NullInt64
+	err = e.conn.QueryRow(`
+		SELECT DATA_LENGTH, INDEX_LENGTH
+		FROM information_schema.TABLES
+		WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+	`, tableInfo.Database, tableInfo.Table).Scan(&dataLength, &indexLength)
+	if err != nil {
+		return fmt.Errorf("failed to get table size for %s.%s: %w", tableInfo.Database, tableInfo.Table, err)
+	}
+
+	tableSizeBytes := int64(0)
+	if dataLength.Valid {
+		tableSizeBytes += dataLength.Int64
+	}
+	if indexLength.Valid {
+		tableSizeBytes += indexLength.Int64
+	}
+
+	var stat syscall.Statfs_t
+	if err := syscall.Statfs(dataDir.String, &stat); err != nil {
+		return fmt.Errorf("failed to check datadir filesystem capacity: %w", err)
+	}
+
+	totalBytes := int64(stat.Blocks) * int64(stat.Bsize)
+	freeBytes := int64(stat.Bavail) * int64(stat.Bsize)
+	usedBytes := totalBytes - freeBytes
+	if totalBytes <= 0 {
+		return fmt.Errorf("invalid datadir filesystem size")
+	}
+
+	freeRatio := float64(freeBytes) / float64(totalBytes)
+	usedRatioAfter := float64(usedBytes+tableSizeBytes) / float64(totalBytes)
+
+	// Condition 1: filesystem must have >10% free space.
+	if freeRatio <= 0.10 {
+		return fmt.Errorf("insufficient datadir free space: %.2f%% free, required >10%%", freeRatio*100.0)
+	}
+	// Condition 2: current used + table size must stay <= 90% used.
+	if usedRatioAfter > 0.90 {
+		return fmt.Errorf("insufficient datadir capacity for table change: projected usage %.2f%% exceeds 90%% limit", usedRatioAfter*100.0)
+	}
+
+	if options.Debug {
+		e.debugf(options, "[DEBUG] datadir path: %s", dataDir.String)
+		e.debugf(options, "[DEBUG] table size estimate: %.2f MB", float64(tableSizeBytes)/(1024*1024))
+		e.debugf(options, "[DEBUG] datadir free space: %.2f%%", freeRatio*100.0)
+		e.debugf(options, "[DEBUG] projected datadir usage after change: %.2f%%", usedRatioAfter*100.0)
+	}
+
+	return nil
 }
 
 func (e *Executor) backupWithMysqldump(options ExecuteOptions) (string, error) {
@@ -181,20 +274,20 @@ func (e *Executor) backupWithMysqldump(options ExecuteOptions) (string, error) {
 				safeArgs[i] = "-p***"
 			}
 		}
-		fmt.Printf("[DEBUG] mysqldump command: %s\n", mysqldump)
-		fmt.Printf("[DEBUG] mysqldump args: %s\n", strings.Join(safeArgs, " "))
+		e.debugf(options, "[DEBUG] mysqldump command: %s", mysqldump)
+		e.debugf(options, "[DEBUG] mysqldump args: %s", strings.Join(safeArgs, " "))
 	}
 
 	output, err := cmd.CombinedOutput()
 	if options.Debug {
 		if len(output) > 0 {
-			fmt.Printf("[DEBUG] mysqldump output:\n%s\n", string(output))
+			e.debugf(options, "[DEBUG] mysqldump output:\n%s", string(output))
 		}
 	}
 
 	if err != nil {
 		if options.Debug {
-			fmt.Printf("[DEBUG] mysqldump error: %v\n", err)
+			e.debugf(options, "[DEBUG] mysqldump error: %v", err)
 		}
 		return "", fmt.Errorf("mysqldump failed: %w", err)
 	}
@@ -248,12 +341,15 @@ func (e *Executor) backupWithXtrabackup(options ExecuteOptions) (string, error) 
 	// Create a unique backup directory for this table
 	backupDir := fmt.Sprintf("%s/%s_xtrabackup_%s_%s", options.Config.BackupDir, timestamp, tableInfo.Database, tableInfo.Table)
 
-	// Step 1: Take backup of the table using --tables option
-	// Format: database.table
-	tableSpec := fmt.Sprintf("%s.%s", tableInfo.Database, tableInfo.Table)
+	// Step 1: Take backup of the table using --tables option.
+	// xtrabackup treats --tables as a regex, so escape metacharacters and anchor
+	// both sides to match only the exact database.table name.
+	tableName := fmt.Sprintf("%s.%s", tableInfo.Database, tableInfo.Table)
+	tableSpec := "^" + regexp.QuoteMeta(tableName) + "$"
 
 	backupArgs := []string{
 		"--backup",
+		"--ftwrl-wait-timeout=15",
 		"--tables=" + tableSpec,
 		"--target-dir=" + backupDir,
 		"--user=" + user,
@@ -271,18 +367,18 @@ func (e *Executor) backupWithXtrabackup(options ExecuteOptions) (string, error) 
 				safeArgs[i] = "--password=***"
 			}
 		}
-		fmt.Printf("[DEBUG] xtrabackup backup command: %s\n", xtrabackup)
-		fmt.Printf("[DEBUG] xtrabackup backup args: %s\n", strings.Join(safeArgs, " "))
+		e.debugf(options, "[DEBUG] xtrabackup backup command: %s", xtrabackup)
+		e.debugf(options, "[DEBUG] xtrabackup backup args: %s", strings.Join(safeArgs, " "))
 	}
 
 	cmd := exec.Command(xtrabackup, backupArgs...)
 	output, err := cmd.CombinedOutput()
 	if options.Debug {
 		if len(output) > 0 {
-			fmt.Printf("[DEBUG] xtrabackup backup output:\n%s\n", string(output))
+			e.debugf(options, "[DEBUG] xtrabackup backup output:\n%s", string(output))
 		}
 		if err != nil {
-			fmt.Printf("[DEBUG] xtrabackup backup error: %v\n", err)
+			e.debugf(options, "[DEBUG] xtrabackup backup error: %v", err)
 		}
 	}
 
@@ -299,18 +395,18 @@ func (e *Executor) backupWithXtrabackup(options ExecuteOptions) (string, error) 
 	}
 
 	if options.Debug {
-		fmt.Printf("[DEBUG] xtrabackup prepare command: %s\n", xtrabackup)
-		fmt.Printf("[DEBUG] xtrabackup prepare args: %s\n", strings.Join(prepareArgs, " "))
+		e.debugf(options, "[DEBUG] xtrabackup prepare command: %s", xtrabackup)
+		e.debugf(options, "[DEBUG] xtrabackup prepare args: %s", strings.Join(prepareArgs, " "))
 	}
 
 	cmd = exec.Command(xtrabackup, prepareArgs...)
 	output, err = cmd.CombinedOutput()
 	if options.Debug {
 		if len(output) > 0 {
-			fmt.Printf("[DEBUG] xtrabackup prepare output:\n%s\n", string(output))
+			e.debugf(options, "[DEBUG] xtrabackup prepare output:\n%s", string(output))
 		}
 		if err != nil {
-			fmt.Printf("[DEBUG] xtrabackup prepare error: %v\n", err)
+			e.debugf(options, "[DEBUG] xtrabackup prepare error: %v", err)
 		}
 	}
 
@@ -374,9 +470,9 @@ func (e *Executor) checkDiskSpace(options ExecuteOptions) error {
 	availableBytes := int64(stat.Bavail) * int64(stat.Bsize)
 
 	if options.Debug {
-		fmt.Printf("[DEBUG] Estimated backup size: %.2f MB\n", float64(estimatedSize)/(1024*1024))
-		fmt.Printf("[DEBUG] Required space (with %.1f%% buffer): %.2f MB\n", bufferPercent, float64(requiredSize)/(1024*1024))
-		fmt.Printf("[DEBUG] Available disk space: %.2f MB\n", float64(availableBytes)/(1024*1024))
+		e.debugf(options, "[DEBUG] Estimated backup size: %.2f MB", float64(estimatedSize)/(1024*1024))
+		e.debugf(options, "[DEBUG] Required space (with %.1f%% buffer): %.2f MB", bufferPercent, float64(requiredSize)/(1024*1024))
+		e.debugf(options, "[DEBUG] Available disk space: %.2f MB", float64(availableBytes)/(1024*1024))
 	}
 
 	if availableBytes < requiredSize {
@@ -522,15 +618,15 @@ func (e *Executor) dryRunPTOSC(options ExecuteOptions) error {
 				}
 			}
 		}
-		fmt.Printf("[DEBUG] pt-online-schema-change dry-run command: %s\n", ptosc)
-		fmt.Printf("[DEBUG] pt-online-schema-change dry-run args: %s\n", strings.Join(safeArgs, " "))
+		e.debugf(options, "[DEBUG] pt-online-schema-change dry-run command: %s", ptosc)
+		e.debugf(options, "[DEBUG] pt-online-schema-change dry-run args: %s", strings.Join(safeArgs, " "))
 	}
 
 	output, err := cmd.CombinedOutput()
 	if options.Debug {
-		fmt.Printf("[DEBUG] pt-online-schema-change dry-run output:\n%s\n", string(output))
+		e.debugf(options, "[DEBUG] pt-online-schema-change dry-run output:\n%s", string(output))
 		if err != nil {
-			fmt.Printf("[DEBUG] pt-online-schema-change dry-run error: %v\n", err)
+			e.debugf(options, "[DEBUG] pt-online-schema-change dry-run error: %v", err)
 		}
 	}
 
@@ -610,15 +706,15 @@ func (e *Executor) runPTOSC(options ExecuteOptions) error {
 				}
 			}
 		}
-		fmt.Printf("[DEBUG] pt-online-schema-change execute command: %s\n", ptosc)
-		fmt.Printf("[DEBUG] pt-online-schema-change execute args: %s\n", strings.Join(safeArgs, " "))
+		e.debugf(options, "[DEBUG] pt-online-schema-change execute command: %s", ptosc)
+		e.debugf(options, "[DEBUG] pt-online-schema-change execute args: %s", strings.Join(safeArgs, " "))
 	}
 
 	output, err := cmd.CombinedOutput()
 	if options.Debug {
-		fmt.Printf("[DEBUG] pt-online-schema-change execute output:\n%s\n", string(output))
+		e.debugf(options, "[DEBUG] pt-online-schema-change execute output:\n%s", string(output))
 		if err != nil {
-			fmt.Printf("[DEBUG] pt-online-schema-change execute error: %v\n", err)
+			e.debugf(options, "[DEBUG] pt-online-schema-change execute error: %v", err)
 		}
 	}
 
@@ -630,36 +726,65 @@ func (e *Executor) runPTOSC(options ExecuteOptions) error {
 }
 
 func (e *Executor) executeWithOnlineDDL(options ExecuteOptions, result *ExecuteResult) error {
-	// Parse SQL to check if it already has ALGORITHM=INPLACE and LOCK=NONE
-	sql := strings.TrimSpace(options.SQL)
-	upperSQL := strings.ToUpper(sql)
-
-	hasAlgorithm := strings.Contains(upperSQL, "ALGORITHM=")
-	hasLock := strings.Contains(upperSQL, "LOCK=")
-
-	// Remove trailing semicolon if present
-	sql = strings.TrimSuffix(sql, ";")
-	sql = strings.TrimSpace(sql)
-
-	if !hasAlgorithm && !hasLock {
-		sql += ", ALGORITHM=INPLACE, LOCK=NONE"
-	} else if !hasAlgorithm {
-		sql += ", ALGORITHM=INPLACE"
-	} else if !hasLock {
-		sql += ", LOCK=NONE"
+	tableInfo, err := ParseTableName(options.TableName, func() (string, error) {
+		var db string
+		err := e.conn.QueryRow("SELECT DATABASE()").Scan(&db)
+		return db, err
+	})
+	if err != nil {
+		return fmt.Errorf("failed to parse table name: %w", err)
 	}
 
-	// Execute the ALTER statement
+	testSchema := ""
+	if options.Config != nil {
+		testSchema = options.Config.OnlineDDLTestSchema
+	}
+	if strings.TrimSpace(testSchema) == "" {
+		return fmt.Errorf("test schema is required for online DDL preflight")
+	}
+
+	testTableName := fmt.Sprintf("_releem_ddl_test_%s_%d", tableInfo.Table, time.Now().UnixNano())
+	testTableRef := fmt.Sprintf("`%s`.`%s`", escapeIdent(testSchema), escapeIdent(testTableName))
+	sourceTableRef := fmt.Sprintf("`%s`.`%s`", escapeIdent(tableInfo.Database), escapeIdent(tableInfo.Table))
+
+	if _, err = e.conn.Exec(fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s`", escapeIdent(testSchema))); err != nil {
+		return fmt.Errorf("failed to create test schema %s: %w", testSchema, err)
+	}
+	if _, err = e.conn.Exec(fmt.Sprintf("CREATE TABLE %s LIKE %s", testTableRef, sourceTableRef)); err != nil {
+		return fmt.Errorf("failed to create test table %s: %w", testTableRef, err)
+	}
+	defer func() {
+		_, _ = e.conn.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", testTableRef))
+	}()
+
+	finalSQL, err := buildOnlineDDLSQL(options.SQL)
+	if err != nil {
+		return err
+	}
+	testSQL, err := rewriteDDLTargetTable(finalSQL, testTableRef)
+	if err != nil {
+		return fmt.Errorf("failed to prepare test DDL SQL: %w", err)
+	}
+
 	if options.Debug {
-		fmt.Printf("[DEBUG] Executing Online DDL statement:\n%s\n", sql)
+		e.debugf(options, "[DEBUG] Online DDL preflight SQL (test table):\n%s", testSQL)
+	}
+	if _, err = e.conn.Exec(testSQL); err != nil {
+		return fmt.Errorf("online DDL preflight failed on test table %s: %w", testTableRef, err)
 	}
 
-	_, err := e.conn.Exec(sql)
+	if options.Debug {
+		e.debugf(options, "[DEBUG] Executing Online DDL statement:\n%s", finalSQL)
+	}
+	if _, err = e.conn.Exec("SET SESSION lock_wait_timeout = 20"); err != nil {
+		return fmt.Errorf("failed to set session lock_wait_timeout: %w", err)
+	}
+	_, err = e.conn.Exec(finalSQL)
 	if options.Debug {
 		if err != nil {
-			fmt.Printf("[DEBUG] Online DDL execution error: %v\n", err)
+			e.debugf(options, "[DEBUG] Online DDL execution error: %v", err)
 		} else {
-			fmt.Printf("[DEBUG] Online DDL execution successful\n")
+			e.debugf(options, "[DEBUG] Online DDL execution successful")
 		}
 	}
 
@@ -679,25 +804,92 @@ func (e *Executor) executeWithOnlineDDL(options ExecuteOptions, result *ExecuteR
 	return nil
 }
 
-func (e *Executor) executeWithRegularAlter(options ExecuteOptions, result *ExecuteResult) error {
-	result.Warnings = append(result.Warnings,
-		"Executing schema change without Online DDL - table may be locked during execution")
-
-	if options.Debug {
-		fmt.Printf("[DEBUG] Executing regular ALTER statement (without Online DDL):\n%s\n", options.SQL)
+func buildOnlineDDLSQL(sql string) (string, error) {
+	sql = strings.TrimSpace(strings.TrimSuffix(sql, ";"))
+	if sql == "" {
+		return "", fmt.Errorf("empty SQL statement")
 	}
 
-	_, err := e.conn.Exec(options.SQL)
-	if options.Debug {
-		if err != nil {
-			fmt.Printf("[DEBUG] Regular ALTER execution error: %v\n", err)
-		} else {
-			fmt.Printf("[DEBUG] Regular ALTER execution successful\n")
-		}
+	upperSQL := strings.ToUpper(sql)
+	hasAlgorithm := strings.Contains(upperSQL, "ALGORITHM=")
+	hasLock := strings.Contains(upperSQL, "LOCK=")
+	if hasAlgorithm && hasLock {
+		return sql, nil
 	}
 
-	return err
+	separator, err := getOnlineDDLClauseSeparator(upperSQL)
+	if err != nil {
+		return "", err
+	}
+
+	if !hasAlgorithm {
+		sql += separator + "ALGORITHM=INPLACE"
+	}
+	if !hasLock {
+		sql += separator + "LOCK=NONE"
+	}
+
+	return sql, nil
 }
+
+func getOnlineDDLClauseSeparator(upperSQL string) (string, error) {
+	switch {
+	case strings.HasPrefix(upperSQL, "ALTER TABLE "):
+		// ALTER TABLE appends options as table_options separated by commas.
+		return ", ", nil
+	case strings.HasPrefix(upperSQL, "CREATE INDEX "),
+		strings.HasPrefix(upperSQL, "CREATE UNIQUE INDEX "),
+		strings.HasPrefix(upperSQL, "CREATE FULLTEXT INDEX "),
+		strings.HasPrefix(upperSQL, "CREATE SPATIAL INDEX "),
+		strings.HasPrefix(upperSQL, "CREATE OR REPLACE INDEX "),
+		strings.HasPrefix(upperSQL, "CREATE INDEX IF NOT EXISTS "):
+		// CREATE INDEX forms use whitespace before ALGORITHM/LOCK clauses.
+		return " ", nil
+	default:
+		return "", fmt.Errorf("unsupported DDL for online clauses; expected ALTER TABLE or CREATE INDEX variant")
+	}
+}
+
+func rewriteDDLTargetTable(sql, newTableRef string) (string, error) {
+	reAlter := regexp.MustCompile("(?i)^\\s*ALTER\\s+TABLE\\s+((`[^`]+`|[A-Za-z0-9_]+)(\\.(?:`[^`]+`|[A-Za-z0-9_]+))?)")
+	if m := reAlter.FindStringSubmatch(sql); len(m) > 1 {
+		return strings.Replace(sql, m[1], newTableRef, 1), nil
+	}
+
+	reCreateIdx := regexp.MustCompile("(?i)\\bON\\s+((`[^`]+`|[A-Za-z0-9_]+)(\\.(?:`[^`]+`|[A-Za-z0-9_]+))?)\\b")
+	if m := reCreateIdx.FindStringSubmatch(sql); len(m) > 1 {
+		return strings.Replace(sql, m[1], newTableRef, 1), nil
+	}
+
+	return "", fmt.Errorf("could not locate target table in DDL statement")
+}
+
+func escapeIdent(id string) string {
+	return strings.ReplaceAll(id, "`", "``")
+}
+
+// func (e *Executor) executeWithRegularAlter(options ExecuteOptions, result *ExecuteResult) error {
+// 	result.Warnings = append(result.Warnings,
+// 		"Executing schema change without Online DDL - table may be locked during execution")
+
+// 	if options.Debug {
+// 		e.debugf(options, "[DEBUG] Executing regular ALTER statement (without Online DDL):\n%s", options.SQL)
+// 	}
+
+// 	if _, err := e.conn.Exec("SET SESSION lock_wait_timeout = 20"); err != nil {
+// 		return fmt.Errorf("failed to set session lock_wait_timeout: %w", err)
+// 	}
+// 	_, err := e.conn.Exec(options.SQL)
+// 	if options.Debug {
+// 		if err != nil {
+// 			e.debugf(options, "[DEBUG] Regular ALTER execution error: %v", err)
+// 		} else {
+// 			e.debugf(options, "[DEBUG] Regular ALTER execution successful")
+// 		}
+// 	}
+
+// 	return err
+// }
 
 func (e *Executor) parseDSN(dsn string) (host, port, user, password, database string) {
 	// Parse MySQL DSN format: user:password@tcp(host:port)/database
@@ -743,4 +935,15 @@ func (e *Executor) parseDSN(dsn string) (host, port, user, password, database st
 	}
 
 	return host, port, user, password, database
+}
+
+func (e *Executor) debugf(options ExecuteOptions, format string, args ...interface{}) {
+	if !options.Debug {
+		return
+	}
+	if e.logger != nil {
+		e.logger.Infof(format, args...)
+		return
+	}
+	fmt.Printf(format+"\n", args...)
 }

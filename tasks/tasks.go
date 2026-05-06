@@ -173,6 +173,7 @@ func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, tas
 		OKOnlineDDL            bool        `json:"ok_online_ddl"`
 		OKPTOSC                bool        `json:"ok_pt_osc"`
 		OKOnlinePhysicalBackup bool        `json:"ok_online_physical_backup"`
+		OKPTR                  bool        `json:"ok_pitr"`
 	}
 
 	type schemaChangeTaskDetail struct {
@@ -231,7 +232,7 @@ func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, tas
 	}
 
 	logger.Info("* Executing schema changes...")
-	executor := phase2.NewExecutor(models.DB)
+	executor := phase2.NewExecutor(models.DB, &logger)
 	executed := 0
 	for i, item := range details {
 		backupMethod = phase2.BackupNone
@@ -251,36 +252,48 @@ func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, tas
 			continue
 		}
 
-		usePTOSC := !analysis.OKOnlineDDL && analysis.OKPTOSC
 		if !analysis.OKOnlineDDL && !analysis.OKPTOSC {
-			logger.Info("* Statement ", i, " - neither Online DDL nor pt-osc allowed by analysis; using regular path fallback")
+			logger.Error("* Statement ", i, " cannot be executed without blocking the table")
+			task_output += fmt.Sprintf("Statement %d skipped: cannot be executed without blocking the table\n", i)
+			task_exit_code = 1
+			task_status = 4
+			continue
 		}
 
 		if !strings.EqualFold(strings.TrimSpace(analysis.StorageEngine), "InnoDB") {
 			task_output += fmt.Sprintf("Statement %d warning: storage engine is %s\n", i, analysis.StorageEngine)
 		}
 
-		if details[i].PreChangeBackup {
+		if item.PreChangeBackup {
+			logger.Infof("Statement %d note: Pre-change backup is required\n", i)
+
+			if !analysis.OKPTR {
+				logger.Infof("Statement %d note: Point-in-time recovery is not possible - will not proceed with the schema change\n", i)
+				task_exit_code = 1
+				task_status = 4
+				continue
+			}
+
 			if !analysis.OKOnlinePhysicalBackup {
-				task_output += fmt.Sprintf("Statement %d note: online physical backup is not available\n", i)
+				logger.Infof("Statement %d note: online physical backup is not possible - doing a logical backup\n", i)
 				backupMethod = phase2.BackupMysqldump
 			} else {
 				backupMethod = phase2.BackupXtrabackup
 			}
 		}
 
-		logger.Info("* Statement ", i, " - executing schema changes on ", tableName, "...")
 		_, err = executor.Execute(phase2.ExecuteOptions{
-			SQL:                     statement,
-			TableName:               tableName,
-			BackupMethod:            backupMethod,
-			UsePTOnlineSchemaChange: usePTOSC,
-			Config:                  configuration,
-			Debug:                   false,
+			SQL:          statement,
+			TableName:    tableName,
+			BackupMethod: backupMethod,
+			OkPTOSC:      analysis.OKPTOSC,
+			OkOnlineDDL:  analysis.OKOnlineDDL,
+			Config:       configuration,
+			Debug:        configuration.Debug,
 		})
 		if err != nil {
 			logger.Error(err)
-			task_output += err.Error() + "\n"
+			//task_output += err.Error() + "\n"
 			logger.Info("* Schema changes execution failed: ", err.Error())
 			task_exit_code = 1
 			task_status = 4

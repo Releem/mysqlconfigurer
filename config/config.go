@@ -56,6 +56,8 @@ type Config struct {
 	MysqldumpPath                         string        `hcl:"mysqldump_path"`
 	XtrabackupPath                        string        `hcl:"xtrabackup_path"`
 	BackupSpaceBuffer                     float64       `hcl:"backup_space_buffer"`
+	OnlineDDLTestSchema                   string        `hcl:"online_ddl_test_schema"`
+	DisableSpaceChecks                    bool          `hcl:"disable_space_checks"`
 }
 
 func LoadConfig(filename string, logger logging.Logger) (*Config, error) {
@@ -121,6 +123,9 @@ func LoadConfigFromString(data string, logger logging.Logger) (*Config, error) {
 	}
 	if config.BackupSpaceBuffer == 0 {
 		config.BackupSpaceBuffer = 20.0 // Default 20% buffer
+	}
+	if config.OnlineDDLTestSchema == "" {
+		config.OnlineDDLTestSchema = "releem_online_ddl_test"
 	}
 	return config, nil
 }

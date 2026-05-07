@@ -42,7 +42,6 @@ func NewExecutor(conn *sql.DB, logger Logger) *Executor {
 type ExecuteOptions struct {
 	SQL          string
 	TableName    string
-	DSN          string // Database connection string (required for backups and pt-osc)
 	BackupMethod BackupMethod
 	OkPTOSC      bool
 	OkOnlineDDL  bool
@@ -67,13 +66,8 @@ func (e *Executor) Execute(options ExecuteOptions) (*ExecuteResult, error) {
 		Errors:   []string{},
 	}
 
-	// Extract table name from SQL if not provided
-	if options.TableName == "" {
-		tableName, err := ExtractTableNameFromDDL(options.SQL)
-		if err != nil {
-			return nil, fmt.Errorf("failed to extract table name from SQL: %w", err)
-		}
-		options.TableName = tableName
+	if strings.TrimSpace(options.TableName) == "" {
+		return nil, fmt.Errorf("table name is required for schema change execution")
 	}
 
 	// Validate datadir filesystem headroom before attempting any schema change.
@@ -208,10 +202,6 @@ func (e *Executor) checkDataDirFilesystemCapacity(options ExecuteOptions) error 
 }
 
 func (e *Executor) backupWithMysqldump(options ExecuteOptions) (string, error) {
-	// if options.DSN == "" {
-	// 	return "", fmt.Errorf("DSN is required for backup")
-	// }
-
 	if options.Config == nil {
 		return "", fmt.Errorf("config is required for backup")
 	}
@@ -221,7 +211,7 @@ func (e *Executor) backupWithMysqldump(options ExecuteOptions) (string, error) {
 	user := options.Config.MysqlUser
 	password := options.Config.MysqlPassword
 	if host == "" {
-		return "", fmt.Errorf("could not parse DSN")
+		return "", fmt.Errorf("mysql_host is required for backup")
 	}
 
 	// Parse table name
@@ -296,24 +286,17 @@ func (e *Executor) backupWithMysqldump(options ExecuteOptions) (string, error) {
 }
 
 func (e *Executor) backupWithXtrabackup(options ExecuteOptions) (string, error) {
-	// if options.DSN == "" {
-	// 	return "", fmt.Errorf("DSN is required for backup")
-	// }
-
 	if options.Config == nil {
 		return "", fmt.Errorf("config is required for backup")
 	}
-
-	// Parse DSN to get connection details
 
 	host := options.Config.MysqlHost
 	port := options.Config.MysqlPort
 	user := options.Config.MysqlUser
 	password := options.Config.MysqlPassword
-	// host, port, user, password, _ := e.parseDSN(options.DSN)
-	// if host == "" {
-	// 	return "", fmt.Errorf("could not parse DSN")
-	// }
+	if host == "" {
+		return "", fmt.Errorf("mysql_host is required for backup")
+	}
 
 	// Parse table name
 	tableInfo, err := ParseTableName(options.TableName, func() (string, error) {
@@ -549,10 +532,6 @@ func (e *Executor) executeWithPTOSC(options ExecuteOptions) error {
 }
 
 func (e *Executor) dryRunPTOSC(options ExecuteOptions) error {
-	// if options.DSN == "" {
-	// 	return fmt.Errorf("DSN is required for pt-online-schema-change")
-	// }
-
 	if options.Config == nil {
 		return fmt.Errorf("config is required for pt-online-schema-change")
 	}
@@ -567,7 +546,7 @@ func (e *Executor) dryRunPTOSC(options ExecuteOptions) error {
 	user := options.Config.MysqlUser
 	password := options.Config.MysqlPassword
 	if host == "" {
-		return fmt.Errorf("could not parse DSN")
+		return fmt.Errorf("mysql_host is required for pt-online-schema-change")
 	}
 
 	tableInfo, err := ParseTableName(options.TableName, func() (string, error) {
@@ -638,10 +617,6 @@ func (e *Executor) dryRunPTOSC(options ExecuteOptions) error {
 }
 
 func (e *Executor) runPTOSC(options ExecuteOptions) error {
-	// if options.DSN == "" {
-	// 	return fmt.Errorf("DSN is required for pt-online-schema-change")
-	// }
-
 	if options.Config == nil {
 		return fmt.Errorf("config is required for pt-online-schema-change")
 	}
@@ -656,7 +631,7 @@ func (e *Executor) runPTOSC(options ExecuteOptions) error {
 	user := options.Config.MysqlUser
 	password := options.Config.MysqlPassword
 	if host == "" {
-		return fmt.Errorf("could not parse DSN")
+		return fmt.Errorf("mysql_host is required for pt-online-schema-change")
 	}
 
 	tableInfo, err := ParseTableName(options.TableName, func() (string, error) {
@@ -866,75 +841,6 @@ func rewriteDDLTargetTable(sql, newTableRef string) (string, error) {
 
 func escapeIdent(id string) string {
 	return strings.ReplaceAll(id, "`", "``")
-}
-
-// func (e *Executor) executeWithRegularAlter(options ExecuteOptions, result *ExecuteResult) error {
-// 	result.Warnings = append(result.Warnings,
-// 		"Executing schema change without Online DDL - table may be locked during execution")
-
-// 	if options.Debug {
-// 		e.debugf(options, "[DEBUG] Executing regular ALTER statement (without Online DDL):\n%s", options.SQL)
-// 	}
-
-// 	if _, err := e.conn.Exec("SET SESSION lock_wait_timeout = 20"); err != nil {
-// 		return fmt.Errorf("failed to set session lock_wait_timeout: %w", err)
-// 	}
-// 	_, err := e.conn.Exec(options.SQL)
-// 	if options.Debug {
-// 		if err != nil {
-// 			e.debugf(options, "[DEBUG] Regular ALTER execution error: %v", err)
-// 		} else {
-// 			e.debugf(options, "[DEBUG] Regular ALTER execution successful")
-// 		}
-// 	}
-
-// 	return err
-// }
-
-func (e *Executor) parseDSN(dsn string) (host, port, user, password, database string) {
-	// Parse MySQL DSN format: user:password@tcp(host:port)/database
-	// This is a simplified parser
-	parts := strings.Split(dsn, "@")
-	if len(parts) != 2 {
-		return "", "", "", "", ""
-	}
-
-	userPass := parts[0]
-	tcpAndDB := parts[1]
-
-	userPassParts := strings.Split(userPass, ":")
-	if len(userPassParts) == 2 {
-		user = userPassParts[0]
-		password = userPassParts[1]
-	} else {
-		user = userPass
-	}
-
-	// Parse tcp(host:port)/database
-	if strings.HasPrefix(tcpAndDB, "tcp(") {
-		end := strings.Index(tcpAndDB, ")")
-		if end > 0 {
-			hostPort := tcpAndDB[4:end]
-			hostPortParts := strings.Split(hostPort, ":")
-			if len(hostPortParts) == 2 {
-				host = hostPortParts[0]
-				port = hostPortParts[1]
-			} else {
-				host = hostPort
-				port = "3306"
-			}
-		}
-		dbPart := tcpAndDB[end+1:]
-		if strings.HasPrefix(dbPart, "/") {
-			database = dbPart[1:]
-		}
-	}
-
-	if port == "" {
-		port = "3306"
-	}
-
-	return host, port, user, password, database
 }
 
 func (e *Executor) debugf(options ExecuteOptions, format string, args ...interface{}) {

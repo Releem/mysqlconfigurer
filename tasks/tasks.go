@@ -129,7 +129,7 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 
 	case 6:
 		logger.Info("Task status is ", TaskStruct.Status)
-		TaskStruct.ExitCode, TaskStruct.Status, TaskStruct.Output, TaskStruct.Error = ApplySchemaChanges(logger, configuration, TaskStruct.Details, TaskStruct.Status)
+		TaskStruct.ExitCode, TaskStruct.Status, TaskStruct.Output, TaskStruct.Error = ApplySchemaChanges(logger, configuration, TaskStruct.Details)
 
 	case 7:
 		TaskStruct.ExitCode, TaskStruct.Status, TaskStruct.Output, TaskStruct.Error = ProcessQueryExplainTask(
@@ -158,7 +158,7 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Status"})
 }
 
-func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, taskdetails string, current_task_status int) (int, int, string, string) {
+func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, taskdetails string) (int, int, string, string) {
 	var task_exit_code, task_status int = 0, 0
 	var task_output string
 	var task_error string
@@ -293,7 +293,7 @@ func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, tas
 		})
 		if err != nil {
 			logger.Error(err)
-			//task_output += err.Error() + "\n"
+			task_output += fmt.Sprintf("Statement %d failed: %s\n", i, err.Error())
 			logger.Info("* Schema changes execution failed: ", err.Error())
 			task_exit_code = 1
 			task_status = 4

@@ -333,6 +333,14 @@ func defaultSystemLogFlag() bool {
 	}
 }
 
+func shouldRunOneShotMode(commandLen int, setConfig bool, getConfig bool, initialConfig bool, agentEvent string, agentTask string) bool {
+	if commandLen > 0 {
+		return false
+	}
+
+	return setConfig || getConfig || initialConfig || len(agentEvent) > 0 || len(agentTask) > 0
+}
+
 func main() {
 	logger = *logging.Init("releem-agent", true, defaultSystemLogFlag(), io.Discard)
 	defer logger.Close()
@@ -347,6 +355,12 @@ func main() {
 	AgentTask = flag.String("task", "", "Run Releem agent to execute task")
 	flag.Parse()
 	command := flag.Args()
+
+	if shouldRunOneShotMode(len(command), *SetConfigRun, *GetConfigRun, *InitialConfigRun, *AgentEvent, *AgentTask) {
+		(&Programm{}).Run()
+		logger.Info("Exiting")
+		os.Exit(0)
+	}
 
 	dependencies := defaultDependencies()
 	srv, err := daemon.New(serviceName, serviceDescription, daemon.SystemDaemon, dependencies...)

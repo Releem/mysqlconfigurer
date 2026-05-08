@@ -66,7 +66,7 @@ $ErrorActionPreference = 'Stop'
 # Script version
 # ---------------------------------------------------------------------------
 
-$ScriptVersion = '1.0.0'
+$ScriptVersion = '1.23.5.2'
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -324,6 +324,15 @@ function Invoke-ApplyConfig {
         $script:ExitCode = 1; return
     }
     $liveCnfPath = Join-Path $mysql_cnf_dir $DbConfigFileName
+
+    Write-Log 'Getting the latest up-to-date configuration.'
+    if (Test-Path $AgentBinaryPath) {
+        & $AgentBinaryPath -c
+        $getConfigExitCode = $LASTEXITCODE
+        Write-Log "releem-agent.exe -c exited with code: $getConfigExitCode"
+    } else {
+        Write-Log "WARNING: Releem Agent binary not found, skipping configuration refresh: $AgentBinaryPath"
+    }
 
     # Log full contents of staging config so user can see what will be applied
     $recommendedContent = Get-Content -Path $StagingCnfPath -Raw
@@ -638,7 +647,8 @@ try {
         $remoteParts  = $remoteVersionRaw.Split('.')     | ForEach-Object { [int]$_ }
 
         $isNewer = $false
-        for ($i = 0; $i -lt 3; $i++) {
+        $partsToCompare = [Math]::Max($currentParts.Count, $remoteParts.Count)
+        for ($i = 0; $i -lt $partsToCompare; $i++) {
             $c = if ($i -lt $currentParts.Count) { $currentParts[$i] } else { 0 }
             $r = if ($i -lt $remoteParts.Count)  { $remoteParts[$i]  } else { 0 }
             if ($r -gt $c) { $isNewer = $true; break }

@@ -550,7 +550,7 @@ if ($InstanceType -ne 'aws/rds' -and $InstanceType -ne 'gcp/cloudsql') {
 
 $MysqlServiceName = $null
 if ($InstanceType -ne 'aws/rds' -and $InstanceType -ne 'gcp/cloudsql') {
-    foreach ($name in @('MySQL80', 'MySQL57', 'MySQL56', 'MySQL', 'mariadb', 'mysqld')) {
+    foreach ($name in @('MySQL84', 'MySQL80', 'MySQL57', 'MySQL56', 'MySQL', 'mariadb', 'mysqld')) {
         $svc = Get-Service -Name $name -ErrorAction SilentlyContinue
         if ($svc) {
             $MysqlServiceName = $name

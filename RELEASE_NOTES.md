@@ -170,3 +170,10 @@
 ## 1.23.5.2
 - Fixed PostgreSQL processlist collection for nullable connection and wait event fields
 - Added lowercase `eu` support for selecting the EU Releem region
+
+## 1.23.5.3
+- Released Windows installer and MySQL configurer scripts
+- Added Windows task execution support for task types 0, 1, 3, 4, and 5
+- Fixed Windows one-shot agent commands so `-f`, `-c`, `--initial`, `--event`, and `--task` run outside the service wrapper
+- Refreshed recommended configuration before Windows local apply
+- Added GCP-based Linux and Windows end-to-end installation test infrastructure

@@ -5,7 +5,6 @@
 - Optimized database list collection
 
 ## 1.21.0
-- Increased version
 - Added collect processlist
 - Enabled logging for Windows
 - Added Security section to Readme
@@ -23,14 +22,12 @@
 
 ## 1.21.3.1
 - Added the ability to select the region for storing server data
-- Increased agent version
 
 ## 1.21.3.2
 - Hotfix: converted variable types
 - Fixed error converting `driver.Value` `[]uint8` to int (value out of range)
 
 ## 1.21.3.3
-- Increased version
 - Fixed algorithm for generating `Password` column for security checks
 - Fixed calculation of query example count
 
@@ -58,7 +55,6 @@
 - Added query length limitation to processlist
 
 ## 1.22.0
-- Increased version
 - Optimized query examples collection query
 - Fixed `need_grant_permission` check
 - Added release notes to changelog
@@ -69,20 +65,16 @@
 - Added tracking updates
 
 ## 1.22.0.2
-- Increased version
 - Improved agent installation (#455), including manual RDS-on-EC2 option
 - Optimized process list collection (#456)
 
 ## 1.22.0.3
-- Increased version
 - Added GCP Cloud SQL feature (#458)
 
 ## 1.22.0.4
-- Increased version
 - Added initial config apply flow (discussion #465)
 
 ## 1.22.0.5
-- Increased version
 - Fixed TLS usage
 - Added release 1.22.0 to changelog
 
@@ -92,7 +84,6 @@
 - Added blank line before stages declaration
 
 ## 1.22.2
-- Increased version
 - Added `information_schema.key_column_usage` collection for foreign key checks
 - Added `performance_schema_digests_size` variable setup in installer
 
@@ -115,7 +106,6 @@
 
 ## 1.22.4
 - Fixed `releem.conf` template
-- Increased version
 - Updated Go and dependency versions
 - Removed `envsubst` dependency
 
@@ -140,23 +130,19 @@
 - Fixed enabling query optimization
 
 ## 1.23.2
-- Increased version
 - Optimized index usage statistics collection
 - Updated error texts
 
 ## 1.23.3
-- Increased version
 - Fixed filtering field
 - Added `Last_Seen` check for EXPLAIN collection
 - Added skipping empty partition (issue #495)
 
 ## 1.23.3.1
-- Increased version
 - Refactored bash scripts and added bash unit tests (#505)
 - Updated changelog for 1.22.7 and related fixes/features (#501)
 
 ## 1.23.4
-- Updated version
 - Updated package versions
 - Updated Go and dependencies
 - PostgreSQL query optimization (#507)
@@ -169,7 +155,6 @@
 - Added support for Aurora Serverless v2 Enhanced Monitoring metrics (#508)
 
 ## 1.23.5
-- Increased versions
 - Bumped Go toolchain and module dependencies
 - Enabled `mysql_ssl_mode=true` by default for Azure MySQL installs
 - Fixed debug message
@@ -178,9 +163,10 @@
 - Added fail-fast behavior on startup errors
 - Included related changelog and test updates
 
-## 1.23.5.2
-- Bumped agent and installer versions to 1.23.5.2
+## 1.23.5.1
 - Switched agent error, installer, and configurer event logs to the queries API domain
 - Simplified queries API base URL construction
+
+## 1.23.5.2
 - Fixed PostgreSQL processlist collection for nullable connection and wait event fields
 - Added lowercase `eu` support for selecting the EU Releem region

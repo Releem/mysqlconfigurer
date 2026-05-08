@@ -44,7 +44,7 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	default:
 		subdomain = ""
 	}
-	if repeater.configuration.ReleemRegion == "EU" {
+	if repeater.configuration.ReleemRegion == "EU" || repeater.configuration.ReleemRegion == "eu" {
 		domain = "eu.releem.com"
 	} else {
 		domain = "releem.com"

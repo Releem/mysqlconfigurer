@@ -178,7 +178,9 @@
 - Added fail-fast behavior on startup errors
 - Included related changelog and test updates
 
-## 1.23.5.1
-- Bumped agent and installer versions to 1.23.5.1
+## 1.23.5.2
+- Bumped agent and installer versions to 1.23.5.2
 - Switched agent error, installer, and configurer event logs to the queries API domain
 - Simplified queries API base URL construction
+- Fixed PostgreSQL processlist collection for nullable connection and wait event fields
+- Added lowercase `eu` support for selecting the EU Releem region

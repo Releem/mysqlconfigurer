@@ -181,10 +181,21 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 	{
 		var output []models.MetricGroupValue
 		rows, err := models.DB.Query(`
-			SELECT *
+			SELECT pid,
+			datname,
+			usename,
+			COALESCE(host(client_addr), 'local') || COALESCE(':' || client_port::text, '') AS client_address,
+			application_name,
+			backend_type,
+			state,
+			CONCAT_WS(' ', wait_event_type::text, wait_event::text) AS wait_event,
+			EXTRACT(EPOCH FROM (now() - query_start))::bigint AS query_time,
+			EXTRACT(EPOCH FROM (now() - xact_start))::bigint AS tx_time,
+			EXTRACT(EPOCH FROM (now() - state_change))::bigint AS state_time,
+			query
 			FROM pg_stat_activity
 			WHERE state IS NOT NULL
-			ORDER BY backend_start DESC`)
+			ORDER BY pid`)
 		if err != nil {
 			if err != sql.ErrNoRows {
 				DBMetricsBase.logger.Error(err)

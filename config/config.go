@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"runtime"
 	"time"
 
 	logging "github.com/google/logger"
@@ -98,7 +99,7 @@ func LoadConfigFromString(data string, logger logging.Logger) (*Config, error) {
 		config.PgPort = "5432"
 	}
 	if config.ReleemDir == "" {
-		config.ReleemDir = "/opt/releem"
+		config.ReleemDir = defaultReleemDirPath()
 	}
 	if config.InstanceType == "" {
 		config.InstanceType = "local"
@@ -132,4 +133,13 @@ func (config *Config) GetDatabaseType() string {
 	}
 	// Default to MySQL for backward compatibility
 	return "mysql"
+}
+
+func defaultReleemDirPath() string {
+	switch runtime.GOOS {
+	case "windows":
+		return "C:\\Program Files\\ReleemAgent"
+	default: // for Linux and other UNIX-like systems
+		return "/opt/releem"
+	}
 }

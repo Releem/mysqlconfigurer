@@ -55,7 +55,7 @@ $serverJob = Start-Job -ArgumentList $port, $stubInstaller -ScriptBlock {
 
             switch ($context.Request.RawUrl) {
                 '/v2/current_version_agent' {
-                    $body = '9.9.9'
+                    $body = '1.23.5.3'
                     $response.ContentType = 'text/plain'
                     $response.StatusCode = 200
                 }

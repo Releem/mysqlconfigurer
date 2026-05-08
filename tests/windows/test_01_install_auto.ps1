@@ -64,6 +64,7 @@ if (Test-Path "C:\ProgramData\ReleemAgent\releem.conf") {
     Write-Fail "releem.conf has hostname: config file missing"
 }
 Assert-FileContains "releem.conf has api key"   "C:\ProgramData\ReleemAgent\releem.conf" $env:RELEEM_API_KEY
+Assert-FileContains "releem.conf has mysql restart service" "C:\ProgramData\ReleemAgent\releem.conf" "net stop $DbService && net start $DbService"
 
 Assert-MySQLUserExists "releem MySQL user created" "releem"
 

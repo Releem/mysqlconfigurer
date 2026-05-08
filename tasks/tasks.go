@@ -42,24 +42,24 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 
 	switch TaskStruct.TypeID {
 	case 0:
-		TaskStruct.ExitCode, TaskStruct.Status, task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -a", []string{"RELEEM_RESTART_SERVICE=1"}, logger)
+		TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskApplyManualCommand(runtime.GOOS, configuration.ReleemDir), logger)
 		TaskStruct.Output = TaskStruct.Output + task_output
 
 		if TaskStruct.ExitCode == 7 {
 			var rollback_exit_code int
-			rollback_exit_code, _, task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -r", []string{"RELEEM_RESTART_SERVICE=1"}, logger)
+			rollback_exit_code, _, task_output = execTaskCommand(taskRollbackCommand(runtime.GOOS, configuration.ReleemDir), logger)
 			TaskStruct.Output = TaskStruct.Output + task_output
 			logger.Info(" * Task rollbacked with code ", rollback_exit_code)
 		}
 
 	case 1:
-		TaskStruct.ExitCode, TaskStruct.Status, task_output = execCmd(configuration.ReleemDir+"/releem-agent -f", []string{}, logger)
+		TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskGenerateConfigCommand(runtime.GOOS, configuration.ReleemDir), logger)
 		TaskStruct.Output = TaskStruct.Output + task_output
 	case 2:
-		TaskStruct.ExitCode, TaskStruct.Status, task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -u", []string{}, logger)
+		TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskUpdateCommand(runtime.GOOS, configuration.ReleemDir), logger)
 		TaskStruct.Output = TaskStruct.Output + task_output
 	case 3:
-		TaskStruct.ExitCode, TaskStruct.Status, task_output = execCmd(configuration.ReleemDir+"/releem-agent --task=queries_optimization", []string{}, logger)
+		TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskQueriesOptimizationCommand(runtime.GOOS, configuration.ReleemDir), logger)
 		TaskStruct.Output = TaskStruct.Output + task_output
 	case 4:
 		switch configuration.InstanceType {
@@ -78,20 +78,13 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 			TaskStruct.Output = TaskStruct.Output + task_output
 
 		default:
-			switch runtime.GOOS {
-			case "windows":
-				TaskStruct.ExitCode = 0
-				TaskStruct.Status = 1
-				TaskStruct.Output = TaskStruct.Output + "Windows is not supported apply configuration.\n"
-			default: // для Linux и других UNIX-подобных систем
-				TaskStruct.ExitCode, TaskStruct.Status, task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=0"}, logger)
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskApplyAutomaticCommand(runtime.GOOS, configuration.ReleemDir, false), logger)
+			TaskStruct.Output = TaskStruct.Output + task_output
+			if TaskStruct.ExitCode == 7 {
+				var rollback_exit_code int
+				rollback_exit_code, _, task_output = execTaskCommand(taskRollbackCommand(runtime.GOOS, configuration.ReleemDir), logger)
 				TaskStruct.Output = TaskStruct.Output + task_output
-				if TaskStruct.ExitCode == 7 {
-					var rollback_exit_code int
-					rollback_exit_code, _, task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -r", []string{"RELEEM_RESTART_SERVICE=1"}, logger)
-					TaskStruct.Output = TaskStruct.Output + task_output
-					logger.Info(" * Task rollbacked with code ", rollback_exit_code)
-				}
+				logger.Info(" * Task rollbacked with code ", rollback_exit_code)
 			}
 
 			if TaskStruct.ExitCode == 0 {
@@ -113,20 +106,13 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 			TaskStruct.Output = TaskStruct.Output + task_output
 
 		default:
-			switch runtime.GOOS {
-			case "windows":
-				TaskStruct.ExitCode = 0
-				TaskStruct.Status = 1
-				TaskStruct.Output = TaskStruct.Output + "Windows is not supported apply configuration.\n"
-			default: // для Linux и других UNIX-подобных систем
-				TaskStruct.ExitCode, TaskStruct.Status, task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=1"}, logger)
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskApplyAutomaticCommand(runtime.GOOS, configuration.ReleemDir, true), logger)
+			TaskStruct.Output = TaskStruct.Output + task_output
+			if TaskStruct.ExitCode == 7 {
+				var rollback_exit_code int
+				rollback_exit_code, _, task_output = execTaskCommand(taskRollbackCommand(runtime.GOOS, configuration.ReleemDir), logger)
 				TaskStruct.Output = TaskStruct.Output + task_output
-				if TaskStruct.ExitCode == 7 {
-					var rollback_exit_code int
-					rollback_exit_code, _, task_output = execCmd(configuration.ReleemDir+"/mysqlconfigurer.sh -r", []string{"RELEEM_RESTART_SERVICE=1"}, logger)
-					TaskStruct.Output = TaskStruct.Output + task_output
-					logger.Info(" * Task rollbacked with code ", rollback_exit_code)
-				}
+				logger.Info(" * Task rollbacked with code ", rollback_exit_code)
 			}
 		}
 

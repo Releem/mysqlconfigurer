@@ -50,7 +50,6 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 		domain = "releem.com"
 	}
 	api_domain = "https://api.queries." + subdomain + domain + "/v2/"
-	api_domain = "http://localhost:8000/v2/"
 
 	switch Mode.Name {
 	case "Configurations":

@@ -120,8 +120,14 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 		}
 
 	case 6:
-		logger.Info("Task status is ", TaskStruct.Status)
-		TaskStruct.ExitCode, TaskStruct.Status, TaskStruct.Output, TaskStruct.Error = ApplySchemaChanges(logger, configuration, TaskStruct.Details)
+		if configuration == nil || !configuration.EnableExecDDL {
+			TaskStruct.ExitCode = 10
+			TaskStruct.Status = 4
+			TaskStruct.Output = TaskStruct.Output + "Task skipped: schema change execution is disabled by config (enable_exec_ddl=false).\n"
+			logger.Info("Task skipped: schema change execution is disabled by config (enable_exec_ddl=false).")
+			break
+		}
+		TaskStruct.ExitCode, TaskStruct.Status, TaskStruct.Output = ApplySchemaChanges(logger, configuration, TaskStruct.Details)
 
 	case 7:
 		TaskStruct.ExitCode, TaskStruct.Status, TaskStruct.Output, TaskStruct.Error = ProcessQueryExplainTask(
@@ -150,10 +156,9 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Status"})
 }
 
-func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, taskdetails string) (int, int, string, string) {
-	var task_exit_code, task_status int = 0, 0
+func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, taskdetails string) (int, int, string) {
+	var task_exit_code, task_status int = 0, 1
 	var task_output string
-	var task_error string
 	var backupMethod phase2.BackupMethod
 
 	type schemaChangeAnalysisResults struct {
@@ -175,30 +180,37 @@ func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, tas
 		PreChangeBackup bool                        `json:"pre_change_bkp"`
 	}
 
-	parseTaskDetails := func() ([]schemaChangeTaskDetail, error) {
-		var details []schemaChangeTaskDetail
+	type TaskDetails struct {
+		Type       string                   `json:"type"`
+		ID         int                      `json:"id"`
+		Statements []schemaChangeTaskDetail `json:"statements"`
+	}
+
+	parseTaskDetails := func() (TaskDetails, error) {
+		var details TaskDetails
 		if err := json.Unmarshal([]byte(taskdetails), &details); err != nil {
-			return nil, fmt.Errorf("taskdetails JSON must be an array of objects with `schema_name`, `ddl_statement`, and `analysis_results`")
+			logger.Error("Failed to parse task_details JSON: ", err)
+			return TaskDetails{}, fmt.Errorf("taskdetails JSON must be an array of objects with `schema_name`, `ddl_statement`, and `analysis_results`")
 		}
-		if len(details) == 0 {
-			return nil, fmt.Errorf("taskdetails array is empty")
+		if len(details.Statements) == 0 {
+			return TaskDetails{}, fmt.Errorf("taskdetails array is empty")
 		}
 
-		for i, item := range details {
+		for i, item := range details.Statements {
 			if strings.TrimSpace(item.SchemaName) == "" {
-				return nil, fmt.Errorf("taskdetails[%d].schema_name is required", i)
+				return TaskDetails{}, fmt.Errorf("taskdetails[%d].schema_name is required", i)
 			}
 
 			ddl := strings.TrimSpace(item.DDLStatement)
 			if ddl == "" {
-				return nil, fmt.Errorf("taskdetails[%d].ddl_statement is required", i)
+				return TaskDetails{}, fmt.Errorf("taskdetails[%d].ddl_statement is required", i)
 			}
 
 			if strings.TrimSpace(item.AnalysisResults.SchemaName) == "" {
-				return nil, fmt.Errorf("taskdetails[%d].analysis_results.schema_name is required", i)
+				return TaskDetails{}, fmt.Errorf("taskdetails[%d].analysis_results.schema_name is required", i)
 			}
 			if strings.TrimSpace(item.AnalysisResults.TableName) == "" {
-				return nil, fmt.Errorf("taskdetails[%d].analysis_results.table_name is required", i)
+				return TaskDetails{}, fmt.Errorf("taskdetails[%d].analysis_results.table_name is required", i)
 			}
 		}
 
@@ -210,23 +222,21 @@ func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, tas
 		logger.Error(err)
 		task_exit_code = 2
 		task_status = 4
-		task_error = err.Error()
 		task_output = task_output + err.Error()
-		return task_exit_code, task_status, task_output, task_error
+		return task_exit_code, task_status, task_output
 	}
-	if len(details) == 0 {
+	if len(details.Statements) == 0 {
 		logger.Error("task_details list is empty")
 		task_exit_code = 3
 		task_status = 4
-		task_error = "task_details list is empty"
 		task_output = task_output + "Invalid task_details: empty schema change list."
-		return task_exit_code, task_status, task_output, task_error
+		return task_exit_code, task_status, task_output
 	}
 
 	logger.Info("* Executing schema changes...")
 	executor := phase2.NewExecutor(models.DB, &logger)
 	executed := 0
-	for i, item := range details {
+	for i, item := range details.Statements {
 		backupMethod = phase2.BackupNone
 		analysis := item.AnalysisResults
 		statement := strings.TrimSpace(item.DDLStatement)
@@ -239,17 +249,17 @@ func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, tas
 			}
 			logger.Error("* Statement ", i, " - ", errMsg)
 			task_output += fmt.Sprintf("Statement %d skipped: %s\n", i, errMsg)
-			task_exit_code = 1
+			task_exit_code = 4
 			task_status = 4
-			continue
+			return task_exit_code, task_status, task_output
 		}
 
 		if !analysis.OKOnlineDDL && !analysis.OKPTOSC {
 			logger.Error("* Statement ", i, " cannot be executed without blocking the table")
 			task_output += fmt.Sprintf("Statement %d skipped: cannot be executed without blocking the table\n", i)
-			task_exit_code = 1
+			task_exit_code = 5
 			task_status = 4
-			continue
+			return task_exit_code, task_status, task_output
 		}
 
 		if !strings.EqualFold(strings.TrimSpace(analysis.StorageEngine), "InnoDB") {
@@ -258,16 +268,19 @@ func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, tas
 
 		if item.PreChangeBackup {
 			logger.Infof("Statement %d note: Pre-change backup is required\n", i)
+			task_output += fmt.Sprintf("Statement %d note: Pre-change backup is required\n", i)
 
 			if !analysis.OKPTR {
 				logger.Infof("Statement %d note: Point-in-time recovery is not possible - will not proceed with the schema change\n", i)
-				task_exit_code = 1
+				task_output += fmt.Sprintf("Statement %d skipped: Point-in-time recovery is not possible - will not proceed with the schema change\n", i)
+				task_exit_code = 6
 				task_status = 4
-				continue
+				return task_exit_code, task_status, task_output
 			}
 
 			if !analysis.OKOnlinePhysicalBackup {
 				logger.Infof("Statement %d note: online physical backup is not possible - doing a logical backup\n", i)
+				task_output += fmt.Sprintf("Statement %d note: online physical backup is not possible - doing a logical backup\n", i)
 				backupMethod = phase2.BackupMysqldump
 			} else {
 				backupMethod = phase2.BackupXtrabackup
@@ -287,20 +300,22 @@ func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, tas
 			logger.Error(err)
 			task_output += fmt.Sprintf("Statement %d failed: %s\n", i, err.Error())
 			logger.Info("* Schema changes execution failed: ", err.Error())
-			task_exit_code = 1
+			task_exit_code = 7
 			task_status = 4
-			continue
+			return task_exit_code, task_status, task_output
 		}
 
 		executed++
 		logger.Info("* Schema changes execution successful for statement ", i)
+		task_output += fmt.Sprintf("Statement %d successful: %s\n", i, statement)
 	}
 
-	if executed == 0 && len(details) > 0 {
-		task_exit_code = 1
+	if executed == 0 && len(details.Statements) > 0 {
+		task_exit_code = 8
 		task_status = 4
 		task_output = task_output + "No schema changes were executed.\n"
+		logger.Info("No schema changes were executed.")
 	}
 
-	return task_exit_code, task_status, task_output, task_error
+	return task_exit_code, task_status, task_output
 }

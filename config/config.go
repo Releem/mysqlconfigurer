@@ -55,13 +55,14 @@ type Config struct {
 	DatabasesQueryOptimization  string        `hcl:"databases_query_optimization"`
 	ReleemRegion                string        `hcl:"releem_region"`
 	// Task automator configuration
-	BackupDir                             string        `hcl:"backup_dir"`
-	PTOSCPath                             string        `hcl:"ptosc_path"`
-	MysqldumpPath                         string        `hcl:"mysqldump_path"`
-	XtrabackupPath                        string        `hcl:"xtrabackup_path"`
-	BackupSpaceBuffer                     float64       `hcl:"backup_space_buffer"`
-	OnlineDDLTestSchema                   string        `hcl:"online_ddl_test_schema"`
-	DisableSpaceChecks                    bool          `hcl:"disable_space_checks"`
+	EnableExecDDL       bool    `hcl:"enable_exec_ddl"`
+	BackupDir           string  `hcl:"backup_dir"`
+	PTOSCPath           string  `hcl:"ptosc_path"`
+	MysqldumpPath       string  `hcl:"mysqldump_path"`
+	XtrabackupPath      string  `hcl:"xtrabackup_path"`
+	BackupSpaceBuffer   float64 `hcl:"backup_space_buffer"`
+	OnlineDDLTestSchema string  `hcl:"online_ddl_test_schema"`
+	DisableSpaceChecks  bool    `hcl:"disable_space_checks"`
 }
 
 func LoadConfig(filename string, logger logging.Logger) (*Config, error) {

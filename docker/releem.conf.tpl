@@ -117,6 +117,18 @@ gcp_cloudsql_instance="${RELEEM_GCP_CLOUDSQL_INSTANCE}"
 #Enable public connection to Cloud SQL instance
 gcp_cloudsql_public_connection=${RELEEM_GCP_CLOUDSQL_PUBLIC_CONNECTION:-false}
 
+#AzureSubscriptionID string `hcl:"azure_subscription_id"`
+#Azure subscription ID for Azure Database for MySQL Flexible Server
+azure_subscription_id="${RELEEM_AZURE_SUBSCRIPTION_ID}"
+
+#AzureResourceGroup string `hcl:"azure_resource_group"`
+#Azure resource group for Azure Database for MySQL Flexible Server
+azure_resource_group="${RELEEM_AZURE_RESOURCE_GROUP}"
+
+#AzureMySQLServer string `hcl:"azure_mysql_server"`
+#Name of Azure Database for MySQL Flexible Server
+azure_mysql_server="${RELEEM_AZURE_MYSQL_SERVER}"
+
 # Env string `hcl:"env"`
 # Releem Environment.
 env="${RELEEM_ENV:-prod}"
@@ -136,4 +148,3 @@ databases_query_optimization="${RELEEM_DATABASES_QUERY_OPTIMIZATION}"
 # releem_region string `hcl:"releem_region"`
 # Server data storage region - EU or empty.
 releem_region="${RELEEM_REGION}"
-

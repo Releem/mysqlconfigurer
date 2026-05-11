@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"runtime"
 	"time"
 
 	logging "github.com/google/logger"
@@ -9,7 +10,7 @@ import (
 )
 
 const (
-	ReleemAgentVersion = "1.23.3.1"
+	ReleemAgentVersion = "1.23.5.3"
 )
 
 type Config struct {
@@ -47,6 +48,9 @@ type Config struct {
 	GcpRegion                   string        `hcl:"gcp_region"`
 	GcpCloudSqlInstance         string        `hcl:"gcp_cloudsql_instance"`
 	GcpCloudSqlPublicConnection bool          `hcl:"gcp_cloudsql_public_connection"`
+	AzureSubscriptionID         string        `hcl:"azure_subscription_id"`
+	AzureResourceGroup          string        `hcl:"azure_resource_group"`
+	AzureMySQLServer            string        `hcl:"azure_mysql_server"`
 	QueryOptimization           bool          `hcl:"query_optimization"`
 	DatabasesQueryOptimization  string        `hcl:"databases_query_optimization"`
 	ReleemRegion                string        `hcl:"releem_region"`
@@ -103,7 +107,7 @@ func LoadConfigFromString(data string, logger logging.Logger) (*Config, error) {
 		config.PgPort = "5432"
 	}
 	if config.ReleemDir == "" {
-		config.ReleemDir = "/opt/releem"
+		config.ReleemDir = defaultReleemDirPath()
 	}
 	if config.InstanceType == "" {
 		config.InstanceType = "local"
@@ -156,4 +160,13 @@ func (config *Config) GetDatabaseType() string {
 	}
 	// Default to MySQL for backward compatibility
 	return "mysql"
+}
+
+func defaultReleemDirPath() string {
+	switch runtime.GOOS {
+	case "windows":
+		return "C:\\Program Files\\ReleemAgent"
+	default: // for Linux and other UNIX-like systems
+		return "/opt/releem"
+	}
 }

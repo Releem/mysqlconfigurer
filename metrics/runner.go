@@ -40,7 +40,7 @@ func RunWorker(gatherers map[string][]models.MetricsGatherer, repeaters models.M
 		timer = time.NewTimer(24 * time.Hour)
 		QueryOptimizationTimer = time.NewTimer(24 * time.Hour)
 	} else {
-		GenerateTimer = time.NewTimer(10 * time.Minute)
+		GenerateTimer = time.NewTimer(configuration.GenerateConfigPeriod * time.Second)
 		timer = time.NewTimer(1 * time.Second)
 		QueryOptimizationTimer = time.NewTimer(1 * time.Minute)
 	}

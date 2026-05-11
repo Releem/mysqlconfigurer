@@ -5,3 +5,7 @@ test-project/
 .keys/
 .config/
 releem-agent/
+test-results/
+context.txt
+.codex/*
+releem-agent-on-premise/

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh - Version 1.23.3.1
+# install.sh - Version 1.23.5.3
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -10,7 +10,7 @@ set -e -E
 # using the package manager.
 
 # Set defaults.
-install_script_version=1.23.3.1
+install_script_version=1.23.5.3
 logfile="/var/log/releem-install.log"
 npipe=""
 
@@ -27,36 +27,31 @@ else
     sudo_cmd='sudo'
 fi
 
-function on_exit() {
-    if [ -n "$RELEEM_TEST_MODE" ]; then
-        return 0
-    fi    
+function on_exit() {  
     if [[ "${RELEEM_REGION}" == "EU" ]]; then
-        API_DOMAIN="api.eu.releem.com"
+        API_DOMAIN="api.queries.eu.releem.com"
     else
-        API_DOMAIN="api.releem.com"
+        API_DOMAIN="api.queries.releem.com"
     fi    
     curl -s -L -d @"$logfile" -H "x-releem-api-key: $apikey" -H "Content-Type: application/json" -X POST "https://${API_DOMAIN}/v2/events/saving_log"
     [ -n "$npipe" ] && rm -f "$npipe"
 }
-trap on_exit EXIT
+if [ -z "$RELEEM_TEST_MODE" ]; then
+    trap on_exit EXIT
+fi
 
 function on_error() {
-    if [ -n "$RELEEM_TEST_MODE" ]; then
-        return 0
-    fi    
     printf "\033[31m $ERROR_MESSAGE\n"
     printf "\033[31m It looks like you encountered an issue while installing the Releem.\n"
     printf "\033[31m If you are still experiencing problems, please send an email to hello@releem.com \n"
     printf "\033[31m with the contents of the $logfile. We will do our best to resolve the issue.\n"
     printf "\033[0m\n"
 }
-trap on_error ERR
+if [ -z "$RELEEM_TEST_MODE" ]; then
+    trap on_error ERR
+fi
 
 function setup_logging() {
-    if [ -n "$RELEEM_TEST_MODE" ]; then
-        return 0
-    fi
     # Set up a named pipe for logging 
     npipe=/tmp/$$.install.tmp
     mknod "$npipe" p
@@ -65,7 +60,9 @@ function setup_logging() {
     exec 1>&-
     exec 1>"$npipe" 2>&1
 }
-setup_logging
+if [ -z "$RELEEM_TEST_MODE" ]; then
+    setup_logging
+fi
 
 function releem_set_cron() {
     ($sudo_cmd crontab -l 2>/dev/null | grep -v "$RELEEM_WORKDIR/mysqlconfigurer.sh" || true; echo "$RELEEM_CRON") | $sudo_cmd crontab -
@@ -500,13 +497,21 @@ function create_postgresql_user() {
             RELEEM_PG_LOGIN="releem"
             RELEEM_PG_PASSWORD=$(cat /dev/urandom | tr -cd '%*)?@#~' | head -c2 ; cat /dev/urandom | tr -cd '%*)?@#~A-Za-z0-9%*)?@#~' | head -c16 ; cat /dev/urandom | tr -cd '%*)?@#~' | head -c2 )
             
-            # Drop user if exists and create new one
-            PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "DROP USER IF EXISTS ${RELEEM_PG_LOGIN};" 2>/dev/null || true
-            PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "CREATE USER ${RELEEM_PG_LOGIN} WITH PASSWORD '${RELEEM_PG_PASSWORD}';" 2>/dev/null 
+            # Update the password for an existing role, otherwise create it.
+            if PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -tAc "SELECT 1 FROM pg_roles WHERE rolname = '${RELEEM_PG_LOGIN}';" 2>/dev/null | grep -q "1"; then
+                PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "ALTER USER ${RELEEM_PG_LOGIN} WITH PASSWORD '${RELEEM_PG_PASSWORD}';" 2>/dev/null
+                printf "\033[32m   Updated password for existing PostgreSQL user \`${RELEEM_PG_LOGIN}\`\033[0m\n"
+            else
+                PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "CREATE USER ${RELEEM_PG_LOGIN} WITH PASSWORD '${RELEEM_PG_PASSWORD}';" 2>/dev/null
+                printf "\033[32m   Created new PostgreSQL user \`${RELEEM_PG_LOGIN}\`\033[0m\n"
+            fi
             
             # Grant necessary permissions
             PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "GRANT pg_monitor TO ${RELEEM_PG_LOGIN};" 2>/dev/null 
-            
+            PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "GRANT SELECT ON pg_hba_file_rules TO ${RELEEM_PG_LOGIN};" 2>/dev/null 
+            PGPASSWORD=${RELEEM_PG_ROOT_PASSWORD} ${pg_root_peer_connection} $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "GRANT EXECUTE ON FUNCTION pg_hba_file_rules TO ${RELEEM_PG_LOGIN};" 2>/dev/null 
+
+
             # # Try to grant access to pg_stat_statements if available
             # if $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements';" | grep -q 1; then
             #     $psqlcmd ${pg_root_connection_string} -U ${pg_superuser} -c "GRANT SELECT ON pg_stat_statements TO ${RELEEM_PG_LOGIN};" 2>/dev/null || true
@@ -526,7 +531,6 @@ function create_postgresql_user() {
                     printf "\033[33m   Warning: Failed to install pg_stat_statements extension. Query performance monitoring may be limited.\033[0m\n"
                 fi
             fi            
-            printf "\033[32m   Created new PostgreSQL user \`${RELEEM_PG_LOGIN}\`\033[0m\n"
             FLAG_SUCCESS=1
         else
             printf "\033[31m\n%s\n%s\033[0m\n" "PostgreSQL connection failed with superuser ${pg_superuser}." "Check that PostgreSQL is running and accessible, or set RELEEM_PG_ROOT_PASSWORD if authentication is required."
@@ -541,6 +545,44 @@ function create_postgresql_user() {
             printf "\033[32m\n   PostgreSQL connection with user \`${RELEEM_PG_LOGIN}\` - successful. \033[0m\n"
             PG_LOGIN=$RELEEM_PG_LOGIN
             PG_PASSWORD=$RELEEM_PG_PASSWORD
+
+            printf "\033[37m - Validating PostgreSQL access required for security collectors.\033[0m\n"
+
+            if PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -t -c "SELECT 1 FROM pg_extension LIMIT 1;" >/dev/null 2>&1; then
+                printf "\033[32m   Access to pg_extension is available.\033[0m\n"
+            else
+                printf "\033[33m   Warning: access to pg_extension is unavailable. Extension-based security checks may be incomplete.\033[0m\n"
+            fi
+
+            if PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -t -c "SELECT 1 FROM pg_roles LIMIT 1;" >/dev/null 2>&1; then
+                printf "\033[32m   Access to pg_roles is available.\033[0m\n"
+            else
+                printf "\033[33m   Warning: access to pg_roles is unavailable. Role-based security checks may be incomplete.\033[0m\n"
+            fi
+
+            if PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -t -c "SELECT 1 FROM pg_auth_members LIMIT 1;" >/dev/null 2>&1; then
+                printf "\033[32m   Access to pg_auth_members is available.\033[0m\n"
+            else
+                printf "\033[33m   Warning: access to pg_auth_members is unavailable. Role membership checks may be incomplete.\033[0m\n"
+            fi
+
+            if PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -t -c "SELECT * FROM pg_hba_file_rules LIMIT 1;" >/dev/null 2>&1; then
+                printf "\033[32m   Access to pg_hba_file_rules is available.\033[0m\n"
+            else
+                printf "\033[33m   Warning: access to pg_hba_file_rules is unavailable. pg_hba-based security checks may be incomplete.\033[0m\n"
+            fi
+
+            if PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -t -c "SELECT has_schema_privilege('public', 'public', 'USAGE');" >/dev/null 2>&1; then
+                printf "\033[32m   Access to schema privilege inspection is available.\033[0m\n"
+            else
+                printf "\033[33m   Warning: schema privilege inspection is unavailable. PUBLIC schema permission checks may be incomplete.\033[0m\n"
+            fi
+
+            if PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -t -c "SELECT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind IN ('r', 'p') AND n.nspname NOT IN ('pg_catalog', 'information_schema') AND c.relrowsecurity);" >/dev/null 2>&1; then
+                printf "\033[32m   Access to RLS metadata is available.\033[0m\n"
+            else
+                printf "\033[33m   Warning: access to RLS metadata is unavailable. RLS reporting may be incomplete.\033[0m\n"
+            fi
         else
             printf "\033[31m\n%s\n%s\033[0m\n" "PostgreSQL connection failed with user \`${RELEEM_PG_LOGIN}\`." "Check that the host, user and password are correct and the user has necessary permissions."
             PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -c "SELECT VERSION()" || true
@@ -855,6 +897,22 @@ function configure_releem_agent() {
             printf "\033[31m - GCP project ID, GCP region or GCP Cloud SQL instance is not set. Please set the variables RELEEM_GCP_PROJECT_ID, RELEEM_GCP_REGION and RELEEM_GCP_CLOUDSQL_INSTANCE\033[0m\n"
             exit 1
         fi
+    elif [ "$instance_type" == "azure/mysql" ]; then
+        if [ -n "$RELEEM_AZURE_SUBSCRIPTION_ID" ] && [ -n "$RELEEM_AZURE_RESOURCE_GROUP" ] && [ -n "$RELEEM_AZURE_MYSQL_SERVER" ]; then
+            printf "\033[37m - Adding Azure subscription ID ${RELEEM_AZURE_SUBSCRIPTION_ID} to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+            echo "azure_subscription_id=\"$RELEEM_AZURE_SUBSCRIPTION_ID\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+            printf "\033[37m - Adding Azure resource group ${RELEEM_AZURE_RESOURCE_GROUP} to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+            echo "azure_resource_group=\"$RELEEM_AZURE_RESOURCE_GROUP\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+            printf "\033[37m - Adding Azure MySQL server ${RELEEM_AZURE_MYSQL_SERVER} to the Releem Agent configuration: $RELEEM_CONF_FILE\n\033[0m"
+            echo "azure_mysql_server=\"$RELEEM_AZURE_MYSQL_SERVER\"" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+            if [ -z "$RELEEM_MYSQL_SSL_MODE" ]; then
+                printf "\033[37m - Enabling MySQL SSL mode by default for Azure Database for MySQL: $RELEEM_CONF_FILE\n\033[0m"
+                echo "mysql_ssl_mode=true" | $sudo_cmd tee -a $RELEEM_CONF_FILE >/dev/null
+            fi
+        else
+            printf "\033[31m - Azure subscription ID, resource group or MySQL server is not set. Please set RELEEM_AZURE_SUBSCRIPTION_ID, RELEEM_AZURE_RESOURCE_GROUP and RELEEM_AZURE_MYSQL_SERVER\033[0m\n"
+            exit 1
+        fi
     fi
     # Secure the configuration file
     $sudo_cmd chmod 640 $RELEEM_CONF_FILE
@@ -924,7 +982,7 @@ function first_run_releem_agent() {
         printf "\033[37m\n * Executing Releem Agent for the first time.\033[0m\n"
         printf "\033[37m This may take up to 15 minutes on servers with many databases.\033[0m\n\n"
         $sudo_cmd $RELEEM_WORKDIR/releem-agent -f
-        $sudo_cmd timeout --preserve-status 3 $RELEEM_WORKDIR/releem-agent
+        $sudo_cmd timeout --preserve-status 10 $RELEEM_WORKDIR/releem-agent
     fi
     trap on_error ERR
     set -e

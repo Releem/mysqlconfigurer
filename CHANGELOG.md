@@ -1,8 +1,23 @@
 Releem releases
 ---
 
+Releem 1.23.0, 2026-03-31 ([What's New At Releem | March 2026](https://releem.com/blog/whats-new-at-releem-march-2026))
+- Added optimization for custom SQL queries.
+- Added WHMCS integration for hosting providers.
+- Added WHM/cPanel integration.
+- Added support for AWS Aurora Serverless. Closes #477.
+- Released API for hosting partners.
+- Added deadlock export to CSV. Closes #503.
+- Fixed a performance issue with collecting data from table_io_waits_summary_by_index_usage. Closes #500.
+- Fixed issues with emails sent from cron. Closes #504.
+- Fixed issue with empty partitions. Closes #495.
+- Fixed dependencies download during uninstallation. Closes #466.
+- Fixed duplicate index check not considering foreign keys. Closes #478.
+- Fixed Releem not optimizing queries that start with "(" instead of SELECT. Closes #427.
+- Fixed setting a task for apply when the agent is disconnected. Closes #311.
+
 Releem 1.22.7, 2026-01-31 ([What's New At Releem | January 2026](https://releem.com/blog/whats-new-at-releem-january-2026))
-- Added recommendation filtering in Query Analytics. Closes #457
+- Added recommendation filtering in Query Analytics. Closed #457
 - Added the ability to disable schema checks.
 - Added the ability to delete query recommendations
 - Added Google authentication

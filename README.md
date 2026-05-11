@@ -22,9 +22,9 @@
 
 The present repository contains the source code of the **Releem Agent**.
 
-[Releem](https://releem.com) is a MySQL performance monitoring tool that delivers consistent performance through continuous database profiling, configuration tuning, and SQL query optimization.
+[Releem](https://releem.com) is a database advisor for MySQL & MariaDB that provides automatic metrics analysis, actionable insights, and safe automation. It helps detect issues quickly, optimize performance continuously, and reduce manual work at scale.
 
-With Releem we are trying to bring top-notch experience in database performance management and save thousands of software engineers hours.
+With Releem we are trying to bring top-notch experience in database management and save thousands of software engineers hours.
 
 <p align="center">
 <img src="https://raw.githubusercontent.com/releem/docs/master/assets/images/releem_dashboard.png" width="90%">

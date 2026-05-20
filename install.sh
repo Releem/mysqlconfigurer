@@ -546,6 +546,16 @@ function create_postgresql_user() {
             PG_LOGIN=$RELEEM_PG_LOGIN
             PG_PASSWORD=$RELEEM_PG_PASSWORD
 
+            if [ -z "${FLAG_PG_STAT_STATEMENTS+x}" ]; then
+                FLAG_PG_STAT_STATEMENTS=1
+                if PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -tAc "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements';" 2>/dev/null | grep -q "1" 2>/dev/null; then
+                    printf "\033[32m   pg_stat_statements extension is available for query performance monitoring.\033[0m\n"
+                else
+                    FLAG_PG_STAT_STATEMENTS=0
+                    printf "\033[33m   Warning: pg_stat_statements extension is unavailable. Query performance monitoring may be limited.\033[0m\n"
+                fi
+            fi
+
             printf "\033[37m - Validating PostgreSQL access required for security collectors.\033[0m\n"
 
             if PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -t -c "SELECT 1 FROM pg_extension LIMIT 1;" >/dev/null 2>&1; then

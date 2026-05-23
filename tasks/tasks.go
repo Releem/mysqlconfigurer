@@ -123,11 +123,13 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 		if configuration == nil || !configuration.EnableExecDDL {
 			TaskStruct.ExitCode = 10
 			TaskStruct.Status = 4
-			TaskStruct.Output = TaskStruct.Output + "Task skipped: schema change execution is disabled by config (enable_exec_ddl=false).\n"
-			logger.Info("Task skipped: schema change execution is disabled by config (enable_exec_ddl=false).")
+			errMsg := "Task skipped: schema change execution is disabled by config (enable_exec_ddl=false)."
+			TaskStruct.Output = TaskStruct.Output + errMsg + "\n"
+			TaskStruct.Error = errMsg
+			logger.Info(errMsg)
 			break
 		}
-		TaskStruct.ExitCode, TaskStruct.Status, TaskStruct.Output = ApplySchemaChanges(logger, configuration, TaskStruct.Details)
+		TaskStruct.ExitCode, TaskStruct.Status, TaskStruct.Output, TaskStruct.Error = ApplySchemaChanges(logger, configuration, TaskStruct.Details)
 
 	case 7:
 		TaskStruct.ExitCode, TaskStruct.Status, TaskStruct.Output, TaskStruct.Error = ProcessQueryExplainTask(
@@ -156,10 +158,24 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Status"})
 }
 
-func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, taskdetails string) (int, int, string) {
+func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, taskdetails string) (int, int, string, string) {
 	var task_exit_code, task_status int = 0, 1
-	var task_output string
+	var task_output, task_error string
 	var backupMethod phase2.BackupMethod
+
+	fail := func(exitCode int, outputMsg string, errorMsg string) (int, int, string, string) {
+		task_exit_code = exitCode
+		task_status = 4
+		if outputMsg != "" {
+			task_output += outputMsg
+		}
+		if errorMsg != "" {
+			task_error = errorMsg
+		} else if outputMsg != "" {
+			task_error = outputMsg
+		}
+		return task_exit_code, task_status, task_output, task_error
+	}
 
 	type schemaChangeAnalysisResults struct {
 		SchemaName             string      `json:"schema_name"`
@@ -192,9 +208,6 @@ func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, tas
 			logger.Error("Failed to parse task_details JSON: ", err)
 			return TaskDetails{}, fmt.Errorf("taskdetails JSON must be an array of objects with `schema_name`, `ddl_statement`, and `analysis_results`")
 		}
-		if len(details.Statements) == 0 {
-			return TaskDetails{}, fmt.Errorf("taskdetails array is empty")
-		}
 
 		for i, item := range details.Statements {
 			if strings.TrimSpace(item.SchemaName) == "" {
@@ -220,17 +233,11 @@ func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, tas
 	details, err := parseTaskDetails()
 	if err != nil {
 		logger.Error(err)
-		task_exit_code = 2
-		task_status = 4
-		task_output = task_output + err.Error()
-		return task_exit_code, task_status, task_output
+		return fail(2, err.Error(), "")
 	}
 	if len(details.Statements) == 0 {
-		logger.Error("task_details list is empty")
-		task_exit_code = 3
-		task_status = 4
-		task_output = task_output + "Invalid task_details: empty schema change list."
-		return task_exit_code, task_status, task_output
+		logger.Error("Invalid task_details: empty schema change list.")
+		return fail(3, "Invalid task_details: empty schema change list.", "")
 	}
 
 	logger.Info("* Executing schema changes...")
@@ -247,19 +254,13 @@ func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, tas
 			if analysis.SyntaxError != nil {
 				errMsg = fmt.Sprintf("syntax validation failed: %v", analysis.SyntaxError)
 			}
-			logger.Error("* Statement ", i, " - ", errMsg)
-			task_output += fmt.Sprintf("Statement %d skipped: %s\n", i, errMsg)
-			task_exit_code = 4
-			task_status = 4
-			return task_exit_code, task_status, task_output
+			logger.Errorf("Statement %d skipped: %s\n", i, errMsg)
+			return fail(4, fmt.Sprintf("Statement %d skipped: %s\n", i, errMsg), "")
 		}
 
 		if !analysis.OKOnlineDDL && !analysis.OKPTOSC {
-			logger.Error("* Statement ", i, " cannot be executed without blocking the table")
-			task_output += fmt.Sprintf("Statement %d skipped: cannot be executed without blocking the table\n", i)
-			task_exit_code = 5
-			task_status = 4
-			return task_exit_code, task_status, task_output
+			logger.Errorf("Statement %d skipped: cannot be executed without blocking the table\n", i)
+			return fail(5, fmt.Sprintf("Statement %d skipped: cannot be executed without blocking the table\n", i), "")
 		}
 
 		if !strings.EqualFold(strings.TrimSpace(analysis.StorageEngine), "InnoDB") {
@@ -272,10 +273,7 @@ func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, tas
 
 			if !analysis.OKPTR {
 				logger.Infof("Statement %d note: Point-in-time recovery is not possible - will not proceed with the schema change\n", i)
-				task_output += fmt.Sprintf("Statement %d skipped: Point-in-time recovery is not possible - will not proceed with the schema change\n", i)
-				task_exit_code = 6
-				task_status = 4
-				return task_exit_code, task_status, task_output
+				return fail(6, fmt.Sprintf("Statement %d skipped: Point-in-time recovery is not possible - will not proceed with the schema change\n", i), "")
 			}
 
 			if !analysis.OKOnlinePhysicalBackup {
@@ -297,12 +295,9 @@ func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, tas
 			Debug:        configuration.Debug,
 		})
 		if err != nil {
-			logger.Error(err)
-			task_output += fmt.Sprintf("Statement %d failed: %s\n", i, err.Error())
 			logger.Info("* Schema changes execution failed: ", err.Error())
-			task_exit_code = 7
-			task_status = 4
-			return task_exit_code, task_status, task_output
+			return fail(7, fmt.Sprintf("Statement %d failed: %s\n", i, err.Error()), err.Error())
+
 		}
 
 		executed++
@@ -311,11 +306,9 @@ func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, tas
 	}
 
 	if executed == 0 && len(details.Statements) > 0 {
-		task_exit_code = 8
-		task_status = 4
-		task_output = task_output + "No schema changes were executed.\n"
 		logger.Info("No schema changes were executed.")
+		return fail(8, "No schema changes were executed.\n", "")
 	}
 
-	return task_exit_code, task_status, task_output
+	return task_exit_code, task_status, task_output, task_error
 }

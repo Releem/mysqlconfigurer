@@ -177,3 +177,8 @@
 - Fixed Windows one-shot agent commands so `-f`, `-c`, `--initial`, `--event`, and `--task` run outside the service wrapper
 - Refreshed recommended configuration before Windows local apply
 - Added GCP-based Linux and Windows end-to-end installation test infrastructure
+
+## 1.23.6
+- Added `pg_stat_statements` validation for PostgreSQL credential setup
+- Updated Go toolchain and module dependencies
+- Bumped agent, installer, configurer, and Windows script versions to 1.23.6

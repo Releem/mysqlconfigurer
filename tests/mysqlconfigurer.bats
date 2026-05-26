@@ -26,7 +26,7 @@ EOF
     create_mock_cmd "sudo" '"$@"'
     create_mock_cmd "curl" '
 if [[ "$*" == *"current_version_agent"* ]]; then
-  echo "1.23.5.3"
+  echo "1.23.6"
   exit 0
 fi
 echo "ok"

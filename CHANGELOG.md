@@ -1,6 +1,19 @@
 Releem releases
 ---
 
+Releem 1.23.6.1, 2026-05-26 ([What's New At Releem | May 2026](https://releem.com/blog/whats-new-at-releem-may-2026))
+- Added Azure MySQL support, including enhanced metrics collection and platform-specific configuration apply flow.
+- Added support for Aurora Serverless v2 Enhanced Monitoring metrics and serverless database capacity collection. Closes #477.
+- Released Windows installer and MySQL configurer scripts to simplify installation, updates, apply, rollback, and queue-apply workflows on Windows. (#502)
+- Added Windows task execution support for configuration apply, configuration generation, query optimization, updates, automatic apply, and rollback.
+- Added GCP-based Linux and Windows end-to-end installation test infrastructure.
+- Added `pg_stat_statements` validation for PostgreSQL credential setup to warn when query performance monitoring may be limited.
+- Enabled `mysql_ssl_mode=true` by default for Azure MySQL installs.
+- Fixed critical startup errors being silently ignored by failing fast with explicit logging.
+- Fixed configuration, installer, configurer, and agent event log requests to use the queries API domain.
+- Fixed Windows one-shot agent commands, recommended configuration refresh before Windows local apply, and Windows task command support.
+- Updated Go toolchain and module dependencies, including `golang.org/x/crypto` to v0.52.0.
+
 Releem 1.23.0, 2026-03-31 ([What's New At Releem | March 2026](https://releem.com/blog/whats-new-at-releem-march-2026))
 - Added optimization for custom SQL queries.
 - Added WHMCS integration for hosting providers.

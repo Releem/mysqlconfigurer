@@ -355,6 +355,43 @@ function setup_mysql_config_directory() {
     fi    
 }
 
+function setup_mysql_root_password_option() {
+    mysql_root_password_option=()
+    if [[ -n "${RELEEM_MYSQL_ROOT_PASSWORD+x}" ]]; then
+        mysql_root_password_option=("--password=${RELEEM_MYSQL_ROOT_PASSWORD}")
+    fi
+}
+
+function mysql_root_ping() {
+    $mysqladmincmd ${root_connection_string} --user=root "${mysql_root_password_option[@]}" ping
+}
+
+function mysql_root_exec() {
+    $mysqlcmd ${root_connection_string} --user=root "${mysql_root_password_option[@]}" -Be "$1"
+}
+
+function mysql_root_connection_successful() {
+    [[ $(mysql_root_ping 2>/dev/null || true) == "mysqld is alive" ]]
+}
+
+function prompt_mysql_root_password_until_success() {
+    while true; do
+        if ! read -s -p "Please enter MySQL root password: " RELEEM_MYSQL_ROOT_PASSWORD; then
+            echo
+            printf "\033[31m\n Unable to read MySQL root password.\033[0m\n"
+            return 1
+        fi
+        echo
+        setup_mysql_root_password_option
+
+        if mysql_root_connection_successful; then
+            return 0
+        fi
+
+        printf "\033[31m\n MySQL connection failed with the entered root password.\033[0m\n"
+    done
+}
+
 function setup_postgresql_config_directory() {
     printf "\033[37m\n * Setting up PostgreSQL configuration directory.\033[0m\n"
     
@@ -404,43 +441,49 @@ function create_mysql_user() {
     #elif [ -n "$RELEEM_MYSQL_ROOT_PASSWORD" ]; then
     else
         printf "\033[37m\n * Using MySQL root user.\033[0m\n"
-        if [[ $($mysqladmincmd ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping 2>/dev/null || true) == "mysqld is alive" ]];
+        setup_mysql_root_password_option
+
+        if ! mysql_root_connection_successful && [[ -z "${RELEEM_MYSQL_ROOT_PASSWORD+x}" ]]; then
+            prompt_mysql_root_password_until_success || true
+        fi
+
+        if mysql_root_connection_successful;
         then
             printf "\033[37m\n MySQL connection successful.\033[0m\n"
             RELEEM_MYSQL_LOGIN="releem"
             RELEEM_MYSQL_PASSWORD=$(cat /dev/urandom | tr -cd '%*)?@#~' | head -c2 ; cat /dev/urandom | tr -cd '%*)?@#~A-Za-z0-9%*)?@#~' | head -c16 ; cat /dev/urandom | tr -cd '%*)?@#~' | head -c2 )
-            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "DROP USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' ;" 2>/dev/null || true
-            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "CREATE USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' identified by '${RELEEM_MYSQL_PASSWORD}';"
-            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT PROCESS ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
-            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT REPLICATION CLIENT ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
-            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"        
-            $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON mysql.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"        
+            mysql_root_exec "DROP USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' ;" 2>/dev/null || true
+            mysql_root_exec "CREATE USER '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}' identified by '${RELEEM_MYSQL_PASSWORD}';"
+            mysql_root_exec "GRANT PROCESS ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
+            mysql_root_exec "GRANT REPLICATION CLIENT ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
+            mysql_root_exec "GRANT SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
+            mysql_root_exec "GRANT SELECT ON mysql.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
 
-            if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON performance_schema.events_statements_summary_by_digest TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
+            if mysql_root_exec "GRANT SELECT ON performance_schema.events_statements_summary_by_digest TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
             then
                 echo "Successfully GRANT" > /dev/null
             else
                 printf "\033[31m\n This database version is too old, and it doesn't collect SQL Queries Latency metrics. You will not see Latency on the Dashboard.\033[0m\n"
             fi
-            if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON performance_schema.table_io_waits_summary_by_index_usage TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
+            if mysql_root_exec "GRANT SELECT ON performance_schema.table_io_waits_summary_by_index_usage TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
             then
                 echo "Successfully GRANT" > /dev/null
             else
                 printf "\033[31m\n This database version is too old.\033[0m\n"
             fi   
 
-            if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON performance_schema.file_summary_by_instance TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
+            if mysql_root_exec "GRANT SELECT ON performance_schema.file_summary_by_instance TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
             then
                 echo "Successfully GRANT" > /dev/null
             else
                 printf "\033[31m\n This database version is too old.\033[0m\n"
             fi      
 
-            if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SYSTEM_VARIABLES_ADMIN ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 2>/dev/null
+            if mysql_root_exec "GRANT SYSTEM_VARIABLES_ADMIN ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 2>/dev/null
             then
                 echo "Successfully GRANT" > /dev/null
             else
-                if $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SUPER ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';" 
+                if mysql_root_exec "GRANT SUPER ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
                 then
                     echo "Successfully GRANT" > /dev/null
                 else
@@ -448,9 +491,9 @@ function create_mysql_user() {
                 fi         
             fi 
 
-            if [ -n $RELEEM_QUERY_OPTIMIZATION ]; 
+            if [ -n "$RELEEM_QUERY_OPTIMIZATION" ];
             then
-                $mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
+                mysql_root_exec "GRANT SELECT ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
             fi        
 
             #$mysqlcmd  ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} -Be "GRANT SELECT, PROCESS,EXECUTE, REPLICATION CLIENT,SHOW DATABASES,SHOW VIEW ON *.* TO '${RELEEM_MYSQL_LOGIN}'@'${mysql_user_host}';"
@@ -458,7 +501,7 @@ function create_mysql_user() {
             FLAG_SUCCESS=1
         else
             printf "\033[31m\n%s\n%s\033[0m\n" "MySQL connection failed with user root." "Check that the password is correct, the execution of the command \`${mysqladmincmd} ${root_connection_string} --user=root --password=<MYSQL_ROOT_PASSWORD> ping\` and reinstall the agent."
-            $mysqladmincmd ${root_connection_string} --user=root --password=${RELEEM_MYSQL_ROOT_PASSWORD} ping || true
+            mysql_root_ping || true
             on_error
             exit 1
         fi

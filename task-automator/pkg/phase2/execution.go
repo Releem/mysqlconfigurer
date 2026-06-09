@@ -831,7 +831,9 @@ func rewriteDDLTargetTable(sql, newTableRef string) (string, error) {
 		return strings.Replace(sql, m[1], newTableRef, 1), nil
 	}
 
-	reCreateIdx := regexp.MustCompile("(?i)\\bON\\s+((`[^`]+`|[A-Za-z0-9_]+)(\\.(?:`[^`]+`|[A-Za-z0-9_]+))?)\\b")
+	// Column list may follow the table ref immediately (e.g. ON `db`.`tbl`(`col`)).
+	// No trailing \b: a word boundary is absent between `)` and `(`.
+	reCreateIdx := regexp.MustCompile("(?i)\\bON\\s+((`[^`]+`|[A-Za-z0-9_]+)(\\.(?:`[^`]+`|[A-Za-z0-9_]+))?)")
 	if m := reCreateIdx.FindStringSubmatch(sql); len(m) > 1 {
 		return strings.Replace(sql, m[1], newTableRef, 1), nil
 	}

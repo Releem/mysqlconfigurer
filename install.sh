@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh - Version 1.23.5.3
+# install.sh - Version 1.23.6.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -10,7 +10,7 @@ set -e -E
 # using the package manager.
 
 # Set defaults.
-install_script_version=1.23.5.3
+install_script_version=1.23.6.1
 logfile="/var/log/releem-install.log"
 npipe=""
 
@@ -545,6 +545,16 @@ function create_postgresql_user() {
             printf "\033[32m\n   PostgreSQL connection with user \`${RELEEM_PG_LOGIN}\` - successful. \033[0m\n"
             PG_LOGIN=$RELEEM_PG_LOGIN
             PG_PASSWORD=$RELEEM_PG_PASSWORD
+
+            if [ -z "${FLAG_PG_STAT_STATEMENTS+x}" ]; then
+                FLAG_PG_STAT_STATEMENTS=1
+                if PGPASSWORD=${RELEEM_PG_PASSWORD} $psqlcmd ${pg_connection_string} -U ${RELEEM_PG_LOGIN} -tAc "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements';" 2>/dev/null | grep -q "1" 2>/dev/null; then
+                    printf "\033[32m   pg_stat_statements extension is available for query performance monitoring.\033[0m\n"
+                else
+                    FLAG_PG_STAT_STATEMENTS=0
+                    printf "\033[33m   Warning: pg_stat_statements extension is unavailable. Query performance monitoring may be limited.\033[0m\n"
+                fi
+            fi
 
             printf "\033[37m - Validating PostgreSQL access required for security collectors.\033[0m\n"
 

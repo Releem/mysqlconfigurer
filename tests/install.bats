@@ -218,6 +218,81 @@ exit 1
     [[ "$pg_service_name_cmd" == *"systemctl restart postgresql"* ]]
 }
 
+@test "enable_collect_queries passes restart approval to postgresql configurer" {
+    load_install_functions
+    cat >"${TEST_TMPDIR}/capture_configurer_env.sh" <<'EOF'
+#!/usr/bin/env bash
+if [ "${RELEEM_RESTART_SERVICE:-}" != "1" ]; then
+  exit 42
+fi
+echo "RELEEM_RESTART_SERVICE=${RELEEM_RESTART_SERVICE:-}" >"${CONFIGURER_ENV_LOG}"
+echo "args=$*" >>"${CONFIGURER_ENV_LOG}"
+EOF
+    chmod +x "${TEST_TMPDIR}/capture_configurer_env.sh"
+
+    run env -u RELEEM_RESTART_SERVICE \
+        CONFIGURER_ENV_LOG="${TEST_TMPDIR}/configurer.env" \
+        bash -c '
+            RELEEM_TEST_MODE=1 source "$1"
+            set +e
+            instance_type="local"
+            database_type="postgresql"
+            FLAG_PG_STAT_STATEMENTS=1
+            sudo_cmd=""
+            RELEEM_COMMAND="bash $2"
+            enable_collect_queries
+        ' _ "${INSTALL_SH}" "${TEST_TMPDIR}/capture_configurer_env.sh"
+
+    [ "$status" -eq 0 ]
+    run grep -E "^RELEEM_RESTART_SERVICE=1$" "${TEST_TMPDIR}/configurer.env"
+    [ "$status" -eq 0 ]
+    run grep -E "^args=-p$" "${TEST_TMPDIR}/configurer.env"
+    [ "$status" -eq 0 ]
+}
+
+@test "create_postgresql_user validates pg_stat_statements for existing credentials" {
+    load_install_functions
+    create_mock_cmd "psql" '
+query="$*"
+if [[ "$query" == *"SELECT VERSION()"* ]]; then
+  exit 0
+elif [[ "$query" == *"pg_extension WHERE extname = '"'"'pg_stat_statements'"'"'"* ]]; then
+  echo "1"
+  exit 0
+elif [[ "$query" == *"pg_extension LIMIT 1"* ]]; then
+  exit 0
+elif [[ "$query" == *"pg_roles LIMIT 1"* ]]; then
+  exit 0
+elif [[ "$query" == *"pg_auth_members LIMIT 1"* ]]; then
+  exit 0
+elif [[ "$query" == *"pg_hba_file_rules LIMIT 1"* ]]; then
+  exit 0
+elif [[ "$query" == *"has_schema_privilege"* ]]; then
+  exit 0
+elif [[ "$query" == *"relrowsecurity"* ]]; then
+  exit 0
+fi
+exit 0
+'
+    run env -u FLAG_PG_STAT_STATEMENTS \
+        PATH="${MOCK_BIN}:${PATH}" \
+        FLAG_LOG="${TEST_TMPDIR}/pg-stat-flag.log" \
+        bash -c '
+            RELEEM_TEST_MODE=1 source "$1"
+            set +e
+            psqlcmd="$2"
+            pg_connection_string="-h 127.0.0.1 -p 5432 -d postgres"
+            RELEEM_PG_LOGIN="releem"
+            RELEEM_PG_PASSWORD="pwd"
+            create_postgresql_user
+            echo "FLAG_PG_STAT_STATEMENTS=${FLAG_PG_STAT_STATEMENTS:-}" >"${FLAG_LOG}"
+        ' _ "${INSTALL_SH}" "${MOCK_BIN}/psql"
+
+    [ "$status" -eq 0 ]
+    run grep -E "^FLAG_PG_STAT_STATEMENTS=1$" "${TEST_TMPDIR}/pg-stat-flag.log"
+    [ "$status" -eq 0 ]
+}
+
 @test "detect_mysql_commands exits non-zero when mysql binaries are missing" {
     create_mock_cmd "which" 'exit 1'
     run env RELEEM_TEST_MODE=1 PATH="${MOCK_BIN}:/bin" bash -c "source '${INSTALL_SH}'; detect_mysql_commands"

@@ -22,7 +22,7 @@
 
 The present repository contains the source code of the **Releem Agent**.
 
-[Releem](https://releem.com) is a database advisor for MySQL & MariaDB that provides automatic metrics analysis, actionable insights, and safe automation. It helps detect issues quickly, optimize performance continuously, and reduce manual work at scale.
+[Releem](https://releem.com) is a database advisor for MySQL, MariaDB & PostgreSQL that provides automatic metrics analysis, actionable insights, and safe automation. It helps detect issues quickly, optimize performance continuously, and reduce manual work at scale.
 
 With Releem we are trying to bring top-notch experience in database management and save thousands of software engineers hours.
 
@@ -81,6 +81,7 @@ Join the Releem Community on [Slack](https://join.slack.com/t/releem-community/s
 - MySQL 8.0, MySQL 5.7, MySQL 5.6, MySQL 5.5
 - MariaDB 10.1, MariaDB 10.2, MariaDB 10.3, MariaDB 10.4, MariaDB 10.5, MariaDB 10.6, MariaDB 10.7, MariaDB 10.8, MariaDB 10.9, MariaDB 10.10, MariaDB 10.11, MariaDB 11.0
 - Percona 8.0, Percona 5.7, Percona 5.6, Percona 5.5
+- PostgreSQL 15, PostgreSQL 16, PostgreSQL 17, PostgreSQL 18
 - Centos, CloudLinux, Debian, Ubuntu, RockyLinux
 - Windows Server 2012, Windows Server 2016, Windows Server 2019, Windows Server 2022, Windows Server 2025
 - Amazon RDS MySQL, Amazon RDS Aurora, Amazon RDS MariaDB

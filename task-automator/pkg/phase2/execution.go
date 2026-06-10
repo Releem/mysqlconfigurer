@@ -90,6 +90,20 @@ func (e *Executor) Execute(options ExecuteOptions) (*ExecuteResult, error) {
 	// 2.3. Execute using Online DDL if allowed
 	if options.OkOnlineDDL {
 		if err := e.executeWithOnlineDDL(options, result); err != nil {
+			// Fall back to pt-online-schema-change when Online DDL preflight
+			// signals that an in-place algorithm is unsupported (the MySQL
+			// error suggests "Try ALGORITHM=COPY") and pt-osc is allowed.
+			if options.OkPTOSC && strings.Contains(err.Error(), "Try ALGORITHM=COPY") {
+				if e.logger != nil {
+					e.logger.Infof("Online DDL not possible for table %s (%v); falling back to pt-online-schema-change", options.TableName, err)
+				}
+				if ptErr := e.executeWithPTOSC(options); ptErr != nil {
+					return nil, fmt.Errorf("pt-online-schema-change execution failed: %w", ptErr)
+				}
+				result.ChangeExecuted = true
+				result.MethodUsed = "pt-online-schema-change"
+				return result, nil
+			}
 			return nil, fmt.Errorf("schema change execution failed: %w", err)
 		}
 		// <<<<< TEST ONLINE DDL AGAINST EMPTY TABLE with SAME ENGINE AND SCHEMA

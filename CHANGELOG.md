@@ -1,10 +1,22 @@
 Releem releases
 ---
 
+Releem 1.23.6, 2026-05-31 ([What's New At Releem | May 2026](https://releem.com/blog/whats-new-at-releem-may-2026))
+- Added PostgreSQL support.
+- Added Azure MySQL support. Closes #265.
+- Added a Windows installer and helper scripts to simplify installation, updates, apply, and rollback workflows on Windows. Closes #436.
+- Added automated configuration apply on Windows.
+- Added query recommendations to Query Analytics.
+- Added last analysis information to Query Analytics.
+- Added a demo server for all new users.
+- Added notifications for invited users.
+- Enabled SSL by default for Azure MySQL installs.
+- Fixed security issues in Releem Agent.
+
 Releem 1.23.0, 2026-03-31 ([What's New At Releem | March 2026](https://releem.com/blog/whats-new-at-releem-march-2026))
 - Added optimization for custom SQL queries.
 - Added WHMCS integration for hosting providers.
-- Added WHM/cPanel integration.
+- Added WHM/cPanel integration. Closes #217
 - Added support for AWS Aurora Serverless. Closes #477.
 - Released API for hosting partners.
 - Added deadlock export to CSV. Closes #503.

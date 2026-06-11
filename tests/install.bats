@@ -293,6 +293,137 @@ exit 0
     [ "$status" -eq 0 ]
 }
 
+@test "create_mysql_user omits root password option when root password env is unset and root connects" {
+    load_install_functions
+    set -e
+    create_mock_cmd "mysqladmin" '
+printf "%s\n" "$*" >> "${MYSQLADMIN_ARGS_LOG}"
+echo "mysqld is alive"
+'
+    create_mock_cmd "mysql" '
+printf "%s\n" "$*" >> "${MYSQL_ARGS_LOG}"
+exit 0
+'
+
+    export MYSQLADMIN_ARGS_LOG="${TEST_TMPDIR}/mysqladmin.args"
+    export MYSQL_ARGS_LOG="${TEST_TMPDIR}/mysql.args"
+    mysqladmincmd="${MOCK_BIN}/mysqladmin"
+    mysqlcmd="${MOCK_BIN}/mysql"
+    root_connection_string="--host=127.0.0.1 --port=3306"
+    connection_string="--host=127.0.0.1 --port=3306"
+    mysql_user_host="127.0.0.1"
+    unset RELEEM_MYSQL_ROOT_PASSWORD RELEEM_MYSQL_LOGIN RELEEM_MYSQL_PASSWORD RELEEM_QUERY_OPTIMIZATION
+
+    run create_mysql_user
+
+    [ "$status" -eq 0 ] || return 1
+    run grep -F -e "--user=root --password= ping" "${TEST_TMPDIR}/mysqladmin.args"
+    [ "$status" -ne 0 ] || return 1
+}
+
+@test "create_mysql_user keeps empty root password option when root password env is set to empty string" {
+    load_install_functions
+    set -e
+    create_mock_cmd "mysqladmin" '
+printf "%s\n" "$*" >> "${MYSQLADMIN_ARGS_LOG}"
+echo "mysqld is alive"
+'
+    create_mock_cmd "mysql" '
+printf "%s\n" "$*" >> "${MYSQL_ARGS_LOG}"
+exit 0
+'
+
+    export MYSQLADMIN_ARGS_LOG="${TEST_TMPDIR}/mysqladmin.args"
+    export MYSQL_ARGS_LOG="${TEST_TMPDIR}/mysql.args"
+    mysqladmincmd="${MOCK_BIN}/mysqladmin"
+    mysqlcmd="${MOCK_BIN}/mysql"
+    root_connection_string="--host=127.0.0.1 --port=3306"
+    connection_string="--host=127.0.0.1 --port=3306"
+    mysql_user_host="127.0.0.1"
+    RELEEM_MYSQL_ROOT_PASSWORD=""
+    unset RELEEM_MYSQL_LOGIN RELEEM_MYSQL_PASSWORD RELEEM_QUERY_OPTIMIZATION
+
+    run create_mysql_user
+
+    [ "$status" -eq 0 ] || return 1
+    run head -n 1 "${TEST_TMPDIR}/mysqladmin.args"
+    [ "$status" -eq 0 ] || return 1
+    [[ "$output" == *"--password="* ]] || return 1
+}
+
+@test "create_mysql_user prompts for root password when env is unset and passwordless root fails" {
+    load_install_functions
+    set -e
+    create_mock_cmd "mysqladmin" '
+printf "%s\n" "$*" >> "${MYSQLADMIN_ARGS_LOG}"
+if [[ "$*" == *"--user=root"* && "$*" != *"--password=promptedpwd"* ]]; then
+  exit 1
+fi
+echo "mysqld is alive"
+'
+    create_mock_cmd "mysql" '
+printf "%s\n" "$*" >> "${MYSQL_ARGS_LOG}"
+if [[ "$*" == *"--user=root"* && "$*" != *"--password=promptedpwd"* ]]; then
+  exit 1
+fi
+exit 0
+'
+
+    export MYSQLADMIN_ARGS_LOG="${TEST_TMPDIR}/mysqladmin.args"
+    export MYSQL_ARGS_LOG="${TEST_TMPDIR}/mysql.args"
+    mysqladmincmd="${MOCK_BIN}/mysqladmin"
+    mysqlcmd="${MOCK_BIN}/mysql"
+    root_connection_string="--host=127.0.0.1 --port=3306"
+    connection_string="--host=127.0.0.1 --port=3306"
+    mysql_user_host="127.0.0.1"
+    unset RELEEM_MYSQL_ROOT_PASSWORD RELEEM_MYSQL_LOGIN RELEEM_MYSQL_PASSWORD RELEEM_QUERY_OPTIMIZATION
+
+    run create_mysql_user <<< "promptedpwd"
+
+    [ "$status" -eq 0 ] || return 1
+    run grep -F -e "--user=root --password=promptedpwd ping" "${TEST_TMPDIR}/mysqladmin.args"
+    [ "$status" -eq 0 ] || return 1
+    run grep -F -e "--user=root --password=promptedpwd -Be CREATE USER" "${TEST_TMPDIR}/mysql.args"
+    [ "$status" -eq 0 ] || return 1
+}
+
+@test "create_mysql_user keeps prompting until entered root password works" {
+    load_install_functions
+    set -e
+    create_mock_cmd "mysqladmin" '
+printf "%s\n" "$*" >> "${MYSQLADMIN_ARGS_LOG}"
+if [[ "$*" == *"--user=root"* && "$*" != *"--password=promptedpwd"* ]]; then
+  exit 1
+fi
+echo "mysqld is alive"
+'
+    create_mock_cmd "mysql" '
+printf "%s\n" "$*" >> "${MYSQL_ARGS_LOG}"
+if [[ "$*" == *"--user=root"* && "$*" != *"--password=promptedpwd"* ]]; then
+  exit 1
+fi
+exit 0
+'
+
+    export MYSQLADMIN_ARGS_LOG="${TEST_TMPDIR}/mysqladmin.args"
+    export MYSQL_ARGS_LOG="${TEST_TMPDIR}/mysql.args"
+    mysqladmincmd="${MOCK_BIN}/mysqladmin"
+    mysqlcmd="${MOCK_BIN}/mysql"
+    root_connection_string="--host=127.0.0.1 --port=3306"
+    connection_string="--host=127.0.0.1 --port=3306"
+    mysql_user_host="127.0.0.1"
+    unset RELEEM_MYSQL_ROOT_PASSWORD RELEEM_MYSQL_LOGIN RELEEM_MYSQL_PASSWORD RELEEM_QUERY_OPTIMIZATION
+
+    run create_mysql_user <<< "wrongpwd
+promptedpwd"
+
+    [ "$status" -eq 0 ] || return 1
+    run grep -F -e "--user=root --password=promptedpwd ping" "${TEST_TMPDIR}/mysqladmin.args"
+    [ "$status" -eq 0 ] || return 1
+    run grep -F -e "--user=root --password=promptedpwd -Be CREATE USER" "${TEST_TMPDIR}/mysql.args"
+    [ "$status" -eq 0 ] || return 1
+}
+
 @test "detect_mysql_commands exits non-zero when mysql binaries are missing" {
     create_mock_cmd "which" 'exit 1'
     run env RELEEM_TEST_MODE=1 PATH="${MOCK_BIN}:/bin" bash -c "source '${INSTALL_SH}'; detect_mysql_commands"

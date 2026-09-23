@@ -8,7 +8,7 @@
     Deployed to C:\Program Files\ReleemAgent\mysqlconfigurer.ps1
 
 .PARAMETER Apply
-    Apply the recommended MySQL configuration (with user confirmation).
+    Apply the prepared MySQL configuration (with user confirmation).
 
 .PARAMETER NonInteractive
     Apply the recommended MySQL configuration non-interactively.
@@ -33,7 +33,8 @@
 
 .EXAMPLE
     .\mysqlconfigurer.ps1 -Configure
-    .\mysqlconfigurer.ps1 -Apply
+    & .\releem-agent.exe -c full
+    if ($LASTEXITCODE -eq 0) { .\mysqlconfigurer.ps1 -Apply }
     .\mysqlconfigurer.ps1 -Apply -NonInteractive
     .\mysqlconfigurer.ps1 -Apply -NonInteractive -NoRestart
     .\mysqlconfigurer.ps1 -QueueApply
@@ -48,8 +49,6 @@ param(
     [Alias('Automatic')]
     [switch]$NonInteractive,
     [switch]$NoRestart,
-    [ValidateSet('dynamic', 'full')]
-    [string]$ApplyMode = 'full',
     [switch]$QueueApply,
     [Alias('r')]
     [switch]$Rollback,
@@ -311,31 +310,19 @@ function Restart-MySqlService {
 function Invoke-ApplyConfig {
     param(
         [bool]$Interactive,
-        [bool]$RestartService,
-        [ValidateSet('dynamic', 'full')]
-        [string]$ConfigurationApplyMode
+        [bool]$RestartService
     )
 
-    # Check that recommended config file exists in staging area
-    if (-not (Test-Path $StagingCnfPath)) {
-        Write-Log "ERROR: Recommended config file not found: $StagingCnfPath"
-        $script:ExitCode = 1; return
-    }
-
-    # Validate mysql_cnf_dir is configured
-    if (-not $mysql_cnf_dir) {
-        Write-Log 'ERROR: mysql_cnf_dir not set in releem.conf. Run -Configure first.'
-        $script:ExitCode = 1; return
+    if (-not $mysql_cnf_dir -or -not (Test-Path -LiteralPath $mysql_cnf_dir -PathType Container)) {
+        Write-Log 'ERROR: MySQL configuration directory not found. Run -Configure first.'
+        $script:ExitCode = 3; return
     }
     $liveCnfPath = Join-Path $mysql_cnf_dir $DbConfigFileName
 
-    Write-Log 'Getting the latest up-to-date configuration.'
-    if (Test-Path $AgentBinaryPath) {
-        & $AgentBinaryPath -c $ConfigurationApplyMode
-        $getConfigExitCode = $LASTEXITCODE
-        Write-Log "releem-agent.exe -c $ConfigurationApplyMode exited with code: $getConfigExitCode"
-    } else {
-        Write-Log "WARNING: Releem Agent binary not found, skipping configuration refresh: $AgentBinaryPath"
+    Write-Log 'Using the configuration file prepared by Releem Agent.'
+    if (-not (Test-Path -LiteralPath $StagingCnfPath -PathType Leaf)) {
+        Write-Log 'ERROR: Prepared configuration file not found. Run releem-agent.exe -c first.'
+        $script:ExitCode = 1; return
     }
 
     # Log full contents of staging config so user can see what will be applied
@@ -347,6 +334,18 @@ function Invoke-ApplyConfig {
     if ((Check-DbVersion) -ne 0) {
         Write-Log 'ERROR: MySQL version is lower than 5.6.8. Check the documentation https://github.com/Releem/mysqlconfigurer#how-to-apply-the-recommended-configuration for applying the configuration.'
         $script:ExitCode = 2; return
+    }
+
+    # Like Bash manual apply, an identical file needs neither backup nor restart.
+    if ($Interactive -and (Test-Path -LiteralPath $liveCnfPath -PathType Leaf)) {
+        if ((Get-FileHash -LiteralPath $liveCnfPath).Hash -eq (Get-FileHash -LiteralPath $StagingCnfPath).Hash) {
+            Write-Log 'The new configuration is identical to the current configuration. No restart is required!'
+            return
+        }
+    }
+    if ($Interactive -and -not $RestartService) {
+        Write-Log 'Restart disabled. Manual configuration application cancelled.'
+        $script:ExitCode = 5; return
     }
 
     # Prompt for confirmation (interactive) or proceed automatically
@@ -364,16 +363,17 @@ function Invoke-ApplyConfig {
 
     # Back up the current live config before applying
     $noBomUtf8 = New-Object System.Text.UTF8Encoding $false
-    if (Test-Path $liveCnfPath) {
-        Copy-Item -Path $liveCnfPath -Destination $BackupCnfPath -Force
-        Write-Log "Backed up current live config to: $BackupCnfPath"
-    } else {
-        [System.IO.File]::WriteAllText($BackupCnfPath, "[mysqld]`r`n", $noBomUtf8)
-        Write-Log "Created baseline backup (no prior live config): $BackupCnfPath"
+    if (-not (Test-Path -LiteralPath $BackupCnfPath)) {
+        if (Test-Path -LiteralPath $liveCnfPath -PathType Leaf) {
+            Copy-Item -LiteralPath $liveCnfPath -Destination $BackupCnfPath -Force
+            Write-Log "Backed up current live config to: $BackupCnfPath"
+        } else {
+            [System.IO.File]::WriteAllText($BackupCnfPath, "[mysqld]`r`n", $noBomUtf8)
+            Write-Log "Created baseline backup (no prior live config): $BackupCnfPath"
+        }
     }
 
     # Copy staging config to MySQL conf dir
-    New-Item -Path $mysql_cnf_dir -ItemType Directory -Force | Out-Null
     $stagingContent = Get-Content -Path $StagingCnfPath -Raw
     [System.IO.File]::WriteAllText($liveCnfPath, $stagingContent, $noBomUtf8)
     Write-Log "Copied recommended config to $liveCnfPath"
@@ -547,7 +547,7 @@ try {
         } else {
             Write-Log 'Starting -Apply: applying recommended MySQL configuration...'
         }
-        Invoke-ApplyConfig -Interactive (-not $NonInteractive) -RestartService (-not $NoRestart) -ConfigurationApplyMode $ApplyMode
+        Invoke-ApplyConfig -Interactive (-not $NonInteractive) -RestartService (-not $NoRestart)
     }
 
     if ($QueueApply) {

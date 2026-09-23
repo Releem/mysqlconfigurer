@@ -2,14 +2,21 @@ package tasks
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
 	"os/exec"
+	"strings"
 
+	"github.com/Releem/mysqlconfigurer/config"
+	"github.com/Releem/mysqlconfigurer/models"
+	"github.com/Releem/mysqlconfigurer/utils"
 	logging "github.com/google/logger"
 )
 
-// func execCmd(cmd_path string, environment []string, logger logging.Logger) (int, int, string) {
-// 	return execTaskCommand(shellCommand(runtime.GOOS, cmd_path, environment), logger)
-// }
+// AppliedConfigurationInfo selects the configuration and mode for a task download.
+type AppliedConfigurationInfo struct {
+	ConfigurationID int `json:"configuration_id"`
+}
 
 func execTaskCommand(command taskCommand, logger logging.Logger) (int, int, string) {
 	var stdout, stderr bytes.Buffer
@@ -38,4 +45,72 @@ func execTaskCommand(command taskCommand, logger logging.Logger) (int, int, stri
 	}
 	task_output = task_output + stdout.String() + stderr.String()
 	return task_exit_code, task_status, task_output
+}
+
+// DownloadConfigurationFile prepares the file before either configurer can
+// back up, install or restart anything. Selection is passed directly to the configuration request.
+func DownloadConfigurationFile(metrics *models.Metrics, repeater models.MetricsRepeater, configuration *config.Config, logger logging.Logger, applyMode ApplyModeType, task *models.Task) (int, int, string) {
+	if metrics == nil {
+		return 1, 4, "configuration download failed: metrics unavailable"
+	}
+	mode, err := configurationRequestMode("Get", string(applyMode), task)
+	if err != nil {
+		return 1, 4, "Failed to parse task task_details JSON: " + err.Error()
+	}
+	repeater_response := utils.ProcessRepeaters(metrics, repeater, configuration, logger, mode)
+	if strings.TrimSpace(repeater_response) == "" {
+		return 1, 4, "configuration download failed: empty response"
+	}
+	return 0, 1, "configuration downloaded successfully"
+}
+
+// configurationRequestMode carries optional task selection directly to the request.
+func configurationRequestMode(requestType string, applyMode string, task *models.Task) (models.ModeType, error) {
+	mode := models.ModeType{Name: "Configurations", Type: requestType, ApplyMode: applyMode}
+
+	if applyMode != string(ApplyModeDynamic) && applyMode != string(ApplyModeFull) {
+		return mode, fmt.Errorf("invalid configuration apply mode")
+	}
+	if task == nil {
+		return mode, nil
+	}
+	if task.Details == "" {
+		return mode, nil
+	}
+	var details AppliedConfigurationInfo
+	if err := json.Unmarshal([]byte(task.Details), &details); err != nil {
+		return mode, err
+	}
+	if details.ConfigurationID < 0 {
+		return mode, fmt.Errorf("invalid configuration selection")
+	}
+	if task.TypeID == 8 && details.ConfigurationID == 0 {
+		return mode, fmt.Errorf("managed rollback requires configuration selection")
+	}
+
+	mode.ConfigurationID = details.ConfigurationID
+
+	return mode, nil
+}
+
+// RollBack results supplement the failed application without replacing its outcome.
+func rollBackConfigurationTask(task *models.Task, command taskCommand, logger logging.Logger) {
+	ExitCode, Status, Output := execTaskCommand(command, logger)
+	task.Output = task.Output + Output
+	payload, err := json.Marshal(map[string]interface{}{"rollback": map[string]interface{}{
+		"exit_code": ExitCode,
+		"status":    Status,
+		"output":    Output,
+	}})
+	if err == nil {
+		var merged string
+		merged, err = utils.MergeJSONStrings(task.Details, string(payload), "")
+		if err == nil {
+			task.Details = merged
+		}
+	}
+	if err != nil {
+		logger.Error("Failed to merge RollBack task details: ", err)
+	}
+	logger.Info(" * RollBack completed with code ", ExitCode)
 }

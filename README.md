@@ -47,6 +47,30 @@ With Releem we are trying to bring top-notch experience in database management a
 <img src="https://raw.githubusercontent.com/releem/docs/master/assets/images/releem-applying.gif" width="80%">
 </p>
 
+## Applying a prepared configuration
+
+Platform application tasks download the selected configuration in Go before
+starting `mysqlconfigurer.sh` or `windows/mysqlconfigurer.ps1`. Both scripts apply
+the prepared file without downloading it again. A failed download stops the task before application.
+
+For a direct manual invocation, download first:
+
+```bash
+/opt/releem/releem-agent -c full && /opt/releem/mysqlconfigurer.sh -a
+```
+
+On Windows, prepare the file before applying it in an elevated PowerShell:
+
+```powershell
+& 'C:\Program Files\ReleemAgent\releem-agent.exe' -c full
+if ($LASTEXITCODE -eq 0) {
+    & 'C:\Program Files\ReleemAgent\mysqlconfigurer.ps1' -Apply
+}
+```
+
+For Appling without restart, The Agent downloads in `dynamic` mode and runs the configurer without a
+restart. The configurer scripts do not select configurations or apply modes.
+
 ## How it works
 
 **Releem Agent** - Has been installed on servers, collects MySQL metrics, sends them to Cloud Platforms, and applies MySQL configurations. Open Source daemon built on Go.

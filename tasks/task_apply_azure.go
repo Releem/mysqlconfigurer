@@ -26,7 +26,7 @@ type azureMySQLConfigurationMetadata struct {
 }
 
 func ApplyConfAzureMySQL(repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer,
-	logger logging.Logger, configuration *config.Config, applyMode string, restart bool) (int, int, string) {
+	logger logging.Logger, configuration *config.Config, applyMode ApplyModeType, restart bool, task *models.Task) (int, int, string) {
 
 	task_exit_code, task_status := 0, 1
 	var task_output string
@@ -79,13 +79,24 @@ func ApplyConfAzureMySQL(repeaters models.MetricsRepeater, gatherers []models.Me
 		return task_exit_code, task_status, task_output
 	}
 
+	mode, err := configurationRequestMode("GetJson", string(applyMode), task)
+	if err != nil {
+		logger.Error("Failed to parse task task_details JSON", err)
+		task_output = task_output + "Failed to parse task task_details JSON: " + err.Error()
+		task_status = 4
+		task_exit_code = 1
+		return task_exit_code, task_status, task_output
+	}
+
+	recommendVar := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, mode)
 	recommendedVars := models.MetricGroupValue{}
-	recommendVar := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Configurations", Type: "GetJson", ApplyMode: applyMode})
 	err = json.Unmarshal([]byte(recommendVar), &recommendedVars)
 	if err != nil {
-		logger.Error(err)
-		task_output = task_output + err.Error()
-		return 8, 4, task_output
+		logger.Error("Failed to parse configuration recommendations JSON", err)
+		task_output = task_output + "Failed to parse configuration recommendations JSON: " + err.Error()
+		task_status = 4
+		task_exit_code = 8
+		return task_exit_code, task_status, task_output
 	}
 
 	var updates []*armmysqlflexibleservers.ConfigurationForBatchUpdate
@@ -205,8 +216,8 @@ func ApplyConfAzureMySQL(repeaters models.MetricsRepeater, gatherers []models.Me
 	return task_exit_code, task_status, task_output
 }
 
-func azureConfigurationEligibleForApplyMode(metadata azureMySQLConfigurationMetadata, applyMode string) bool {
-	return !metadata.readOnly && (applyMode != "dynamic" || metadata.dynamic)
+func azureConfigurationEligibleForApplyMode(metadata azureMySQLConfigurationMetadata, applyMode ApplyModeType) bool {
+	return !metadata.readOnly && (applyMode != ApplyModeDynamic || metadata.dynamic)
 }
 
 func loadAzureMySQLConfigurations(ctx context.Context, configurationsClient *armmysqlflexibleservers.ConfigurationsClient,

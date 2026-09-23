@@ -179,7 +179,7 @@ INNER
     [[ "$output" == *"Sending request to create a job"* ]]
 }
 
-@test "automatic apply forwards dynamic mode to agent config download" {
+@test "automatic apply uses prepared dynamic file without downloading" {
     write_mysql_conf "aws/rds"
     echo "8.0.36" > "${TEST_CONF_DIR}/db_version"
     cat > "${TEST_CONF_DIR}/z_aiops_mysql.cnf" <<'EOF'
@@ -203,7 +203,9 @@ EOF
         bash "${CONFIGURER_SH}" -s automatic dynamic
 
     [ "$status" -eq 0 ]
-    run grep -Fx -- "-c dynamic" "${TEST_CALLS_LOG}"
+    run grep -E -- "(^| )-c( |$)" "${TEST_CALLS_LOG}"
+    [ "$status" -eq 1 ]
+    run grep -F "max_connections=200" "${TEST_DB_DIR}/z_aiops_mysql.cnf"
     [ "$status" -eq 0 ]
 }
 
@@ -497,4 +499,29 @@ MYSQL_MY_CNF_PATH=""
 releem_apply_manual
 '
     [ "$status" -eq 6 ]
+}
+
+@test "manual apply uses prepared file without invoking configuration download" {
+    write_mysql_conf
+    echo "8.0.36" > "${TEST_CONF_DIR}/db_version"
+    printf '[mysqld]\nmax_connections=200\n' > "${TEST_CONF_DIR}/z_aiops_mysql.cnf"
+    cp "${TEST_CONF_DIR}/z_aiops_mysql.cnf" "${TEST_DB_DIR}/z_aiops_mysql.cnf"
+    printf '#!/bin/sh\necho unexpected-download\nexit 99\n' > "${TEST_WORKDIR}/releem-agent"
+    run env PATH="${MOCK_BIN}:${PATH}" RELEEM_TEST_MODE=1 RELEEM_RESTART_SERVICE=0 \
+        RELEEM_CONF_DIR="${TEST_CONF_DIR}/" RELEEM_CONF_FILE="${TEST_CONF_FILE}" \
+        bash "${CONFIGURER_SH}" -a
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"identical to the current configuration"* ]]
+    [[ "$output" != *"unexpected-download"* ]]
+}
+
+@test "manual apply refuses missing prepared file" {
+    write_mysql_conf
+    echo "8.0.36" > "${TEST_CONF_DIR}/db_version"
+    run env PATH="${MOCK_BIN}:${PATH}" RELEEM_TEST_MODE=1 RELEEM_RESTART_SERVICE=0 \
+        RELEEM_CONF_DIR="${TEST_CONF_DIR}/" RELEEM_CONF_FILE="${TEST_CONF_FILE}" \
+        bash "${CONFIGURER_SH}" -a
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"configuration was not found"* ]]
+    [ ! -f "${TEST_DB_DIR}/z_aiops_mysql.cnf" ]
 }

@@ -22,6 +22,9 @@ func ProcessRepeaters(metrics *models.Metrics, repeaters models.MetricsRepeater,
 	configuration *config.Config, logger logging.Logger, Mode models.ModeType) string {
 	defer HandlePanic(configuration, logger)
 
+	if metrics == nil {
+		return ""
+	}
 	result, err := repeaters.ProcessMetrics(configuration, *metrics, Mode)
 	if err != nil {
 		logger.Error("Repeater failed ", err)

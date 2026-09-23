@@ -13,7 +13,7 @@ import (
 	logging "github.com/google/logger"
 )
 
-func ApplyConfLocal(metrics *models.Metrics, repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer, logger logging.Logger, configuration *config.Config) (int, int, string) {
+func ApplyConfLocal(metrics *models.Metrics, repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer, logger logging.Logger, configuration *config.Config, task *models.Task) (int, int, string) {
 	var task_exit_code, task_status int
 	var task_output string
 
@@ -24,10 +24,23 @@ func ApplyConfLocal(metrics *models.Metrics, repeaters models.MetricsRepeater, g
 	need_flush := false
 	error_exist := false
 
-	recommend_var := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Configurations", Type: "GetJson", ApplyMode: "dynamic"})
-	err := json.Unmarshal([]byte(recommend_var), &result_data)
+	mode, err := configurationRequestMode("GetJson", string(ApplyModeDynamic), task)
 	if err != nil {
-		logger.Error(err)
+		logger.Error("Failed to parse task task_details JSON", err)
+		task_output = task_output + "Failed to parse task task_details JSON: " + err.Error()
+		task_status = 4
+		task_exit_code = 1
+		return task_exit_code, task_status, task_output
+	}
+
+	recommend_var := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, mode)
+	err = json.Unmarshal([]byte(recommend_var), &result_data)
+	if err != nil {
+		logger.Error("Failed to parse configuration recommendations JSON", err)
+		task_output = task_output + "Failed to parse configuration recommendations JSON: " + err.Error()
+		task_status = 4
+		task_exit_code = 1
+		return task_exit_code, task_status, task_output
 	}
 
 	operations := localDynamicApplyQueries(configuration.GetDatabaseType(), result_data, metrics.DB.Conf.Variables)

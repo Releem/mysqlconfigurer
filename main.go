@@ -387,8 +387,7 @@ func main() {
 	var err error
 	configurationApplyMode, command, err = parseConfigurationApplyMode(*GetConfigRun, command)
 	if err != nil {
-		logger.Error(err)
-		os.Exit(2)
+		exitRunWithError(err)
 	}
 
 	if shouldRunOneShotMode(len(command), *SetConfigRun, *GetConfigRun, *InitialConfigRun, *AgentEvent, *AgentTask) {

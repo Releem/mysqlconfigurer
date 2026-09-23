@@ -50,13 +50,12 @@ func taskUpdateCommand(goos string, releemDir string) taskCommand {
 	if goos == "windows" {
 		return powershellConfigurerCommand(releemDir, []string{"-Update"}, nil)
 	}
-
 	return shellCommand(goos, releemDir+"/mysqlconfigurer.sh -u", nil)
 }
 
-func taskApplyAutomaticCommand(goos string, releemDir string, applyMode string, restart bool) taskCommand {
+func taskApplyAutomaticCommand(goos string, releemDir string, restart bool) taskCommand {
 	if goos == "windows" {
-		args := []string{"-Apply", "-NonInteractive", "-ApplyMode", applyMode}
+		args := []string{"-Apply", "-NonInteractive"}
 		if !restart {
 			args = append(args, "-NoRestart")
 		}
@@ -68,10 +67,10 @@ func taskApplyAutomaticCommand(goos string, releemDir string, applyMode string, 
 		restartValue = "1"
 	}
 
-	return shellCommand(goos, releemDir+"/mysqlconfigurer.sh -s automatic "+applyMode, []string{"RELEEM_RESTART_SERVICE=" + restartValue})
+	return shellCommand(goos, releemDir+"/mysqlconfigurer.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=" + restartValue})
 }
 
-func taskRollbackCommand(goos string, releemDir string) taskCommand {
+func taskRollBackCommand(goos string, releemDir string) taskCommand {
 	if goos == "windows" {
 		return powershellConfigurerCommand(releemDir, []string{"-Rollback"}, []string{"RELEEM_ROLLBACK_CONFIRM=1"})
 	}

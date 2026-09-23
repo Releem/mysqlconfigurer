@@ -14,6 +14,13 @@ import (
 	logging "github.com/google/logger"
 )
 
+type ApplyModeType string
+
+const (
+	ApplyModeDynamic ApplyModeType = "dynamic"
+	ApplyModeFull    ApplyModeType = "full"
+)
+
 type schemaChangeExecutor interface {
 	Execute(phase2.ExecuteOptions) (*phase2.ExecuteResult, error)
 }
@@ -30,19 +37,29 @@ func ProcessTaskFunc(repeaters models.MetricsRepeater, gatherers []models.Metric
 
 func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer, logger logging.Logger, configuration *config.Config) {
 	defer utils.HandlePanic(configuration, logger)
-	var TaskStruct *models.Task
 	var task_output string
 
 	metrics := utils.CollectMetrics(gatherers, logger, configuration)
+	if metrics == nil {
+		return
+	}
 	RepeaterResponse := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Get"})
-	logger.Infof("Task details: %s", RepeaterResponse)
+	logger.Infof("Task info: %s", RepeaterResponse)
 
-	err := json.Unmarshal([]byte(RepeaterResponse), &TaskStruct)
-	if err != nil {
+	var envelope struct {
+		ID     *int `json:"task_id"`
+		TypeID *int `json:"task_type_id"`
+	}
+	if err := json.Unmarshal([]byte(RepeaterResponse), &envelope); err != nil {
 		logger.Error("Failed to parse task description JSON: ", err)
 		return
 	}
-	if TaskStruct == nil {
+	if envelope.ID == nil || *envelope.ID <= 0 || envelope.TypeID == nil || *envelope.TypeID < 0 {
+		return
+	}
+	var TaskStruct *models.Task
+	if err := json.Unmarshal([]byte(RepeaterResponse), &TaskStruct); err != nil {
+		logger.Error("Failed to parse task description JSON: ", err)
 		return
 	}
 
@@ -54,14 +71,16 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 
 	switch TaskStruct.TypeID {
 	case 0:
+		TaskStruct.ExitCode, TaskStruct.Status, task_output = DownloadConfigurationFile(metrics, repeaters, configuration, logger, ApplyModeFull, TaskStruct)
+		TaskStruct.Output = TaskStruct.Output + task_output
+		if TaskStruct.ExitCode != 0 {
+			break
+		}
 		TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskApplyManualCommand(runtime.GOOS, configuration.ReleemDir), logger)
 		TaskStruct.Output = TaskStruct.Output + task_output
 
 		if TaskStruct.ExitCode == 7 {
-			var rollback_exit_code int
-			rollback_exit_code, _, task_output = execTaskCommand(taskRollbackCommand(runtime.GOOS, configuration.ReleemDir), logger)
-			TaskStruct.Output = TaskStruct.Output + task_output
-			logger.Info(" * Task rollbacked with code ", rollback_exit_code)
+			rollBackConfigurationTask(TaskStruct, taskRollBackCommand(runtime.GOOS, configuration.ReleemDir), logger)
 		}
 
 	case 1:
@@ -69,7 +88,7 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 		TaskStruct.Output = TaskStruct.Output + task_output
 	case 2:
 		TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskUpdateCommand(runtime.GOOS, configuration.ReleemDir), logger)
-		TaskStruct.Output = TaskStruct.Output + task_output
+		TaskStruct.Output += task_output
 	case 3:
 		TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskQueriesOptimizationCommand(runtime.GOOS, configuration.ReleemDir), logger)
 		TaskStruct.Output = TaskStruct.Output + task_output
@@ -77,52 +96,57 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 		switch configuration.InstanceType {
 		case "aws/rds":
 			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfAwsRds(
-				repeaters, gatherers, logger, configuration, AWSApplyDynamicOnly)
+				repeaters, gatherers, logger, configuration, AWSApplyDynamicOnly, TaskStruct)
 			TaskStruct.Output = TaskStruct.Output + task_output
 		case "gcp/cloudsql":
-			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfGcpCloudSQL(repeaters, gatherers, logger, configuration, "dynamic")
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfGcpCloudSQL(repeaters, gatherers, logger, configuration, ApplyModeDynamic, TaskStruct)
 			TaskStruct.Output = TaskStruct.Output + task_output
 		case "azure/mysql":
-			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfAzureMySQL(repeaters, gatherers, logger, configuration, "dynamic", false)
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfAzureMySQL(repeaters, gatherers, logger, configuration, ApplyModeDynamic, false, TaskStruct)
 			TaskStruct.Output = TaskStruct.Output + task_output
 
 		default:
-			TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskApplyAutomaticCommand(runtime.GOOS, configuration.ReleemDir, "dynamic", false), logger)
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = DownloadConfigurationFile(metrics, repeaters, configuration, logger, ApplyModeDynamic, TaskStruct)
+			TaskStruct.Output = TaskStruct.Output + task_output
+			if TaskStruct.ExitCode != 0 {
+				break
+			}
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskApplyAutomaticCommand(runtime.GOOS, configuration.ReleemDir, false), logger)
 			TaskStruct.Output = TaskStruct.Output + task_output
 			if TaskStruct.ExitCode == 7 {
-				var rollback_exit_code int
-				rollback_exit_code, _, task_output = execTaskCommand(taskRollbackCommand(runtime.GOOS, configuration.ReleemDir), logger)
-				TaskStruct.Output = TaskStruct.Output + task_output
-				logger.Info(" * Task rollbacked with code ", rollback_exit_code)
+				rollBackConfigurationTask(TaskStruct, taskRollBackCommand(runtime.GOOS, configuration.ReleemDir), logger)
 			}
+			if TaskStruct.ExitCode != 0 {
+				break
+			}
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfLocal(metrics, repeaters, gatherers, logger, configuration, TaskStruct)
+			TaskStruct.Output = TaskStruct.Output + task_output
 
-			if TaskStruct.ExitCode == 0 {
-				TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfLocal(metrics, repeaters, gatherers, logger, configuration)
-				TaskStruct.Output = TaskStruct.Output + task_output
-			}
 		}
 
-	case 5:
+	case 5, 8:
 		switch configuration.InstanceType {
 		case "aws/rds":
 			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfAwsRds(
-				repeaters, gatherers, logger, configuration, AWSApplyAll)
+				repeaters, gatherers, logger, configuration, AWSApplyAll, TaskStruct)
 			TaskStruct.Output = TaskStruct.Output + task_output
 		case "gcp/cloudsql":
-			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfGcpCloudSQL(repeaters, gatherers, logger, configuration, "full")
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfGcpCloudSQL(repeaters, gatherers, logger, configuration, ApplyModeFull, TaskStruct)
 			TaskStruct.Output = TaskStruct.Output + task_output
 		case "azure/mysql":
-			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfAzureMySQL(repeaters, gatherers, logger, configuration, "full", true)
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfAzureMySQL(repeaters, gatherers, logger, configuration, ApplyModeFull, true, TaskStruct)
 			TaskStruct.Output = TaskStruct.Output + task_output
 
 		default:
-			TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskApplyAutomaticCommand(runtime.GOOS, configuration.ReleemDir, "full", true), logger)
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = DownloadConfigurationFile(metrics, repeaters, configuration, logger, ApplyModeFull, TaskStruct)
+			TaskStruct.Output = TaskStruct.Output + task_output
+			if TaskStruct.ExitCode != 0 {
+				break
+			}
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskApplyAutomaticCommand(runtime.GOOS, configuration.ReleemDir, true), logger)
 			TaskStruct.Output = TaskStruct.Output + task_output
 			if TaskStruct.ExitCode == 7 {
-				var rollback_exit_code int
-				rollback_exit_code, _, task_output = execTaskCommand(taskRollbackCommand(runtime.GOOS, configuration.ReleemDir), logger)
-				TaskStruct.Output = TaskStruct.Output + task_output
-				logger.Info(" * Task rollbacked with code ", rollback_exit_code)
+				rollBackConfigurationTask(TaskStruct, taskRollBackCommand(runtime.GOOS, configuration.ReleemDir), logger)
 			}
 		}
 
@@ -161,6 +185,9 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 
 	time.Sleep(10 * time.Second)
 	metrics = utils.CollectMetrics(gatherers, logger, configuration)
+	if metrics == nil {
+		return
+	}
 	logger.Infof(" * Task with id - %d and type id - %d completed with code %d", TaskStruct.ID, TaskStruct.TypeID, TaskStruct.ExitCode)
 
 	metrics.ReleemAgent.Tasks = *TaskStruct

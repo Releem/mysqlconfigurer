@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+
 # mysqlconfigurer.sh - Version 1.25.4.1
 # (C) Releem, Inc 2022
 # All rights reserved
@@ -465,7 +466,7 @@ function releem_apply_config() {
         releem_apply_auto
     elif [ "$1" == "automatic" ]; 
     then
-        releem_apply_automatic "" "$2"
+        releem_apply_automatic
     elif [ "$1" == "initial" ]; 
     then        
         releem_apply_automatic "initial"
@@ -507,8 +508,7 @@ function releem_apply_manual() {
     fi
 
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended ${DATABASE_NAME} configuration.\033[0m\n"
-    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the latest up-to-date configuration.\033[0m\n"
-    $RELEEM_WORKDIR/releem-agent -c >/dev/null 2>&1 || true
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Using the configuration file prepared by Releem Agent.\033[0m\n"
     if [ ! -f $RELEEM_DB_CONFIG_FILE ]; then
         printf "\033[37m\n * Recommended ${DATABASE_NAME} configuration was not found.\033[0m"
         printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"
@@ -616,8 +616,7 @@ function releem_apply_automatic() {
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the initial configuration.\033[0m\n"
         $RELEEM_WORKDIR/releem-agent --initial >/dev/null 2>&1 || true
     else
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the latest up-to-date configuration.\033[0m\n"
-        $RELEEM_WORKDIR/releem-agent -c "${2:-full}" >/dev/null 2>&1 || true
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Using the configuration file prepared by Releem Agent.\033[0m\n"
     fi
     if [ ! -f $DB_CONFIG_FILE ]; then
         printf "\033[37m\n * Recommended ${DATABASE_NAME} configuration was not found.\033[0m"
@@ -859,18 +858,13 @@ function main() {
         fi
     fi
 
-    local configuration_apply_mode="full"
-    if [ "${!#}" == "dynamic" ] || [ "${!#}" == "full" ]; then
-        configuration_apply_mode="${!#}"
-    fi
-
     while getopts "k:m:s:arpu" option
     do
       case "${option}" in
         k) RELEEM_API_KEY=${OPTARG};;
         m) DB_MEMORY_LIMIT=${OPTARG};;
         a) releem_apply_manual;;
-        s) releem_apply_config "${OPTARG}" "${configuration_apply_mode}";;
+        s) releem_apply_config "${OPTARG}";;
         r) releem_rollback_config;;
         p) releem_configure_database;;
         u) update_agent; exit 0;;

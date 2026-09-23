@@ -93,11 +93,16 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 		return "", errors.New("Request: could not create request: " + err.Error())
 	}
 	req.Header.Set("x-releem-api-key", context.GetApiKey())
-	if Mode.Name == "Configurations" && Mode.ApplyMode != "" {
-		req.Header.Set("X-Releem-Apply-Mode", Mode.ApplyMode)
-	}
-	if Mode.Name == "Configurations" && Mode.Type == "GetJson" {
-		req.Header.Set("Accept", "application/json")
+	if Mode.Name == "Configurations" {
+		if Mode.ApplyMode != "" {
+			req.Header.Set("X-Releem-Apply-Mode", Mode.ApplyMode)
+		}
+		if Mode.Type == "GetJson" {
+			req.Header.Set("Accept", "application/json")
+		}
+		if Mode.ConfigurationID > 0 {
+			req.Header.Set("X-Releem-Configuration-Id", strconv.Itoa(Mode.ConfigurationID))
+		}
 	}
 	res, err := newHTTPClient().Do(req)
 	if err != nil {

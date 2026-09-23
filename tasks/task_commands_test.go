@@ -39,23 +39,23 @@ func TestWindowsTaskCommands(t *testing.T) {
 		},
 		{
 			name: "type 4 applies config without restart",
-			cmd:  taskApplyAutomaticCommand("windows", releemDir, "dynamic", false),
+			cmd:  taskApplyAutomaticCommand("windows", releemDir, false),
 			want: taskCommand{
 				name: "powershell.exe",
-				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\mysqlconfigurer.ps1`, "-Apply", "-NonInteractive", "-ApplyMode", "dynamic", "-NoRestart"},
+				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\mysqlconfigurer.ps1`, "-Apply", "-NonInteractive", "-NoRestart"},
 			},
 		},
 		{
 			name: "type 5 applies config with restart",
-			cmd:  taskApplyAutomaticCommand("windows", releemDir, "full", true),
+			cmd:  taskApplyAutomaticCommand("windows", releemDir, true),
 			want: taskCommand{
 				name: "powershell.exe",
-				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\mysqlconfigurer.ps1`, "-Apply", "-NonInteractive", "-ApplyMode", "full"},
+				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\mysqlconfigurer.ps1`, "-Apply", "-NonInteractive"},
 			},
 		},
 		{
 			name: "rollback confirms non-interactively",
-			cmd:  taskRollbackCommand("windows", releemDir),
+			cmd:  taskRollBackCommand("windows", releemDir),
 			want: taskCommand{
 				name: "powershell.exe",
 				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\mysqlconfigurer.ps1`, "-Rollback"},
@@ -108,19 +108,19 @@ func TestLinuxTaskCommandsKeepExistingBehavior(t *testing.T) {
 		},
 		{
 			name: "type 4 uses automatic apply without restart",
-			cmd:  taskApplyAutomaticCommand("linux", releemDir, "dynamic", false),
+			cmd:  taskApplyAutomaticCommand("linux", releemDir, false),
 			want: taskCommand{
 				name: "sh",
-				args: []string{"-c", "/opt/releem/mysqlconfigurer.sh -s automatic dynamic"},
+				args: []string{"-c", "/opt/releem/mysqlconfigurer.sh -s automatic"},
 				env:  []string{"RELEEM_RESTART_SERVICE=0"},
 			},
 		},
 		{
 			name: "type 5 uses automatic apply with restart",
-			cmd:  taskApplyAutomaticCommand("linux", releemDir, "full", true),
+			cmd:  taskApplyAutomaticCommand("linux", releemDir, true),
 			want: taskCommand{
 				name: "sh",
-				args: []string{"-c", "/opt/releem/mysqlconfigurer.sh -s automatic full"},
+				args: []string{"-c", "/opt/releem/mysqlconfigurer.sh -s automatic"},
 				env:  []string{"RELEEM_RESTART_SERVICE=1"},
 			},
 		},
@@ -132,5 +132,15 @@ func TestLinuxTaskCommandsKeepExistingBehavior(t *testing.T) {
 				t.Fatalf("command mismatch\nwant: %#v\n got: %#v", tt.want, tt.cmd)
 			}
 		})
+	}
+}
+
+func TestUpdateCommandRemainsAvailable(t *testing.T) {
+	if got := taskUpdateCommand("linux", "/agent"); !reflect.DeepEqual(got.args, []string{"-c", "/agent/mysqlconfigurer.sh -u"}) {
+		t.Fatal(got)
+	}
+	got := taskUpdateCommand("windows", `C:\Agent`)
+	if got.args[len(got.args)-1] != "-Update" {
+		t.Fatal(got)
 	}
 }

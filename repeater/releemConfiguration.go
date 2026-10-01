@@ -100,8 +100,8 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 		if Mode.Type == "GetJson" {
 			req.Header.Set("Accept", "application/json")
 		}
-		if Mode.ConfigurationID > 0 {
-			req.Header.Set("X-Releem-Configuration-Id", strconv.Itoa(Mode.ConfigurationID))
+		if Mode.ConfigurationStatusID > 0 {
+			req.Header.Set("X-Releem-Configuration-Status-Id", strconv.Itoa(Mode.ConfigurationStatusID))
 		}
 	}
 	res, err := newHTTPClient().Do(req)

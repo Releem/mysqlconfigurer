@@ -25,13 +25,13 @@ func (r *downloadCapture) ProcessMetrics(_ models.MetricContext, _ models.Metric
 func TestDownloadConfigurationFile(t *testing.T) {
 	logger := *logging.Init("download", false, false, io.Discard)
 	for _, mode := range []ApplyModeType{ApplyModeDynamic, ApplyModeFull} {
-		for _, details := range []string{"", `{"configuration_id":12}`, `{"configuration_id":12,"extra":"preserved"}`} {
+		for _, details := range []string{"", `{"configuration_status_id":12}`, `{"configuration_status_id":12,"extra":"preserved"}`} {
 			r := &downloadCapture{body: "[mysqld]\nmax_connections=200"}
 			code, status, _ := DownloadConfigurationFile(&models.Metrics{}, r, &config.Config{}, logger, mode, &models.Task{TypeID: 5, Details: details})
 			if code != 0 || status != 1 || r.mode.ApplyMode != string(mode) || r.mode.Type != "Get" {
 				t.Fatalf("%+v %d/%d", r.mode, code, status)
 			}
-			if details != "" && r.mode.ConfigurationID != 12 {
+			if details != "" && r.mode.ConfigurationStatusID != 12 {
 				t.Fatal("selection missing")
 			}
 		}
@@ -55,15 +55,15 @@ func TestDownloadConfigurationFile(t *testing.T) {
 }
 
 func TestConfigurationRequestModeValidation(t *testing.T) {
-	for _, details := range []string{"{}", "null", `{"configuration_id":-1}`, `{"configuration_status_id":-1}`, `{"configuration_id":"1"}`, "broken"} {
+	for _, details := range []string{"{}", "null", `{"configuration_status_id":-1}`, `{"configuration_id":12}`, `{"configuration_status_id":"1"}`, "broken"} {
 		if _, err := configurationRequestMode("Get", "full", &models.Task{TypeID: 8, Details: details}); err == nil {
 			t.Fatalf("accepted %s", details)
 		}
 	}
 	for _, kind := range []string{"Get", "GetJson"} {
 		for _, mode := range []string{"dynamic", "full"} {
-			got, err := configurationRequestMode(kind, mode, &models.Task{TypeID: 5, Details: `{"configuration_id":12}`})
-			if err != nil || got.ConfigurationID != 12 || got.ApplyMode != mode || got.Type != kind {
+			got, err := configurationRequestMode(kind, mode, &models.Task{TypeID: 5, Details: `{"configuration_status_id":12}`})
+			if err != nil || got.ConfigurationStatusID != 12 || got.ApplyMode != mode || got.Type != kind {
 				t.Fatalf("%+v %v", got, err)
 			}
 		}
@@ -73,11 +73,11 @@ func TestConfigurationRequestModeValidation(t *testing.T) {
 		id            int
 	}{
 		{"", "full", 0},
-		{`{"configuration_id":1}`, "full", 1},
-		{`{"configuration_id":12}`, "dynamic", 12},
+		{`{"configuration_status_id":1}`, "full", 1},
+		{`{"configuration_status_id":12}`, "dynamic", 12},
 	} {
 		got, err := configurationRequestMode("Get", tc.mode, &models.Task{TypeID: 8, Details: tc.details})
-		if err != nil || got.ConfigurationID != tc.id || got.ApplyMode != tc.mode {
+		if err != nil || got.ConfigurationStatusID != tc.id || got.ApplyMode != tc.mode {
 			t.Errorf("configurationRequestMode(%q, %q) = %+v, %v", tc.details, tc.mode, got, err)
 		}
 	}
@@ -102,7 +102,7 @@ func TestInvalidEnvelopeNeverStartsTask(t *testing.T) {
 
 func TestRollBackMergesDetails(t *testing.T) {
 	logger := *logging.Init("rollback", false, false, io.Discard)
-	for _, details := range []string{"", `{"configuration_id":12,"custom":"keep"}`} {
+	for _, details := range []string{"", `{"configuration_status_id":12,"custom":"keep"}`} {
 		for _, fail := range []bool{false, true} {
 			task := &models.Task{ExitCode: 7, Status: 4, Output: "apply failed\n", Details: details}
 			cmd := taskCommand{name: "go", args: []string{"version"}}

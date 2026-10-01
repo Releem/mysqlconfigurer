@@ -15,7 +15,7 @@ import (
 
 // AppliedConfigurationInfo selects the configuration and mode for a task download.
 type AppliedConfigurationInfo struct {
-	ConfigurationID int `json:"configuration_id"`
+	ConfigurationStatusID int `json:"configuration_status_id"`
 }
 
 func execTaskCommand(command taskCommand, logger logging.Logger) (int, int, string) {
@@ -81,14 +81,14 @@ func configurationRequestMode(requestType string, applyMode string, task *models
 	if err := json.Unmarshal([]byte(task.Details), &details); err != nil {
 		return mode, err
 	}
-	if details.ConfigurationID < 0 {
+	if details.ConfigurationStatusID < 0 {
 		return mode, fmt.Errorf("invalid configuration selection")
 	}
-	if task.TypeID == 8 && details.ConfigurationID == 0 {
+	if task.TypeID == 8 && details.ConfigurationStatusID == 0 {
 		return mode, fmt.Errorf("managed rollback requires configuration selection")
 	}
 
-	mode.ConfigurationID = details.ConfigurationID
+	mode.ConfigurationStatusID = details.ConfigurationStatusID
 
 	return mode, nil
 }

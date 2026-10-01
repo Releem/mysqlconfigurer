@@ -17,7 +17,7 @@ func TestSelectedConfigurationHeaders(t *testing.T) {
 	previous := http.DefaultTransport
 	defer func() { http.DefaultTransport = previous }()
 	http.DefaultTransport = applicationTransport(func(r *http.Request) (*http.Response, error) {
-		for key, want := range map[string]string{"X-Releem-Configuration-Id": "12", "X-Releem-Apply-Mode": "dynamic", "Accept": "application/json"} {
+		for key, want := range map[string]string{"X-Releem-Configuration-Status-Id": "12", "X-Releem-Apply-Mode": "dynamic", "Accept": "application/json"} {
 			if got := r.Header.Get(key); got != want {
 				t.Errorf("%s=%q", key, got)
 			}
@@ -27,7 +27,7 @@ func TestSelectedConfigurationHeaders(t *testing.T) {
 	c := &config.Config{ReleemConfDir: t.TempDir()}
 	logger := *logging.Init("transport-test", false, false, io.Discard)
 	r := NewReleemConfigurationsRepeater(c, logger)
-	_, err := r.ProcessMetrics(c, models.Metrics{}, models.ModeType{Name: "Configurations", Type: "GetJson", ConfigurationID: 12, ApplyMode: "dynamic"})
+	_, err := r.ProcessMetrics(c, models.Metrics{}, models.ModeType{Name: "Configurations", Type: "GetJson", ConfigurationStatusID: 12, ApplyMode: "dynamic"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,13 +36,13 @@ func TestSelectedConfigurationHeaders(t *testing.T) {
 func TestOptionalSelectionHeaders(t *testing.T) {
 	previous := http.DefaultTransport
 	defer func() { http.DefaultTransport = previous }()
-	for _, selection := range []models.ModeType{{ConfigurationID: 12}, {}} {
+	for _, selection := range []models.ModeType{{ConfigurationStatusID: 12}, {}} {
 		http.DefaultTransport = applicationTransport(func(r *http.Request) (*http.Response, error) {
 			wantID := ""
-			if selection.ConfigurationID > 0 {
+			if selection.ConfigurationStatusID > 0 {
 				wantID = "12"
 			}
-			if r.Header.Get("X-Releem-Configuration-Id") != wantID || r.Header.Get("X-Releem-Configuration-Status-Id") != "" || r.Header.Get("X-Releem-Task-Id") != "" {
+			if r.Header.Get("X-Releem-Configuration-Status-Id") != wantID || r.Header.Get("X-Releem-Configuration-Id") != "" || r.Header.Get("X-Releem-Task-Id") != "" {
 				t.Fatalf("unexpected headers: %v", r.Header)
 			}
 			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{}`)), Header: make(http.Header)}, nil

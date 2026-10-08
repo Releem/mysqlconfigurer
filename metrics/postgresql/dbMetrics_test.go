@@ -2,7 +2,6 @@ package postgresql
 
 import (
 	"bytes"
-	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -10,26 +9,11 @@ import (
 	"testing"
 
 	"github.com/Releem/mysqlconfigurer/config"
+	"github.com/Releem/mysqlconfigurer/metrics/tablesize"
+	"github.com/Releem/mysqlconfigurer/models"
 	logging "github.com/google/logger"
 	"github.com/lib/pq"
 )
-
-type pgDatabaseLifecycleTestConnection struct {
-	closed bool
-}
-
-func (connection *pgDatabaseLifecycleTestConnection) Query(string, ...interface{}) (*sql.Rows, error) {
-	return nil, errors.New("unexpected query")
-}
-
-func (connection *pgDatabaseLifecycleTestConnection) QueryRow(string, ...interface{}) *sql.Row {
-	return nil
-}
-
-func (connection *pgDatabaseLifecycleTestConnection) Close() error {
-	connection.closed = true
-	return nil
-}
 
 func TestPgStatActivityQueryHandlesNullableConnectionFields(t *testing.T) {
 	source, err := os.ReadFile("dbMetrics.go")
@@ -51,60 +35,49 @@ func TestPgStatActivityQueryHandlesNullableConnectionFields(t *testing.T) {
 	}
 }
 
-func TestForEachPGDatabaseClosesImmediatelyAndContinuesAfterCollectionError(t *testing.T) {
-	connections := map[string]*pgDatabaseLifecycleTestConnection{
-		"broken":  {},
-		"healthy": {},
+func TestPGMetricsClosesConnectionsAndContinuesAfterActivityError(t *testing.T) {
+	var output bytes.Buffer
+	g := NewDBMetricsConfigGatherer(*logging.Init("pg-database-lifecycle", false, false, &output), &config.Config{}, true, nil)
+	fake := &pgTableCacheSQL{failStatisticsDatabase: "broken"}
+	server := newPGTableCacheServer(t, g.configuration, fake)
+	m := &models.Metrics{}
+	m.DB.Metrics.Databases = []string{"broken", "healthy"}
+	m.DB.Metrics.Status = make(models.MetricGroupValue)
+	if err := g.GetMetrics(m); err != nil {
+		t.Fatal(err)
 	}
-	var collected []string
-	var logged []string
-
-	forEachPGDatabase(
-		[]string{"broken", "healthy"},
-		func(database string) pgDatabaseConnection {
-			if database == "healthy" && !connections["broken"].closed {
-				t.Fatal("previous database connection must be closed before opening the next database")
-			}
-			return connections[database]
-		},
-		func(database string, _ pgDatabaseConnection) error {
-			collected = append(collected, database)
-			if database == "broken" {
-				return errors.New("pg_stat_user_tables unavailable")
-			}
-			return nil
-		},
-		func(database string, err error) {
-			logged = append(logged, database+": "+err.Error())
-		},
-	)
-
-	if got := strings.Join(collected, ","); got != "broken,healthy" {
-		t.Fatalf("collection should continue with the next database, got %s", got)
+	if got := strings.Join(server.openedDatabases(), ","); got != "broken,healthy,broken,healthy" {
+		t.Fatalf("activity and table sizes should continue with the next database, got %s", got)
 	}
-	if !connections["broken"].closed || !connections["healthy"].closed {
-		t.Fatalf("every database connection must be closed, got %#v", connections)
+	server.waitForClosed(t, 4)
+	for _, view := range PG_STAT_PER_DB_VIEWS {
+		if rows, _ := m.DB.Metrics.Status[view].([]models.MetricGroupValue); len(rows) != 1 {
+			t.Fatalf("healthy database statistics for %s = %#v", view, rows)
+		}
 	}
-	if len(logged) != 1 || !strings.Contains(logged[0], "broken: pg_stat_user_tables unavailable") {
-		t.Fatalf("collection error should be logged once, got %#v", logged)
+	if got := strings.Count(output.String(), "pg_stat_user_tables unavailable"); got != len(PG_STAT_PER_DB_VIEWS) {
+		t.Fatalf("activity errors logged %d times, want %d", got, len(PG_STAT_PER_DB_VIEWS))
 	}
 }
 
-func TestAddPGDatabaseTableCountDoesNotReusePreviousValueAfterError(t *testing.T) {
-	var total uint64
-	if err := addPGDatabaseTableCount(&total, func(value *uint64) error {
-		*value = 100
-		return nil
-	}); err != nil {
+func TestPGTableSizesDiscardSnapshotAfterAggregateError(t *testing.T) {
+	fake := &pgTableCacheSQL{failTableQuery: 2} // Aggregate query in the second database.
+	g := NewDBMetricsConfigGatherer(*logging.Init("pg-table-count-error", false, false, &bytes.Buffer{}), &config.Config{}, true, nil)
+	newPGTableCacheServer(t, g.configuration, fake)
+	value, err := g.collectTableSizes([]string{"app", "archive"})
+	if err == nil {
+		t.Fatal("aggregate error should be returned")
+	}
+	if value != nil {
+		t.Fatalf("aggregate failure returned a partial snapshot: %+v", value)
+	}
+	fake.setFailure(false, 0)
+	value, err = g.collectTableSizes([]string{"app", "archive"})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := addPGDatabaseTableCount(&total, func(*uint64) error {
-		return errors.New("count failed")
-	}); err == nil {
-		t.Fatal("count error should be returned")
-	}
-	if total != 100 {
-		t.Fatalf("failed database must not reuse the previous count, got %d", total)
+	if tablesize.EngineTableCount(value) != 4 {
+		t.Fatalf("retry should count each table once, got %d", tablesize.EngineTableCount(value))
 	}
 }
 

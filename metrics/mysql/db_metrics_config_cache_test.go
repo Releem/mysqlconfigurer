@@ -42,7 +42,7 @@ func TestDBMetricsConfigGathererReusesLargeServerTableSizes(t *testing.T) {
 		TableSizeCacheTableThreshold: 10,
 		TableSizeCacheRAMMultiplier:  4,
 		TableSizeCacheTTL:            3600,
-	})
+	}, true, nil)
 
 	first := tableSizeCacheTestMetrics()
 	if err := gatherer.GetMetrics(first); err != nil {
@@ -82,9 +82,11 @@ func TestDBMetricsConfigGathererMemoryLimitDoesNotReplaceMissingPhysicalRAM(t *t
 		MemoryLimit:                  1,
 		TableSizeCacheTableThreshold: 10,
 		TableSizeCacheRAMMultiplier:  4,
-		TableSizeCacheTTL:            3600,
+		TableSizeCacheTTL:            604800,
 	})
 
+	base := time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)
+	gatherer.now = tableSizeCacheTestClock(base, base.Add(12*time.Hour))
 	for call := 1; call <= 2; call++ {
 		metrics := tableSizeCacheTestMetrics()
 		delete(metrics.System.Info, "PhysicalMemory")
@@ -115,8 +117,8 @@ func TestDBMetricsConfigGathererCacheBoundaryTableCount(t *testing.T) {
 	}
 
 	_, heavyQueries := fake.counts()
-	if heavyQueries != 2 {
-		t.Fatalf("heavy query count = %d, want 2 at table-count boundary", heavyQueries)
+	if heavyQueries != 1 {
+		t.Fatalf("heavy query count = %d, want 1 at table-count boundary", heavyQueries)
 	}
 }
 
@@ -138,8 +140,8 @@ func TestDBMetricsConfigGathererCacheBoundaryTotalSize(t *testing.T) {
 	}
 
 	_, heavyQueries := fake.counts()
-	if heavyQueries != 2 {
-		t.Fatalf("heavy query count = %d, want 2 at total-size boundary", heavyQueries)
+	if heavyQueries != 1 {
+		t.Fatalf("heavy query count = %d, want 1 at total-size boundary", heavyQueries)
 	}
 }
 
@@ -206,6 +208,8 @@ func TestDBMetricsConfigGathererIneligibleSuccessSurvivesRefreshError(t *testing
 		TableSizeCacheTTL:            3600,
 	})
 
+	base := time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)
+	gatherer.now = tableSizeCacheTestClock(base, base.Add(12*time.Hour))
 	first := tableSizeCacheTestMetrics()
 	if err := gatherer.GetMetrics(first); err != nil {
 		t.Fatalf("first GetMetrics() error = %v", err)
@@ -563,7 +567,7 @@ func tableSizeCacheBoundaryFake() *tableSizeCacheSQLFake {
 
 func newTableSizeCacheTestGatherer(configuration config.Config) *DBMetricsConfigGatherer {
 	logger := *logging.Init("mysql-table-size-cache-test", true, false, io.Discard)
-	return NewDBMetricsConfigGatherer(logger, &configuration)
+	return NewDBMetricsConfigGatherer(logger, &configuration, true, nil)
 }
 
 func tableSizeCacheTestClock(times ...time.Time) func() time.Time {
@@ -798,3 +802,115 @@ func setTableSizeCacheTestDB(t *testing.T, fake *tableSizeCacheSQLFake) {
 var _ driver.Driver = (*tableSizeCacheSQLFake)(nil)
 var _ driver.QueryerContext = (*tableSizeCacheSQLConn)(nil)
 var _ driver.Rows = (*tableSizeCacheSQLRows)(nil)
+
+func TestMinuteTableSizesNeverRefreshMissingExpiredOrFailedCache(t *testing.T) {
+	fake := &tableSizeCacheSQLFake{
+		supportRows: [][]driver.Value{{"InnoDB", "DEFAULT"}},
+		heavyRows:   [][]driver.Value{{"InnoDB", int64(600), int64(12), int64(450), int64(150)}},
+		heavyErrors: map[int]error{2: errors.New("refresh failed")},
+	}
+	setTableSizeCacheTestDB(t, fake)
+	g := newTableSizeCacheTestGatherer(config.Config{TableSizeCacheTableThreshold: 10, TableSizeCacheRAMMultiplier: 4, TableSizeCacheTTL: 3600})
+	now := time.Now()
+	g.now = func() time.Time { return now }
+	minute := func(want bool) {
+		t.Helper()
+		m := tableSizeCacheTestMetrics()
+		if err := NewDBMetricsConfigGatherer(g.logger, g.configuration, false, g.tableSizeCache).GetMetrics(m); err != nil {
+			t.Fatal(err)
+		}
+		if want && m.DB.Metrics.Engine["InnoDB"]["Total Size"] != uint64(600) {
+			t.Fatalf("cached engine=%v", m.DB.Metrics.Engine)
+		}
+		if !want && m.DB.Metrics.Engine != nil {
+			t.Fatalf("empty cache fabricated sizes: %v", m.DB.Metrics.Engine)
+		}
+	}
+	minute(false)
+	if _, calls := fake.counts(); calls != 0 {
+		t.Fatalf("minute queried sizes %d times", calls)
+	}
+	if err := g.GetMetrics(tableSizeCacheTestMetrics()); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(24 * time.Hour)
+	minute(true)
+	if _, calls := fake.counts(); calls != 1 {
+		t.Fatalf("minute refreshed expired snapshot: %d", calls)
+	}
+	if err := g.GetMetrics(tableSizeCacheTestMetrics()); err != nil {
+		t.Fatal(err)
+	}
+	minute(true)
+	if _, calls := fake.counts(); calls != 2 {
+		t.Fatalf("minute retried failed refresh: %d", calls)
+	}
+	now = now.Add(12 * time.Hour)
+	if err := g.GetMetrics(tableSizeCacheTestMetrics()); err != nil {
+		t.Fatal(err)
+	}
+	if _, calls := fake.counts(); calls != 3 {
+		t.Fatalf("full collection did not retry: %d", calls)
+	}
+}
+
+func TestMinuteDoesNotRetryInitialTableSizeFailure(t *testing.T) {
+	fake := &tableSizeCacheSQLFake{
+		supportRows: [][]driver.Value{{"InnoDB", "DEFAULT"}},
+		heavyRows:   [][]driver.Value{{"InnoDB", int64(600), int64(12), int64(450), int64(150)}},
+		heavyErrors: map[int]error{1: errors.New("initial failure")},
+	}
+	setTableSizeCacheTestDB(t, fake)
+	g := newTableSizeCacheTestGatherer(config.Config{})
+	if err := g.GetMetrics(tableSizeCacheTestMetrics()); err == nil {
+		t.Fatal("expected initial failure")
+	}
+	m := tableSizeCacheTestMetrics()
+	if err := NewDBMetricsConfigGatherer(g.logger, g.configuration, false, g.tableSizeCache).GetMetrics(m); err != nil {
+		t.Fatal(err)
+	}
+	if _, calls := fake.counts(); calls != 1 || m.DB.Metrics.Engine != nil {
+		t.Fatal("minute retried or cached an initial failure")
+	}
+	if err := g.GetMetrics(tableSizeCacheTestMetrics()); err != nil {
+		t.Fatal(err)
+	}
+	m = tableSizeCacheTestMetrics()
+	if err := NewDBMetricsConfigGatherer(g.logger, g.configuration, false, g.tableSizeCache).GetMetrics(m); err != nil {
+		t.Fatal(err)
+	}
+	if _, calls := fake.counts(); calls != 2 || m.DB.Metrics.Engine["InnoDB"]["Total Size"] != uint64(600) {
+		t.Fatal("successful full retry was not cached")
+	}
+}
+
+func TestFullCollectionRefreshesWhenLiveTableCountDrops(t *testing.T) {
+	fake := &tableSizeCacheSQLFake{
+		supportRows: [][]driver.Value{{"InnoDB", "DEFAULT"}},
+		heavyRows:   [][]driver.Value{{"InnoDB", int64(600), int64(12), int64(450), int64(150)}},
+	}
+	setTableSizeCacheTestDB(t, fake)
+	g := newTableSizeCacheTestGatherer(config.Config{TableSizeCacheTableThreshold: 10, TableSizeCacheRAMMultiplier: 4, TableSizeCacheTTL: 604800})
+	now := time.Now()
+	g.now = func() time.Time { return now }
+	m := tableSizeCacheTestMetrics()
+	if err := g.GetMetrics(m); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(time.Hour)
+	m = tableSizeCacheTestMetrics()
+	m.DB.Metrics.TotalTables = 5
+	minute := NewDBMetricsConfigGatherer(g.logger, g.configuration, false, g.tableSizeCache)
+	if err := minute.GetMetrics(m); err != nil {
+		t.Fatal(err)
+	}
+	if _, calls := fake.counts(); calls != 1 {
+		t.Fatal("minute refreshed cache")
+	}
+	if err := g.GetMetrics(m); err != nil {
+		t.Fatal(err)
+	}
+	if _, calls := fake.counts(); calls != 2 {
+		t.Fatalf("full collection did not react to live count: %d", calls)
+	}
+}

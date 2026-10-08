@@ -1,6 +1,8 @@
 package postgresql
 
 import (
+	"errors"
+
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
 	"github.com/Releem/mysqlconfigurer/utils"
@@ -67,7 +69,9 @@ func (DBConf *DBConfGatherer) GetMetrics(metrics *models.Metrics) error {
 			"pending_restart": pending_restart,
 		}
 	}
-
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return err
+	}
 	metrics.DB.Conf.Variables = output
 	DBConf.logger.V(5).Info("CollectMetrics DBConf ", len(output), " settings collected")
 

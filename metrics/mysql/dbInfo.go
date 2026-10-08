@@ -1,6 +1,7 @@
 package mysql
 
 import (
+	"errors"
 	"os"
 	"regexp"
 	"strings"
@@ -66,7 +67,9 @@ func (DBInfo *DBInfoGatherer) GetMetrics(metrics *models.Metrics) error {
 		}
 		output = append(output, row.Value)
 	}
-	rows.Close()
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return err
+	}
 	metrics.DB.Info["Grants"] = output
 
 	metrics.DB.Info["UsersSecurityCheck"] = users_security_check(DBInfo, metrics)

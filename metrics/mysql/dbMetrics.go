@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Releem/mysqlconfigurer/config"
+	"github.com/Releem/mysqlconfigurer/metrics/tablesize"
 	"github.com/Releem/mysqlconfigurer/models"
 	"github.com/Releem/mysqlconfigurer/utils"
 	logging "github.com/google/logger"
@@ -89,7 +90,9 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 			}
 			output = append(output, database)
 		}
-		rows.Close()
+		if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+			return err
+		}
 		metrics.DB.Metrics.Databases = output
 	}
 	//Total table
@@ -156,6 +159,9 @@ func (DBMetrics *DBMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 					return err
 				}
 				output = append(output, models.MetricGroupValue{"schema_name": schema_name, "query_id": query_id, "calls": calls, "avg_time_us": avg_time_us, "sum_time_us": sum_time_us})
+			}
+			if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+				return err
 			}
 		}
 		metrics.DB.Queries = output
@@ -257,6 +263,9 @@ func (DBMetrics *DBMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 				}
 				out = append(out, row)
 			}
+			if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+				return err
+			}
 			// Convert []map[string]any to []models.MetricGroupValue
 			processListConverted := make([]models.MetricGroupValue, len(out))
 			for i, row := range out {
@@ -298,17 +307,22 @@ func (DBMetrics *DBMetricsGatherer) GetMetrics(metrics *models.Metrics) error {
 type DBMetricsConfigGatherer struct {
 	logger         logging.Logger
 	configuration  *config.Config
-	tableSizeCache *tableSizeCache
+	refreshTables  bool
+	tableSizeCache *tablesize.Cache[map[string]models.MetricGroupValue]
 	now            func() time.Time
 }
 
-func NewDBMetricsConfigGatherer(logger logging.Logger, configuration *config.Config) *DBMetricsConfigGatherer {
-	return &DBMetricsConfigGatherer{
-		logger:         logger,
-		configuration:  configuration,
-		tableSizeCache: &tableSizeCache{},
-		now:            time.Now,
+func NewTableSizeCache() *tablesize.Cache[map[string]models.MetricGroupValue] {
+	return tablesize.New(tablesize.CloneEngine, func(value map[string]models.MetricGroupValue) tablesize.Summary {
+		return tablesize.Summary{TotalTables: tablesize.EngineTableCount(value), TotalSize: tablesize.EngineTotal(value)}
+	})
+}
+
+func NewDBMetricsConfigGatherer(logger logging.Logger, configuration *config.Config, refreshTables bool, tableSizeCache *tablesize.Cache[map[string]models.MetricGroupValue]) *DBMetricsConfigGatherer {
+	if tableSizeCache == nil {
+		tableSizeCache = NewTableSizeCache()
 	}
+	return &DBMetricsConfigGatherer{logger: logger, configuration: configuration, refreshTables: refreshTables, tableSizeCache: tableSizeCache, now: time.Now}
 }
 
 func (DBMetricsConfig *DBMetricsConfigGatherer) GetMetrics(metrics *models.Metrics) error {
@@ -316,40 +330,39 @@ func (DBMetricsConfig *DBMetricsConfigGatherer) GetMetrics(metrics *models.Metri
 
 	//Stat mysql Engine
 	{
+		sizes, present := DBMetricsConfig.tableSizeCache.Peek()
+		if !DBMetricsConfig.refreshTables && !present {
+			return nil
+		}
 		support, err := DBMetricsConfig.collectEngineSupport()
 		if err != nil {
 			DBMetricsConfig.logger.Error(err)
 			return err
 		}
-
-		ttl := tableSizeCacheTTLFromSeconds(DBMetricsConfig.configuration.TableSizeCacheTTL)
-		result, err := DBMetricsConfig.tableSizeCache.getOrRefresh(
-			tableSizeCacheInput{
-				totalTables:    metrics.DB.Metrics.TotalTables,
-				effectiveRAM:   effectiveTableSizeRAM(metrics),
-				tableThreshold: DBMetricsConfig.configuration.TableSizeCacheTableThreshold,
-				ramMultiplier:  DBMetricsConfig.configuration.TableSizeCacheRAMMultiplier,
-				ttl:            ttl,
-				now:            DBMetricsConfig.now(),
-			},
-			func() (map[string]models.MetricGroupValue, error) {
+		if DBMetricsConfig.refreshTables {
+			input := tablesize.InputFromMetrics(metrics, DBMetricsConfig.configuration, DBMetricsConfig.now())
+			input.TotalTables = &metrics.DB.Metrics.TotalTables
+			result, err := DBMetricsConfig.tableSizeCache.GetOrRefresh(input, func() (map[string]models.MetricGroupValue, error) {
 				return DBMetricsConfig.collectEngineTableSizes(metrics.DB.Metrics.Databases)
-			},
-		)
-		if err != nil {
-			DBMetricsConfig.logger.Error(err)
-			return err
+			})
+			if err != nil {
+				DBMetricsConfig.logger.Error(err)
+				return err
+			}
+			if result.UsedStale {
+				DBMetricsConfig.logger.Warningf("using stale table size metrics after refresh error: %v", result.RefreshErr)
+			}
+			sizes, present = result.Value, true
 		}
-		if result.usedStale {
-			DBMetricsConfig.logger.Warningf("using stale table size metrics after refresh error: %v", result.refreshErr)
+		if !present {
+			return nil
 		}
-
-		metrics.DB.Metrics.Engine = mergeEngineMetrics(support, result.engine)
+		metrics.DB.Metrics.Engine = mergeEngineMetrics(support, sizes)
 		myisam := metrics.DB.Metrics.Engine["MyISAM"]
 		if myisam == nil {
 			metrics.DB.Metrics.TotalMyisamIndexes = 0
 		} else {
-			metrics.DB.Metrics.TotalMyisamIndexes = tableSizeUint64(myisam["Index Size"])
+			metrics.DB.Metrics.TotalMyisamIndexes = tablesize.Uint64(myisam["Index Size"])
 		}
 	}
 	DBMetricsConfig.logger.V(5).Info("CollectMetrics DBMetricsConfig ", metrics.DB.Metrics)

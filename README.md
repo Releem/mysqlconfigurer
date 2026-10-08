@@ -73,6 +73,28 @@ must be published together. Legacy installers that download only
 `mysqlconfigurer.sh` fetch the implementation on its first invocation if it is
 missing.
 
+Minute reports read table-size aggregates only from the last successful cache
+snapshot, even if it has expired. An empty cache leaves these aggregates absent;
+minute reports never populate or refresh it. Only 12-hour reports (and manual
+full collection with `-f`) may populate or refresh the cache. Table counts and
+sizes by engine/type are reused
+for 12 hours on ordinary servers. MySQL/MariaDB still collect their total table
+count and engine support live. Large MySQL/MariaDB and PostgreSQL servers use
+the same size-cache rules: more than 10,000 tables and total size greater than
+four times physical RAM, with a default TTL of seven days. The existing
+`table_size_cache_table_threshold`, `table_size_cache_ram_multiplier`, and
+`table_size_cache_ttl_seconds` settings continue to control that large-server
+policy. PostgreSQL derives its total table count by summing `Table Number` across the
+cached table-type aggregates; it does not issue a separate table-count query. Database
+activity, processlist, and latency are collected on each report. Caches are in memory and
+reset when the agent restarts; a failed refresh retains the last successful
+snapshot and retries on the next full collection. Failed or partial results are
+never cached. Both DBMS collectors use the shared
+table-size policy in `metrics/tablesize`, backed by the typed snapshot cache in
+`utils/cache`. A failed first collection of PostgreSQL table sizes leaves those aggregates
+absent while preserving the rest of the report. MySQL returns the initial
+collection error. Neither collector caches or sends partial table aggregates.
+
 ### PostgreSQL reload permission for existing installations
 
 Local PostgreSQL configuration apply without restart requires permission to run

@@ -27,19 +27,24 @@ func ApplyConfLocal(metrics *models.Metrics, repeaters models.MetricsRepeater, g
 	recommend_var := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Configurations", Type: "GetJson", ApplyMode: "dynamic"})
 	err := json.Unmarshal([]byte(recommend_var), &result_data)
 	if err != nil {
-		logger.Error(err)
+		message := fmt.Sprintf("Failed to parse dynamic configuration: %v", err)
+		logger.Error(message)
+		task_output += message + "\n"
 	}
 
 	operations := localDynamicApplyQueries(configuration.GetDatabaseType(), result_data, metrics.DB.Conf.Variables)
 	for _, operation := range operations {
 		for _, name := range operation.parameterNames {
-			logger.Infof("%s: %v -> %v", name, metrics.DB.Conf.Variables[name], result_data[name])
+			message := fmt.Sprintf("%s: %s -> %s", name, configurationValueString(metrics.DB.Conf.Variables[name]), configurationValueString(result_data[name]))
+			logger.Info(message)
+			task_output += message + "\n"
 		}
 
 		_, err := models.DB.Exec(operation.query)
 		if err != nil {
-			logger.Error(err)
-			task_output = task_output + err.Error()
+			message := fmt.Sprintf("%s: %v", strings.Join(operation.parameterNames, ", "), err)
+			logger.Error(message)
+			task_output += message + "\n"
 			if strings.Contains(err.Error(), "is a read only variable") || strings.Contains(err.Error(), "innodb_log_file_size must be at least") {
 				need_restart = true
 			} else if strings.Contains(err.Error(), "Access denied") || strings.Contains(err.Error(), "permission denied") {
@@ -51,7 +56,9 @@ func ApplyConfLocal(metrics *models.Metrics, repeaters models.MetricsRepeater, g
 			need_flush = true
 		}
 	}
-	logger.Info(need_flush, need_restart, need_privileges, error_exist)
+	summary := fmt.Sprintf("Dynamic apply: changes_applied=%t, restart_required=%t, insufficient_privileges=%t, errors=%t", need_flush, need_restart, need_privileges, error_exist)
+	logger.Info(summary)
+	task_output += summary + "\n"
 	if error_exist {
 		task_exit_code = 8
 		task_status = 4

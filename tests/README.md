@@ -156,3 +156,13 @@ tests/
     ├── test_10_install_prompt_root_password.ps1
     └── run_all.ps1                      # Run all Windows tests
 ```
+
+### Windows configurer exit-code checks (offline)
+
+Run `pwsh -NoProfile -File tests/windows/test_configurer_exit_codes.ps1`
+(or `powershell.exe -NoProfile -File tests/windows/test_configurer_exit_codes.ps1`
+on Windows). No database, administrator rights, or service changes are required.
+Checks cover exit code 3 for an unset/missing configuration directory, exit code
+11 for a missing active `!includedir` on apply, supported path quoting/separators,
+and preservation of code 1 for missing recommendations. Rollback checks the
+configuration directory but does not require an include, matching Linux.

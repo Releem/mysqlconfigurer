@@ -73,7 +73,7 @@ func TestWindowsTaskCommands(t *testing.T) {
 	}
 }
 
-func TestLinuxTaskCommandsKeepExistingBehavior(t *testing.T) {
+func TestLinuxTaskCommandsUseReleemConfigurer(t *testing.T) {
 	releemDir := "/opt/releem"
 
 	tests := []struct {
@@ -82,11 +82,21 @@ func TestLinuxTaskCommandsKeepExistingBehavior(t *testing.T) {
 		want taskCommand
 	}{
 		{
-			name: "type 0 uses mysqlconfigurer.sh -a",
+			name: "update uses releem-configurer.sh -u",
+			cmd:  taskUpdateCommand("linux", releemDir),
+			want: taskCommand{name: "sh", args: []string{"-c", "/opt/releem/releem-configurer.sh -u"}},
+		},
+		{
+			name: "rollback uses releem-configurer.sh -r",
+			cmd:  taskRollbackCommand("linux", releemDir),
+			want: taskCommand{name: "sh", args: []string{"-c", "/opt/releem/releem-configurer.sh -r"}, env: []string{"RELEEM_RESTART_SERVICE=1"}},
+		},
+		{
+			name: "type 0 uses releem-configurer.sh -a",
 			cmd:  taskApplyManualCommand("linux", releemDir),
 			want: taskCommand{
 				name: "sh",
-				args: []string{"-c", "/opt/releem/mysqlconfigurer.sh -a"},
+				args: []string{"-c", "/opt/releem/releem-configurer.sh -a"},
 				env:  []string{"RELEEM_RESTART_SERVICE=1"},
 			},
 		},
@@ -111,7 +121,7 @@ func TestLinuxTaskCommandsKeepExistingBehavior(t *testing.T) {
 			cmd:  taskApplyAutomaticCommand("linux", releemDir, "dynamic", false),
 			want: taskCommand{
 				name: "sh",
-				args: []string{"-c", "/opt/releem/mysqlconfigurer.sh -s automatic dynamic"},
+				args: []string{"-c", "/opt/releem/releem-configurer.sh -s automatic dynamic"},
 				env:  []string{"RELEEM_RESTART_SERVICE=0"},
 			},
 		},
@@ -120,7 +130,7 @@ func TestLinuxTaskCommandsKeepExistingBehavior(t *testing.T) {
 			cmd:  taskApplyAutomaticCommand("linux", releemDir, "full", true),
 			want: taskCommand{
 				name: "sh",
-				args: []string{"-c", "/opt/releem/mysqlconfigurer.sh -s automatic full"},
+				args: []string{"-c", "/opt/releem/releem-configurer.sh -s automatic full"},
 				env:  []string{"RELEEM_RESTART_SERVICE=1"},
 			},
 		},

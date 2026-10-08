@@ -27,7 +27,7 @@ test_preprod_mysql55:
     - mysql < employees.sql
     #Execute MySQLConfigurer
     - cd ..
-    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - bash  releem-configurer.sh -k $RELEEM_API_KEY
     - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
     - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
 
@@ -57,7 +57,7 @@ test_preprod_mysql56:
     - mysql < employees.sql
     #Execute MySQLConfigurer
     - cd ..
-    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - bash  releem-configurer.sh -k $RELEEM_API_KEY
     - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
     - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
 
@@ -87,7 +87,7 @@ test_preprod_mysql57:
     - mysql < employees.sql
     #Execute MySQLConfigurer
     - cd ..
-    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - bash  releem-configurer.sh -k $RELEEM_API_KEY
     - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
     - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
 
@@ -118,7 +118,7 @@ test_preprod_mysql80:
     - mysql < employees.sql
     #Execute MySQLConfigurer
     - cd ..
-    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - bash  releem-configurer.sh -k $RELEEM_API_KEY
     - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
     - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
 
@@ -148,7 +148,7 @@ test_preprod_percona55:
     - mysql < employees.sql
     #Execute MySQLConfigurer
     - cd ..
-    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - bash  releem-configurer.sh -k $RELEEM_API_KEY
     - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
     - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
 
@@ -178,7 +178,7 @@ test_preprod_percona56:
     - mysql < employees.sql
     #Execute MySQLConfigurer
     - cd ..
-    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - bash  releem-configurer.sh -k $RELEEM_API_KEY
     - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
     - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
 
@@ -208,7 +208,7 @@ test_preprod_percona57:
     - mysql < employees.sql
     #Execute MySQLConfigurer
     - cd ..
-    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - bash  releem-configurer.sh -k $RELEEM_API_KEY
     - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
     - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
 
@@ -240,7 +240,7 @@ test_preprod_percona80:
     - mysql < employees.sql
     #Execute MySQLConfigurer
     - cd ..
-    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - bash  releem-configurer.sh -k $RELEEM_API_KEY
     - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
     - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
 
@@ -270,7 +270,7 @@ test_preprod_maria101:
     - mysql < employees.sql
     #Execute MySQLConfigurer
     - cd ..
-    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - bash  releem-configurer.sh -k $RELEEM_API_KEY
     - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
     - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
 
@@ -300,7 +300,7 @@ test_preprod_maria102:
     - mysql < employees.sql
     #Execute MySQLConfigurer
     - cd ..
-    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - bash  releem-configurer.sh -k $RELEEM_API_KEY
     - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
     - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
 
@@ -330,7 +330,7 @@ test_preprod_maria103:
     - mysql < employees.sql
     #Execute MySQLConfigurer
     - cd ..
-    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - bash  releem-configurer.sh -k $RELEEM_API_KEY
     - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
     - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
 
@@ -360,7 +360,7 @@ test_preprod_maria104:
     - mysql < employees.sql
     #Execute MySQLConfigurer
     - cd ..
-    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - bash  releem-configurer.sh -k $RELEEM_API_KEY
     - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
     - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
 
@@ -390,7 +390,7 @@ test_preprod_maria105:
     - mysql < employees.sql
     #Execute MySQLConfigurer
     - cd ..
-    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - bash  releem-configurer.sh -k $RELEEM_API_KEY
     - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
     - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
 
@@ -420,7 +420,7 @@ test_preprod_maria106:
     - mysql < employees.sql
     #Execute MySQLConfigurer
     - cd ..
-    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - bash  releem-configurer.sh -k $RELEEM_API_KEY
     - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
     - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
 
@@ -450,7 +450,7 @@ test_preprod_maria107:
     - mysql < employees.sql
     #Execute MySQLConfigurer
     - cd ..
-    - bash  mysqlconfigurer.sh -k $RELEEM_API_KEY
+    - bash  releem-configurer.sh -k $RELEEM_API_KEY
     - cat /tmp/.mysqlconfigurer/z_aiops_mysql.cnf
     - cat /tmp/.mysqlconfigurer/mysqltunerreport.json
 

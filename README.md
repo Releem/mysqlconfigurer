@@ -60,6 +60,19 @@ The easiest way to get started with Releem is with [our managed service in the c
 
 To start using Releem just sign up at [https://releem.com](https://releem.com/?utm_source=github&utm_medium=link&utm_campaign=signup#) and install Releem Agent on your server.
 
+### Linux configurer and periodic metrics
+
+`/opt/releem/releem-configurer.sh` handles configuration apply, rollback, query
+optimization setup, and agent updates for MySQL, MariaDB, and PostgreSQL.
+`mysqlconfigurer.sh` remains a compatibility entry point with the same arguments
+and exit codes. Agent updates leave existing cron jobs and their schedules intact;
+new installations, updates, and Docker images download both scripts. The agent
+and installer call only `releem-configurer.sh`; the legacy script remains available
+for compatibility, including existing cron jobs. Both scripts
+must be published together. Legacy installers that download only
+`mysqlconfigurer.sh` fetch the implementation on its first invocation if it is
+missing.
+
 ### PostgreSQL reload permission for existing installations
 
 Local PostgreSQL configuration apply without restart requires permission to run

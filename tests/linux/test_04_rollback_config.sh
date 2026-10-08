@@ -1,5 +1,5 @@
 #!/bin/bash
-# Test 4: Rollback previously applied MySQL configuration via mysqlconfigurer.sh -r.
+# Test 4: Rollback previously applied MySQL configuration via releem-configurer.sh -r.
 # Pre-conditions:
 #   - Releem Agent is installed (run test_01 first)
 #   - Configuration was already applied (run test_03 first)
@@ -28,21 +28,21 @@ assert_service_running "Pre: DB service running"    "$DB_SERVICE"
 assert_file_exists     "Pre: config file present"   "$RELEEM_CONFIG_FILE"
 
 # --- Run rollback ---
-log_info "Running mysqlconfigurer.sh -r..."
+log_info "Running releem-configurer.sh -r..."
 env \
     RELEEM_API_KEY="$RELEEM_API_KEY" \
     RELEEM_RESTART_SERVICE=1 \
     bash "$CONFIGURER_SCRIPT" -r
 
 ROLLBACK_EXIT=$?
-assert_zero "mysqlconfigurer.sh -r exited successfully" "$ROLLBACK_EXIT"
+assert_zero "releem-configurer.sh -r exited successfully" "$ROLLBACK_EXIT"
 
 # --- Local assertions ---
 assert_service_running "DB service running after rollback"     "$DB_SERVICE"
 assert_service_running "releem-agent still running"            "releem-agent"
 
 # After rollback the applied config should be removed or replaced with backup content
-# mysqlconfigurer.sh -r restores the backup and removes or replaces the active config
+# releem-configurer.sh -r restores the backup and removes or replaces the active config
 if [[ ! -f "$RELEEM_CONFIG_FILE" ]]; then
     log_pass "Rollback: config file removed"
 else

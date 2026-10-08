@@ -5,7 +5,7 @@
 TESTS_PASSED=0
 TESTS_FAILED=0
 INSTALL_SCRIPT="${INSTALL_SCRIPT:-/tmp/releem_tests/install.sh}"
-CONFIGURER_SCRIPT="${CONFIGURER_SCRIPT:-/tmp/releem_tests/mysqlconfigurer.sh}"
+CONFIGURER_SCRIPT="${CONFIGURER_SCRIPT:-/tmp/releem_tests/releem-configurer.sh}"
 
 # Releem API base URL
 RELEEM_API_BASE="${RELEEM_API_BASE:-https://api.releem.com/v2}"

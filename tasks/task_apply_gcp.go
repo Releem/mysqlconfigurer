@@ -15,6 +15,10 @@ import (
 	"google.golang.org/api/sqladmin/v1"
 )
 
+var newGCPApplyService = func(ctx context.Context) (*sqladmin.Service, error) {
+	return sqladmin.NewService(ctx)
+}
+
 func ApplyConfGcpCloudSQL(repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer,
 	logger logging.Logger, configuration *config.Config, applyMode ApplyModeType, task *models.Task) (int, int, string) {
 
@@ -27,7 +31,7 @@ func ApplyConfGcpCloudSQL(repeaters models.MetricsRepeater, gatherers []models.M
 	ctx := context.Background()
 
 	// Create SQL Admin client
-	sqlAdminService, err := sqladmin.NewService(ctx)
+	sqlAdminService, err := newGCPApplyService(ctx)
 	if err != nil {
 		logger.Error("Failed to create GCP SQL Admin client", err)
 		task_output = task_output + "Failed to create GCP SQL Admin client" + err.Error()
@@ -157,7 +161,7 @@ func ApplyConfGcpCloudSQL(repeaters models.MetricsRepeater, gatherers []models.M
 	}
 
 	if err := waitForOp(ctx, sqlAdminService, configuration.GcpProjectId, op); err != nil {
-		logger.Fatalf("waitForOp: %v", err)
+		logger.Errorf("waitForOp: %v", err)
 		task_exit_code = 8
 		task_status = 4
 		task_output = task_output + err.Error()

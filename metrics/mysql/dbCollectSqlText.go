@@ -1,6 +1,7 @@
 package mysql
 
 import (
+	"errors"
 	"maps"
 
 	"github.com/Releem/mysqlconfigurer/config"
@@ -55,7 +56,9 @@ func (DBCollectSampleQueries *DBCollectSampleQueriesGatherer) GetMetrics(metrics
 			}
 			tempData[schema_name+query_id] = sqlText
 		}
-
+		if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+			return err
+		}
 		// Single mutex lock for batch update
 		if len(tempData) > 0 {
 			models.SampleQueriesMutex.Lock()

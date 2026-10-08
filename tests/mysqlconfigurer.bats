@@ -4,7 +4,7 @@ load "helpers/load_mysqlconfigurer.sh"
 
 setup() {
     REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
-    CONFIGURER_SH="${REPO_ROOT}/mysqlconfigurer.sh"
+    CONFIGURER_SH="${REPO_ROOT}/releem-configurer.sh"
 
     TEST_TMPDIR="$(mktemp -d)"
     TEST_WORKDIR="${TEST_TMPDIR}"
@@ -90,6 +90,62 @@ mysql_restart_service="${restart_cmd}"
 EOF
 }
 
+@test "legacy configurer forwards arguments environment and exit status from any directory" {
+    local scripts="${TEST_TMPDIR}/scripts with spaces"
+    mkdir -p "$scripts"
+    cp "${REPO_ROOT}/mysqlconfigurer.sh" "$scripts/mysqlconfigurer.sh"
+    cat > "$scripts/releem-configurer.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$RELEEM_FORWARD_TEST" "$@"
+exit 23
+EOF
+    run env RELEEM_FORWARD_TEST=preserved bash "$scripts/mysqlconfigurer.sh" -s "value with spaces" -r
+    [ "$status" -eq 23 ]
+    [ "${lines[0]}" = preserved ]
+    [ "${lines[1]}" = -s ]
+    [ "${lines[2]}" = "value with spaces" ]
+    [ "${lines[3]}" = -r ]
+}
+
+@test "legacy standalone download bootstraps canonical configurer only once" {
+    local scripts="${TEST_TMPDIR}/standalone"
+    mkdir -p "$scripts"
+    cp "${REPO_ROOT}/mysqlconfigurer.sh" "$scripts/mysqlconfigurer.sh"
+    create_mock_cmd "curl" '
+echo download >> "${BOOTSTRAP_LOG}"
+while [ "$#" -gt 0 ]; do
+    if [ "$1" = -o ]; then out="$2"; shift 2; else shift; fi
+done
+printf '\''#!/usr/bin/env bash\nprintf "canonical:%%s\\n" "$*"\n'\'' > "$out"
+'
+    for invocation in 1 2; do
+        PATH="${MOCK_BIN}:${PATH}" run env BOOTSTRAP_LOG="${TEST_TMPDIR}/bootstrap.log" bash "$scripts/mysqlconfigurer.sh" -u
+        [ "$status" -eq 0 ]
+        [ "$output" = canonical:-u ]
+    done
+    [ "$(wc -l < "${TEST_TMPDIR}/bootstrap.log")" -eq 1 ]
+    [ -x "$scripts/releem-configurer.sh" ]
+}
+
+@test "legacy bootstrap rejects failed or invalid downloads" {
+    local scripts="${TEST_TMPDIR}/standalone"
+    mkdir -p "$scripts"
+    cp "${REPO_ROOT}/mysqlconfigurer.sh" "$scripts/mysqlconfigurer.sh"
+    create_mock_cmd "curl" 'exit 22'
+    PATH="${MOCK_BIN}:${PATH}" run bash "$scripts/mysqlconfigurer.sh" -u
+    [ "$status" -ne 0 ]
+    [ ! -e "$scripts/releem-configurer.sh" ]
+    create_mock_cmd "curl" '
+while [ "$#" -gt 0 ]; do
+    if [ "$1" = -o ]; then out="$2"; shift 2; else shift; fi
+done
+printf "if invalid\n" > "$out"
+'
+    PATH="${MOCK_BIN}:${PATH}" run bash "$scripts/mysqlconfigurer.sh" -u
+    [ "$status" -ne 0 ]
+    [ ! -e "$scripts/releem-configurer.sh" ]
+}
+
 write_postgresql_conf() {
     local instance_type="${1:-aws/rds}"
     local restart_cmd="${2:-bash ${TEST_TMPDIR}/restart_ok.sh}"
@@ -121,11 +177,11 @@ EOF
 
 #
 # Documented command mapping:
-# - /opt/releem/mysqlconfigurer.sh -u
-# - bash /opt/releem/mysqlconfigurer.sh -s initial
-# - bash /opt/releem/mysqlconfigurer.sh -s auto
-# - /bin/bash /opt/releem/mysqlconfigurer.sh -r
-# - /opt/releem/mysqlconfigurer.sh -p (with query_optimization=true)
+# - /opt/releem/releem-configurer.sh -u
+# - bash /opt/releem/releem-configurer.sh -s initial
+# - bash /opt/releem/releem-configurer.sh -s auto
+# - /bin/bash /opt/releem/releem-configurer.sh -r
+# - /opt/releem/releem-configurer.sh -p (with query_optimization=true)
 #
 
 @test "manual update command (-u) succeeds when already up-to-date" {
@@ -484,7 +540,7 @@ EOF
 
     run bash -c '
 RELEEM_TEST_MODE=1
-source "'"${REPO_ROOT}"'/mysqlconfigurer.sh"
+source "'"${REPO_ROOT}"'/releem-configurer.sh"
 wait_restart() { return 6; }
 DATABASE_TYPE="mysql"
 DATABASE_NAME="MySQL"
@@ -499,6 +555,13 @@ MYSQL_MY_CNF_PATH=""
 releem_apply_manual
 '
     [ "$status" -eq 6 ]
+}
+
+@test "unsupported MySQL reports the actual minimum version" {
+    echo 5.6.7 > "${TEST_TMPDIR}/version"
+    run bash -c 'RELEEM_TEST_MODE=1 source "$1"; DATABASE_TYPE=mysql; RELEEM_DB_VERSION_FILE="$2"; releem_apply_manual' _ "$CONFIGURER_SH" "${TEST_TMPDIR}/version"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"lower than 5.6.8"* ]]
 }
 
 @test "manual apply uses prepared file without invoking configuration download" {

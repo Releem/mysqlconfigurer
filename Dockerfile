@@ -16,8 +16,9 @@ RUN mkdir /opt/releem/conf
 COPY docker/ /docker/
 
 RUN curl -L -o releem-agent https://releem.s3.amazonaws.com/v2/releem-agent-$(arch) \
+ && curl -L -o releem-configurer.sh https://releem.s3.amazonaws.com/v2/releem-configurer.sh \
  && curl -L -o mysqlconfigurer.sh https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh \
- && chmod +x releem-agent mysqlconfigurer.sh /docker/entrypoint.sh
+ && chmod +x releem-agent releem-configurer.sh mysqlconfigurer.sh /docker/entrypoint.sh
  
 RUN mkdir -p /etc/mysql/releem.conf.d
 

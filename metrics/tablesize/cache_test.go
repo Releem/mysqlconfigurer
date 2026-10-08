@@ -1,4 +1,4 @@
-package mysql
+package tablesize
 
 import (
 	"errors"
@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Releem/mysqlconfigurer/models"
+	snapshotcache "github.com/Releem/mysqlconfigurer/utils/cache"
 )
 
 func TestEffectiveTableSizeRAM(t *testing.T) {
@@ -99,10 +100,10 @@ func TestEffectiveTableSizeRAM(t *testing.T) {
 					"InstanceType": tt.instanceType,
 				}
 			}
-			got := effectiveTableSizeRAM(metrics)
+			got := EffectiveRAM(metrics)
 
 			if got != tt.want {
-				t.Fatalf("effectiveTableSizeRAM() = %d, want %d", got, tt.want)
+				t.Fatalf("EffectiveRAM() = %d, want %d", got, tt.want)
 			}
 		})
 	}
@@ -145,8 +146,8 @@ func TestTableSizeUint64AcceptsMetricNumberRepresentations(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := tableSizeUint64(tt.value); got != tt.want {
-				t.Fatalf("tableSizeUint64(%#v) = %d, want %d", tt.value, got, tt.want)
+			if got := Uint64(tt.value); got != tt.want {
+				t.Fatalf("Uint64(%#v) = %d, want %d", tt.value, got, tt.want)
 			}
 		})
 	}
@@ -163,10 +164,10 @@ func TestTableSizeCacheThresholds(t *testing.T) {
 		tableLimit    int64
 		ramMultiplier int64
 		engine        map[string]models.MetricGroupValue
-		wantCalls     int
+		wantTTL       time.Duration
 	}{
 		{
-			name:          "table count equal to threshold does not cache",
+			name:          "table count equal to threshold uses ordinary cache",
 			totalTables:   1000,
 			effectiveRAM:  gib,
 			tableLimit:    1000,
@@ -175,10 +176,10 @@ func TestTableSizeCacheThresholds(t *testing.T) {
 				4*gib+1,
 				128,
 			),
-			wantCalls: 2,
+			wantTTL: 12 * time.Hour,
 		},
 		{
-			name:          "total size equal to RAM multiple does not cache",
+			name:          "total size equal to RAM multiple uses ordinary cache",
 			totalTables:   1001,
 			effectiveRAM:  gib,
 			tableLimit:    1000,
@@ -187,7 +188,7 @@ func TestTableSizeCacheThresholds(t *testing.T) {
 				3*gib,
 				gib,
 			),
-			wantCalls: 2,
+			wantTTL: 12 * time.Hour,
 		},
 		{
 			name:          "both values greater than thresholds cache",
@@ -199,10 +200,10 @@ func TestTableSizeCacheThresholds(t *testing.T) {
 				3*gib,
 				gib+1,
 			),
-			wantCalls: 1,
+			wantTTL: time.Hour,
 		},
 		{
-			name:          "table threshold failing refreshes again",
+			name:          "table threshold failing uses ordinary cache",
 			totalTables:   999,
 			effectiveRAM:  gib,
 			tableLimit:    1000,
@@ -211,10 +212,10 @@ func TestTableSizeCacheThresholds(t *testing.T) {
 				5*gib,
 				128,
 			),
-			wantCalls: 2,
+			wantTTL: 12 * time.Hour,
 		},
 		{
-			name:          "RAM threshold failing refreshes again",
+			name:          "RAM threshold failing uses ordinary cache",
 			totalTables:   1001,
 			effectiveRAM:  gib,
 			tableLimit:    1000,
@@ -223,7 +224,7 @@ func TestTableSizeCacheThresholds(t *testing.T) {
 				3*gib,
 				gib-1,
 			),
-			wantCalls: 2,
+			wantTTL: 12 * time.Hour,
 		},
 		{
 			name:          "total size addition saturates",
@@ -235,10 +236,10 @@ func TestTableSizeCacheThresholds(t *testing.T) {
 				math.MaxUint64,
 				1,
 			),
-			wantCalls: 1,
+			wantTTL: time.Hour,
 		},
 		{
-			name:          "RAM multiplication overflow does not cache",
+			name:          "RAM multiplication overflow uses ordinary cache",
 			totalTables:   1001,
 			effectiveRAM:  math.MaxUint64,
 			tableLimit:    1000,
@@ -247,73 +248,95 @@ func TestTableSizeCacheThresholds(t *testing.T) {
 				math.MaxUint64,
 				0,
 			),
-			wantCalls: 2,
+			wantTTL: 12 * time.Hour,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cache := &tableSizeCache{}
+			cache := newTableSizeCache()
 			calls := 0
 			refresh := func() (map[string]models.MetricGroupValue, error) {
 				calls++
 				return tt.engine, nil
 			}
-			input := tableSizeCacheInput{
-				totalTables:    tt.totalTables,
-				effectiveRAM:   tt.effectiveRAM,
-				tableThreshold: tt.tableLimit,
-				ramMultiplier:  tt.ramMultiplier,
-				ttl:            time.Hour,
-				now:            baseTime,
+			input := Input{
+				TotalTables:    tableCount(tt.totalTables),
+				EffectiveRAM:   tt.effectiveRAM,
+				TableThreshold: tt.tableLimit,
+				RAMMultiplier:  tt.ramMultiplier,
+				TTL:            time.Hour,
+				Now:            baseTime,
 			}
 
-			if _, err := cache.getOrRefresh(input, refresh); err != nil {
+			if _, err := cache.GetOrRefresh(input, refresh); err != nil {
 				t.Fatalf("first getOrRefresh() error = %v", err)
 			}
-			if _, err := cache.getOrRefresh(input, refresh); err != nil {
+			if _, err := cache.GetOrRefresh(input, refresh); err != nil {
 				t.Fatalf("second getOrRefresh() error = %v", err)
 			}
 
-			if calls != tt.wantCalls {
-				t.Fatalf("refresh calls = %d, want %d", calls, tt.wantCalls)
+			input.Now = baseTime.Add(tt.wantTTL - time.Second)
+			if _, err := cache.GetOrRefresh(input, refresh); err != nil {
+				t.Fatal(err)
+			}
+			if calls != 1 {
+				t.Fatalf("refresh calls before expiry = %d, want 1", calls)
+			}
+			input.Now = baseTime.Add(tt.wantTTL)
+			if _, err := cache.GetOrRefresh(input, refresh); err != nil {
+				t.Fatal(err)
+			}
+			if calls != 2 {
+				t.Fatalf("refresh calls at expiry = %d, want 2", calls)
 			}
 		})
 	}
 }
 
-func TestTableSizeCacheZeroEffectiveRAMDoesNotPersist(t *testing.T) {
+func TestTableSizeCacheZeroEffectiveRAMUsesOrdinaryTTL(t *testing.T) {
 	const gib = uint64(1024 * 1024 * 1024)
-	cache := &tableSizeCache{}
+	cache := newTableSizeCache()
 	calls := 0
 	refresh := func() (map[string]models.MetricGroupValue, error) {
 		calls++
 		return tableSizeTestEngine(5*gib, 1024), nil
 	}
-	input := tableSizeCacheInput{
-		totalTables:    1001,
-		effectiveRAM:   0,
-		tableThreshold: 1000,
-		ramMultiplier:  4,
-		ttl:            time.Hour,
-		now:            time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC),
+	input := Input{
+		TotalTables:    tableCount(1001),
+		EffectiveRAM:   0,
+		TableThreshold: 1000,
+		RAMMultiplier:  4,
+		TTL:            time.Hour,
+		Now:            time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC),
 	}
 
-	if _, err := cache.getOrRefresh(input, refresh); err != nil {
+	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
 		t.Fatalf("first getOrRefresh() error = %v", err)
 	}
-	if _, err := cache.getOrRefresh(input, refresh); err != nil {
+	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
 		t.Fatalf("second getOrRefresh() error = %v", err)
 	}
 
+	input.Now = input.Now.Add(12*time.Hour - time.Second)
+	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("refresh calls = %d, want 1", calls)
+	}
+	input.Now = input.Now.Add(time.Second)
+	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
+		t.Fatal(err)
+	}
 	if calls != 2 {
-		t.Fatalf("refresh calls = %d, want 2", calls)
+		t.Fatalf("refresh calls at 12h = %d, want 2", calls)
 	}
 }
 
 func TestTableSizeCacheIneligibleSuccessNotReusedAfterInputsBecomeEligible(t *testing.T) {
 	const gib = uint64(1024 * 1024 * 1024)
-	cache := &tableSizeCache{}
+	cache := newTableSizeCache()
 	calls := 0
 	refresh := func() (map[string]models.MetricGroupValue, error) {
 		calls++
@@ -322,20 +345,20 @@ func TestTableSizeCacheIneligibleSuccessNotReusedAfterInputsBecomeEligible(t *te
 		}
 		return tableSizeTestEngine(6*gib, 2048), nil
 	}
-	input := tableSizeCacheInput{
-		totalTables:    1000,
-		effectiveRAM:   gib,
-		tableThreshold: 1000,
-		ramMultiplier:  4,
-		ttl:            time.Hour,
-		now:            time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC),
+	input := Input{
+		TotalTables:    tableCount(1000),
+		EffectiveRAM:   gib,
+		TableThreshold: 1000,
+		RAMMultiplier:  4,
+		TTL:            time.Hour,
+		Now:            time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC),
 	}
 
-	if _, err := cache.getOrRefresh(input, refresh); err != nil {
+	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
 		t.Fatalf("ineligible getOrRefresh() error = %v", err)
 	}
-	input.totalTables = 1001
-	eligible, err := cache.getOrRefresh(input, refresh)
+	input.TotalTables = tableCount(1001)
+	eligible, err := cache.GetOrRefresh(input, refresh)
 	if err != nil {
 		t.Fatalf("eligible getOrRefresh() error = %v", err)
 	}
@@ -343,7 +366,7 @@ func TestTableSizeCacheIneligibleSuccessNotReusedAfterInputsBecomeEligible(t *te
 	if calls != 2 {
 		t.Fatalf("refresh calls = %d, want 2", calls)
 	}
-	if got := eligible.engine["InnoDB"]["Total Size"]; got != 6*gib {
+	if got := eligible.Value["InnoDB"]["Total Size"]; got != 6*gib {
 		t.Fatalf("eligible InnoDB Total Size = %v, want %d", got, 6*gib)
 	}
 }
@@ -351,7 +374,7 @@ func TestTableSizeCacheIneligibleSuccessNotReusedAfterInputsBecomeEligible(t *te
 func TestTableSizeCacheIneligibleSuccessUsedAsStaleFallback(t *testing.T) {
 	const gib = uint64(1024 * 1024 * 1024)
 	refreshFailure := errors.New("second table size query failed")
-	cache := &tableSizeCache{}
+	cache := newTableSizeCache()
 	calls := 0
 	refresh := func() (map[string]models.MetricGroupValue, error) {
 		calls++
@@ -360,27 +383,28 @@ func TestTableSizeCacheIneligibleSuccessUsedAsStaleFallback(t *testing.T) {
 		}
 		return nil, refreshFailure
 	}
-	input := tableSizeCacheInput{
-		totalTables:    1000,
-		effectiveRAM:   gib,
-		tableThreshold: 1000,
-		ramMultiplier:  4,
-		ttl:            time.Hour,
-		now:            time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC),
+	input := Input{
+		TotalTables:    tableCount(1000),
+		EffectiveRAM:   gib,
+		TableThreshold: 1000,
+		RAMMultiplier:  4,
+		TTL:            time.Hour,
+		Now:            time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC),
 	}
 
-	if _, err := cache.getOrRefresh(input, refresh); err != nil {
+	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
 		t.Fatalf("ineligible getOrRefresh() error = %v", err)
 	}
-	result, err := cache.getOrRefresh(input, refresh)
+	input.Now = input.Now.Add(12 * time.Hour)
+	result, err := cache.GetOrRefresh(input, refresh)
 
 	if err != nil {
 		t.Fatalf("second getOrRefresh() error = %v, want stale fallback", err)
 	}
-	if !result.usedStale || !errors.Is(result.refreshErr, refreshFailure) {
+	if !result.UsedStale || !errors.Is(result.RefreshErr, refreshFailure) {
 		t.Fatalf("second result = %#v, want stale result with refresh error", result)
 	}
-	if got := result.engine["InnoDB"]["Total Size"]; got != 5*gib {
+	if got := result.Value["InnoDB"]["Total Size"]; got != 5*gib {
 		t.Fatalf("stale InnoDB Total Size = %v, want %d", got, 5*gib)
 	}
 	if calls != 2 {
@@ -390,7 +414,7 @@ func TestTableSizeCacheIneligibleSuccessUsedAsStaleFallback(t *testing.T) {
 
 func TestTableSizeCacheEligibleSuccessThenIneligibleSuccessForcesNextRefresh(t *testing.T) {
 	const gib = uint64(1024 * 1024 * 1024)
-	cache := &tableSizeCache{}
+	cache := newTableSizeCache()
 	calls := 0
 	refresh := func() (map[string]models.MetricGroupValue, error) {
 		calls++
@@ -403,36 +427,36 @@ func TestTableSizeCacheEligibleSuccessThenIneligibleSuccessForcesNextRefresh(t *
 			return tableSizeTestEngine(7*gib, 3), nil
 		}
 	}
-	input := tableSizeCacheInput{
-		totalTables:    1001,
-		effectiveRAM:   gib,
-		tableThreshold: 1000,
-		ramMultiplier:  4,
-		ttl:            time.Hour,
-		now:            time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC),
+	input := Input{
+		TotalTables:    tableCount(1001),
+		EffectiveRAM:   gib,
+		TableThreshold: 1000,
+		RAMMultiplier:  4,
+		TTL:            time.Hour,
+		Now:            time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC),
 	}
 
-	if _, err := cache.getOrRefresh(input, refresh); err != nil {
+	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
 		t.Fatalf("eligible getOrRefresh() error = %v", err)
 	}
-	input.totalTables = 1000
-	ineligible, err := cache.getOrRefresh(input, refresh)
+	input.TotalTables = tableCount(1000)
+	ineligible, err := cache.GetOrRefresh(input, refresh)
 	if err != nil {
 		t.Fatalf("ineligible getOrRefresh() error = %v", err)
 	}
-	if got := ineligible.engine["InnoDB"]["Total Size"]; got != 6*gib {
+	if got := ineligible.Value["InnoDB"]["Total Size"]; got != 6*gib {
 		t.Fatalf("ineligible InnoDB Total Size = %v, want %d", got, 6*gib)
 	}
 
-	input.totalTables = 1001
-	next, err := cache.getOrRefresh(input, refresh)
+	input.TotalTables = tableCount(1001)
+	next, err := cache.GetOrRefresh(input, refresh)
 	if err != nil {
 		t.Fatalf("next eligible getOrRefresh() error = %v", err)
 	}
 	if calls != 3 {
 		t.Fatalf("refresh calls = %d, want 3", calls)
 	}
-	if got := next.engine["InnoDB"]["Total Size"]; got != 7*gib {
+	if got := next.Value["InnoDB"]["Total Size"]; got != 7*gib {
 		t.Fatalf("next eligible InnoDB Total Size = %v, want %d", got, 7*gib)
 	}
 }
@@ -440,7 +464,7 @@ func TestTableSizeCacheEligibleSuccessThenIneligibleSuccessForcesNextRefresh(t *
 func TestTableSizeCacheLatestIneligibleSuccessReplacesStaleFallback(t *testing.T) {
 	const gib = uint64(1024 * 1024 * 1024)
 	refreshFailure := errors.New("next table size query failed")
-	cache := &tableSizeCache{}
+	cache := newTableSizeCache()
 	calls := 0
 	refresh := func() (map[string]models.MetricGroupValue, error) {
 		calls++
@@ -453,38 +477,38 @@ func TestTableSizeCacheLatestIneligibleSuccessReplacesStaleFallback(t *testing.T
 			return nil, refreshFailure
 		}
 	}
-	input := tableSizeCacheInput{
-		totalTables:    1001,
-		effectiveRAM:   gib,
-		tableThreshold: 1000,
-		ramMultiplier:  4,
-		ttl:            time.Hour,
-		now:            time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC),
+	input := Input{
+		TotalTables:    tableCount(1001),
+		EffectiveRAM:   gib,
+		TableThreshold: 1000,
+		RAMMultiplier:  4,
+		TTL:            time.Hour,
+		Now:            time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC),
 	}
 
-	if _, err := cache.getOrRefresh(input, refresh); err != nil {
+	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
 		t.Fatalf("eligible getOrRefresh() error = %v", err)
 	}
-	input.totalTables = 1000
-	if _, err := cache.getOrRefresh(input, refresh); err != nil {
+	input.TotalTables = tableCount(1000)
+	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
 		t.Fatalf("ineligible getOrRefresh() error = %v", err)
 	}
 
-	input.totalTables = 1001
-	stale, err := cache.getOrRefresh(input, refresh)
+	input.TotalTables = tableCount(1001)
+	stale, err := cache.GetOrRefresh(input, refresh)
 	if err != nil {
 		t.Fatalf("stale getOrRefresh() error = %v, want nil", err)
 	}
 	if calls != 3 {
 		t.Fatalf("refresh calls = %d, want 3", calls)
 	}
-	if !stale.usedStale {
+	if !stale.UsedStale {
 		t.Fatal("usedStale = false, want true")
 	}
-	if !errors.Is(stale.refreshErr, refreshFailure) {
-		t.Fatalf("refreshErr = %v, want %v", stale.refreshErr, refreshFailure)
+	if !errors.Is(stale.RefreshErr, refreshFailure) {
+		t.Fatalf("refreshErr = %v, want %v", stale.RefreshErr, refreshFailure)
 	}
-	if got := stale.engine["InnoDB"]["Total Size"]; got != 6*gib {
+	if got := stale.Value["InnoDB"]["Total Size"]; got != 6*gib {
 		t.Fatalf("stale InnoDB Total Size = %v, want latest successful %d", got, 6*gib)
 	}
 }
@@ -508,55 +532,55 @@ func TestTableSizeCacheClonesSnapshots(t *testing.T) {
 			"Index Size":   uint64(1024),
 		},
 	}
-	cache := &tableSizeCache{}
+	cache := newTableSizeCache()
 	calls := 0
 	refresh := func() (map[string]models.MetricGroupValue, error) {
 		calls++
 		return refreshed, nil
 	}
-	input := tableSizeCacheInput{
-		totalTables:    1202,
-		effectiveRAM:   gib,
-		tableThreshold: 1000,
-		ramMultiplier:  4,
-		ttl:            time.Hour,
-		now:            now,
+	input := Input{
+		TotalTables:    tableCount(1202),
+		EffectiveRAM:   gib,
+		TableThreshold: 1000,
+		RAMMultiplier:  4,
+		TTL:            time.Hour,
+		Now:            now,
 	}
 
-	first, err := cache.getOrRefresh(input, refresh)
+	first, err := cache.GetOrRefresh(input, refresh)
 	if err != nil {
 		t.Fatalf("first getOrRefresh() error = %v", err)
 	}
-	delete(first.engine, "MyISAM")
-	first.engine["InnoDB"]["Index Size"] = uint64(7)
+	delete(first.Value, "MyISAM")
+	first.Value["InnoDB"]["Index Size"] = uint64(7)
 	refreshed["MyISAM"]["Index Size"] = uint64(9)
 
-	second, err := cache.getOrRefresh(input, refresh)
+	second, err := cache.GetOrRefresh(input, refresh)
 	if err != nil {
 		t.Fatalf("second getOrRefresh() error = %v", err)
 	}
 	if calls != 1 {
 		t.Fatalf("refresh calls = %d, want 1", calls)
 	}
-	if got := second.engine["InnoDB"]["Index Size"]; got != gib {
+	if got := second.Value["InnoDB"]["Index Size"]; got != gib {
 		t.Fatalf("cached InnoDB Index Size = %v, want %d", got, gib)
 	}
-	if got := second.engine["MyISAM"]["Index Size"]; got != uint64(1024) {
+	if got := second.Value["MyISAM"]["Index Size"]; got != uint64(1024) {
 		t.Fatalf("cached MyISAM Index Size = %v, want 1024", got)
 	}
-	if got := second.engine["InnoDB"]["Data Size"]; got != 3*gib {
+	if got := second.Value["InnoDB"]["Data Size"]; got != 3*gib {
 		t.Fatalf("cached InnoDB Data Size = %v, want %d", got, 3*gib)
 	}
-	if got := second.engine["MyISAM"]["Data Size"]; got != uint64(3072) {
+	if got := second.Value["MyISAM"]["Data Size"]; got != uint64(3072) {
 		t.Fatalf("cached MyISAM Data Size = %v, want 3072", got)
 	}
 
-	second.engine["MyISAM"]["Data Size"] = uint64(11)
-	third, err := cache.getOrRefresh(input, refresh)
+	second.Value["MyISAM"]["Data Size"] = uint64(11)
+	third, err := cache.GetOrRefresh(input, refresh)
 	if err != nil {
 		t.Fatalf("third getOrRefresh() error = %v", err)
 	}
-	if got := third.engine["MyISAM"]["Data Size"]; got != uint64(3072) {
+	if got := third.Value["MyISAM"]["Data Size"]; got != uint64(3072) {
 		t.Fatalf("independent MyISAM Data Size = %v, want 3072", got)
 	}
 }
@@ -581,8 +605,8 @@ func TestTableSizeCacheTTLFromSecondsSaturates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tableSizeCacheTTLFromSeconds(tt.seconds); got != tt.want {
-				t.Fatalf("tableSizeCacheTTLFromSeconds(%d) = %d, want %d", tt.seconds, got, tt.want)
+			if got := TTLFromSeconds(tt.seconds); got != tt.want {
+				t.Fatalf("TTLFromSeconds(%d) = %d, want %d", tt.seconds, got, tt.want)
 			}
 		})
 	}
@@ -610,26 +634,26 @@ func tableSizeTestEngine(innodbTotal, myisamTotal uint64) map[string]models.Metr
 func TestTableSizeCacheTTLFreshOneSecondBeforeExpiry(t *testing.T) {
 	const gib = uint64(1024 * 1024 * 1024)
 	collectedAt := time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC)
-	cache := &tableSizeCache{}
+	cache := newTableSizeCache()
 	calls := 0
 	refresh := func() (map[string]models.MetricGroupValue, error) {
 		calls++
 		return tableSizeTestEngine(4*gib, 1), nil
 	}
-	input := tableSizeCacheInput{
-		totalTables:    1001,
-		effectiveRAM:   gib,
-		tableThreshold: 1000,
-		ramMultiplier:  4,
-		ttl:            24 * time.Hour,
-		now:            collectedAt,
+	input := Input{
+		TotalTables:    tableCount(1001),
+		EffectiveRAM:   gib,
+		TableThreshold: 1000,
+		RAMMultiplier:  4,
+		TTL:            24 * time.Hour,
+		Now:            collectedAt,
 	}
 
-	if _, err := cache.getOrRefresh(input, refresh); err != nil {
+	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
 		t.Fatalf("first getOrRefresh() error = %v", err)
 	}
-	input.now = collectedAt.Add(24*time.Hour - time.Second)
-	if _, err := cache.getOrRefresh(input, refresh); err != nil {
+	input.Now = collectedAt.Add(24*time.Hour - time.Second)
+	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
 		t.Fatalf("second getOrRefresh() error = %v", err)
 	}
 
@@ -641,26 +665,26 @@ func TestTableSizeCacheTTLFreshOneSecondBeforeExpiry(t *testing.T) {
 func TestTableSizeCacheTTLExactlyAtExpiryRefreshes(t *testing.T) {
 	const gib = uint64(1024 * 1024 * 1024)
 	collectedAt := time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC)
-	cache := &tableSizeCache{}
+	cache := newTableSizeCache()
 	calls := 0
 	refresh := func() (map[string]models.MetricGroupValue, error) {
 		calls++
 		return tableSizeTestEngine(4*gib, 1), nil
 	}
-	input := tableSizeCacheInput{
-		totalTables:    1001,
-		effectiveRAM:   gib,
-		tableThreshold: 1000,
-		ramMultiplier:  4,
-		ttl:            24 * time.Hour,
-		now:            collectedAt,
+	input := Input{
+		TotalTables:    tableCount(1001),
+		EffectiveRAM:   gib,
+		TableThreshold: 1000,
+		RAMMultiplier:  4,
+		TTL:            24 * time.Hour,
+		Now:            collectedAt,
 	}
 
-	if _, err := cache.getOrRefresh(input, refresh); err != nil {
+	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
 		t.Fatalf("first getOrRefresh() error = %v", err)
 	}
-	input.now = collectedAt.Add(24 * time.Hour)
-	if _, err := cache.getOrRefresh(input, refresh); err != nil {
+	input.Now = collectedAt.Add(24 * time.Hour)
+	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
 		t.Fatalf("second getOrRefresh() error = %v", err)
 	}
 
@@ -673,7 +697,7 @@ func TestTableSizeCacheTTLSuccessfulRefreshReplacesSnapshotAndTimestamp(t *testi
 	const gib = uint64(1024 * 1024 * 1024)
 	firstTime := time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC)
 	secondTime := firstTime.Add(24 * time.Hour)
-	cache := &tableSizeCache{}
+	cache := newTableSizeCache()
 	calls := 0
 	refresh := func() (map[string]models.MetricGroupValue, error) {
 		calls++
@@ -682,33 +706,33 @@ func TestTableSizeCacheTTLSuccessfulRefreshReplacesSnapshotAndTimestamp(t *testi
 		}
 		return tableSizeTestEngine(5*gib, 2), nil
 	}
-	input := tableSizeCacheInput{
-		totalTables:    1001,
-		effectiveRAM:   gib,
-		tableThreshold: 1000,
-		ramMultiplier:  4,
-		ttl:            24 * time.Hour,
-		now:            firstTime,
+	input := Input{
+		TotalTables:    tableCount(1001),
+		EffectiveRAM:   gib,
+		TableThreshold: 1000,
+		RAMMultiplier:  4,
+		TTL:            24 * time.Hour,
+		Now:            firstTime,
 	}
 
-	if _, err := cache.getOrRefresh(input, refresh); err != nil {
+	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
 		t.Fatalf("first getOrRefresh() error = %v", err)
 	}
-	input.now = secondTime
-	second, err := cache.getOrRefresh(input, refresh)
+	input.Now = secondTime
+	second, err := cache.GetOrRefresh(input, refresh)
 	if err != nil {
 		t.Fatalf("second getOrRefresh() error = %v", err)
 	}
-	if got := second.engine["InnoDB"]["Total Size"]; got != 5*gib {
+	if got := second.Value["InnoDB"]["Total Size"]; got != 5*gib {
 		t.Fatalf("refreshed InnoDB Total Size = %v, want %d", got, 5*gib)
 	}
 
-	input.now = secondTime.Add(24*time.Hour - time.Second)
-	third, err := cache.getOrRefresh(input, refresh)
+	input.Now = secondTime.Add(24*time.Hour - time.Second)
+	third, err := cache.GetOrRefresh(input, refresh)
 	if err != nil {
 		t.Fatalf("third getOrRefresh() error = %v", err)
 	}
-	if got := third.engine["MyISAM"]["Total Size"]; got != uint64(2) {
+	if got := third.Value["MyISAM"]["Total Size"]; got != uint64(2) {
 		t.Fatalf("cached MyISAM Total Size = %v, want 2", got)
 	}
 	if calls != 2 {
@@ -720,7 +744,7 @@ func TestTableSizeCacheStaleFallbackReturnsSnapshotAndRefreshError(t *testing.T)
 	const gib = uint64(1024 * 1024 * 1024)
 	refreshFailure := errors.New("table size query failed")
 	collectedAt := time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC)
-	cache := &tableSizeCache{}
+	cache := newTableSizeCache()
 	calls := 0
 	refresh := func() (map[string]models.MetricGroupValue, error) {
 		calls++
@@ -729,34 +753,34 @@ func TestTableSizeCacheStaleFallbackReturnsSnapshotAndRefreshError(t *testing.T)
 		}
 		return nil, refreshFailure
 	}
-	input := tableSizeCacheInput{
-		totalTables:    1001,
-		effectiveRAM:   gib,
-		tableThreshold: 1000,
-		ramMultiplier:  4,
-		ttl:            time.Hour,
-		now:            collectedAt,
+	input := Input{
+		TotalTables:    tableCount(1001),
+		EffectiveRAM:   gib,
+		TableThreshold: 1000,
+		RAMMultiplier:  4,
+		TTL:            time.Hour,
+		Now:            collectedAt,
 	}
 
-	if _, err := cache.getOrRefresh(input, refresh); err != nil {
+	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
 		t.Fatalf("first getOrRefresh() error = %v", err)
 	}
-	input.now = collectedAt.Add(time.Hour)
-	stale, err := cache.getOrRefresh(input, refresh)
+	input.Now = collectedAt.Add(time.Hour)
+	stale, err := cache.GetOrRefresh(input, refresh)
 
 	if err != nil {
 		t.Fatalf("stale getOrRefresh() error = %v, want nil", err)
 	}
-	if !stale.usedStale {
+	if !stale.UsedStale {
 		t.Fatal("usedStale = false, want true")
 	}
-	if !errors.Is(stale.refreshErr, refreshFailure) {
-		t.Fatalf("refreshErr = %v, want %v", stale.refreshErr, refreshFailure)
+	if !errors.Is(stale.RefreshErr, refreshFailure) {
+		t.Fatalf("refreshErr = %v, want %v", stale.RefreshErr, refreshFailure)
 	}
-	if got := stale.engine["InnoDB"]["Total Size"]; got != 4*gib {
+	if got := stale.Value["InnoDB"]["Total Size"]; got != 4*gib {
 		t.Fatalf("stale InnoDB Total Size = %v, want %d", got, 4*gib)
 	}
-	if got := stale.engine["MyISAM"]["Index Size"]; got != uint64(1024) {
+	if got := stale.Value["MyISAM"]["Index Size"]; got != uint64(1024) {
 		t.Fatalf("stale MyISAM Index Size = %v, want 1024", got)
 	}
 	if calls != 2 {
@@ -766,16 +790,16 @@ func TestTableSizeCacheStaleFallbackReturnsSnapshotAndRefreshError(t *testing.T)
 
 func TestTableSizeCacheFirstErrorReturnsOriginalError(t *testing.T) {
 	refreshFailure := errors.New("initial table size query failed")
-	cache := &tableSizeCache{}
+	cache := newTableSizeCache()
 
-	result, err := cache.getOrRefresh(
-		tableSizeCacheInput{
-			totalTables:    1001,
-			effectiveRAM:   1024,
-			tableThreshold: 1000,
-			ramMultiplier:  4,
-			ttl:            time.Hour,
-			now:            time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC),
+	result, err := cache.GetOrRefresh(
+		Input{
+			TotalTables:    tableCount(1001),
+			EffectiveRAM:   1024,
+			TableThreshold: 1000,
+			RAMMultiplier:  4,
+			TTL:            time.Hour,
+			Now:            time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC),
 		},
 		func() (map[string]models.MetricGroupValue, error) {
 			return nil, refreshFailure
@@ -785,8 +809,8 @@ func TestTableSizeCacheFirstErrorReturnsOriginalError(t *testing.T) {
 	if !errors.Is(err, refreshFailure) {
 		t.Fatalf("getOrRefresh() error = %v, want %v", err, refreshFailure)
 	}
-	if result.engine != nil {
-		t.Fatalf("result.engine = %v, want nil", result.engine)
+	if result.Value != nil {
+		t.Fatalf("result.Value = %v, want nil", result.Value)
 	}
 }
 
@@ -795,14 +819,14 @@ func TestTableSizeCacheConcurrentCallersShareRefreshAndReceiveIndependentSnapsho
 		callers = 20
 		gib     = uint64(1024 * 1024 * 1024)
 	)
-	cache := &tableSizeCache{}
-	input := tableSizeCacheInput{
-		totalTables:    1001,
-		effectiveRAM:   gib,
-		tableThreshold: 1000,
-		ramMultiplier:  4,
-		ttl:            time.Hour,
-		now:            time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC),
+	cache := newTableSizeCache()
+	input := Input{
+		TotalTables:    tableCount(1001),
+		EffectiveRAM:   gib,
+		TableThreshold: 1000,
+		RAMMultiplier:  4,
+		TTL:            time.Hour,
+		Now:            time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC),
 	}
 	start := make(chan struct{})
 	refreshStarted := make(chan struct{}, 1)
@@ -816,7 +840,7 @@ func TestTableSizeCacheConcurrentCallersShareRefreshAndReceiveIndependentSnapsho
 		return tableSizeTestEngine(4*gib, 1024), nil
 	}
 	type response struct {
-		result tableSizeCacheResult
+		result snapshotcache.Result[map[string]models.MetricGroupValue]
 		err    error
 	}
 	responses := make(chan response, callers)
@@ -824,7 +848,7 @@ func TestTableSizeCacheConcurrentCallersShareRefreshAndReceiveIndependentSnapsho
 	for i := 0; i < callers; i++ {
 		go func() {
 			<-start
-			result, err := cache.getOrRefresh(input, refresh)
+			result, err := cache.GetOrRefresh(input, refresh)
 			responses <- response{result: result, err: err}
 		}()
 	}
@@ -832,16 +856,16 @@ func TestTableSizeCacheConcurrentCallersShareRefreshAndReceiveIndependentSnapsho
 	<-refreshStarted
 	close(releaseRefresh)
 
-	results := make([]tableSizeCacheResult, 0, callers)
+	results := make([]snapshotcache.Result[map[string]models.MetricGroupValue], 0, callers)
 	for i := 0; i < callers; i++ {
 		response := <-responses
 		if response.err != nil {
 			t.Fatalf("concurrent getOrRefresh() error = %v", response.err)
 		}
-		if got := response.result.engine["InnoDB"]["Total Size"]; got != 4*gib {
+		if got := response.result.Value["InnoDB"]["Total Size"]; got != 4*gib {
 			t.Fatalf("concurrent InnoDB Total Size = %v, want %d", got, 4*gib)
 		}
-		if got := response.result.engine["MyISAM"]["Index Size"]; got != uint64(1024) {
+		if got := response.result.Value["MyISAM"]["Index Size"]; got != uint64(1024) {
 			t.Fatalf("concurrent MyISAM Index Size = %v, want 1024", got)
 		}
 		results = append(results, response.result)
@@ -850,13 +874,13 @@ func TestTableSizeCacheConcurrentCallersShareRefreshAndReceiveIndependentSnapsho
 		t.Fatalf("refresh calls = %d, want 1", got)
 	}
 
-	results[0].engine["InnoDB"]["Total Size"] = uint64(7)
-	delete(results[0].engine, "MyISAM")
+	results[0].Value["InnoDB"]["Total Size"] = uint64(7)
+	delete(results[0].Value, "MyISAM")
 	for i := 1; i < callers; i++ {
-		if got := results[i].engine["InnoDB"]["Total Size"]; got != 4*gib {
+		if got := results[i].Value["InnoDB"]["Total Size"]; got != 4*gib {
 			t.Fatalf("result %d InnoDB Total Size = %v, want %d", i, got, 4*gib)
 		}
-		if got := results[i].engine["MyISAM"]["Index Size"]; got != uint64(1024) {
+		if got := results[i].Value["MyISAM"]["Index Size"]; got != uint64(1024) {
 			t.Fatalf("result %d MyISAM Index Size = %v, want 1024", i, got)
 		}
 	}
@@ -865,14 +889,14 @@ func TestTableSizeCacheConcurrentCallersShareRefreshAndReceiveIndependentSnapsho
 func TestTableSizeCacheRefreshPanicAllowsLaterRefresh(t *testing.T) {
 	const gib = uint64(1024 * 1024 * 1024)
 	panicValue := errors.New("first table size refresh panic")
-	cache := &tableSizeCache{}
-	input := tableSizeCacheInput{
-		totalTables:    1001,
-		effectiveRAM:   gib,
-		tableThreshold: 1000,
-		ramMultiplier:  4,
-		ttl:            time.Hour,
-		now:            time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC),
+	cache := newTableSizeCache()
+	input := Input{
+		TotalTables:    tableCount(1001),
+		EffectiveRAM:   gib,
+		TableThreshold: 1000,
+		RAMMultiplier:  4,
+		TTL:            time.Hour,
+		Now:            time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC),
 	}
 
 	var recovered interface{}
@@ -880,7 +904,7 @@ func TestTableSizeCacheRefreshPanicAllowsLaterRefresh(t *testing.T) {
 		defer func() {
 			recovered = recover()
 		}()
-		_, _ = cache.getOrRefresh(input, func() (map[string]models.MetricGroupValue, error) {
+		_, _ = cache.GetOrRefresh(input, func() (map[string]models.MetricGroupValue, error) {
 			panic(panicValue)
 		})
 	}()
@@ -889,13 +913,13 @@ func TestTableSizeCacheRefreshPanicAllowsLaterRefresh(t *testing.T) {
 	}
 
 	type response struct {
-		result tableSizeCacheResult
+		result snapshotcache.Result[map[string]models.MetricGroupValue]
 		err    error
 	}
 	laterDone := make(chan response, 1)
 	var laterCalls int32
 	go func() {
-		result, err := cache.getOrRefresh(input, func() (map[string]models.MetricGroupValue, error) {
+		result, err := cache.GetOrRefresh(input, func() (map[string]models.MetricGroupValue, error) {
 			atomic.AddInt32(&laterCalls, 1)
 			return tableSizeTestEngine(5*gib, 1024), nil
 		})
@@ -907,7 +931,7 @@ func TestTableSizeCacheRefreshPanicAllowsLaterRefresh(t *testing.T) {
 		if response.err != nil {
 			t.Fatalf("later getOrRefresh() error = %v", response.err)
 		}
-		if got := response.result.engine["InnoDB"]["Total Size"]; got != 5*gib {
+		if got := response.result.Value["InnoDB"]["Total Size"]; got != 5*gib {
 			t.Fatalf("later InnoDB Total Size = %v, want %d", got, 5*gib)
 		}
 	case <-time.After(time.Second):
@@ -916,4 +940,12 @@ func TestTableSizeCacheRefreshPanicAllowsLaterRefresh(t *testing.T) {
 	if got := atomic.LoadInt32(&laterCalls); got != 1 {
 		t.Fatalf("later refresh calls = %d, want 1", got)
 	}
+}
+
+func tableCount(value uint64) *uint64 { return &value }
+
+func newTableSizeCache() *Cache[map[string]models.MetricGroupValue] {
+	return New(CloneEngine, func(engine map[string]models.MetricGroupValue) Summary {
+		return Summary{TotalSize: EngineTotal(engine)}
+	})
 }

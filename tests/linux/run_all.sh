@@ -12,7 +12,7 @@
 # Optional env vars:
 #   RELEEM_EXISTING_USER_PASSWORD  - password for test 2 pre-existing user
 #   INSTALL_SCRIPT                 - path to install.sh (default: /tmp/releem_tests/install.sh)
-#   CONFIGURER_SCRIPT              - path to mysqlconfigurer.sh (default: /tmp/releem_tests/mysqlconfigurer.sh)
+#   CONFIGURER_SCRIPT              - path to releem-configurer.sh (default: /tmp/releem_tests/releem-configurer.sh)
 
 set -eo pipefail
 
@@ -64,11 +64,11 @@ _copy_if_different() {
     fi
 }
 _copy_if_different "${INSTALL_SCRIPT:-/tmp/install.sh}"           /tmp/releem_tests/install.sh
-_copy_if_different "${CONFIGURER_SCRIPT:-/tmp/mysqlconfigurer.sh}" /tmp/releem_tests/mysqlconfigurer.sh
+_copy_if_different "${CONFIGURER_SCRIPT:-/tmp/releem-configurer.sh}" /tmp/releem_tests/releem-configurer.sh
 chmod +x /tmp/releem_tests/*.sh 2>/dev/null || true
 
 export INSTALL_SCRIPT="/tmp/releem_tests/install.sh"
-export CONFIGURER_SCRIPT="/tmp/releem_tests/mysqlconfigurer.sh"
+export CONFIGURER_SCRIPT="/tmp/releem_tests/releem-configurer.sh"
 
 if [[ -z "$ONLY_TEST" || "$ONLY_TEST" == "all" || "$ONLY_TEST" == "1" ]]; then
     run_test 1 "test_01_install_auto.sh" "Test 1: Fresh install (auto user creation)"

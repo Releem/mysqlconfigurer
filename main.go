@@ -269,9 +269,9 @@ func (programm *Programm) Run() {
 			postgresql.NewDBMetricsBaseGatherer(logger, configuration, postgresCapabilities),
 			metrics.NewAgentMetricsGatherer(logger, configuration))
 
-		gatherers["metrics"] = []models.MetricsGatherer{}
-
-		gatherers["configuration"] = append(gatherers["configuration"], postgresql.NewDBMetricsConfigGatherer(logger, configuration))
+		tableSizeCache := postgresql.NewTableSizeCache()
+		gatherers["metrics"] = append(gatherers["metrics"], postgresql.NewDBMetricsConfigGatherer(logger, configuration, false, tableSizeCache))
+		gatherers["configuration"] = append(gatherers["configuration"], postgresql.NewDBMetricsConfigGatherer(logger, configuration, true, tableSizeCache))
 
 		gatherers["query_optimization"] = append(gatherers["query_optimization"], postgresql.NewDBCollectQueriesOptimization(logger, configuration, postgresCapabilities))
 
@@ -286,9 +286,9 @@ func (programm *Programm) Run() {
 			mysql.NewDBMetricsBaseGatherer(logger, configuration),
 			metrics.NewAgentMetricsGatherer(logger, configuration))
 
-		gatherers["metrics"] = append(gatherers["metrics"], mysql.NewDBMetricsGatherer(logger, configuration))
-
-		gatherers["configuration"] = append(gatherers["configuration"], mysql.NewDBMetricsConfigGatherer(logger, configuration))
+		tableSizeCache := mysql.NewTableSizeCache()
+		gatherers["metrics"] = append(gatherers["metrics"], mysql.NewDBMetricsGatherer(logger, configuration), mysql.NewDBMetricsConfigGatherer(logger, configuration, false, tableSizeCache))
+		gatherers["configuration"] = append(gatherers["configuration"], mysql.NewDBMetricsGatherer(logger, configuration), mysql.NewDBMetricsConfigGatherer(logger, configuration, true, tableSizeCache))
 
 		gatherers["query_optimization"] = append(gatherers["query_optimization"], mysql.NewDBCollectQueriesOptimization(logger, configuration))
 

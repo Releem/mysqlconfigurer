@@ -52,7 +52,7 @@ if [ -n "$out" ]; then
 exit 0
 INNER
     chmod +x "$out"
-  elif [[ "$out" == *"mysqlconfigurer.sh"* ]]; then
+  elif [[ "$out" == *"mysqlconfigurer.sh"* || "$out" == *"releem-configurer.sh"* ]]; then
     cat >"$out" <<'"'"'INNER'"'"'
 #!/usr/bin/env bash
 exit 0
@@ -1288,7 +1288,7 @@ promptedpwd"
     [[ "$output" == *"Azure subscription ID, resource group or MySQL server is not set"* ]]
 }
 
-@test "enable_query_optimization mode updates releem.conf and executes mysqlconfigurer" {
+@test "enable_query_optimization mode updates releem.conf and executes releem-configurer" {
     prepare_common_install_mocks
     create_mock_cmd "mysqladmin" 'echo "mysqld is alive"'
     create_mock_cmd "mariadb-admin" 'echo "mysqld is alive"'
@@ -1321,8 +1321,8 @@ exit 0
     mkdir -p "${workdir}"
     printf 'apikey="k1"\n' > "${conf}"
     printf '#!/usr/bin/env bash\nexit 0\n' > "${workdir}/releem-agent"
-    printf '#!/usr/bin/env bash\necho "$@" >> "%s/calls.log"\nexit 0\n' "${workdir}" > "${workdir}/mysqlconfigurer.sh"
-    chmod +x "${workdir}/releem-agent" "${workdir}/mysqlconfigurer.sh"
+    printf '#!/usr/bin/env bash\necho "$@" >> "%s/calls.log"\nexit 0\n' "${workdir}" > "${workdir}/releem-configurer.sh"
+    chmod +x "${workdir}/releem-agent" "${workdir}/releem-configurer.sh"
     cp "${INSTALL_SH}" "${MOCK_BIN}/enable_query_optimization"
     chmod +x "${MOCK_BIN}/enable_query_optimization"
 
@@ -1348,6 +1348,79 @@ exit 0
     [ "$status" -eq 0 ]
     run grep -E "^-p$" "${workdir}/calls.log"
     [ "$status" -eq 0 ]
+}
+
+run_query_optimization_configurer_fixture() {
+    local database="$1"
+    local scripts="$2"
+    prepare_common_install_mocks
+    create_mock_cmd "sleep" 'exit 0'
+    create_mock_cmd "curl" 'echo "unexpected download" >&2; exit 92'
+    create_mock_cmd "mysqladmin" 'echo "mysqld is alive"'
+    create_mock_cmd "mariadb-admin" 'echo "mysqld is alive"'
+    create_mock_cmd "mysql" '
+if [[ "$*" == *"-NBe select Concat("* ]]; then
+  echo "GRANT SELECT on *.* to \`releem\`@\`%\`;"
+fi
+exit 0
+'
+    cp "${MOCK_BIN}/mysql" "${MOCK_BIN}/mariadb"
+    create_mock_cmd "psql" '
+if [[ "$*" == *"SHOW server_version_num"* ]]; then
+  echo "140000"
+elif [[ "$*" == *"SELECT datname"* && "$*" == *"pg_database"* ]]; then
+  printf "postgres\000shop\000"
+fi
+exit 0
+'
+    local workdir="${TEST_TMPDIR}/workdir"
+    mkdir -p "${workdir}"
+    printf 'apikey="k1"\nquery_optimization=false\n' > "${workdir}/releem.conf"
+    printf '#!/usr/bin/env bash\nexit 0\n' > "${workdir}/releem-agent"
+    chmod +x "${workdir}/releem-agent"
+    cat > "${workdir}/mysqlconfigurer.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s:%s\n' "$(basename "$0")" "$*" >> "$CONFIGURER_CALLS"
+EOF
+    if [ "$scripts" = both ]; then
+        cp "${workdir}/mysqlconfigurer.sh" "${workdir}/releem-configurer.sh"
+    fi
+    local -a database_env
+    if [ "$database" = postgresql ]; then
+        database_env=(RELEEM_PG_ROOT_LOGIN=pgadmin RELEEM_PG_ROOT_PASSWORD=rootpwd)
+    else
+        database_env=(RELEEM_MYSQL_ROOT_LOGIN=admin RELEEM_MYSQL_ROOT_PASSWORD=rootpwd)
+    fi
+    PATH="${MOCK_BIN}:${PATH}" run env \
+        PATH="${MOCK_BIN}:${PATH}" \
+        RELEEM_TEST_MODE=1 \
+        RELEEM_WORKDIR="${workdir}" \
+        RELEEM_API_KEY=k1 \
+        CONFIGURER_CALLS="${workdir}/calls.log" \
+        "${database_env[@]}" \
+        bash "${INSTALL_SH}" enable_query_optimization
+    if [ "$status" -ne 0 ]; then
+        printf '%s\n' "$output"
+        return 1
+    fi
+    grep -qx 'query_optimization=true' "${workdir}/releem.conf"
+}
+
+@test "enable_query_optimization uses the legacy configurer on legacy-only MySQL installs" {
+    run_query_optimization_configurer_fixture mysql legacy
+    [ "$(cat "${TEST_TMPDIR}/workdir/calls.log")" = 'mysqlconfigurer.sh:-p' ]
+    [ ! -e "${TEST_TMPDIR}/workdir/releem-configurer.sh" ]
+}
+
+@test "enable_query_optimization uses the legacy configurer on legacy-only PostgreSQL installs" {
+    run_query_optimization_configurer_fixture postgresql legacy
+    [ "$(cat "${TEST_TMPDIR}/workdir/calls.log")" = 'mysqlconfigurer.sh:-p' ]
+    [ ! -e "${TEST_TMPDIR}/workdir/releem-configurer.sh" ]
+}
+
+@test "enable_query_optimization prefers the canonical configurer when both scripts exist" {
+    run_query_optimization_configurer_fixture mysql both
+    [ "$(cat "${TEST_TMPDIR}/workdir/calls.log")" = 'releem-configurer.sh:-p' ]
 }
 
 @test "enable_query_optimization mode prompts for root password when env is unset" {
@@ -1394,8 +1467,8 @@ exit 0
     mkdir -p "${workdir}"
     printf 'apikey="k1"\n' > "${conf}"
     printf '#!/usr/bin/env bash\nexit 0\n' > "${workdir}/releem-agent"
-    printf '#!/usr/bin/env bash\necho "$@" >> "%s/calls.log"\nexit 0\n' "${workdir}" > "${workdir}/mysqlconfigurer.sh"
-    chmod +x "${workdir}/releem-agent" "${workdir}/mysqlconfigurer.sh"
+    printf '#!/usr/bin/env bash\necho "$@" >> "%s/calls.log"\nexit 0\n' "${workdir}" > "${workdir}/releem-configurer.sh"
+    chmod +x "${workdir}/releem-agent" "${workdir}/releem-configurer.sh"
     cp "${INSTALL_SH}" "${MOCK_BIN}/enable_query_optimization"
     chmod +x "${MOCK_BIN}/enable_query_optimization"
 
@@ -1471,8 +1544,8 @@ exit 44
     mkdir -p "${workdir}"
     printf 'apikey="k1"\npg_user="collector-ro"\npg_password="secret"\npg_host="127.0.0.1"\npg_port="5432"\n' > "${conf}"
     printf '#!/usr/bin/env bash\nexit 0\n' > "${workdir}/releem-agent"
-    printf '#!/usr/bin/env bash\necho "$@" >> "%s/calls.log"\nexit 0\n' "${workdir}" > "${workdir}/mysqlconfigurer.sh"
-    chmod +x "${workdir}/releem-agent" "${workdir}/mysqlconfigurer.sh"
+    printf '#!/usr/bin/env bash\necho "$@" >> "%s/calls.log"\nexit 0\n' "${workdir}" > "${workdir}/releem-configurer.sh"
+    chmod +x "${workdir}/releem-agent" "${workdir}/releem-configurer.sh"
     cp "${INSTALL_SH}" "${MOCK_BIN}/enable_query_optimization"
     chmod +x "${MOCK_BIN}/enable_query_optimization"
 
@@ -1534,8 +1607,8 @@ exit 0
     mkdir -p "${workdir}"
     printf 'apikey="k1"\nmysql_user="o'"'"'reilly"\nmysql_password="secret"\nmysql_host="127.0.0.1"\nmysql_port="3306"\n' > "${conf}"
     printf '#!/usr/bin/env bash\nexit 0\n' > "${workdir}/releem-agent"
-    printf '#!/usr/bin/env bash\necho "$@" >> "%s/calls.log"\nexit 0\n' "${workdir}" > "${workdir}/mysqlconfigurer.sh"
-    chmod +x "${workdir}/releem-agent" "${workdir}/mysqlconfigurer.sh"
+    printf '#!/usr/bin/env bash\necho "$@" >> "%s/calls.log"\nexit 0\n' "${workdir}" > "${workdir}/releem-configurer.sh"
+    chmod +x "${workdir}/releem-agent" "${workdir}/releem-configurer.sh"
     cp "${INSTALL_SH}" "${MOCK_BIN}/enable_query_optimization"
     chmod +x "${MOCK_BIN}/enable_query_optimization"
 
@@ -1629,8 +1702,8 @@ exit 0
     mkdir -p "${workdir}"
     printf 'apikey="k1"\nmysql_user="missing"\nmysql_password="secret"\nmysql_host="127.0.0.1"\nmysql_port="3306"\n' > "${conf}"
     printf '#!/usr/bin/env bash\nexit 0\n' > "${workdir}/releem-agent"
-    printf '#!/usr/bin/env bash\nexit 0\n' > "${workdir}/mysqlconfigurer.sh"
-    chmod +x "${workdir}/releem-agent" "${workdir}/mysqlconfigurer.sh"
+    printf '#!/usr/bin/env bash\nexit 0\n' > "${workdir}/releem-configurer.sh"
+    chmod +x "${workdir}/releem-agent" "${workdir}/releem-configurer.sh"
     cp "${INSTALL_SH}" "${MOCK_BIN}/enable_query_optimization"
     chmod +x "${MOCK_BIN}/enable_query_optimization"
 
@@ -1665,8 +1738,8 @@ exit 0
     mkdir -p "${workdir}"
     printf 'apikey="k1"\n' > "${conf}"
     printf '#!/usr/bin/env bash\nexit 0\n' > "${workdir}/releem-agent"
-    printf '#!/usr/bin/env bash\necho "$@" >> "%s/calls.log"\nexit 0\n' "${workdir}" > "${workdir}/mysqlconfigurer.sh"
-    chmod +x "${workdir}/releem-agent" "${workdir}/mysqlconfigurer.sh"
+    printf '#!/usr/bin/env bash\necho "$@" >> "%s/calls.log"\nexit 0\n' "${workdir}" > "${workdir}/releem-configurer.sh"
+    chmod +x "${workdir}/releem-agent" "${workdir}/releem-configurer.sh"
     cp "${INSTALL_SH}" "${MOCK_BIN}/enable_query_optimization"
     chmod +x "${MOCK_BIN}/enable_query_optimization"
 
@@ -1701,6 +1774,86 @@ exit 0
 
 
 
+@test "fresh download installs both scripts and calls releem-configurer even when a legacy script existed" {
+    create_mock_cmd "sudo" '"$@"'
+    create_mock_cmd "curl" '
+printf "%s\n" "$*" >> "${DOWNLOAD_LOG}"
+while [ "$#" -gt 0 ]; do
+    if [ "$1" = -o ]; then out="$2"; shift 2; else shift; fi
+done
+printf '\''#!/usr/bin/env bash\nprintf "%%s:%%s\\n" "${0##*/}" "$*" >> "$CONFIGURER_CALLS"\n'\'' > "$out"
+'
+    local workdir="${TEST_TMPDIR}/workdir"
+    mkdir -p "$workdir"
+    printf '#!/usr/bin/env bash\nexit 91\n' > "$workdir/mysqlconfigurer.sh"
+    run env PATH="${MOCK_BIN}:${PATH}" DOWNLOAD_LOG="${TEST_TMPDIR}/download.log" CONFIGURER_CALLS="${TEST_TMPDIR}/calls" \
+        RELEEM_TEST_MODE=1 RELEEM_WORKDIR="$workdir" bash -c 'source "$1"; download_releem_agent; $RELEEM_COMMAND -p' _ "$INSTALL_SH"
+    [ "$status" -eq 0 ]
+    [ -x "$workdir/releem-configurer.sh" ]
+    [ -x "$workdir/mysqlconfigurer.sh" ]
+    [ "$(wc -l < "${TEST_TMPDIR}/download.log")" -eq 3 ]
+    grep -F mysqlconfigurer.sh "${TEST_TMPDIR}/download.log"
+    [ "$(cat "${TEST_TMPDIR}/calls")" = releem-configurer.sh:-p ]
+}
+
+@test "cron setup uses neutral name and preserves existing legacy jobs" {
+    create_mock_cmd "sudo" '"$@"'
+    create_mock_cmd "crontab" '
+if [ "$1" = -l ]; then cat "${CRON_FILE}"; else cat > "${CRON_FILE}.new"; mv "${CRON_FILE}.new" "${CRON_FILE}"; fi
+'
+    local cronfile="${TEST_TMPDIR}/cron"
+    printf '15 3 * * * unrelated-command\n' > "$cronfile"
+    run env PATH="${MOCK_BIN}:${PATH}" CRON_FILE="$cronfile" RELEEM_TEST_MODE=1 RELEEM_CRON_ENABLE=1 \
+        RELEEM_WORKDIR="${TEST_TMPDIR}/workdir" bash -c 'source "$1"; configure_crontab; configure_crontab' _ "$INSTALL_SH"
+    [ "$status" -eq 0 ]
+    [ "$(grep -c releem-configurer.sh "$cronfile")" -eq 1 ]
+    [ "$(grep -c unrelated-command "$cronfile")" -eq 1 ]
+    printf '15 3 * * * unrelated-command\n17 4 * * * /bin/bash %s/mysqlconfigurer.sh -u\n' "${TEST_TMPDIR}/workdir" > "$cronfile"
+    cp "$cronfile" "${cronfile}.original"
+    run env PATH="${MOCK_BIN}:${PATH}" CRON_FILE="$cronfile" RELEEM_TEST_MODE=1 RELEEM_CRON_ENABLE=1 \
+        RELEEM_WORKDIR="${TEST_TMPDIR}/workdir" bash -c 'source "$1"; configure_crontab' _ "$INSTALL_SH"
+    [ "$status" -eq 0 ]
+    cmp "$cronfile" "${cronfile}.original"
+    [[ "$output" == *"Automatic updates are enabled."* ]]
+}
+
+@test "cron setup installs an active job when legacy or neutral entries are commented out" {
+    create_mock_cmd "sudo" '"$@"'
+    create_mock_cmd "crontab" '
+if [ "$1" = -l ]; then cat "${CRON_FILE}"; else cat > "${CRON_FILE}.new"; mv "${CRON_FILE}.new" "${CRON_FILE}"; fi
+'
+    local cronfile="${TEST_TMPDIR}/cron"
+    local workdir="${TEST_TMPDIR}/workdir"
+    local script
+    for script in mysqlconfigurer.sh releem-configurer.sh; do
+        printf '#17 4 * * * /bin/bash %s/%s -u\n \t#18 5 * * * /bin/bash %s/%s -u\n15 3 * * * unrelated-command\n' \
+            "$workdir" "$script" "$workdir" "$script" > "$cronfile"
+        cp "$cronfile" "${cronfile}.expected"
+        printf '00 00 * * * PATH=/bin:/sbin:/usr/bin:/usr/sbin /bin/bash %s/releem-configurer.sh -u\n' "$workdir" >> "${cronfile}.expected"
+        run env PATH="${MOCK_BIN}:${PATH}" CRON_FILE="$cronfile" RELEEM_TEST_MODE=1 RELEEM_CRON_ENABLE=1 \
+            RELEEM_WORKDIR="$workdir" bash -c 'source "$1"; configure_crontab; configure_crontab' _ "$INSTALL_SH"
+        [ "$status" -eq 0 ]
+        cmp "$cronfile" "${cronfile}.expected"
+        [[ "$output" == *"Automatic updates are enabled."* ]]
+    done
+}
+
+@test "cron verification reports disabled when only commented jobs remain after a write" {
+    create_mock_cmd "sudo" '"$@"'
+    create_mock_cmd "crontab" '
+if [ "$1" = -l ]; then cat "${CRON_FILE}"; else cat >/dev/null; fi
+'
+    local cronfile="${TEST_TMPDIR}/cron"
+    local workdir="${TEST_TMPDIR}/workdir"
+    printf '#17 4 * * * /bin/bash %s/mysqlconfigurer.sh -u\n \t#18 5 * * * /bin/bash %s/releem-configurer.sh -u\n' \
+        "$workdir" "$workdir" > "$cronfile"
+    run env PATH="${MOCK_BIN}:${PATH}" CRON_FILE="$cronfile" RELEEM_TEST_MODE=1 RELEEM_CRON_ENABLE=1 \
+        RELEEM_WORKDIR="$workdir" bash -c 'source "$1"; configure_crontab' _ "$INSTALL_SH"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Crontab configuration failed. Automatic updates are disabled."* ]]
+    [[ "$output" != *"Automatic updates are enabled."* ]]
+}
+
 @test "update mode downloads artifacts and restarts agent with mocked side-effects" {
     prepare_common_install_mocks
     create_mock_cmd "curl" '
@@ -1724,6 +1877,8 @@ fi
 echo "200"
 '
 
+    create_mock_cmd "crontab" 'echo called >> "${UPDATE_CRON_LOG}"; exit 99'
+
     local workdir="${TEST_TMPDIR}/workdir"
     local curl_calls="${TEST_TMPDIR}/curl.calls"
     local agent_calls="${TEST_TMPDIR}/agent.calls"
@@ -1743,15 +1898,58 @@ EOF
         RELEEM_TEST_MODE=1 \
         RELEEM_WORKDIR="${workdir}" \
         RELEEM_API_KEY="k1" \
+        UPDATE_CRON_LOG="${TEST_TMPDIR}/cron.calls" \
         UPDATE_CURL_LOG="${curl_calls}" \
         UPDATE_AGENT_LOG="${agent_calls}" \
         bash "${INSTALL_SH}" update
 
     [ "$status" -eq 0 ]
-    run grep -E "releem-agent.new|mysqlconfigurer.sh.new" "${curl_calls}"
+    [ -x "${workdir}/releem-configurer.sh" ]
+    [ -x "${workdir}/mysqlconfigurer.sh" ]
+    [ ! -e "${TEST_TMPDIR}/cron.calls" ]
+    [ "$(wc -l < "${curl_calls}")" -eq 3 ]
+    run grep -F "releem-configurer.sh.new" "${curl_calls}"
     [ "$status" -eq 0 ]
     run grep -E "stop|start|-f" "${agent_calls}"
     [ "$status" -eq 0 ]
+}
+
+@test "update validates unreadable downloads through sudo" {
+    prepare_common_install_mocks
+    create_mock_cmd "sudo" '
+if [ "$1" = curl ]; then
+  "$@" || exit $?
+  # Model root-owned downloads that the installer user cannot read.
+  for arg in "$@"; do
+    case "$arg" in *.sh.new) chmod 000 "$arg" ;; esac
+  done
+elif [ "$1" = bash ] && [ "$2" = -n ]; then
+  chmod u+r "$3"
+  "$@"
+  result=$?
+  chmod 000 "$3"
+  echo "$3" >> "${UPDATE_SYNTAX_LOG}"
+  exit "$result"
+else
+  "$@"
+fi
+'
+    local workdir="${TEST_TMPDIR}/workdir"
+    local checks="${TEST_TMPDIR}/syntax.calls"
+    mkdir -p "$workdir"
+    printf '#!/bin/sh\nexit 0\n' > "$workdir/releem-agent"
+    chmod +x "$workdir/releem-agent"
+
+    run env PATH="${MOCK_BIN}:${PATH}" RELEEM_TEST_MODE=1 \
+        RELEEM_WORKDIR="$workdir" RELEEM_API_KEY="k1" UPDATE_SYNTAX_LOG="$checks" \
+        bash -c 'umask 077; source "$1"; sudo_cmd=sudo; releem_update' _ "$INSTALL_SH"
+
+    [ "$status" -eq 0 ]
+    [ -x "$workdir/releem-configurer.sh" ]
+    [ -x "$workdir/mysqlconfigurer.sh" ]
+    # Also verify privilege use when the test suite itself runs as root.
+    [ "$(cat "$checks")" = "$(printf '%s\n%s' "$workdir/releem-configurer.sh.new" "$workdir/mysqlconfigurer.sh.new")" ]
+    [[ "$output" == *"Releem Agent updated successfully."* ]]
 }
 
 @test "postgresql catalog grants preserve newline identifiers from NUL records" {

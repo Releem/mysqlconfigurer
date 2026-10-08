@@ -1,6 +1,6 @@
 # Releem Agent Installation Tests
 
-End-to-end tests for `install.sh`, `mysqlconfigurer.sh` (Linux) and `windows/install.ps1`, `windows/mysqlconfigurer.ps1` (Windows).
+End-to-end tests for `install.sh`, `releem-configurer.sh` (Linux) and `windows/install.ps1`, `windows/mysqlconfigurer.ps1` (Windows).
 
 Tests run on GCP spot (preemptible) VMs provisioned by Terraform, torn down after each run.
 
@@ -10,8 +10,8 @@ Tests run on GCP spot (preemptible) VMs provisioned by Terraform, torn down afte
 |---|------|-------------|
 | 1 | Fresh install (auto user) | Installs agent; script creates the `releem` MySQL user automatically |
 | 2 | Install with existing user | `releem` MySQL user is pre-created; install.sh uses provided credentials |
-| 3 | Apply configuration | Applies the API-recommended MySQL configuration via `mysqlconfigurer.sh -s automatic` |
-| 4 | Rollback configuration | Rolls back the applied config via `mysqlconfigurer.sh -r` |
+| 3 | Apply configuration | Applies the API-recommended MySQL configuration via `releem-configurer.sh -s automatic` |
+| 4 | Rollback configuration | Rolls back the applied config via `releem-configurer.sh -r` |
 
 Tests 3 and 4 depend on test 1 having run first. The run_all scripts handle this automatically.
 
@@ -156,3 +156,13 @@ tests/
     ├── test_10_install_prompt_root_password.ps1
     └── run_all.ps1                      # Run all Windows tests
 ```
+
+### Windows configurer exit-code checks (offline)
+
+Run `pwsh -NoProfile -File tests/windows/test_configurer_exit_codes.ps1`
+(or `powershell.exe -NoProfile -File tests/windows/test_configurer_exit_codes.ps1`
+on Windows). No database, administrator rights, or service changes are required.
+Checks cover exit code 3 for an unset/missing configuration directory, exit code
+11 for a missing active `!includedir` on apply, supported path quoting/separators,
+and preservation of code 1 for missing recommendations. Rollback checks the
+configuration directory but does not require an include, matching Linux.

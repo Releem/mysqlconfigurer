@@ -120,6 +120,12 @@ function Read-ReleemConfig {
             if ($value.Length -ge 2 -and $value[0] -eq '"' -and $value[-1] -eq '"') {
                 $value = $value.Substring(1, $value.Length - 2)
             }
+            # install.ps1 and -Configure escape path separators when persisting
+            # mysql_cnf_dir. Decode once at the config boundary, including UNC paths.
+            # Other values (especially credentials) must remain unchanged.
+            if ($key -eq 'mysql_cnf_dir') {
+                $value = $value.Replace('\\', '\')
+            }
             $config[$key] = $value
         }
     }
@@ -208,6 +214,42 @@ function Find-MyIniPath {
         if ($found) { return $found.FullName }
     }
     return $null
+}
+
+# Validate the same directory contract used by Linux apply and rollback.
+function Check-MySQLConfigDirectory {
+    if ([string]::IsNullOrWhiteSpace($mysql_cnf_dir) -or
+        -not (Test-Path -LiteralPath $mysql_cnf_dir -PathType Container)) {
+        Write-Log 'ERROR: MySQL configuration directory is not configured or does not exist. Run -Configure first.'
+        return 3
+    }
+    return 0
+}
+
+# Like Linux, validate the include only when the main configuration is found.
+# Rollback deliberately does not require an include, so recovery stays possible.
+function Check-MySQLConfigInclude {
+    $myIniPath = Find-MyIniPath
+    if (-not $myIniPath) { return 0 }
+
+    $expectedPath = $mysql_cnf_dir.Replace('/', '\').TrimEnd('\')
+    foreach ($line in (Get-Content -LiteralPath $myIniPath)) {
+        if ($line -match '^\s*!includedir[ \t]+(.+?)\s*$') {
+            $includePath = $Matches[1].Trim()
+            if ($includePath.Length -ge 2 -and (($includePath.StartsWith('"') -and $includePath.EndsWith('"')) -or
+                ($includePath.StartsWith("'") -and $includePath.EndsWith("'")))) {
+                $includePath = $includePath.Substring(1, $includePath.Length - 2)
+            }
+            if ([string]::IsNullOrWhiteSpace($includePath)) { continue }
+            $includePath = $includePath.Replace('/', '\')
+            $includePath = $includePath.TrimEnd('\')
+            if ([string]::Equals($includePath, $expectedPath, [StringComparison]::OrdinalIgnoreCase)) {
+                return 0
+            }
+        }
+    }
+    Write-Log "ERROR: my.ini does not include the Releem configuration directory '$mysql_cnf_dir'. Check !includedir in $myIniPath or run -Configure."
+    return 11
 }
 
 # ---------------------------------------------------------------------------
@@ -313,9 +355,19 @@ function Invoke-ApplyConfig {
         [bool]$RestartService
     )
 
-    if (-not $mysql_cnf_dir -or -not (Test-Path -LiteralPath $mysql_cnf_dir -PathType Container)) {
-        Write-Log 'ERROR: MySQL configuration directory not found. Run -Configure first.'
-        $script:ExitCode = 3; return
+    # Check that recommended config file exists in staging area
+    if (-not (Test-Path $StagingCnfPath)) {
+        Write-Log "ERROR: Recommended config file not found: $StagingCnfPath"
+        $script:ExitCode = 1; return
+    }
+
+    $directoryCode = Check-MySQLConfigDirectory
+    if ($directoryCode -ne 0) {
+        $script:ExitCode = $directoryCode; return
+    }
+    $includeCode = Check-MySQLConfigInclude
+    if ($includeCode -ne 0) {
+        $script:ExitCode = $includeCode; return
     }
     $liveCnfPath = Join-Path $mysql_cnf_dir $DbConfigFileName
 
@@ -570,10 +622,9 @@ try {
     if ($Rollback) {
         Write-Log 'Starting -Rollback: restoring previous MySQL configuration...'
 
-        # Validate mysql_cnf_dir
-        if (-not $mysql_cnf_dir) {
-            Write-Log 'ERROR: mysql_cnf_dir not set in releem.conf. Run -Configure first.'
-            $script:ExitCode = 1; return
+        $directoryCode = Check-MySQLConfigDirectory
+        if ($directoryCode -ne 0) {
+            $script:ExitCode = $directoryCode; return
         }
         $liveCnfPath = Join-Path $mysql_cnf_dir $DbConfigFileName
 

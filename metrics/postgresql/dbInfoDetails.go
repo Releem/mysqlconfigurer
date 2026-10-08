@@ -1,6 +1,7 @@
 package postgresql
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/Releem/mysqlconfigurer/config"
@@ -75,7 +76,9 @@ func (DBInfo *DBInfoGatherer) collectExtensions() []models.MetricGroupValue {
 			"extversion": version,
 		})
 	}
-
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return output
+	}
 	return output
 }
 
@@ -146,7 +149,9 @@ func (DBInfo *DBInfoGatherer) collectUsers() []models.MetricGroupValue {
 			"MemberOf":       memberOf,
 		})
 	}
-
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return output
+	}
 	return output
 }
 
@@ -284,7 +289,9 @@ func (DBInfo *DBInfoGatherer) collectPgHBA() []models.MetricGroupValue {
 			"error":       entryError,
 		})
 	}
-
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return output
+	}
 	return output
 }
 

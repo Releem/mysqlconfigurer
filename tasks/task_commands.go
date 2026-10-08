@@ -27,7 +27,7 @@ func taskApplyManualCommand(goos string, releemDir string) taskCommand {
 		return powershellConfigurerCommand(releemDir, []string{"-Apply", "-NonInteractive"}, nil)
 	}
 
-	return shellCommand(goos, releemDir+"/mysqlconfigurer.sh -a", []string{"RELEEM_RESTART_SERVICE=1"})
+	return shellCommand(goos, releemDir+"/releem-configurer.sh -a", []string{"RELEEM_RESTART_SERVICE=1"})
 }
 
 func taskGenerateConfigCommand(goos string, releemDir string) taskCommand {
@@ -50,7 +50,7 @@ func taskUpdateCommand(goos string, releemDir string) taskCommand {
 	if goos == "windows" {
 		return powershellConfigurerCommand(releemDir, []string{"-Update"}, nil)
 	}
-	return shellCommand(goos, releemDir+"/mysqlconfigurer.sh -u", nil)
+	return shellCommand(goos, releemDir+"/releem-configurer.sh -u", nil)
 }
 
 func taskApplyAutomaticCommand(goos string, releemDir string, restart bool) taskCommand {
@@ -67,7 +67,7 @@ func taskApplyAutomaticCommand(goos string, releemDir string, restart bool) task
 		restartValue = "1"
 	}
 
-	return shellCommand(goos, releemDir+"/mysqlconfigurer.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=" + restartValue})
+	return shellCommand(goos, releemDir+"/releem-configurer.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=" + restartValue})
 }
 
 func taskRollBackCommand(goos string, releemDir string) taskCommand {
@@ -75,7 +75,7 @@ func taskRollBackCommand(goos string, releemDir string) taskCommand {
 		return powershellConfigurerCommand(releemDir, []string{"-Rollback"}, []string{"RELEEM_ROLLBACK_CONFIRM=1"})
 	}
 
-	return shellCommand(goos, releemDir+"/mysqlconfigurer.sh -r", []string{"RELEEM_RESTART_SERVICE=1"})
+	return shellCommand(goos, releemDir+"/releem-configurer.sh -r", []string{"RELEEM_RESTART_SERVICE=1"})
 }
 
 func powershellConfigurerCommand(releemDir string, scriptArgs []string, environment []string) taskCommand {

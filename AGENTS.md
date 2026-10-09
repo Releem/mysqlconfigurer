@@ -9,7 +9,7 @@ targets.
 
 Primary areas include:
 - `main.go`, `metrics/`, `tasks/`, `models/`, `utils/`, and `repeater/` for the Go agent.
-- `install.sh` and `releem-configurer.sh` for Linux install/apply flows;
+- `install.sh` and `releem.sh` for Linux install/apply flows;
   `mysqlconfigurer.sh` preserves legacy entry points.
 - `windows/install.ps1` and `windows/mysqlconfigurer.ps1` for Windows flows.
 - `releem-agent-on-premise/` and `docker/` for distribution-specific packaging.
@@ -67,7 +67,7 @@ For shell syntax checks:
 ```bash
 bash -n install.sh
 bash -n mysqlconfigurer.sh
-bash -n releem-configurer.sh
+bash -n releem.sh
 ```
 
 For focused Bats tests when available:
@@ -100,7 +100,7 @@ cd tests
 ## Creating a Release
 
 1. Bump the version everywhere: `config/config.go` (`ReleemAgentVersion`),
-   `install.sh` (header + `install_script_version`), `releem-configurer.sh`
+   `install.sh` (header + `install_script_version`), `releem.sh`
    (header + `VERSION`), `mysqlconfigurer.sh` (compatibility header),
    `windows/mysqlconfigurer.ps1` (`$ScriptVersion`),
    related tests (e.g. `tests/mysqlconfigurer.bats`,

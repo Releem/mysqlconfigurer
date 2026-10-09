@@ -3,10 +3,10 @@
 # Compatibility entry point for existing cron jobs and agent commands.
 # Old installers download only this file, so fetch the implementation if absent.
 releem_configurer_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)" || exit 1
-releem_configurer_script="$releem_configurer_dir/releem-configurer.sh"
+releem_configurer_script="$releem_configurer_dir/releem.sh"
 if [ ! -f "$releem_configurer_script" ]; then
-    releem_configurer_tmp="$(mktemp "$releem_configurer_dir/.releem-configurer.XXXXXX")" || exit 1
-    if ! curl --fail --silent --show-error --location -o "$releem_configurer_tmp" https://releem.s3.amazonaws.com/v2/releem-configurer.sh ||
+    releem_configurer_tmp="$(mktemp "$releem_configurer_dir/.releem.XXXXXX")" || exit 1
+    if ! curl --fail --silent --show-error --location -o "$releem_configurer_tmp" https://releem.s3.amazonaws.com/v2/releem.sh ||
        ! bash -n "$releem_configurer_tmp" ||
        ! chmod 755 "$releem_configurer_tmp" ||
        ! mv -f "$releem_configurer_tmp" "$releem_configurer_script"; then

@@ -4,7 +4,7 @@ load "helpers/load_mysqlconfigurer.sh"
 
 setup() {
     REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
-    CONFIGURER_SH="${REPO_ROOT}/releem-configurer.sh"
+    CONFIGURER_SH="${REPO_ROOT}/releem.sh"
 
     TEST_TMPDIR="$(mktemp -d)"
     TEST_WORKDIR="${TEST_TMPDIR}"
@@ -94,7 +94,7 @@ EOF
     local scripts="${TEST_TMPDIR}/scripts with spaces"
     mkdir -p "$scripts"
     cp "${REPO_ROOT}/mysqlconfigurer.sh" "$scripts/mysqlconfigurer.sh"
-    cat > "$scripts/releem-configurer.sh" <<'EOF'
+    cat > "$scripts/releem.sh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$RELEEM_FORWARD_TEST" "$@"
 exit 23
@@ -124,7 +124,7 @@ printf '\''#!/usr/bin/env bash\nprintf "canonical:%%s\\n" "$*"\n'\'' > "$out"
         [ "$output" = canonical:-u ]
     done
     [ "$(wc -l < "${TEST_TMPDIR}/bootstrap.log")" -eq 1 ]
-    [ -x "$scripts/releem-configurer.sh" ]
+    [ -x "$scripts/releem.sh" ]
 }
 
 @test "legacy bootstrap rejects failed or invalid downloads" {
@@ -134,7 +134,7 @@ printf '\''#!/usr/bin/env bash\nprintf "canonical:%%s\\n" "$*"\n'\'' > "$out"
     create_mock_cmd "curl" 'exit 22'
     PATH="${MOCK_BIN}:${PATH}" run bash "$scripts/mysqlconfigurer.sh" -u
     [ "$status" -ne 0 ]
-    [ ! -e "$scripts/releem-configurer.sh" ]
+    [ ! -e "$scripts/releem.sh" ]
     create_mock_cmd "curl" '
 while [ "$#" -gt 0 ]; do
     if [ "$1" = -o ]; then out="$2"; shift 2; else shift; fi
@@ -143,7 +143,7 @@ printf "if invalid\n" > "$out"
 '
     PATH="${MOCK_BIN}:${PATH}" run bash "$scripts/mysqlconfigurer.sh" -u
     [ "$status" -ne 0 ]
-    [ ! -e "$scripts/releem-configurer.sh" ]
+    [ ! -e "$scripts/releem.sh" ]
 }
 
 write_postgresql_conf() {
@@ -177,11 +177,11 @@ EOF
 
 #
 # Documented command mapping:
-# - /opt/releem/releem-configurer.sh -u
-# - bash /opt/releem/releem-configurer.sh -s initial
-# - bash /opt/releem/releem-configurer.sh -s auto
-# - /bin/bash /opt/releem/releem-configurer.sh -r
-# - /opt/releem/releem-configurer.sh -p (with query_optimization=true)
+# - /opt/releem/releem.sh -u
+# - bash /opt/releem/releem.sh -s initial
+# - bash /opt/releem/releem.sh -s auto
+# - /bin/bash /opt/releem/releem.sh -r
+# - /opt/releem/releem.sh -p (with query_optimization=true)
 #
 
 @test "manual update command (-u) succeeds when already up-to-date" {
@@ -540,7 +540,7 @@ EOF
 
     run bash -c '
 RELEEM_TEST_MODE=1
-source "'"${REPO_ROOT}"'/releem-configurer.sh"
+source "'"${REPO_ROOT}"'/releem.sh"
 wait_restart() { return 6; }
 DATABASE_TYPE="mysql"
 DATABASE_NAME="MySQL"

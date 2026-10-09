@@ -153,7 +153,7 @@ export RELEEM_API_KEY="$RELEEM_API_KEY_VALUE"
 export MYSQL_ROOT_PASSWORD="$DB_ROOT_PASSWORD"
 export OS_VERSION="$OS_VERSION_VALUE"
 export INSTALL_SCRIPT="/tmp/releem_tests/install.sh"
-export CONFIGURER_SCRIPT="/tmp/releem_tests/releem-configurer.sh"
+export CONFIGURER_SCRIPT="/tmp/releem_tests/releem.sh"
 
 if bash /tmp/releem_tests/run_all.sh --test "$TEST_SELECTION_VALUE"; then
     echo "[$(date)] Linux tests passed"

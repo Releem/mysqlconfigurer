@@ -1,6 +1,6 @@
 # Releem Agent Installation Tests
 
-End-to-end tests for `install.sh`, `releem-configurer.sh` (Linux) and `windows/install.ps1`, `windows/mysqlconfigurer.ps1` (Windows).
+End-to-end tests for `install.sh`, `releem.sh` (Linux) and `windows/install.ps1`, `windows/mysqlconfigurer.ps1` (Windows).
 
 Tests run on GCP spot (preemptible) VMs provisioned by Terraform, torn down after each run.
 
@@ -10,8 +10,8 @@ Tests run on GCP spot (preemptible) VMs provisioned by Terraform, torn down afte
 |---|------|-------------|
 | 1 | Fresh install (auto user) | Installs agent; script creates the `releem` MySQL user automatically |
 | 2 | Install with existing user | `releem` MySQL user is pre-created; install.sh uses provided credentials |
-| 3 | Apply configuration | Applies the API-recommended MySQL configuration via `releem-configurer.sh -s automatic` |
-| 4 | Rollback configuration | Rolls back the applied config via `releem-configurer.sh -r` |
+| 3 | Apply configuration | Applies the API-recommended MySQL configuration via `releem.sh -s automatic` |
+| 4 | Rollback configuration | Rolls back the applied config via `releem.sh -r` |
 
 Tests 3 and 4 depend on test 1 having run first. The run_all scripts handle this automatically.
 

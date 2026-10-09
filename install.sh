@@ -16,9 +16,9 @@ npipe=""
 
 RELEEM_WORKDIR="${RELEEM_WORKDIR:-/opt/releem}"
 RELEEM_CONF_FILE="$RELEEM_WORKDIR/releem.conf"
-RELEEM_COMMAND="/bin/bash $RELEEM_WORKDIR/releem-configurer.sh"
+RELEEM_COMMAND="/bin/bash $RELEEM_WORKDIR/releem.sh"
 RELEEM_AGENT_BINARY_URL="https://releem.s3.amazonaws.com/v2/releem-agent-$(arch)"
-RELEEM_AGENT_SCRIPT_URL="https://releem.s3.amazonaws.com/v2/releem-configurer.sh"
+RELEEM_AGENT_SCRIPT_URL="https://releem.s3.amazonaws.com/v2/releem.sh"
 RELEEM_AGENT_LEGACY_SCRIPT_URL="https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh"
 
 # Root user detection
@@ -67,7 +67,7 @@ fi
 
 function releem_set_cron() {
     # Keep an existing job, including its schedule and the legacy script name.
-    if $sudo_cmd crontab -l 2>/dev/null | grep -v '^[[:space:]]*#' | grep -F -e "$RELEEM_WORKDIR/mysqlconfigurer.sh" -e "$RELEEM_WORKDIR/releem-configurer.sh" >/dev/null; then
+    if $sudo_cmd crontab -l 2>/dev/null | grep -v '^[[:space:]]*#' | grep -F -e "$RELEEM_WORKDIR/mysqlconfigurer.sh" -e "$RELEEM_WORKDIR/releem.sh" >/dev/null; then
         return 0
     fi
     ($sudo_cmd crontab -l 2>/dev/null || true; echo "$RELEEM_CRON") | $sudo_cmd crontab -
@@ -78,15 +78,15 @@ function releem_update() {
     printf "\033[37m\n * Downloading latest version of Releem Agent.\033[0m\n"
 
     $sudo_cmd curl -w "%{http_code}" -L -o $RELEEM_WORKDIR/releem-agent.new $RELEEM_AGENT_BINARY_URL
-    $sudo_cmd curl --fail -w "%{http_code}" -L -o "$RELEEM_WORKDIR/releem-configurer.sh.new" "$RELEEM_AGENT_SCRIPT_URL"
+    $sudo_cmd curl --fail -w "%{http_code}" -L -o "$RELEEM_WORKDIR/releem.sh.new" "$RELEEM_AGENT_SCRIPT_URL"
     $sudo_cmd curl --fail -w "%{http_code}" -L -o "$RELEEM_WORKDIR/mysqlconfigurer.sh.new" "$RELEEM_AGENT_LEGACY_SCRIPT_URL"
-    $sudo_cmd bash -n "$RELEEM_WORKDIR/releem-configurer.sh.new"
+    $sudo_cmd bash -n "$RELEEM_WORKDIR/releem.sh.new"
     $sudo_cmd bash -n "$RELEEM_WORKDIR/mysqlconfigurer.sh.new"
     $sudo_cmd $RELEEM_WORKDIR/releem-agent  stop || true
     $sudo_cmd mv $RELEEM_WORKDIR/releem-agent.new $RELEEM_WORKDIR/releem-agent
-    $sudo_cmd mv "$RELEEM_WORKDIR/releem-configurer.sh.new" "$RELEEM_WORKDIR/releem-configurer.sh"
+    $sudo_cmd mv "$RELEEM_WORKDIR/releem.sh.new" "$RELEEM_WORKDIR/releem.sh"
     $sudo_cmd mv "$RELEEM_WORKDIR/mysqlconfigurer.sh.new" "$RELEEM_WORKDIR/mysqlconfigurer.sh"
-    $sudo_cmd chmod 755 "$RELEEM_WORKDIR/releem-configurer.sh" "$RELEEM_WORKDIR/mysqlconfigurer.sh" "$RELEEM_WORKDIR/releem-agent"
+    $sudo_cmd chmod 755 "$RELEEM_WORKDIR/releem.sh" "$RELEEM_WORKDIR/mysqlconfigurer.sh" "$RELEEM_WORKDIR/releem-agent"
     $sudo_cmd $RELEEM_WORKDIR/releem-agent start || true
     $sudo_cmd $RELEEM_WORKDIR/releem-agent -f
     
@@ -1051,7 +1051,7 @@ function configure_crontab() {
         fi
     elif [ "$RELEEM_CRON_ENABLE" -gt 0 ]; then
         releem_set_cron
-        if [ `$sudo_cmd crontab -l 2>/dev/null | grep -v '^[[:space:]]*#' | grep -F -c -e "$RELEEM_WORKDIR/mysqlconfigurer.sh" -e "$RELEEM_WORKDIR/releem-configurer.sh" || true` -eq 0 ]; then
+        if [ `$sudo_cmd crontab -l 2>/dev/null | grep -v '^[[:space:]]*#' | grep -F -c -e "$RELEEM_WORKDIR/mysqlconfigurer.sh" -e "$RELEEM_WORKDIR/releem.sh" || true` -eq 0 ]; then
             printf "\033[31m   Crontab configuration failed. Automatic updates are disabled.\033[0m\n"
         else
             printf "\033[32m   Crontab configuration complete. Automatic updates are enabled.\033[0m\n"
@@ -1096,9 +1096,9 @@ function download_releem_agent() {
 
     printf "\033[37m\n * Downloading Releem Agent, architecture $(arch).\033[0m\n"
     $sudo_cmd curl -L -o $RELEEM_WORKDIR/releem-agent $RELEEM_AGENT_BINARY_URL
-    $sudo_cmd curl --fail -L -o "$RELEEM_WORKDIR/releem-configurer.sh" "$RELEEM_AGENT_SCRIPT_URL"
+    $sudo_cmd curl --fail -L -o "$RELEEM_WORKDIR/releem.sh" "$RELEEM_AGENT_SCRIPT_URL"
     $sudo_cmd curl --fail -L -o "$RELEEM_WORKDIR/mysqlconfigurer.sh" "$RELEEM_AGENT_LEGACY_SCRIPT_URL"
-    $sudo_cmd chmod 755 "$RELEEM_WORKDIR/releem-configurer.sh" "$RELEEM_WORKDIR/mysqlconfigurer.sh" "$RELEEM_WORKDIR/releem-agent"
+    $sudo_cmd chmod 755 "$RELEEM_WORKDIR/releem.sh" "$RELEEM_WORKDIR/mysqlconfigurer.sh" "$RELEEM_WORKDIR/releem-agent"
 }
 
 function configure_releem_agent() {
@@ -1462,7 +1462,7 @@ then
         $RELEEM_WORKDIR/releem-agent --event=agent_uninstall > /dev/null || true
     fi
     printf "\033[37m\n * Configuring crontab\033[0m\n"
-    ($sudo_cmd crontab -l 2>/dev/null | grep -F -v -e "$RELEEM_WORKDIR/mysqlconfigurer.sh" -e "$RELEEM_WORKDIR/releem-configurer.sh" || true) | $sudo_cmd crontab -
+    ($sudo_cmd crontab -l 2>/dev/null | grep -F -v -e "$RELEEM_WORKDIR/mysqlconfigurer.sh" -e "$RELEEM_WORKDIR/releem.sh" || true) | $sudo_cmd crontab -
     printf "\033[37m\n * Stopping Releem Agent service.\033[0m\n"
     releem_agent_stop=$($sudo_cmd $RELEEM_WORKDIR/releem-agent  stop)
     if [ $? -eq 0 ]; then
@@ -1539,7 +1539,7 @@ then
     restart_service_releem_agent
     # Enable perfomance schema
     # Older installations may only have the legacy entry point.
-    if [ ! -f "$RELEEM_WORKDIR/releem-configurer.sh" ] && [ -f "$RELEEM_WORKDIR/mysqlconfigurer.sh" ]; then
+    if [ ! -f "$RELEEM_WORKDIR/releem.sh" ] && [ -f "$RELEEM_WORKDIR/mysqlconfigurer.sh" ]; then
         $sudo_cmd /bin/bash "$RELEEM_WORKDIR/mysqlconfigurer.sh" -p
     else
         $sudo_cmd $RELEEM_COMMAND -p

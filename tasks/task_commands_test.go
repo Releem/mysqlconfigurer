@@ -82,21 +82,21 @@ func TestLinuxTaskCommandsUseReleemConfigurer(t *testing.T) {
 		want taskCommand
 	}{
 		{
-			name: "update uses releem-configurer.sh -u",
+			name: "update uses releem.sh -u",
 			cmd:  taskUpdateCommand("linux", releemDir),
-			want: taskCommand{name: "sh", args: []string{"-c", "/opt/releem/releem-configurer.sh -u"}},
+			want: taskCommand{name: "sh", args: []string{"-c", "/opt/releem/releem.sh -u"}},
 		},
 		{
-			name: "rollback uses releem-configurer.sh -r",
+			name: "rollback uses releem.sh -r",
 			cmd:  taskRollbackCommand("linux", releemDir),
-			want: taskCommand{name: "sh", args: []string{"-c", "/opt/releem/releem-configurer.sh -r"}, env: []string{"RELEEM_RESTART_SERVICE=1"}},
+			want: taskCommand{name: "sh", args: []string{"-c", "/opt/releem/releem.sh -r"}, env: []string{"RELEEM_RESTART_SERVICE=1"}},
 		},
 		{
-			name: "type 0 uses releem-configurer.sh -a",
+			name: "type 0 uses releem.sh -a",
 			cmd:  taskApplyManualCommand("linux", releemDir),
 			want: taskCommand{
 				name: "sh",
-				args: []string{"-c", "/opt/releem/releem-configurer.sh -a"},
+				args: []string{"-c", "/opt/releem/releem.sh -a"},
 				env:  []string{"RELEEM_RESTART_SERVICE=1"},
 			},
 		},
@@ -121,7 +121,7 @@ func TestLinuxTaskCommandsUseReleemConfigurer(t *testing.T) {
 			cmd:  taskApplyAutomaticCommand("linux", releemDir, "dynamic", false),
 			want: taskCommand{
 				name: "sh",
-				args: []string{"-c", "/opt/releem/releem-configurer.sh -s automatic dynamic"},
+				args: []string{"-c", "/opt/releem/releem.sh -s automatic dynamic"},
 				env:  []string{"RELEEM_RESTART_SERVICE=0"},
 			},
 		},
@@ -130,7 +130,7 @@ func TestLinuxTaskCommandsUseReleemConfigurer(t *testing.T) {
 			cmd:  taskApplyAutomaticCommand("linux", releemDir, "full", true),
 			want: taskCommand{
 				name: "sh",
-				args: []string{"-c", "/opt/releem/releem-configurer.sh -s automatic full"},
+				args: []string{"-c", "/opt/releem/releem.sh -s automatic full"},
 				env:  []string{"RELEEM_RESTART_SERVICE=1"},
 			},
 		},

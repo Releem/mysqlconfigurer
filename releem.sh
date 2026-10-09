@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# releem-configurer.sh - Version 1.25.4.1
+# releem.sh - Version 1.25.4.1
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -22,7 +22,7 @@ RELEEM_DB_VERSION_FILE="${RELEEM_CONF_DIR}db_version"
 RELEEM_INSTALL_FILE="${RELEEM_CONF_DIR}install.sh"
 DB_MEMORY_LIMIT=0
 RELEEM_AGENT_BINARY_URL="https://releem.s3.amazonaws.com/v2/releem-agent-$(arch)"
-RELEEM_AGENT_SCRIPT_URL="https://releem.s3.amazonaws.com/v2/releem-configurer.sh"
+RELEEM_AGENT_SCRIPT_URL="https://releem.s3.amazonaws.com/v2/releem.sh"
 RELEEM_AGENT_INSTALL_SCRIPT_URL="https://releem.s3.amazonaws.com/v2/install.sh"
 
 
@@ -298,7 +298,7 @@ function releem_configure_mysql() {
         FLAG_RESTART_SERVICE=0
     fi
     if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
-        printf "\033[31m\n For appling change in configuration MySQL need to restart service.\n Run the command \`bash $RELEEM_WORKDIR/releem-configurer.sh -p\` when it is possible to restart the service.\033[0m\n"
+        printf "\033[31m\n For appling change in configuration MySQL need to restart service.\n Run the command \`bash $RELEEM_WORKDIR/releem.sh -p\` when it is possible to restart the service.\033[0m\n"
         exit 0
     fi
     #echo "-------Test config-------"
@@ -367,7 +367,7 @@ function releem_configure_postgresql_libraries() {
         FLAG_RESTART_SERVICE=0
     fi
     if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
-        printf "\033[31m\n For appling change in configuration Postgresql need to restart service.\n Run the command \`bash $RELEEM_WORKDIR/releem-configurer.sh -p\` when it is possible to restart the service.\033[0m\n"
+        printf "\033[31m\n For appling change in configuration Postgresql need to restart service.\n Run the command \`bash $RELEEM_WORKDIR/releem.sh -p\` when it is possible to restart the service.\033[0m\n"
         exit 0
     fi
     #echo "-------Test config-------"
@@ -435,7 +435,7 @@ function releem_configure_postgresql() {
         FLAG_RESTART_SERVICE=0
     fi
     if [ "$FLAG_RESTART_SERVICE" -eq 0 ]; then
-        printf "\033[31m\n For appling change in configuration Postgresql need to restart service.\n Run the command \`bash $RELEEM_WORKDIR/releem-configurer.sh -p\` when it is possible to restart the service.\033[0m\n"
+        printf "\033[31m\n For appling change in configuration Postgresql need to restart service.\n Run the command \`bash $RELEEM_WORKDIR/releem.sh -p\` when it is possible to restart the service.\033[0m\n"
         exit 0
     fi
     #echo "-------Test config-------"
@@ -572,12 +572,12 @@ function releem_apply_manual() {
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Wait for the ${DATABASE_NAME} service to start and Check the ${DATABASE_NAME} error log.\033[0m\n"
 
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash $RELEEM_WORKDIR/releem-configurer.sh -r\033[0m\n\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash $RELEEM_WORKDIR/releem.sh -r\033[0m\n\n"
     elif [ $RESTART_CODE -eq 7 ];
     then
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m ${DATABASE_NAME} service failed to restart! Check the ${DATABASE_NAME} error log! \033[0m\n"
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash $RELEEM_WORKDIR/releem-configurer.sh -r\033[0m\n\n"
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash $RELEEM_WORKDIR/releem.sh -r\033[0m\n\n"
     fi
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Sending notification to Releem Platform. \033[0m\n"
     $RELEEM_WORKDIR/releem-agent --event=config_applied > /dev/null
@@ -669,12 +669,12 @@ function releem_apply_automatic() {
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Wait for the ${DATABASE_NAME} service to start and Check the ${DATABASE_NAME} error log.\033[0m\n"
 
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
-            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash $RELEEM_WORKDIR/releem-configurer.sh -r\033[0m\n\n"
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash $RELEEM_WORKDIR/releem.sh -r\033[0m\n\n"
         elif [ $RESTART_CODE -eq 7 ];
         then
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m ${DATABASE_NAME} service failed to restart. Check the ${DATABASE_NAME} error log. \033[0m\n"
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Try to roll back the configuration application using the command: \033[0m\n"
-            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash $RELEEM_WORKDIR/releem-configurer.sh -r\033[0m\n\n"
+            printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m bash $RELEEM_WORKDIR/releem.sh -r\033[0m\n\n"
         fi
     else
         RESTART_CODE=0

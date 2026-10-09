@@ -63,7 +63,7 @@ PAYLOAD_DIR="$(mktemp -d /tmp/releem-linux-payload-XXXX)"
 trap 'rm -rf "$PAYLOAD_DIR"' EXIT
 
 cp "$REPO_ROOT/install.sh" "$PAYLOAD_DIR/install.sh"
-cp "$REPO_ROOT/releem-configurer.sh" "$PAYLOAD_DIR/releem-configurer.sh"
+cp "$REPO_ROOT/releem.sh" "$PAYLOAD_DIR/releem.sh"
 cp "$SCRIPT_DIR/linux/helpers.sh" "$PAYLOAD_DIR/helpers.sh"
 cp "$SCRIPT_DIR/linux/run_all.sh" "$PAYLOAD_DIR/run_all.sh"
 cp "$SCRIPT_DIR/linux/test_01_install_auto.sh" "$PAYLOAD_DIR/test_01_install_auto.sh"

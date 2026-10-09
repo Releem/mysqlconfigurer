@@ -62,12 +62,12 @@ To start using Releem just sign up at [https://releem.com](https://releem.com/?u
 
 ### Linux configurer and periodic metrics
 
-`/opt/releem/releem-configurer.sh` handles configuration apply, rollback, query
+`/opt/releem/releem.sh` handles configuration apply, rollback, query
 optimization setup, and agent updates for MySQL, MariaDB, and PostgreSQL.
 `mysqlconfigurer.sh` remains a compatibility entry point with the same arguments
 and exit codes. Agent updates leave existing cron jobs and their schedules intact;
 new installations, updates, and Docker images download both scripts. The agent
-and installer call only `releem-configurer.sh`; the legacy script remains available
+and installer call only `releem.sh`; the legacy script remains available
 for compatibility, including existing cron jobs. Both scripts
 must be published together. Legacy installers that download only
 `mysqlconfigurer.sh` fetch the implementation on its first invocation if it is

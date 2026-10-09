@@ -1,5 +1,5 @@
 #!/bin/bash
-# Test 3: Apply recommended MySQL configuration via releem-configurer.sh.
+# Test 3: Apply recommended MySQL configuration via releem.sh.
 # Pre-conditions:
 #   - Releem Agent is installed and running (run test_01 first)
 #   - Agent has sent metrics and API has generated a recommendation
@@ -47,15 +47,15 @@ while [[ $WAIT_SECONDS -lt $WAIT_MAX ]]; do
     fi
 done
 
-# --- Apply configuration using releem-configurer.sh -s automatic ---
-log_info "Running releem-configurer.sh -s automatic..."
+# --- Apply configuration using releem.sh -s automatic ---
+log_info "Running releem.sh -s automatic..."
 env \
     RELEEM_API_KEY="$RELEEM_API_KEY" \
     RELEEM_RESTART_SERVICE=1 \
     bash "$CONFIGURER_SCRIPT" -s automatic
 
 APPLY_EXIT=$?
-assert_zero "releem-configurer.sh -s automatic exited successfully" "$APPLY_EXIT"
+assert_zero "releem.sh -s automatic exited successfully" "$APPLY_EXIT"
 
 # --- Local assertions ---
 assert_file_exists "Recommended config file created" "$RELEEM_CONFIG_FILE"

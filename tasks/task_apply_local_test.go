@@ -144,7 +144,7 @@ func TestApplyConfLocalIncludesLogsInTaskOutput(t *testing.T) {
 				}
 				metrics := &models.Metrics{}
 				metrics.DB.Conf.Variables = tt.current
-				code, status, output := ApplyConfLocal(metrics, &awsApplyRepeater{recommendations: tt.recommendations}, nil, *logger, configuration)
+				code, status, output := ApplyConfLocal(metrics, &awsApplyRepeater{recommendations: tt.recommendations}, nil, *logger, configuration, nil)
 				if code != tt.wantExit || status != tt.wantStatus || output != tt.wantOutput {
 					t.Errorf("ApplyConfLocal(%s) = %d/%d %q, want %d/%d %q", tt.name, code, status, output, tt.wantExit, tt.wantStatus, tt.wantOutput)
 				}

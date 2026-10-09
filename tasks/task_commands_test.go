@@ -88,7 +88,7 @@ func TestLinuxTaskCommandsUseReleemConfigurer(t *testing.T) {
 		},
 		{
 			name: "rollback uses releem.sh -r",
-			cmd:  taskRollbackCommand("linux", releemDir),
+			cmd:  taskRollBackCommand("linux", releemDir),
 			want: taskCommand{name: "sh", args: []string{"-c", "/opt/releem/releem.sh -r"}, env: []string{"RELEEM_RESTART_SERVICE=1"}},
 		},
 		{
@@ -146,7 +146,7 @@ func TestLinuxTaskCommandsUseReleemConfigurer(t *testing.T) {
 }
 
 func TestUpdateCommandRemainsAvailable(t *testing.T) {
-	if got := taskUpdateCommand("linux", "/agent"); !reflect.DeepEqual(got.args, []string{"-c", "/agent/mysqlconfigurer.sh -u"}) {
+	if got := taskUpdateCommand("linux", "/agent"); !reflect.DeepEqual(got.args, []string{"-c", "/agent/releem.sh -u"}) {
 		t.Fatal(got)
 	}
 	got := taskUpdateCommand("windows", `C:\Agent`)

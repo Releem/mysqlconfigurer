@@ -309,12 +309,12 @@ SELECT t.table_schema, t.table_name, t.table_type, c.relkind::text,
 	COALESCE(pg_table_size(c.oid), 0)::bigint,
 	COALESCE(pg_indexes_size(c.oid), 0)::bigint,
 	COALESCE(pg_total_relation_size(c.oid), 0)::bigint,
-	COALESCE(s.n_mod_since_analyze, 0)::bigint,
-	COALESCE(s.last_analyze::text, ''), COALESCE(s.last_autoanalyze::text, '')
+	COALESCE(CASE WHEN c.relkind IN ('r', 'm', 'p') THEN pg_catalog.pg_stat_get_mod_since_analyze(c.oid) END, 0)::bigint,
+	COALESCE(CASE WHEN c.relkind IN ('r', 'm', 'p') THEN pg_catalog.pg_stat_get_last_analyze_time(c.oid)::text END, ''),
+	COALESCE(CASE WHEN c.relkind IN ('r', 'm', 'p') THEN pg_catalog.pg_stat_get_last_autoanalyze_time(c.oid)::text END, '')
 FROM information_schema.tables t
 JOIN pg_namespace n ON n.nspname = t.table_schema
 JOIN pg_class c ON c.relname = t.table_name AND c.relnamespace = n.oid AND %s
-LEFT JOIN pg_stat_user_tables s ON s.relid = c.oid
 WHERE t.table_catalog = $1 AND %s
 ORDER BY t.table_schema, t.table_name`, pgTableRelkindPredicate("c.relkind"), pgUserSchemaPredicate("t.table_schema"))
 	rows, err := queryContextRows(ctx, db, query, []interface{}{database}, func(rows *sql.Rows) (PostgresTable, error) {

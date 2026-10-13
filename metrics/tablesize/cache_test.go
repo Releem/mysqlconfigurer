@@ -176,7 +176,7 @@ func TestTableSizeCacheThresholds(t *testing.T) {
 				4*gib+1,
 				128,
 			),
-			wantTTL: 12 * time.Hour,
+			wantTTL: 11*time.Hour + 55*time.Minute,
 		},
 		{
 			name:          "total size equal to RAM multiple uses ordinary cache",
@@ -188,7 +188,7 @@ func TestTableSizeCacheThresholds(t *testing.T) {
 				3*gib,
 				gib,
 			),
-			wantTTL: 12 * time.Hour,
+			wantTTL: 11*time.Hour + 55*time.Minute,
 		},
 		{
 			name:          "both values greater than thresholds cache",
@@ -212,7 +212,7 @@ func TestTableSizeCacheThresholds(t *testing.T) {
 				5*gib,
 				128,
 			),
-			wantTTL: 12 * time.Hour,
+			wantTTL: 11*time.Hour + 55*time.Minute,
 		},
 		{
 			name:          "RAM threshold failing uses ordinary cache",
@@ -224,7 +224,7 @@ func TestTableSizeCacheThresholds(t *testing.T) {
 				3*gib,
 				gib-1,
 			),
-			wantTTL: 12 * time.Hour,
+			wantTTL: 11*time.Hour + 55*time.Minute,
 		},
 		{
 			name:          "total size addition saturates",
@@ -248,7 +248,7 @@ func TestTableSizeCacheThresholds(t *testing.T) {
 				math.MaxUint64,
 				0,
 			),
-			wantTTL: 12 * time.Hour,
+			wantTTL: 11*time.Hour + 55*time.Minute,
 		},
 	}
 
@@ -318,7 +318,7 @@ func TestTableSizeCacheZeroEffectiveRAMUsesOrdinaryTTL(t *testing.T) {
 		t.Fatalf("second getOrRefresh() error = %v", err)
 	}
 
-	input.Now = input.Now.Add(12*time.Hour - time.Second)
+	input.Now = input.Now.Add(11*time.Hour + 55*time.Minute - time.Second)
 	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
 		t.Fatal(err)
 	}
@@ -330,7 +330,7 @@ func TestTableSizeCacheZeroEffectiveRAMUsesOrdinaryTTL(t *testing.T) {
 		t.Fatal(err)
 	}
 	if calls != 2 {
-		t.Fatalf("refresh calls at 12h = %d, want 2", calls)
+		t.Fatalf("refresh calls at 11h55m = %d, want 2", calls)
 	}
 }
 
@@ -395,7 +395,7 @@ func TestTableSizeCacheIneligibleSuccessUsedAsStaleFallback(t *testing.T) {
 	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
 		t.Fatalf("ineligible getOrRefresh() error = %v", err)
 	}
-	input.Now = input.Now.Add(12 * time.Hour)
+	input.Now = input.Now.Add(11*time.Hour + 55*time.Minute)
 	result, err := cache.GetOrRefresh(input, refresh)
 
 	if err != nil {

@@ -86,7 +86,7 @@ func TestDBMetricsConfigGathererMemoryLimitDoesNotReplaceMissingPhysicalRAM(t *t
 	})
 
 	base := time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)
-	gatherer.now = tableSizeCacheTestClock(base, base.Add(12*time.Hour))
+	gatherer.now = tableSizeCacheTestClock(base, base.Add(11*time.Hour+55*time.Minute))
 	for call := 1; call <= 2; call++ {
 		metrics := tableSizeCacheTestMetrics()
 		delete(metrics.System.Info, "PhysicalMemory")
@@ -209,7 +209,7 @@ func TestDBMetricsConfigGathererIneligibleSuccessSurvivesRefreshError(t *testing
 	})
 
 	base := time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)
-	gatherer.now = tableSizeCacheTestClock(base, base.Add(12*time.Hour))
+	gatherer.now = tableSizeCacheTestClock(base, base.Add(11*time.Hour+55*time.Minute))
 	first := tableSizeCacheTestMetrics()
 	if err := gatherer.GetMetrics(first); err != nil {
 		t.Fatalf("first GetMetrics() error = %v", err)
@@ -845,7 +845,7 @@ func TestMinuteTableSizesNeverRefreshMissingExpiredOrFailedCache(t *testing.T) {
 	if _, calls := fake.counts(); calls != 2 {
 		t.Fatalf("minute retried failed refresh: %d", calls)
 	}
-	now = now.Add(12 * time.Hour)
+	now = now.Add(11*time.Hour + 55*time.Minute)
 	if err := g.GetMetrics(tableSizeCacheTestMetrics()); err != nil {
 		t.Fatal(err)
 	}

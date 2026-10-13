@@ -62,8 +62,12 @@ func TestCacheSupportsStructuredSnapshotsAndLiveZeroCount(t *testing.T) {
 	if _, err := c.GetOrRefresh(input, refresh); err != nil || calls != 4 {
 		t.Fatalf("category change calls=%d, error=%v", calls, err)
 	}
-	input.Now = input.Now.Add(time.Hour)
+	input.Now = input.Now.Add(11*time.Hour + 55*time.Minute - time.Second)
 	if _, err := c.GetOrRefresh(input, refresh); err != nil || calls != 4 {
 		t.Fatalf("ordinary cache calls=%d, error=%v", calls, err)
+	}
+	input.Now = input.Now.Add(time.Second)
+	if _, err := c.GetOrRefresh(input, refresh); err != nil || calls != 5 {
+		t.Fatalf("ordinary cache at 11h55m expiry calls=%d, error=%v", calls, err)
 	}
 }

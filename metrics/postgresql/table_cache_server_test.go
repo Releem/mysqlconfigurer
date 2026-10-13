@@ -203,6 +203,10 @@ func pgTestRows(rows driver.Rows) []byte {
 	for rows.Next(values) == nil {
 		data := binary.BigEndian.AppendUint16(nil, uint16(len(values)))
 		for _, value := range values {
+			if value == nil {
+				data = binary.BigEndian.AppendUint32(data, 0xffffffff)
+				continue
+			}
 			text := fmt.Sprint(value)
 			data = binary.BigEndian.AppendUint32(data, uint32(len(text)))
 			data = append(data, text...)

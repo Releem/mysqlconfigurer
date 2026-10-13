@@ -14,7 +14,7 @@ import (
 	logging "github.com/google/logger"
 )
 
-func TestPGTableCacheKeepsStatisticsLiveAndRefreshesAfter12Hours(t *testing.T) {
+func TestPGTableCacheKeepsStatisticsLiveAndRefreshesAfterOrdinaryTTL(t *testing.T) {
 	fake := &pgTableCacheSQL{}
 	g := NewDBMetricsConfigGatherer(*logging.Init("pg-table-cache", true, false, io.Discard), &config.Config{}, true, nil)
 	now := time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)
@@ -35,7 +35,7 @@ func TestPGTableCacheKeepsStatisticsLiveAndRefreshesAfter12Hours(t *testing.T) {
 	}
 	first := collect()
 	first.DB.Metrics.Engine["BASE TABLE"]["Total Size"] = uint64(999)
-	now = now.Add(12*time.Hour - time.Second)
+	now = now.Add(11*time.Hour + 55*time.Minute - time.Second)
 	collect()
 	if fake.tableQueryCount() != 1 || fake.statQueryCount() != 2*len(PG_STAT_PER_DB_VIEWS) {
 		t.Fatalf("table queries=%d, live statistics=%d", fake.tableQueryCount(), fake.statQueryCount())
@@ -61,10 +61,10 @@ func TestPGTableCacheUsesSharedLargeServerPolicy(t *testing.T) {
 	}{
 		{"large server custom TTL", 1, 10, false, 3600, time.Hour},
 		{"large server seven-day TTL", 1, 10, false, 604800, 7 * 24 * time.Hour},
-		{"table count at threshold", 2, 10, false, 3600, 12 * time.Hour},
-		{"size at RAM threshold", 1, 25, false, 3600, 12 * time.Hour},
-		{"missing physical RAM", 1, 0, false, 3600, 12 * time.Hour},
-		{"RDS RAM uses KiB", 1, 1, true, 3600, 12 * time.Hour},
+		{"table count at threshold", 2, 10, false, 3600, 11*time.Hour + 55*time.Minute},
+		{"size at RAM threshold", 1, 25, false, 3600, 11*time.Hour + 55*time.Minute},
+		{"missing physical RAM", 1, 0, false, 3600, 11*time.Hour + 55*time.Minute},
+		{"RDS RAM uses KiB", 1, 1, true, 3600, 11*time.Hour + 55*time.Minute},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -192,7 +192,7 @@ func TestPGTableCacheDoesNotReplaceSnapshotWithPartialRefresh(t *testing.T) {
 		return m
 	}
 	collect()
-	now = now.Add(12 * time.Hour)
+	now = now.Add(11*time.Hour + 55*time.Minute)
 	fake.setFailure(false, 4) // Second database's size query, after a partial refresh.
 	if m := collect(); m.DB.Metrics.TotalTables != 4 || m.DB.Metrics.Engine["BASE TABLE"]["Total Size"] != uint64(200) {
 		t.Fatalf("partial refresh replaced successful snapshot: %+v", m.DB.Metrics)
@@ -236,6 +236,7 @@ type pgTableCacheSQL struct {
 	failTables                bool
 	failTableQuery            int
 	failStatisticsDatabase    string
+	userTableStatistics       bool
 }
 
 func (f *pgTableCacheSQL) tableQueryCount() int {
@@ -273,7 +274,20 @@ func (f *pgTableCacheSQL) query(database, q string) (driver.Rows, error) {
 	if database == f.failStatisticsDatabase {
 		return nil, errors.New("pg_stat_user_tables unavailable")
 	}
+	if f.userTableStatistics && strings.Contains(q, "pg_stat_user_tables") {
+		return nil, errors.New("legacy table statistics view must not be queried")
+	}
 	f.statQueries++
+	if f.userTableStatistics && strings.Contains(q, "pg_catalog.pg_class") {
+		values := []driver.Value{int64(123), "public", "orders", int64(10), int64(90), int64(1980), int64(20), int64(0), int64(1), nil, "2026-10-13 10:00:00+00", int64(20), "2026-10-13 09:50:00+00", "2026-10-13 09:58:00+00"}
+		if database == "archive" {
+			values[4], values[10], values[12], values[13] = nil, nil, nil, nil
+		}
+		return &pgTableCacheRows{
+			columns: []string{"relid", "schemaname", "relname", "seq_scan", "idx_scan", "n_live_tup", "n_dead_tup", "vacuum_count", "autovacuum_count", "last_vacuum", "last_autovacuum", "n_mod_since_analyze", "last_analyze", "last_autoanalyze"},
+			values:  values,
+		}, nil
+	}
 	return &pgTableCacheRows{columns: []string{"value"}, values: []driver.Value{int64(f.statQueries)}}, nil
 }
 
@@ -339,7 +353,7 @@ func TestPGMinuteTableSizesNeverRefreshMissingExpiredOrFailedCache(t *testing.T)
 		t.Fatal("minute retried failed refresh")
 	}
 	fake.setFailure(false, 0)
-	now = now.Add(12 * time.Hour)
+	now = now.Add(11*time.Hour + 55*time.Minute)
 	collect(true, true)
 	if fake.tableQueryCount() != calls+1 {
 		t.Fatal("full collection did not retry")

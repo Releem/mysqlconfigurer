@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -14,6 +15,46 @@ import (
 	logging "github.com/google/logger"
 	"github.com/lib/pq"
 )
+
+func TestPGTableStatisticsPreservePlatformFieldsWithoutLegacyView(t *testing.T) {
+	logger := logging.Init("pg-table-statistics", false, false, &bytes.Buffer{})
+	defer logger.Close()
+	g := NewDBMetricsConfigGatherer(*logger, &config.Config{}, false, nil)
+	newPGTableCacheServer(t, g.configuration, &pgTableCacheSQL{userTableStatistics: true})
+	metrics := &models.Metrics{}
+	metrics.DB.Metrics.Databases = []string{"app", "archive"}
+	metrics.DB.Metrics.Status = make(models.MetricGroupValue)
+	if err := g.GetMetrics(metrics); err != nil {
+		t.Fatal(err)
+	}
+	rows, _ := metrics.DB.Metrics.Status["pg_stat_user_tables"].([]models.MetricGroupValue)
+	if len(rows) != 2 {
+		t.Fatalf("GetMetrics table statistics = %v, want one row from each database without querying the legacy view", rows)
+	}
+	want := models.MetricGroupValue{
+		"relid": "123", "schemaname": "public", "relname": "orders",
+		"seq_scan": "10", "idx_scan": "90", "n_live_tup": "1980", "n_dead_tup": "20",
+		"vacuum_count": "0", "autovacuum_count": "1", "last_vacuum": nil,
+		"last_autovacuum": "2026-10-13 10:00:00+00", "n_mod_since_analyze": "20",
+		"last_analyze": "2026-10-13 09:50:00+00", "last_autoanalyze": "2026-10-13 09:58:00+00",
+	}
+	if !reflect.DeepEqual(rows[0], want) {
+		t.Errorf("GetMetrics table statistics = %#v, want %#v", rows[0], want)
+	}
+	for _, field := range []string{"idx_scan", "last_vacuum", "last_autovacuum", "last_analyze", "last_autoanalyze"} {
+		if value, present := rows[1][field]; !present || value != nil {
+			t.Errorf("GetMetrics archive field %s = %v (present=%t), want SQL NULL", field, value, present)
+		}
+	}
+	for view := range PG_STAT_PER_DB_VIEWS {
+		if view == "pg_stat_user_tables" {
+			continue
+		}
+		if rows, _ := metrics.DB.Metrics.Status[view].([]models.MetricGroupValue); len(rows) != 2 {
+			t.Errorf("GetMetrics %s = %#v, want unchanged collection from both databases", view, rows)
+		}
+	}
+}
 
 func TestPgStatActivityQueryHandlesNullableConnectionFields(t *testing.T) {
 	source, err := os.ReadFile("dbMetrics.go")
@@ -50,7 +91,7 @@ func TestPGMetricsClosesConnectionsAndContinuesAfterActivityError(t *testing.T) 
 		t.Fatalf("activity and table sizes should continue with the next database, got %s", got)
 	}
 	server.waitForClosed(t, 4)
-	for _, view := range PG_STAT_PER_DB_VIEWS {
+	for view := range PG_STAT_PER_DB_VIEWS {
 		if rows, _ := m.DB.Metrics.Status[view].([]models.MetricGroupValue); len(rows) != 1 {
 			t.Fatalf("healthy database statistics for %s = %#v", view, rows)
 		}

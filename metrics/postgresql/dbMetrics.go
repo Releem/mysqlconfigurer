@@ -231,8 +231,8 @@ func (g *DBMetricsConfigGatherer) GetMetrics(metrics *models.Metrics) error {
 			g.logger.Error("Connection to database failed: ", database)
 			continue
 		}
-		for _, view := range PG_STAT_PER_DB_VIEWS {
-			rows, err := db.Query("SELECT * FROM " + view)
+		for view, query := range PG_STAT_PER_DB_VIEWS {
+			rows, err := db.Query(query)
 			if err != nil {
 				g.logger.Error(err)
 				continue

@@ -76,7 +76,7 @@ func (c *Cache[T]) Peek() (T, bool) {
 	return value.value, ok
 }
 
-// GetOrRefresh uses 12 hours for ordinary servers and Input.TTL for large ones.
+// GetOrRefresh uses 11h55m for ordinary servers and Input.TTL for large ones.
 // A changed size category forces a refresh. Failures retain the last complete
 // snapshot and retry on the next call; a first failure returns an error.
 func (c *Cache[T]) GetOrRefresh(input Input, refresh func() (T, error)) (cache.Result[T], error) {
@@ -89,7 +89,7 @@ func (c *Cache[T]) GetOrRefresh(input Input, refresh func() (T, error)) (cache.R
 			if value.largeServer {
 				return input.TTL
 			}
-			return 12 * time.Hour
+			return 12*time.Hour - 5*time.Minute
 		},
 		Reusable: func(value snapshot[T]) bool {
 			return eligible(input, value.summary) == value.largeServer

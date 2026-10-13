@@ -155,3 +155,27 @@ table_size_cache_ttl_seconds=-1
 		})
 	}
 }
+
+func TestLoadConfigFromStringPgMaxDatabaseConnections(t *testing.T) {
+	tests := []struct {
+		name string
+		data string
+		want int
+	}{
+		{name: "default", data: ``, want: DefaultPgMaxDatabaseConnections},
+		{name: "explicit", data: `pg_max_db_connections=5`, want: 5},
+		{name: "zero", data: `pg_max_db_connections=0`, want: DefaultPgMaxDatabaseConnections},
+		{name: "negative", data: `pg_max_db_connections=-1`, want: DefaultPgMaxDatabaseConnections},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := LoadConfigFromString(tt.data, *logging.Init("config-test", true, false, io.Discard))
+			if err != nil {
+				t.Fatalf("LoadConfigFromString() error = %v", err)
+			}
+			if cfg.PgMaxDbConnections != tt.want {
+				t.Fatalf("PgMaxDbConnections = %d, want %d", cfg.PgMaxDbConnections, tt.want)
+			}
+		})
+	}
+}

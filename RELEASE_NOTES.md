@@ -242,3 +242,17 @@
 - Fixed agent termination on CloudWatch Logs errors while collecting AWS RDS Enhanced Monitoring metrics (#534). Errors are now logged without exiting; the affected collection cycle is skipped and collection resumes on the next scheduled cycle.
 - Added regression coverage for CloudWatch HTTP 500/503 errors and recovery on the next collection cycle.
 - Bumped agent, installer, configurer, and Windows script versions to 1.25.4.1.
+
+## 1.26.0
+
+- Updated the Go toolchain from 1.27.1 to 1.27.2 in `go.mod` and the GitHub Actions build workflow.
+- Updated Go dependencies, including the AWS SDK for Go v2, Azure SDK core and authentication libraries, Google Cloud Monitoring and API clients, OpenTelemetry, gRPC, `gopsutil`, and the `golang.org/x` modules.
+- Renamed the management scripts to `releem.sh` on Linux and `releem.ps1` on Windows. Installers and updates download both the new scripts and the legacy `mysqlconfigurer` wrappers, preserving existing commands and cron schedules.
+- Unified table-size caching for MySQL, MariaDB, and PostgreSQL. Minute reports reuse the latest complete snapshot; full reports refresh it after 12 hours on ordinary servers, while large servers retain their configurable TTL and thresholds. Failed refreshes preserve the last complete snapshot.
+- Reduced PostgreSQL table-statistics collection overhead by reading catalog statistics directly while preserving the fields required by query optimization and schema analysis.
+- Added a shared PostgreSQL database connection pool for metrics, EXPLAIN, and schema collection, with an LRU eviction policy and configurable `pg_max_db_connections` limit (default: 10).
+- Reused one MySQL connection during each EXPLAIN collection pass, avoiding repeated schema selection and recovering the session after connection failures.
+- Included dynamic-apply parameter changes, failures, and summaries in task output. GCP operation failures now return task errors without terminating the agent.
+- Fixed Windows apply validation for persisted configuration paths and aligned missing-directory and missing-include exit codes with Linux.
+- Expanded regression coverage for connection lifecycle, table-size cache expiry, PostgreSQL statistics, and Linux and Windows script compatibility.
+- Bumped agent, installer, management script, and related test versions to 1.26.0.

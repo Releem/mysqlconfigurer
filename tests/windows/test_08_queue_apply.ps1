@@ -1,4 +1,4 @@
-# Test 8: mysqlconfigurer.ps1 -QueueApply delegates apply scheduling to releem-agent --task=apply_config.
+# Test 8: releem.ps1 -QueueApply delegates apply scheduling to releem-agent --task=apply_config.
 
 param()
 
@@ -23,7 +23,7 @@ try {
     & powershell.exe -ExecutionPolicy Bypass -File $ConfigurerScript -QueueApply
     $queueExit = $LASTEXITCODE
 
-    Assert-Zero "mysqlconfigurer.ps1 -QueueApply exited successfully" $queueExit
+    Assert-Zero "releem.ps1 -QueueApply exited successfully" $queueExit
     Assert-FileExists "Queue apply marker created" $markerPath
     Assert-FileContains "Queue apply invoked releem-agent with apply task" $markerPath '--task=apply_config'
 } finally {

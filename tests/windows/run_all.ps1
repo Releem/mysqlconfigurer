@@ -30,16 +30,24 @@ if ($env:INSTALL_SCRIPT -and (Test-Path $env:INSTALL_SCRIPT)) {
     Copy-Item "C:\install.ps1" "C:\releem_tests\install.ps1" -Force
 }
 if ($env:CONFIGURER_SCRIPT -and (Test-Path $env:CONFIGURER_SCRIPT)) {
-    $configurerDst = "C:\releem_tests\mysqlconfigurer.ps1"
+    $configurerDst = "C:\releem_tests\releem.ps1"
     if ([System.IO.Path]::GetFullPath($env:CONFIGURER_SCRIPT) -ne [System.IO.Path]::GetFullPath($configurerDst)) {
         Copy-Item $env:CONFIGURER_SCRIPT $configurerDst -Force
     }
-} elseif (Test-Path "C:\mysqlconfigurer.ps1") {
-    Copy-Item "C:\mysqlconfigurer.ps1" "C:\releem_tests\mysqlconfigurer.ps1" -Force
+} elseif (Test-Path "C:\releem.ps1") {
+    Copy-Item "C:\releem.ps1" "C:\releem_tests\releem.ps1" -Force
+}
+
+# Stage the compatibility entry point alongside the canonical implementation.
+$legacySource = if ($env:CONFIGURER_SCRIPT) { Join-Path (Split-Path $env:CONFIGURER_SCRIPT) 'mysqlconfigurer.ps1' } else { 'C:\mysqlconfigurer.ps1' }
+$legacyDestination = 'C:\releem_tests\mysqlconfigurer.ps1'
+if (-not (Test-Path $legacySource -PathType Leaf)) { throw "Legacy test payload is missing: $legacySource" }
+if ([IO.Path]::GetFullPath($legacySource) -ne [IO.Path]::GetFullPath($legacyDestination)) {
+    Copy-Item $legacySource $legacyDestination -Force
 }
 
 $env:INSTALL_SCRIPT    = "C:\releem_tests\install.ps1"
-$env:CONFIGURER_SCRIPT = "C:\releem_tests\mysqlconfigurer.ps1"
+$env:CONFIGURER_SCRIPT = "C:\releem_tests\releem.ps1"
 
 $OverallPassed = 0
 $OverallFailed = 0

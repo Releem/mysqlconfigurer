@@ -229,7 +229,7 @@ func TestDBMetricsBasePreservesLegacyLightweightQueryPayload(t *testing.T) {
 			HasRows:                  true,
 		}, nil
 	}}
-	gatherer := NewDBMetricsBaseGatherer(logger, &config.Config{}, capabilities)
+	gatherer := NewDBMetricsBaseGatherer(logger, &config.Config{}, capabilities, nil)
 	metrics := &models.Metrics{}
 
 	if err := gatherer.GetMetrics(metrics); err != nil {
@@ -326,8 +326,8 @@ func TestPostgresGatherersShareCapabilities(t *testing.T) {
 	configuration := &config.Config{}
 	capabilities := NewPostgresCapabilities(logger)
 
-	base := NewDBMetricsBaseGatherer(logger, configuration, capabilities)
-	full := NewDBCollectQueriesOptimization(logger, configuration, capabilities)
+	base := NewDBMetricsBaseGatherer(logger, configuration, capabilities, nil)
+	full := NewDBCollectQueriesOptimization(logger, configuration, capabilities, nil)
 	if base.capabilities != capabilities || full.capabilities != capabilities {
 		t.Fatal("PostgreSQL gatherers must share the capabilities instance created by main")
 	}

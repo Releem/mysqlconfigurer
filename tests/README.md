@@ -1,6 +1,6 @@
 # Releem Agent Installation Tests
 
-End-to-end tests for `install.sh`, `releem.sh` (Linux) and `windows/install.ps1`, `windows/mysqlconfigurer.ps1` (Windows).
+End-to-end tests for `install.sh`, `releem.sh` (Linux) and `windows/install.ps1`, `windows/releem.ps1` (Windows).
 
 Tests run on GCP spot (preemptible) VMs provisioned by Terraform, torn down after each run.
 
@@ -157,12 +157,27 @@ tests/
     └── run_all.ps1                      # Run all Windows tests
 ```
 
-### Windows configurer exit-code checks (offline)
+### Windows configurer checks
 
-Run `pwsh -NoProfile -File tests/windows/test_configurer_exit_codes.ps1`
-(or `powershell.exe -NoProfile -File tests/windows/test_configurer_exit_codes.ps1`
-on Windows). No database, administrator rights, or service changes are required.
-Checks cover exit code 3 for an unset/missing configuration directory, exit code
-11 for a missing active `!includedir` on apply, supported path quoting/separators,
-and preservation of code 1 for missing recommendations. Rollback checks the
-configuration directory but does not require an include, matching Linux.
+Run all offline scenarios with PowerShell 7 on Linux or PowerShell on Windows:
+
+```powershell
+pwsh -NoProfile -File tests/windows/test_configurer.ps1
+```
+
+Use `-Check ExitCodes`, `-Check Legacy`, or `-Check Update` to run one group.
+No database, service changes, administrator rights, or Pester are required.
+The suite checks:
+
+- Directory/include exit codes, path escaping and configuration round trips.
+- Legacy aliases, switch values, arguments with spaces and exit-code forwarding.
+- Successful updates of legacy-only and outdated-script installations.
+- Fresh installation and update failures when either required script cannot download.
+
+Update scenarios execute the real installer branch with download/service mocks,
+then run both installed entry points through the actual help and validation
+paths. Only the privilege bootstrap and Windows paths are adapted offline.
+
+Windows Test 5 runs this shared suite before checking delegated `-Update` on a
+VM. It verifies both installed files against the payload and runs both names.
+Its mocked version is always newer so a release bump cannot skip the update.

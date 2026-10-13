@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
 	"fmt"
 	"io"
@@ -238,11 +239,26 @@ func (programm *Programm) Run() {
 
 	// Initialize database connection based on database type
 	dbType := configuration.GetDatabaseType()
-	models.DB = utils.ConnectionDatabase(configuration, logger, "")
-	if models.DB == nil {
-		exitRunWithError("Failed to connect to the configured database")
+	var databaseConnections *utils.DatabaseConnectionPool
+	if dbType == "postgresql" {
+		// Per-database handles stay open between collections and are shared by
+		// every PostgreSQL gatherer; the main connection is pinned in the pool.
+		databaseConnections = utils.NewDatabaseConnectionPool(configuration.PgMaxDbConnections)
+		defer databaseConnections.Close()
+		var err error
+		models.DB, err = databaseConnections.Pin("postgres", func() (*sql.DB, error) {
+			return utils.ConnectionDatabaseErr(configuration, logger, "postgres")
+		})
+		if models.DB == nil {
+			exitRunWithError("Failed to connect to the configured database: ", err)
+		}
+	} else {
+		models.DB = utils.ConnectionDatabase(configuration, logger, "")
+		if models.DB == nil {
+			exitRunWithError("Failed to connect to the configured database")
+		}
+		defer models.DB.Close()
 	}
-	defer models.DB.Close()
 
 	//Init repeaters
 	// repeaters := make(map[string]models.MetricsRepeater)
@@ -263,17 +279,16 @@ func (programm *Programm) Run() {
 	case "postgresql":
 		postgresCapabilities := postgresql.NewPostgresCapabilities(logger)
 		gatherers["default"] = append(gatherers["default"],
-			postgresql.NewDBConfGatherer(logger, configuration),
-			postgresql.NewDBInfoBaseGatherer(logger, configuration),
-			postgresql.NewDBInfoGatherer(logger, configuration),
-			postgresql.NewDBMetricsBaseGatherer(logger, configuration, postgresCapabilities),
+			postgresql.NewDBConfGatherer(logger, configuration, databaseConnections),
+			postgresql.NewDBInfoGatherer(logger, configuration, databaseConnections),
+			postgresql.NewDBMetricsBaseGatherer(logger, configuration, postgresCapabilities, databaseConnections),
 			metrics.NewAgentMetricsGatherer(logger, configuration))
 
 		tableSizeCache := postgresql.NewTableSizeCache()
-		gatherers["metrics"] = append(gatherers["metrics"], postgresql.NewDBMetricsConfigGatherer(logger, configuration, false, tableSizeCache))
-		gatherers["configuration"] = append(gatherers["configuration"], postgresql.NewDBMetricsConfigGatherer(logger, configuration, true, tableSizeCache))
+		gatherers["metrics"] = append(gatherers["metrics"], postgresql.NewDBMetricsConfigGatherer(logger, configuration, false, tableSizeCache, databaseConnections))
+		gatherers["configuration"] = append(gatherers["configuration"], postgresql.NewDBMetricsConfigGatherer(logger, configuration, true, tableSizeCache, databaseConnections))
 
-		gatherers["query_optimization"] = append(gatherers["query_optimization"], postgresql.NewDBCollectQueriesOptimization(logger, configuration, postgresCapabilities))
+		gatherers["query_optimization"] = append(gatherers["query_optimization"], postgresql.NewDBCollectQueriesOptimization(logger, configuration, postgresCapabilities, databaseConnections))
 
 		gatherers["sample_queries"] = []models.MetricsGatherer{}
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# releem.sh - Version 1.25.4.1
+# releem.sh - Version 1.26.0
 # (C) Releem, Inc 2022
 # All rights reserved
 
@@ -14,7 +14,7 @@ else
 fi
 
 # Variables
-VERSION="1.25.4.1"
+VERSION="1.26.0"
 RELEEM_WORKDIR="${RELEEM_WORKDIR:-/opt/releem}"
 RELEEM_CONF_DIR="$RELEEM_WORKDIR/conf/"
 RELEEM_CONF_FILE="$RELEEM_WORKDIR/releem.conf"

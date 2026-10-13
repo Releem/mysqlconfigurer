@@ -95,11 +95,6 @@ func ConnectionDatabaseErr(configuration *config.Config, logger logging.Logger, 
 	}
 }
 
-func ConnectionMySQL(configuration *config.Config, logger logging.Logger, DBname string) *sql.DB {
-	db, _ := ConnectionMySQLErr(configuration, logger, DBname)
-	return db
-}
-
 func ConnectionMySQLErr(configuration *config.Config, logger logging.Logger, DBname string) (*sql.DB, error) {
 	var db *sql.DB
 	var err error
@@ -141,11 +136,6 @@ func ConnectionMySQLErr(configuration *config.Config, logger logging.Logger, DBn
 		}
 	}
 	return db, nil
-}
-
-func ConnectionPostgreSQL(configuration *config.Config, logger logging.Logger, DBname string) *sql.DB {
-	db, _ := ConnectionPostgreSQLErr(configuration, logger, DBname)
-	return db
 }
 
 func ConnectionPostgreSQLErr(configuration *config.Config, logger logging.Logger, DBname string) (*sql.DB, error) {

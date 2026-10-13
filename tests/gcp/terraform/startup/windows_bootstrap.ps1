@@ -180,7 +180,7 @@ $env:RELEEM_API_KEY = $ReleemApiKey
 $env:MYSQL_ROOT_PASSWORD = $DbRootPass
 $env:OS_VERSION = $OsVersion
 $env:INSTALL_SCRIPT = 'C:\releem_tests\install.ps1'
-$env:CONFIGURER_SCRIPT = 'C:\releem_tests\mysqlconfigurer.ps1'
+$env:CONFIGURER_SCRIPT = 'C:\releem_tests\releem.ps1'
 
 Write-Log ('Running Windows test suite: {0}' -f $TestSelection)
 & powershell.exe -ExecutionPolicy Bypass -NonInteractive -File 'C:\releem_tests\run_all.ps1' -Test $TestSelection

@@ -1,7 +1,9 @@
 package postgresql
 
 import (
+	"database/sql"
 	"errors"
+	"os"
 	"strings"
 
 	"github.com/Releem/mysqlconfigurer/config"
@@ -10,47 +12,86 @@ import (
 	logging "github.com/google/logger"
 )
 
+// DBInfoGatherer collects the server version, extensions, users, and security
+// settings into metrics.DB.Info.
 type DBInfoGatherer struct {
 	logger        logging.Logger
 	configuration *config.Config
+	connections   *utils.DatabaseConnectionPool
 }
 
-func NewDBInfoGatherer(logger logging.Logger, configuration *config.Config) *DBInfoGatherer {
+func NewDBInfoGatherer(logger logging.Logger, configuration *config.Config, connections *utils.DatabaseConnectionPool) *DBInfoGatherer {
 	return &DBInfoGatherer{
 		logger:        logger,
 		configuration: configuration,
+		connections:   connections,
 	}
 }
 
 func (DBInfo *DBInfoGatherer) GetMetrics(metrics *models.Metrics) error {
 	defer utils.HandlePanic(DBInfo.configuration, DBInfo.logger)
 
-	if metrics.DB.Info == nil {
-		metrics.DB.Info = make(models.MetricGroupValue)
+	db, release, err := acquireDefaultDatabase(DBInfo.connections, DBInfo.configuration, DBInfo.logger)
+	if err != nil {
+		DBInfo.logger.Error(err)
+		return err
 	}
+	defer release()
 
-	pgHBA := DBInfo.collectPgHBA()
+	info, err := DBInfo.collectVersionInfo(db)
+	if err != nil {
+		return err
+	}
+	metrics.DB.Info = info
+
+	pgHBA := DBInfo.collectPgHBA(db)
 	if pgHBA != nil {
 		metrics.DB.Info["pg_hba"] = pgHBA
 	}
 
-	metrics.DB.Info["Extensions"] = DBInfo.collectExtensions()
-	metrics.DB.Info["Users"] = DBInfo.collectUsers()
+	metrics.DB.Info["Extensions"] = DBInfo.collectExtensions(db)
+	metrics.DB.Info["Users"] = DBInfo.collectUsers(db)
 	// pg_hba entries are handed over directly: reading them back out of the
 	// metrics map made the check silently depend on both the map key and the
 	// order of these calls.
 	metrics.DB.Info["UsersSecurityCheck"] = DBInfo.collectUsersSecurityCheck(metrics, pgHBA)
-	metrics.DB.Info["PublicSchemaPermissions"] = DBInfo.collectPublicSchemaPermissions()
-	metrics.DB.Info["RLS"] = DBInfo.collectRLSInfo()
+	metrics.DB.Info["PublicSchemaPermissions"] = DBInfo.collectPublicSchemaPermissions(db)
+	metrics.DB.Info["RLS"] = DBInfo.collectRLSInfo(db)
 
 	DBInfo.logger.V(5).Info("CollectMetrics PostgreSQL DBInfo ", metrics.DB.Info)
 	return nil
 }
 
-func (DBInfo *DBInfoGatherer) collectExtensions() []models.MetricGroupValue {
+// collectVersionInfo reads the server version, records it for the configurer
+// scripts, and starts the Info map with the version, memory limit, and type.
+func (DBInfo *DBInfoGatherer) collectVersionInfo(db *sql.DB) (models.MetricGroupValue, error) {
+	var dbversion string
+	err := db.QueryRow("SELECT version()").Scan(&dbversion)
+	if err != nil {
+		DBInfo.logger.Error(err)
+		return nil, err
+	}
+	outStr := strings.Split(dbversion, " ")
+	verStr := strings.Split(outStr[1], ".")
+	pg_version := verStr[0] + "." + verStr[1]
+
+	info := make(models.MetricGroupValue)
+	info["Version"] = pg_version
+	err = os.WriteFile(DBInfo.configuration.ReleemConfDir+utils.DBVersionFileName(), []byte(pg_version), 0644)
+	if err != nil {
+		DBInfo.logger.Error("WriteFile: Error write to file: ", err)
+	}
+
+	// PostgreSQL memory limit (from configuration)
+	info["MemoryLimit"] = DBInfo.configuration.GetMemoryLimit()
+	info["Type"] = "postgresql"
+	return info, nil
+}
+
+func (DBInfo *DBInfoGatherer) collectExtensions(db *sql.DB) []models.MetricGroupValue {
 	output := []models.MetricGroupValue{}
 
-	rows, err := models.DB.Query(`
+	rows, err := db.Query(`
 		SELECT
 			extname,
 			COALESCE(extversion, 'NULL') AS extversion,
@@ -82,10 +123,10 @@ func (DBInfo *DBInfoGatherer) collectExtensions() []models.MetricGroupValue {
 	return output
 }
 
-func (DBInfo *DBInfoGatherer) collectUsers() []models.MetricGroupValue {
+func (DBInfo *DBInfoGatherer) collectUsers(db *sql.DB) []models.MetricGroupValue {
 	output := []models.MetricGroupValue{}
 
-	rows, err := models.DB.Query(`
+	rows, err := db.Query(`
 		SELECT
 			rolname,
 			rolsuper,
@@ -188,10 +229,10 @@ func (DBInfo *DBInfoGatherer) collectUsersSecurityCheck(metrics *models.Metrics,
 	return usersCheck
 }
 
-func (DBInfo *DBInfoGatherer) collectPublicSchemaPermissions() models.MetricGroupValue {
+func (DBInfo *DBInfoGatherer) collectPublicSchemaPermissions(db *sql.DB) models.MetricGroupValue {
 	var privileges string
 
-	err := models.DB.QueryRow(`
+	err := db.QueryRow(`
 		SELECT CONCAT_WS(',',
 			CASE WHEN has_schema_privilege('public', 'public', 'USAGE') THEN 'USAGE' END,
 			CASE WHEN has_schema_privilege('public', 'public', 'CREATE') THEN 'CREATE' END
@@ -204,10 +245,10 @@ func (DBInfo *DBInfoGatherer) collectPublicSchemaPermissions() models.MetricGrou
 	return models.MetricGroupValue{"public": privileges}
 }
 
-func (DBInfo *DBInfoGatherer) collectRLSInfo() bool {
+func (DBInfo *DBInfoGatherer) collectRLSInfo(db *sql.DB) bool {
 	var enabled bool
 
-	err := models.DB.QueryRow(`
+	err := db.QueryRow(`
 		SELECT EXISTS (
 			SELECT 1
 			FROM pg_class c
@@ -251,10 +292,10 @@ func (DBInfo *DBInfoGatherer) handlePgHBARulesUnavailable(err error) bool {
 	return true
 }
 
-func (DBInfo *DBInfoGatherer) collectPgHBA() []models.MetricGroupValue {
+func (DBInfo *DBInfoGatherer) collectPgHBA(db *sql.DB) []models.MetricGroupValue {
 	output := []models.MetricGroupValue{}
 
-	rows, err := models.DB.Query(`
+	rows, err := db.Query(`
 		SELECT
 			COALESCE(type, '') AS type,
 			COALESCE(array_to_string(database, ','), '') AS database,

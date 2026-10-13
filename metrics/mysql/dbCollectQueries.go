@@ -1,7 +1,9 @@
 package mysql
 
 import (
+	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"sort"
 	"strings"
@@ -576,15 +578,30 @@ func CollectExplain(digests map[string]models.MetricGroupValue, field_sorting st
 			continue
 		}
 
-		db, err := state.Connection(schemaName, func() (*sql.DB, error) {
-			return state.Connect(configuration, logger, schemaName)
-		})
-		if db == nil {
+		session, err := useExplainSchema(state, configuration, logger, schemaName)
+		if err != nil {
 			logger.Error("Connection to database failed: ", schemaName, " ", err)
+			state.MarkDatabaseFailed(schemaName, err.Error())
 			digests[k]["explain_error"] = u.ConnectionFailedExplainError(state.FailedReason(schemaName))
 			continue
 		}
-		query_explain, err := ExecuteExplain(db, digests[k]["query_text"].(string), logger)
+		query_explain, err := ExecuteExplain(session, digests[k]["query_text"].(string), logger)
+		if err != nil && isMySQLConnectionError(err) {
+			// The pinned connection broke mid-EXPLAIN and database/sql will not
+			// reuse it: reconnect, reselect the schema, and retry once.
+			state.ResetSession()
+			session, err = useExplainSchema(state, configuration, logger, schemaName)
+			if err != nil {
+				logger.Error("Connection to database failed: ", schemaName, " ", err)
+				state.MarkDatabaseFailed(schemaName, err.Error())
+				digests[k]["explain_error"] = u.ConnectionFailedExplainError(state.FailedReason(schemaName))
+				continue
+			}
+			query_explain, err = ExecuteExplain(session, digests[k]["query_text"].(string), logger)
+			if err != nil && isMySQLConnectionError(err) {
+				state.ResetSession()
+			}
+		}
 		if err != nil {
 			digests[k]["explain_error"] = err.Error()
 		}
@@ -596,13 +613,57 @@ func CollectExplain(digests map[string]models.MetricGroupValue, field_sorting st
 	}
 }
 
-func ExecuteExplain(db *sql.DB, queryText string, logger logging.Logger) (string, error) {
+// useExplainSchema selects schemaName on the pass's single pinned connection:
+// USE switches the default database, so the pass needs no connection per
+// schema. If the connection itself broke, it is replaced and USE retried once,
+// so one dropped connection does not fail every later schema.
+func useExplainSchema(state *u.ExplainCollectionState, configuration *config.Config, logger logging.Logger, schemaName string) (*sql.Conn, error) {
+	connect := func() (*sql.DB, error) {
+		return state.Connect(configuration, logger, "")
+	}
+	var err error
+	for attempt := 0; attempt < 2; attempt++ {
+		var session *sql.Conn
+		session, err = state.Session(connect)
+		if session == nil {
+			return nil, err
+		}
+		if state.SessionDatabase == schemaName {
+			return session, nil
+		}
+		if _, err = session.ExecContext(context.Background(), "USE "+quoteMySQLIdentifier(schemaName)); err == nil {
+			state.SessionDatabase = schemaName
+			return session, nil
+		}
+		if !isMySQLConnectionError(err) {
+			return nil, err
+		}
+		state.ResetSession()
+	}
+	return nil, err
+}
+
+// isMySQLConnectionError reports a broken connection rather than a schema error.
+func isMySQLConnectionError(err error) bool {
+	return errors.Is(err, sql.ErrConnDone) || errors.Is(err, driver.ErrBadConn) || errors.Is(err, mysqldriver.ErrInvalidConn)
+}
+
+// explainQuerier is satisfied by *sql.DB and by a pinned *sql.Conn.
+type explainQuerier interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func quoteMySQLIdentifier(name string) string {
+	return "`" + strings.ReplaceAll(name, "`", "``") + "`"
+}
+
+func ExecuteExplain(db explainQuerier, queryText string, logger logging.Logger) (string, error) {
 	var explain, query_text string
 	var explain_error error
 	explain_error = nil
 
 	//Try exec EXPLAIN for origin query
-	err := db.QueryRow("EXPLAIN FORMAT=JSON " + queryText).Scan(&explain)
+	err := db.QueryRowContext(context.Background(), "EXPLAIN FORMAT=JSON "+queryText).Scan(&explain)
 	if err != nil {
 		logger.Error("Explain Error: ", err)
 		if strings.Contains(err.Error(), "SELECT command denied to user") || strings.Contains(err.Error(), "Access denied for user") {
@@ -620,7 +681,7 @@ func ExecuteExplain(db *sql.DB, queryText string, logger logging.Logger) (string
 
 	//Try exec EXPLAIN for  query with replace "\"" on "'"
 	query_text = strings.Replace(queryText, "\"", "'", -1)
-	err_1 := db.QueryRow("EXPLAIN FORMAT=JSON " + query_text).Scan(&explain)
+	err_1 := db.QueryRowContext(context.Background(), "EXPLAIN FORMAT=JSON "+query_text).Scan(&explain)
 	if err_1 != nil {
 		logger.Error("Explain Error: ", err_1)
 		if strings.Contains(err_1.Error(), "SELECT command denied to user") || strings.Contains(err_1.Error(), "Access denied for user") {
@@ -638,7 +699,7 @@ func ExecuteExplain(db *sql.DB, queryText string, logger logging.Logger) (string
 
 	//Try exec EXPLAIN for  query with replace "\"" on "`"
 	query_text = strings.Replace(queryText, "\"", "`", -1)
-	err_2 := db.QueryRow("EXPLAIN FORMAT=JSON " + query_text).Scan(&explain)
+	err_2 := db.QueryRowContext(context.Background(), "EXPLAIN FORMAT=JSON "+query_text).Scan(&explain)
 	if err_2 != nil {
 		logger.Error("Explain Error: ", err_2)
 		if strings.Contains(err_2.Error(), "SELECT command denied to user") || strings.Contains(err_2.Error(), "Access denied for user") {

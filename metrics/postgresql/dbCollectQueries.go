@@ -17,13 +17,17 @@ type DBCollectQueriesOptimization struct {
 	logger        logging.Logger
 	configuration *config.Config
 	capabilities  *PostgresCapabilities
+	connections   *u.DatabaseConnectionPool
 }
 
-func NewDBCollectQueriesOptimization(logger logging.Logger, configuration *config.Config, capabilities *PostgresCapabilities) *DBCollectQueriesOptimization {
+// NewDBCollectQueriesOptimization borrows EXPLAIN handles from connections, which
+// outlives each pass; nil opens a private pool per pass.
+func NewDBCollectQueriesOptimization(logger logging.Logger, configuration *config.Config, capabilities *PostgresCapabilities, connections *u.DatabaseConnectionPool) *DBCollectQueriesOptimization {
 	return &DBCollectQueriesOptimization{
 		logger:        logger,
 		configuration: configuration,
 		capabilities:  capabilities,
+		connections:   connections,
 	}
 }
 
@@ -47,7 +51,12 @@ func (DBCollectQueriesOptimization *DBCollectQueriesOptimization) GetMetrics(met
 			outputDigest := postgresQueryDetailMap(statementRows)
 			if DBCollectQueriesOptimization.configuration.QueryOptimization {
 				func() {
-					explainState := u.NewExplainCollectionState()
+					var explainState *u.ExplainCollectionState
+					if DBCollectQueriesOptimization.connections != nil {
+						explainState = u.NewExplainCollectionStateWithPool(DBCollectQueriesOptimization.connections)
+					} else {
+						explainState = u.NewExplainCollectionState()
+					}
 					defer explainState.Close()
 					collectExplainDetails(outputDigest, "total_exec_time_us", capabilitySnapshot.SupportsPlanCacheMode, DBCollectQueriesOptimization.logger, DBCollectQueriesOptimization.configuration, explainState)
 					collectExplainDetails(outputDigest, "mean_exec_time_us", capabilitySnapshot.SupportsPlanCacheMode, DBCollectQueriesOptimization.logger, DBCollectQueriesOptimization.configuration, explainState)
@@ -68,7 +77,7 @@ func (DBCollectQueriesOptimization *DBCollectQueriesOptimization) GetMetrics(met
 		if u.IsSchemaNameExclude(database, DBCollectQueriesOptimization.configuration.DatabasesQueryOptimization) {
 			continue
 		}
-		err := CollectDbSchema(DBCollectQueriesOptimization.configuration, DBCollectQueriesOptimization.logger, database, serverVersionNum, metrics)
+		err := CollectDbSchema(DBCollectQueriesOptimization.configuration, DBCollectQueriesOptimization.logger, DBCollectQueriesOptimization.connections, database, serverVersionNum, metrics)
 		if err != nil {
 			DBCollectQueriesOptimization.logger.Error(err)
 			var collectionError *postgresSchemaCollectionError

@@ -10,10 +10,11 @@ import (
 )
 
 const (
-	ReleemAgentVersion                  = "1.25.4.1"
+	ReleemAgentVersion                  = "1.26.0"
 	DefaultTableSizeCacheTableThreshold = int64(10000)
 	DefaultTableSizeCacheRAMMultiplier  = int64(4)
 	DefaultTableSizeCacheTTLSeconds     = time.Duration(604800)
+	DefaultPgMaxDatabaseConnections     = 10
 )
 
 type Config struct {
@@ -43,6 +44,7 @@ type Config struct {
 	PgSslMode                    bool          `hcl:"pg_ssl_mode"`
 	PgConfDir                    string        `hcl:"pg_cnf_dir"`
 	PgRestartService             string        `hcl:"pg_restart_service"`
+	PgMaxDbConnections           int           `hcl:"pg_max_db_connections"`
 	ReleemConfDir                string        `hcl:"releem_cnf_dir"`
 	ReleemDir                    string        `hcl:"releem_dir"`
 	MemoryLimit                  int           `hcl:"memory_limit"`
@@ -104,6 +106,9 @@ func LoadConfigFromString(data string, logger logging.Logger) (*Config, error) {
 	}
 	if config.TableSizeCacheTTL <= 0 {
 		config.TableSizeCacheTTL = DefaultTableSizeCacheTTLSeconds
+	}
+	if config.PgMaxDbConnections <= 0 {
+		config.PgMaxDbConnections = DefaultPgMaxDatabaseConnections
 	}
 	if config.QueryOptimizationPeriod == 0 {
 		config.QueryOptimizationPeriod = 3600

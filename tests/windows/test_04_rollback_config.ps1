@@ -1,4 +1,4 @@
-# Test 4: Rollback previously applied MySQL configuration via mysqlconfigurer.ps1 -Rollback (Windows).
+# Test 4: Rollback previously applied MySQL configuration via releem.ps1 -Rollback (Windows).
 # Pre-conditions:
 #   - Releem Agent is installed (run test_01 first)
 #   - Configuration was already applied (run test_03 first)
@@ -39,13 +39,13 @@ Assert-ServiceRunning "Pre: DB service running"   $DbService
 Assert-FileExists     "Pre: config file present"  $ConfigFile
 
 # --- Run rollback ---
-Write-Info "Running mysqlconfigurer.ps1 -Rollback..."
+Write-Info "Running releem.ps1 -Rollback..."
 $env:RELEEM_ROLLBACK_CONFIRM = "1"
 & powershell.exe -ExecutionPolicy Bypass -File $ConfigurerScript -Rollback
 $rollbackExit = $LASTEXITCODE
 Remove-Item Env:RELEEM_ROLLBACK_CONFIRM -ErrorAction SilentlyContinue
 
-Assert-Zero "mysqlconfigurer.ps1 -Rollback exited successfully" $rollbackExit
+Assert-Zero "releem.ps1 -Rollback exited successfully" $rollbackExit
 
 # --- Local assertions ---
 Assert-ServiceRunning "DB service running after rollback"  $DbService

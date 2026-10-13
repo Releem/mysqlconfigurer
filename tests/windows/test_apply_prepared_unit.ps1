@@ -1,17 +1,24 @@
 # Isolated apply tests: no Administrator, MySQL service, Agent or network required.
 $ErrorActionPreference = 'Stop'
-$scriptPath = Join-Path $PSScriptRoot '../../windows/mysqlconfigurer.ps1'
+$scriptPath = Join-Path $PSScriptRoot '../../windows/releem.ps1'
 $tokens = $null
 $parseErrors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $scriptPath), [ref]$tokens, [ref]$parseErrors)
 if ($parseErrors.Count -gt 0) { throw ($parseErrors | Out-String) }
-$applyFunction = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-ApplyConfig' }, $true)
-Invoke-Expression $applyFunction.Extent.Text
+foreach ($name in @('Check-MySQLConfigDirectory', 'Check-MySQLConfigInclude', 'Invoke-ApplyConfig')) {
+    $function = $ast.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)
+    if (-not $function) { throw "Missing function: $name" }
+    Invoke-Expression $function.Extent.Text
+}
+function Find-MyIniPath { return $null }
 function Write-Log { param([string]$Message) }
 function Check-DbVersion { return 0 }
 function Read-Host { throw 'Unexpected interactive prompt' }
 function Restart-MySqlService { $script:restartCalls++; return $script:restartResult }
-function Send-TestEvent { $global:LASTEXITCODE = 0 }
+function Send-TestEvent {
+    if ($args -contains '-c') { throw 'Apply must not download a different configuration' }
+    $global:LASTEXITCODE = 0
+}
 function Assert-Equal($actual, $expected) { if ($actual -cne $expected) { throw "Expected [$expected], got [$actual]" } }
 $root = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString())
 New-Item -Path $root -ItemType Directory | Out-Null
@@ -21,7 +28,8 @@ $DbConfigFileName = 'z_aiops_mysql.cnf'
 $StagingCnfPath = Join-Path $root $DbConfigFileName
 $BackupCnfPath = "$StagingCnfPath.bkp"
 $livePath = Join-Path $mysql_cnf_dir $DbConfigFileName
-$AgentBinaryPath = 'Send-TestEvent'
+$AgentBinaryPath = Join-Path $root 'agent-stub.ps1'
+[IO.File]::WriteAllText($AgentBinaryPath, 'Send-TestEvent @args')
 $script:restartCalls = 0
 $script:restartResult = 0
 try {

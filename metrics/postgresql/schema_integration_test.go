@@ -143,7 +143,7 @@ func TestCollectDbSchemaAgainstPostgres(t *testing.T) {
 	logger := *logging.Init("postgres-schema-integration-test", false, false, io.Discard)
 	defer logger.Close()
 	metrics := &models.Metrics{}
-	if err := CollectDbSchema(integrationPostgresConfig(t, database), logger, database, 0, metrics); err != nil {
+	if err := CollectDbSchema(integrationPostgresConfig(t, database), logger, nil, database, 0, metrics); err != nil {
 		t.Fatal(err)
 	}
 

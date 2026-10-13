@@ -244,14 +244,22 @@ func (err *postgresSchemaCollectionError) Error() string {
 
 // func collectDatabaseSchema(configuration *config.Config, logger logging.Logger, database string, serverVersionNum int, metrics *models.Metrics) error {
 
-func CollectDbSchema(configuration *config.Config, logger logging.Logger, database string, knownServerVersion int, metrics *models.Metrics) error {
-	db := u.ConnectionDatabase(configuration, logger, database)
+// CollectDbSchema reads database's schema through connections, sharing the
+// handles that statistics and EXPLAIN keep open; nil opens and closes its own.
+func CollectDbSchema(configuration *config.Config, logger logging.Logger, connections *u.DatabaseConnectionPool, database string, knownServerVersion int, metrics *models.Metrics) error {
+	if connections == nil {
+		connections = u.NewDatabaseConnectionPool(1)
+		defer connections.Close()
+	}
+	db, release, _ := connections.Acquire(database, func() (*sql.DB, error) {
+		return u.ConnectionDatabaseErr(configuration, logger, database)
+	})
 	if db == nil {
 		return &postgresSchemaCollectionError{
 			sections: []string{database + ":" + postgresDatabaseConnectionFailureSection},
 		}
 	}
-	defer db.Close()
+	defer release()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	serverVersionNum := 120000

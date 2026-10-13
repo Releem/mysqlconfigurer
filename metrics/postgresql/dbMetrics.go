@@ -19,13 +19,15 @@ type DBMetricsBaseGatherer struct {
 	logger        logging.Logger
 	configuration *config.Config
 	capabilities  *PostgresCapabilities
+	connections   *utils.DatabaseConnectionPool
 }
 
-func NewDBMetricsBaseGatherer(logger logging.Logger, configuration *config.Config, capabilities *PostgresCapabilities) *DBMetricsBaseGatherer {
+func NewDBMetricsBaseGatherer(logger logging.Logger, configuration *config.Config, capabilities *PostgresCapabilities, connections *utils.DatabaseConnectionPool) *DBMetricsBaseGatherer {
 	return &DBMetricsBaseGatherer{
 		logger:        logger,
 		configuration: configuration,
 		capabilities:  capabilities,
+		connections:   connections,
 	}
 }
 
@@ -35,6 +37,7 @@ type DBMetricsConfigGatherer struct {
 	now            func() time.Time
 	refreshTables  bool
 	tableSizeCache *tablesize.Cache[map[string]models.MetricGroupValue]
+	connections    *utils.DatabaseConnectionPool
 }
 
 // pgManagedInternalDatabaseByInstanceType maps managed providers to the
@@ -63,15 +66,33 @@ func NewTableSizeCache() *tablesize.Cache[map[string]models.MetricGroupValue] {
 	})
 }
 
-func NewDBMetricsConfigGatherer(logger logging.Logger, configuration *config.Config, refreshTables bool, tableSizeCache *tablesize.Cache[map[string]models.MetricGroupValue]) *DBMetricsConfigGatherer {
+// NewDBMetricsConfigGatherer shares tableSizeCache and connections between the
+// metrics and configuration gatherers; nil creates private ones.
+func NewDBMetricsConfigGatherer(logger logging.Logger, configuration *config.Config, refreshTables bool, tableSizeCache *tablesize.Cache[map[string]models.MetricGroupValue], connections *utils.DatabaseConnectionPool) *DBMetricsConfigGatherer {
 	if tableSizeCache == nil {
 		tableSizeCache = NewTableSizeCache()
 	}
-	return &DBMetricsConfigGatherer{logger: logger, configuration: configuration, refreshTables: refreshTables, tableSizeCache: tableSizeCache, now: time.Now}
+	if connections == nil {
+		connections = utils.NewDatabaseConnectionPool(configuration.PgMaxDbConnections)
+	}
+	return &DBMetricsConfigGatherer{logger: logger, configuration: configuration, refreshTables: refreshTables, tableSizeCache: tableSizeCache, connections: connections, now: time.Now}
+}
+
+// connect returns a pooled handle for database; the caller must call release.
+func (g *DBMetricsConfigGatherer) connect(database string) (*sql.DB, func(), error) {
+	return g.connections.Acquire(database, func() (*sql.DB, error) {
+		return utils.ConnectionDatabaseErr(g.configuration, g.logger, database)
+	})
 }
 
 func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) error {
 	defer utils.HandlePanic(DBMetricsBase.configuration, DBMetricsBase.logger)
+	db, release, err := acquireDefaultDatabase(DBMetricsBase.connections, DBMetricsBase.configuration, DBMetricsBase.logger)
+	if err != nil {
+		DBMetricsBase.logger.Error(err)
+		return err
+	}
+	defer release()
 	{
 		pg_stat := make(models.MetricGroupValue)
 		// ver_current, _ := version.NewVersion(metrics.DB.Info["Version"].(string))
@@ -82,7 +103,7 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 		// 	pgStatViews = PG_STAT_VIEWS_OLD_VERSION
 		// }
 		for _, view := range PG_STAT_VIEWS {
-			rows, err := models.DB.Query(`
+			rows, err := db.Query(`
 			SELECT * FROM ` + view)
 			if err != nil {
 				if !strings.Contains(err.Error(), "relation \""+view+"\" does not exist") {
@@ -101,7 +122,7 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 		// PostgreSQL Uptime Statistics
 		{
 			var uptime, timestamp string
-			err := models.DB.QueryRow("SELECT EXTRACT(EPOCH FROM (now() - pg_postmaster_start_time()))::bigint AS uptime, EXTRACT(EPOCH FROM (now()) )::bigint AS timestamp").Scan(&uptime, &timestamp)
+			err := db.QueryRow("SELECT EXTRACT(EPOCH FROM (now() - pg_postmaster_start_time()))::bigint AS uptime, EXTRACT(EPOCH FROM (now()) )::bigint AS timestamp").Scan(&uptime, &timestamp)
 			if err != nil {
 				DBMetricsBase.logger.Error(err)
 			}
@@ -114,7 +135,7 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 	{
 		var database string
 		var output []string
-		rows, err := models.DB.Query(`
+		rows, err := db.Query(`
 			SELECT datname
 			FROM pg_database
 			WHERE datistemplate = false
@@ -145,7 +166,7 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 
 	// Query latency from pg_stat_statements if available
 	{
-		capabilities, err := DBMetricsBase.capabilities.Resolve(context.Background(), models.DB)
+		capabilities, err := DBMetricsBase.capabilities.Resolve(context.Background(), db)
 		if err != nil {
 			DBMetricsBase.logger.Error("Unable to collect pg_stat_statements capabilities: ", err)
 			metrics.DB.Queries = nil
@@ -154,7 +175,7 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 			var stats_reset string
 
 			if capabilities.PgStatStatementsInfoRelation != "" {
-				err = models.DB.QueryRow("SELECT dealloc, stats_reset FROM "+capabilities.PgStatStatementsInfoRelation).Scan(&dealloc, &stats_reset)
+				err = db.QueryRow("SELECT dealloc, stats_reset FROM "+capabilities.PgStatStatementsInfoRelation).Scan(&dealloc, &stats_reset)
 				if err != nil && err != sql.ErrNoRows {
 					DBMetricsBase.logger.Error(err)
 				}
@@ -166,7 +187,7 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 
 			var count_statements uint64
 
-			err = models.DB.QueryRow("SELECT COUNT(*) FROM " + capabilities.PgStatStatementsRelation).Scan(&count_statements)
+			err = db.QueryRow("SELECT COUNT(*) FROM " + capabilities.PgStatStatementsRelation).Scan(&count_statements)
 			if err != nil {
 				if err != sql.ErrNoRows {
 					DBMetricsBase.logger.Error(err)
@@ -174,7 +195,7 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 			}
 			metrics.DB.Metrics.CountQueriesLatency = count_statements
 
-			statementRows, err := collectPostgresQueryStats(context.Background(), models.DB, capabilities)
+			statementRows, err := collectPostgresQueryStats(context.Background(), db, capabilities)
 			if err != nil {
 				DBMetricsBase.capabilities.InvalidateForError(err)
 				if err != sql.ErrNoRows {
@@ -189,7 +210,7 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 	// Process list from pg_stat_activity
 	{
 		var output []models.MetricGroupValue
-		rows, err := models.DB.Query(`
+		rows, err := db.Query(`
 			SELECT pid,
 			datname,
 			usename,
@@ -226,9 +247,9 @@ func (g *DBMetricsConfigGatherer) GetMetrics(metrics *models.Metrics) error {
 	defer utils.HandlePanic(g.configuration, g.logger)
 	// Per-database activity remains live even when table sizes are cached.
 	for _, database := range metrics.DB.Metrics.Databases {
-		db := utils.ConnectionDatabase(g.configuration, g.logger, database)
+		db, release, err := g.connect(database)
 		if db == nil {
-			g.logger.Error("Connection to database failed: ", database)
+			g.logger.Error("Connection to database failed: ", database, " ", err)
 			continue
 		}
 		for view, query := range PG_STAT_PER_DB_VIEWS {
@@ -241,9 +262,7 @@ func (g *DBMetricsConfigGatherer) GetMetrics(metrics *models.Metrics) error {
 			metrics.DB.Metrics.Status[view] = append(existing, utils.ScanRows(rows, g.logger)...)
 			rows.Close()
 		}
-		if err := db.Close(); err != nil {
-			g.logger.Error(err)
-		}
+		release()
 	}
 	snapshot, present := g.tableSizeCache.Peek()
 	if g.refreshTables {
@@ -271,39 +290,50 @@ func (g *DBMetricsConfigGatherer) GetMetrics(metrics *models.Metrics) error {
 func (g *DBMetricsConfigGatherer) collectTableSizes(databases []string) (map[string]models.MetricGroupValue, error) {
 	snapshot := make(map[string]models.MetricGroupValue)
 	for i, database := range databases {
-		db := utils.ConnectionDatabase(g.configuration, g.logger, database)
-		if db == nil {
-			return nil, fmt.Errorf("connect to database %q for table sizes", database)
-		}
-		rows, err := db.Query(`
-  SELECT t.table_type, COUNT(*) as table_count,
-   COALESCE(SUM(pg_total_relation_size(c.oid)), 0) as total_size
-  FROM information_schema.tables t
-  JOIN pg_namespace n ON n.nspname = t.table_schema
-  JOIN pg_class c ON c.relnamespace = n.oid AND c.relname = t.table_name
-  WHERE t.table_schema NOT IN ('information_schema', 'pg_catalog')
-  GROUP BY t.table_type`)
-		if err != nil {
-			return nil, fmt.Errorf("collect table sizes in database %q: %w", database, errors.Join(err, db.Close()))
-		}
-		for rows.Next() {
-			var tableType string
-			var count, size uint64
-			if err := rows.Scan(&tableType, &count, &size); err != nil {
-				return nil, fmt.Errorf("collect table sizes in database %q: %w", database, errors.Join(err, rows.Err(), rows.Close(), db.Close()))
-			}
-			if snapshot[tableType] == nil {
-				snapshot[tableType] = models.MetricGroupValue{"Table Number": uint64(0), "Total Size": uint64(0)}
-			}
-			snapshot[tableType]["Table Number"] = snapshot[tableType]["Table Number"].(uint64) + count
-			snapshot[tableType]["Total Size"] = snapshot[tableType]["Total Size"].(uint64) + size
-		}
-		if err := errors.Join(rows.Err(), rows.Close(), db.Close()); err != nil {
-			return nil, fmt.Errorf("collect table sizes in database %q: %w", database, err)
+		if err := g.collectDatabaseTableSizes(database, snapshot); err != nil {
+			return nil, err
 		}
 		if (i+1)%25 == 0 {
 			time.Sleep(3 * time.Second)
 		}
 	}
 	return snapshot, nil
+}
+
+// collectDatabaseTableSizes adds one database's aggregates to snapshot. The
+// pooled handle is released on every path so a failed refresh cannot keep it
+// from eviction or Close.
+func (g *DBMetricsConfigGatherer) collectDatabaseTableSizes(database string, snapshot map[string]models.MetricGroupValue) error {
+	db, release, err := g.connect(database)
+	if db == nil {
+		return fmt.Errorf("connect to database %q for table sizes: %w", database, err)
+	}
+	defer release()
+	rows, err := db.Query(`
+		SELECT t.table_type, COUNT(*) as table_count,
+		COALESCE(SUM(pg_total_relation_size(c.oid)), 0) as total_size
+		FROM information_schema.tables t
+		JOIN pg_namespace n ON n.nspname = t.table_schema
+		JOIN pg_class c ON c.relnamespace = n.oid AND c.relname = t.table_name
+		WHERE t.table_schema NOT IN ('information_schema', 'pg_catalog')
+		GROUP BY t.table_type`)
+	if err != nil {
+		return fmt.Errorf("collect table sizes in database %q: %w", database, err)
+	}
+	for rows.Next() {
+		var tableType string
+		var count, size uint64
+		if err := rows.Scan(&tableType, &count, &size); err != nil {
+			return fmt.Errorf("collect table sizes in database %q: %w", database, errors.Join(err, rows.Err(), rows.Close()))
+		}
+		if snapshot[tableType] == nil {
+			snapshot[tableType] = models.MetricGroupValue{"Table Number": uint64(0), "Total Size": uint64(0)}
+		}
+		snapshot[tableType]["Table Number"] = snapshot[tableType]["Table Number"].(uint64) + count
+		snapshot[tableType]["Total Size"] = snapshot[tableType]["Total Size"].(uint64) + size
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return fmt.Errorf("collect table sizes in database %q: %w", database, err)
+	}
+	return nil
 }

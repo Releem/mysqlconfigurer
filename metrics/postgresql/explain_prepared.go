@@ -3,6 +3,7 @@ package postgresql
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"fmt"
 	"strings"
 )
@@ -14,6 +15,14 @@ func executePreparedExplain(db *sql.DB, queryId string, queryText string) (expla
 		return "", err
 	}
 	defer conn.Close()
+	// Pooled handles outlive the pass, so a session whose cleanup failed must not
+	// return to the pool with a leftover prepared statement or plan_cache_mode.
+	sessionDirty := false
+	defer func() {
+		if sessionDirty {
+			_ = conn.Raw(func(any) error { return driver.ErrBadConn })
+		}
+	}()
 
 	stmtName := "releem_" + queryId
 
@@ -21,8 +30,11 @@ func executePreparedExplain(db *sql.DB, queryId string, queryText string) (expla
 		return "", err
 	}
 	defer func() {
-		if _, err := conn.ExecContext(ctx, "RESET plan_cache_mode"); err != nil && returnErr == nil {
-			returnErr = fmt.Errorf("reset plan_cache_mode: %w", err)
+		if _, err := conn.ExecContext(ctx, "RESET plan_cache_mode"); err != nil {
+			sessionDirty = true
+			if returnErr == nil {
+				returnErr = fmt.Errorf("reset plan_cache_mode: %w", err)
+			}
 		}
 	}()
 
@@ -31,8 +43,11 @@ func executePreparedExplain(db *sql.DB, queryId string, queryText string) (expla
 		return "", err
 	}
 	defer func() {
-		if _, err := conn.ExecContext(ctx, "DEALLOCATE PREPARE "+stmtName); err != nil && returnErr == nil {
-			returnErr = fmt.Errorf("deallocate prepared statement: %w", err)
+		if _, err := conn.ExecContext(ctx, "DEALLOCATE PREPARE "+stmtName); err != nil {
+			sessionDirty = true
+			if returnErr == nil {
+				returnErr = fmt.Errorf("deallocate prepared statement: %w", err)
+			}
 		}
 	}()
 

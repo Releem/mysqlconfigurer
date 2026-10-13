@@ -19,7 +19,7 @@ import (
 func TestPGTableStatisticsPreservePlatformFieldsWithoutLegacyView(t *testing.T) {
 	logger := logging.Init("pg-table-statistics", false, false, &bytes.Buffer{})
 	defer logger.Close()
-	g := NewDBMetricsConfigGatherer(*logger, &config.Config{}, false, nil)
+	g := NewDBMetricsConfigGatherer(*logger, &config.Config{}, false, nil, nil)
 	newPGTableCacheServer(t, g.configuration, &pgTableCacheSQL{userTableStatistics: true})
 	metrics := &models.Metrics{}
 	metrics.DB.Metrics.Databases = []string{"app", "archive"}
@@ -76,9 +76,9 @@ func TestPgStatActivityQueryHandlesNullableConnectionFields(t *testing.T) {
 	}
 }
 
-func TestPGMetricsClosesConnectionsAndContinuesAfterActivityError(t *testing.T) {
+func TestPGMetricsReusesPooledConnectionsAndContinuesAfterActivityError(t *testing.T) {
 	var output bytes.Buffer
-	g := NewDBMetricsConfigGatherer(*logging.Init("pg-database-lifecycle", false, false, &output), &config.Config{}, true, nil)
+	g := NewDBMetricsConfigGatherer(*logging.Init("pg-database-lifecycle", false, false, &output), &config.Config{}, true, nil, nil)
 	fake := &pgTableCacheSQL{failStatisticsDatabase: "broken"}
 	server := newPGTableCacheServer(t, g.configuration, fake)
 	m := &models.Metrics{}
@@ -87,23 +87,31 @@ func TestPGMetricsClosesConnectionsAndContinuesAfterActivityError(t *testing.T) 
 	if err := g.GetMetrics(m); err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.Join(server.openedDatabases(), ","); got != "broken,healthy,broken,healthy" {
-		t.Fatalf("activity and table sizes should continue with the next database, got %s", got)
-	}
-	server.waitForClosed(t, 4)
 	for view := range PG_STAT_PER_DB_VIEWS {
 		if rows, _ := m.DB.Metrics.Status[view].([]models.MetricGroupValue); len(rows) != 1 {
 			t.Fatalf("healthy database statistics for %s = %#v", view, rows)
 		}
 	}
-	if got := strings.Count(output.String(), "pg_stat_user_tables unavailable"); got != len(PG_STAT_PER_DB_VIEWS) {
-		t.Fatalf("activity errors logged %d times, want %d", got, len(PG_STAT_PER_DB_VIEWS))
+	next := &models.Metrics{}
+	next.DB.Metrics.Databases = m.DB.Metrics.Databases
+	next.DB.Metrics.Status = make(models.MetricGroupValue)
+	if err := g.GetMetrics(next); err != nil {
+		t.Fatal(err)
+	}
+	// Statistics, table sizes, and the next collection share one handle per database.
+	if got := strings.Join(server.openedDatabases(), ","); got != "broken,healthy" {
+		t.Fatalf("each database should be opened once and reused, got %s", got)
+	}
+	g.connections.Close()
+	server.waitForClosed(t, 2)
+	if got := strings.Count(output.String(), "pg_stat_user_tables unavailable"); got != 2*len(PG_STAT_PER_DB_VIEWS) {
+		t.Fatalf("activity errors logged %d times, want %d", got, 2*len(PG_STAT_PER_DB_VIEWS))
 	}
 }
 
 func TestPGTableSizesDiscardSnapshotAfterAggregateError(t *testing.T) {
 	fake := &pgTableCacheSQL{failTableQuery: 2} // Aggregate query in the second database.
-	g := NewDBMetricsConfigGatherer(*logging.Init("pg-table-count-error", false, false, &bytes.Buffer{}), &config.Config{}, true, nil)
+	g := NewDBMetricsConfigGatherer(*logging.Init("pg-table-count-error", false, false, &bytes.Buffer{}), &config.Config{}, true, nil, nil)
 	newPGTableCacheServer(t, g.configuration, fake)
 	value, err := g.collectTableSizes([]string{"app", "archive"})
 	if err == nil {
@@ -120,6 +128,18 @@ func TestPGTableSizesDiscardSnapshotAfterAggregateError(t *testing.T) {
 	if tablesize.EngineTableCount(value) != 4 {
 		t.Fatalf("retry should count each table once, got %d", tablesize.EngineTableCount(value))
 	}
+}
+
+func TestPGTableSizesReleaseHandleAfterAggregateError(t *testing.T) {
+	fake := &pgTableCacheSQL{failTableQuery: 1}
+	g := NewDBMetricsConfigGatherer(*logging.Init("pg-table-size-release", false, false, &bytes.Buffer{}), &config.Config{}, true, nil, nil)
+	server := newPGTableCacheServer(t, g.configuration, fake)
+	if _, err := g.collectTableSizes([]string{"app"}); err == nil {
+		t.Fatal("aggregate error should be returned")
+	}
+	// A handle still referenced by the failed refresh would survive Close.
+	g.connections.Close()
+	server.waitForClosed(t, 1)
 }
 
 func TestDbMetricsUsesCapabilityInfoRelation(t *testing.T) {
@@ -234,7 +254,7 @@ func TestDBInfoHandlePgHBARulesUnavailableWarnsOnlyForExpectedErrors(t *testing.
 		t.Run(tt.name, func(t *testing.T) {
 			var output bytes.Buffer
 			logger := *logging.Init("pg-hba-unavailable-test", false, false, &output)
-			gatherer := NewDBInfoGatherer(logger, &config.Config{InstanceType: tt.instanceType})
+			gatherer := NewDBInfoGatherer(logger, &config.Config{InstanceType: tt.instanceType}, nil)
 
 			gotHandled := gatherer.handlePgHBARulesUnavailable(permissionErr)
 			if gotHandled != tt.wantHandled {

@@ -144,7 +144,7 @@ func TestPGTableCacheDoesNotCacheInitialFailure(t *testing.T) {
 	minute := &models.Metrics{}
 	minute.DB.Metrics.Databases = []string{"app"}
 	minute.DB.Metrics.Status = make(models.MetricGroupValue)
-	if err := NewDBMetricsConfigGatherer(g.logger, g.configuration, false, g.tableSizeCache).GetMetrics(minute); err != nil {
+	if err := NewDBMetricsConfigGatherer(g.logger, g.configuration, false, g.tableSizeCache, g.connections).GetMetrics(minute); err != nil {
 		t.Fatal(err)
 	}
 	if fake.tableQueryCount() != 1 || minute.DB.Metrics.Engine != nil {
@@ -223,7 +223,7 @@ func TestPGMinuteTableSizesNeverRefreshMissingExpiredOrFailedCache(t *testing.T)
 		if full {
 			err = g.GetMetrics(m)
 		} else {
-			err = NewDBMetricsConfigGatherer(g.logger, g.configuration, false, g.tableSizeCache).GetMetrics(m)
+			err = NewDBMetricsConfigGatherer(g.logger, g.configuration, false, g.tableSizeCache, g.connections).GetMetrics(m)
 		}
 		if err != nil {
 			t.Fatal(err)

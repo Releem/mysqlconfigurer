@@ -253,7 +253,7 @@ func TestPostgresqlExplainAttemptsAreDeduplicatedOnlyWithinCollection(t *testing
 	}
 }
 
-func TestPostgresqlExplainCollectionStateKeepsOnlyCurrentDatabaseConnection(t *testing.T) {
+func TestPostgresqlExplainCollectionStateKeepsOneConnectionPerDatabase(t *testing.T) {
 	recorder := &pgExplainRecordingDriver{}
 	sql.Register("releem_pg_explain_connection_state_test", recorder)
 	dbA, err := sql.Open("releem_pg_explain_connection_state_test", "a")
@@ -279,17 +279,23 @@ func TestPostgresqlExplainCollectionStateKeepsOnlyCurrentDatabaseConnection(t *t
 		return dbs[map[int]string{1: "db_a", 2: "db_b"}[opens]], nil
 	}
 
-	state.Connection("db_a", connect)
-	state.Connection("db_b", connect)
-	if opens != 2 {
-		t.Fatalf("database switch should open the second handle, got %d opens", opens)
+	for _, database := range []string{"db_a", "db_b", "db_a", "db_b"} {
+		if db, err := state.Connection(database, connect); db != dbs[database] || err != nil {
+			t.Fatalf("Connection(%q) = %p, %v; want %p", database, db, err, dbs[database])
+		}
 	}
-	if err := dbA.Ping(); err == nil {
-		t.Fatalf("previous database handle must be closed when switching databases")
+	if opens != 2 {
+		t.Fatalf("alternating databases should reuse one handle each, got %d opens", opens)
+	}
+	if err := dbA.Ping(); err != nil {
+		t.Fatalf("handle must stay open after switching databases: %v", err)
 	}
 	state.Close()
+	if err := dbA.Ping(); err == nil {
+		t.Fatalf("db_a handle must be closed with collection state")
+	}
 	if err := dbB.Ping(); err == nil {
-		t.Fatalf("current database handle must be closed with collection state")
+		t.Fatalf("db_b handle must be closed with collection state")
 	}
 }
 
@@ -640,6 +646,7 @@ type pgExplainRecordingDriver struct {
 	queryError     error
 	queryRows      driver.Rows
 	explainHandler func(query string) (driver.Rows, error)
+	cleanupError   error
 	closes         int
 }
 
@@ -689,6 +696,9 @@ func (c *pgExplainRecordingConn) ExecContext(_ context.Context, query string, _ 
 	}
 	if c.driver.prepareError != nil && strings.HasPrefix(query, "PREPARE ") {
 		return nil, c.driver.prepareError
+	}
+	if c.driver.cleanupError != nil && strings.HasPrefix(query, "DEALLOCATE ") {
+		return nil, c.driver.cleanupError
 	}
 	return driver.RowsAffected(0), nil
 }
@@ -797,5 +807,40 @@ func TestPostgresqlTableRelkindPredicateIncludesPartitionedTables(t *testing.T) 
 	predicate := pgTableRelkindPredicate("c.relkind")
 	if !strings.Contains(predicate, "'p'") {
 		t.Fatalf("postgresql table relkind predicate should include partitioned tables: %s", predicate)
+	}
+}
+
+func TestPostgresqlParameterizedExplainDiscardsSessionWhenCleanupFails(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		cleanupError error
+		wantCloses   int
+	}{
+		{name: "clean session returns to pool", wantCloses: 0},
+		{name: "dirty session is discarded", cleanupError: errors.New("deallocate failed"), wantCloses: 1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := &pgExplainRecordingDriver{
+				cleanupError: tt.cleanupError,
+				explainHandler: func(string) (driver.Rows, error) {
+					return &pgExplainRows{columns: []string{"plan"}, rows: [][]driver.Value{{"[]"}}}, nil
+				},
+			}
+			driverName := "releem_pg_explain_discard_" + strings.ReplaceAll(tt.name, " ", "_")
+			sql.Register(driverName, recorder)
+			db, err := sql.Open(driverName, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+
+			_, err = executePreparedExplain(db, "42", "SELECT * FROM orders WHERE id = $1")
+			if (err != nil) != (tt.cleanupError != nil) {
+				t.Fatalf("executePreparedExplain() error = %v", err)
+			}
+			if recorder.closes != tt.wantCloses {
+				t.Fatalf("session closes = %d, want %d", recorder.closes, tt.wantCloses)
+			}
+		})
 	}
 }

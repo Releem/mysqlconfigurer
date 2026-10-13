@@ -11,6 +11,7 @@ import (
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
+	u "github.com/Releem/mysqlconfigurer/utils"
 	logging "github.com/google/logger"
 )
 
@@ -135,7 +136,7 @@ func TestCollectDbSchemaConnectionFailureIsTypedAndContextual(t *testing.T) {
 
 	err := CollectDbSchema(&config.Config{
 		PgUser: "monitor", PgPassword: "secret", PgHost: "127.0.0.1", PgPort: "invalid",
-	}, logger, "app", 160000, &models.Metrics{})
+	}, logger, nil, "app", 160000, &models.Metrics{})
 	if err == nil {
 		t.Fatal("database connection failure must be returned")
 	}
@@ -165,7 +166,7 @@ func TestPostgresGetMetricsCollectsScopedSchemaFailuresPerExecution(t *testing.T
 	capabilities := &PostgresCapabilities{detect: func(context.Context, *sql.DB) (PostgresCapabilitySnapshot, error) {
 		return PostgresCapabilitySnapshot{}, errors.New("pg_stat_statements unavailable in schema test")
 	}}
-	gatherer := NewDBCollectQueriesOptimization(logger, configuration, capabilities)
+	gatherer := NewDBCollectQueriesOptimization(logger, configuration, capabilities, nil)
 
 	metrics := &models.Metrics{}
 	metrics.DB.Metrics.Databases = []string{"app", "analytics"}
@@ -195,7 +196,7 @@ func TestPostgresGetMetricsDoesNotEmitScopedSchemaFailuresWhenOptimizationDisabl
 	capabilities := &PostgresCapabilities{detect: func(context.Context, *sql.DB) (PostgresCapabilitySnapshot, error) {
 		return PostgresCapabilitySnapshot{}, errors.New("pg_stat_statements unavailable in schema test")
 	}}
-	gatherer := NewDBCollectQueriesOptimization(logger, &config.Config{QueryOptimization: false}, capabilities)
+	gatherer := NewDBCollectQueriesOptimization(logger, &config.Config{QueryOptimization: false}, capabilities, nil)
 	metrics := &models.Metrics{}
 	metrics.DB.Metrics.Databases = []string{"app"}
 
@@ -213,7 +214,7 @@ func TestPostgresGetMetricsPublishesAllEmptySchemaSectionsWhenNoDatabaseIsSelect
 	capabilities := &PostgresCapabilities{detect: func(context.Context, *sql.DB) (PostgresCapabilitySnapshot, error) {
 		return PostgresCapabilitySnapshot{}, errors.New("pg_stat_statements unavailable in schema test")
 	}}
-	gatherer := NewDBCollectQueriesOptimization(logger, &config.Config{QueryOptimization: true}, capabilities)
+	gatherer := NewDBCollectQueriesOptimization(logger, &config.Config{QueryOptimization: true}, capabilities, nil)
 	metrics := &models.Metrics{}
 
 	if err := gatherer.GetMetrics(metrics); err != nil {
@@ -222,5 +223,41 @@ func TestPostgresGetMetricsPublishesAllEmptySchemaSectionsWhenNoDatabaseIsSelect
 
 	if len(metrics.DB.DatabaseSchema) != 0 {
 		t.Fatalf("schema sections should stay absent when no databases are selected: %#v", metrics.DB.DatabaseSchema)
+	}
+}
+
+func TestCollectDbSchemaReusesPooledHandle(t *testing.T) {
+	logger := *logging.Init("postgres-schema-pooled-handle-test", false, false, io.Discard)
+	defer logger.Close()
+	recorder := &pgExplainRecordingDriver{}
+	sql.Register("releem_pg_schema_pool_test", recorder)
+	pooled, err := sql.Open("releem_pg_schema_pool_test", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool := u.NewDatabaseConnectionPool(2)
+	defer pool.Close()
+	if _, release, err := pool.Acquire("app", func() (*sql.DB, error) { return pooled, nil }); err != nil {
+		t.Fatal(err)
+	} else {
+		release()
+	}
+
+	// An unreachable host proves schema collection used the pooled handle.
+	cfg := &config.Config{PgUser: "monitor", PgHost: "127.0.0.1", PgPort: "invalid"}
+	err = CollectDbSchema(cfg, logger, pool, "app", 160000, &models.Metrics{})
+	var collectionError *postgresSchemaCollectionError
+	if errors.As(err, &collectionError) {
+		for _, section := range collectionError.sections {
+			if strings.HasSuffix(section, postgresDatabaseConnectionFailureSection) {
+				t.Fatalf("schema collection reconnected instead of reusing the pooled handle: %v", err)
+			}
+		}
+	}
+	if len(recorder.queries) == 0 {
+		t.Fatal("schema queries must run on the pooled handle")
+	}
+	if err := pooled.Ping(); err != nil {
+		t.Fatalf("schema collection must leave the pooled handle open: %v", err)
 	}
 }

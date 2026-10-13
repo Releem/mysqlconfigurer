@@ -300,7 +300,7 @@ func (r *pgTableCacheRows) Next(dest []driver.Value) error {
 
 func newPGTableCacheGatherer(t *testing.T, cfg *config.Config, fake *pgTableCacheSQL) *DBMetricsConfigGatherer {
 	t.Helper()
-	g := NewDBMetricsConfigGatherer(*logging.Init(t.Name(), true, false, io.Discard), cfg, true, nil)
+	g := NewDBMetricsConfigGatherer(*logging.Init(t.Name(), true, false, io.Discard), cfg, true, nil, nil)
 	newPGTableCacheServer(t, cfg, fake)
 	return g
 }

@@ -22,7 +22,7 @@ func superuser(name string) models.MetricGroupValue {
 func securityGatherer(t *testing.T) *DBInfoGatherer {
 	t.Helper()
 	logger := *logging.Init("pg-dbinfo-security-test", false, false, io.Discard)
-	return NewDBInfoGatherer(logger, &config.Config{})
+	return NewDBInfoGatherer(logger, &config.Config{}, nil)
 }
 
 // TestCollectUsersSecurityCheckUsesSuppliedPgHBA covers the regression where the

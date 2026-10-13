@@ -91,9 +91,19 @@ reset when the agent restarts; a failed refresh retains the last successful
 snapshot and retries on the next full collection. Failed or partial results are
 never cached. Both DBMS collectors use the shared
 table-size policy in `metrics/tablesize`, backed by the typed snapshot cache in
-`utils/cache`. A failed first collection of PostgreSQL table sizes leaves those aggregates
-absent while preserving the rest of the report. MySQL returns the initial
-collection error. Neither collector caches or sends partial table aggregates.
+`utils/cache`. A failed first collection of table sizes returns the error for
+both MySQL and PostgreSQL. Neither collector caches or sends partial table aggregates.
+
+PostgreSQL keeps one connection handle per database between collections and
+shares it between per-database statistics, table sizes, and EXPLAIN. At most
+`pg_max_db_connections` databases (default 10) stay open; the least
+recently used one is closed when another database is needed, and a handle's
+idle server connection closes after 10 minutes without use. The setting limits
+how many databases keep a connection between collections, not the server's
+`max_connections`: while gatherers run concurrently, a database in use may
+briefly hold an extra connection until it is released. MySQL/MariaDB
+EXPLAIN uses a single connection for the whole pass and switches schemas with
+`USE`; a schema that cannot be selected is reported as `connection_failed`.
 
 ### PostgreSQL reload permission for existing installations
 
@@ -156,10 +166,10 @@ The Releem agent collects the following data:
 Join the Releem Community on [Slack](https://join.slack.com/t/releem-community/shared_invite/zt-1j3d0vosh-AJHbDiQrzVDvLat5eqQorQ). 
 
 ## Compatibility
-- MySQL 8.0, MySQL 5.7, MySQL 5.6, MySQL 5.5
-- MariaDB 10.1, MariaDB 10.2, MariaDB 10.3, MariaDB 10.4, MariaDB 10.5, MariaDB 10.6, MariaDB 10.7, MariaDB 10.8, MariaDB 10.9, MariaDB 10.10, MariaDB 10.11, MariaDB 11.0
-- Percona 8.0, Percona 5.7, Percona 5.6, Percona 5.5
-- PostgreSQL 15, PostgreSQL 16, PostgreSQL 17, PostgreSQL 18
+- MySQL 5.5, 5.6, 5.7, 8.0, 8.4 or 9
+- MariaDB 10, 11, 12, or 13
+- Percona 5.7, 8.0, 8.4 or 9.7
+- PostgreSQL 12, 13, 14, 15, 16, 17 or 18
 - Centos, CloudLinux, Debian, Ubuntu, RockyLinux
 - Windows Server 2012, Windows Server 2016, Windows Server 2019, Windows Server 2022, Windows Server 2025
 - Amazon RDS MySQL, Amazon RDS Aurora MySQL, Amazon RDS Aurora PostgreSQL, Amazon RDS MariaDB

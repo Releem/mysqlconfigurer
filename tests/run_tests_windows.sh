@@ -57,7 +57,7 @@ cp "$SCRIPT_DIR/windows/test_02_install_existing_user.ps1" "$PAYLOAD_DIR/test_02
 cp "$SCRIPT_DIR/windows/test_03_apply_config.ps1" "$PAYLOAD_DIR/test_03_apply_config.ps1"
 cp "$SCRIPT_DIR/windows/test_04_rollback_config.ps1" "$PAYLOAD_DIR/test_04_rollback_config.ps1"
 cp "$SCRIPT_DIR/windows/test_05_update_delegation.ps1" "$PAYLOAD_DIR/test_05_update_delegation.ps1"
-cp "$SCRIPT_DIR/windows/test_update_script_compatibility.ps1" "$PAYLOAD_DIR/test_update_script_compatibility.ps1"
+cp "$SCRIPT_DIR/windows/test_configurer.ps1" "$PAYLOAD_DIR/test_configurer.ps1"
 cp "$SCRIPT_DIR/windows/test_06_reinstall_existing_install.ps1" "$PAYLOAD_DIR/test_06_reinstall_existing_install.ps1"
 cp "$SCRIPT_DIR/windows/test_07_apply_without_restart.ps1" "$PAYLOAD_DIR/test_07_apply_without_restart.ps1"
 cp "$SCRIPT_DIR/windows/test_08_queue_apply.ps1" "$PAYLOAD_DIR/test_08_queue_apply.ps1"

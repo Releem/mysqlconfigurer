@@ -10,8 +10,8 @@ if (-not (Test-Path $LegacyUnderTest)) { throw "Legacy wrapper payload is missin
 
 Write-Info "=== Test 5: releem.ps1 delegates update to install.ps1 -u ==="
 
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot\test_update_script_compatibility.ps1" -WindowsScriptDir (Split-Path $ConfigurerUnderTest)
-Assert-Zero "Real installer update branch leaves both entry points working" $LASTEXITCODE
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot\test_configurer.ps1" -WindowsScriptDir (Split-Path $ConfigurerUnderTest)
+Assert-Zero "Shared configurer checks (exit codes, legacy, update) passed" $LASTEXITCODE
 
 $programDir = "C:\Program Files\ReleemAgent"
 $dataDir    = "C:\ProgramData\ReleemAgent"

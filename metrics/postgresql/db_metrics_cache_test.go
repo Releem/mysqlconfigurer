@@ -1,30 +1,22 @@
 package postgresql
 
 import (
-	"database/sql/driver"
-	"errors"
-	"io"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
-	logging "github.com/google/logger"
 )
 
 func TestPGTableCacheKeepsStatisticsLiveAndRefreshesAfterOrdinaryTTL(t *testing.T) {
 	fake := &pgTableCacheSQL{}
-	g := NewDBMetricsConfigGatherer(*logging.Init("pg-table-cache", true, false, io.Discard), &config.Config{}, true, nil)
+	g := newPGTableCacheGatherer(t, &config.Config{}, fake)
 	now := time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC)
 	g.now = func() time.Time { return now }
-	newPGTableCacheServer(t, g.configuration, fake)
 	collect := func() *models.Metrics {
 		t.Helper()
-		m := &models.Metrics{}
-		m.DB.Metrics.Databases = []string{"app"}
-		m.DB.Metrics.Status = make(models.MetricGroupValue)
+		m := pgTableCacheMetrics("app")
 		if err := g.GetMetrics(m); err != nil {
 			t.Fatal(err)
 		}
@@ -70,11 +62,10 @@ func TestPGTableCacheUsesSharedLargeServerPolicy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fake := &pgTableCacheSQL{}
 			cfg := &config.Config{TableSizeCacheTableThreshold: tt.threshold, TableSizeCacheRAMMultiplier: 4, TableSizeCacheTTL: tt.ttl}
-			g := NewDBMetricsConfigGatherer(*logging.Init("pg-cache-policy", true, false, io.Discard), cfg, true, nil)
+			g := newPGTableCacheGatherer(t, cfg, fake)
 			base := time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC)
 			now := base
 			g.now = func() time.Time { return now }
-			newPGTableCacheServer(t, g.configuration, fake)
 			collect := func() {
 				t.Helper()
 				m := &models.Metrics{}
@@ -106,10 +97,9 @@ func TestPGTableCacheUsesSharedLargeServerPolicy(t *testing.T) {
 func TestPGTableCacheRefreshesWhenRAMChangesCategory(t *testing.T) {
 	fake := &pgTableCacheSQL{}
 	cfg := &config.Config{TableSizeCacheTableThreshold: 1, TableSizeCacheRAMMultiplier: 4, TableSizeCacheTTL: 604800}
-	g := NewDBMetricsConfigGatherer(*logging.Init("pg-cache-category", true, false, io.Discard), cfg, true, nil)
+	g := newPGTableCacheGatherer(t, cfg, fake)
 	now := time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC)
 	g.now = func() time.Time { return now }
-	newPGTableCacheServer(t, g.configuration, fake)
 	collect := func(ram uint64) {
 		t.Helper()
 		m := &models.Metrics{}
@@ -141,12 +131,9 @@ func TestPGTableCacheRefreshesWhenRAMChangesCategory(t *testing.T) {
 
 func TestPGTableCacheDoesNotCacheInitialFailure(t *testing.T) {
 	fake := &pgTableCacheSQL{failTables: true}
-	g := NewDBMetricsConfigGatherer(*logging.Init("pg-cache-initial-failure", true, false, io.Discard), &config.Config{}, true, nil)
-	newPGTableCacheServer(t, g.configuration, fake)
+	g := newPGTableCacheGatherer(t, &config.Config{}, fake)
 	collect := func() (*models.Metrics, error) {
-		m := &models.Metrics{}
-		m.DB.Metrics.Databases = []string{"app"}
-		m.DB.Metrics.Status = make(models.MetricGroupValue)
+		m := pgTableCacheMetrics("app")
 		return m, g.GetMetrics(m)
 	}
 	if m, err := collect(); err == nil {
@@ -178,14 +165,11 @@ func TestPGTableCacheDoesNotCacheInitialFailure(t *testing.T) {
 
 func TestPGTableCacheDoesNotReplaceSnapshotWithPartialRefresh(t *testing.T) {
 	fake := &pgTableCacheSQL{}
-	g := NewDBMetricsConfigGatherer(*logging.Init("pg-cache-partial-refresh", true, false, io.Discard), &config.Config{}, true, nil)
+	g := newPGTableCacheGatherer(t, &config.Config{}, fake)
 	now := time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC)
 	g.now = func() time.Time { return now }
-	newPGTableCacheServer(t, g.configuration, fake)
 	collect := func() *models.Metrics {
-		m := &models.Metrics{}
-		m.DB.Metrics.Databases = []string{"app", "archive"}
-		m.DB.Metrics.Status = make(models.MetricGroupValue)
+		m := pgTableCacheMetrics("app", "archive")
 		if err := g.GetMetrics(m); err != nil {
 			t.Fatal(err)
 		}
@@ -205,17 +189,14 @@ func TestPGTableCacheDoesNotReplaceSnapshotWithPartialRefresh(t *testing.T) {
 
 func TestPGTableCacheConcurrentReportsRefreshOnlyOnce(t *testing.T) {
 	fake := &pgTableCacheSQL{}
-	g := NewDBMetricsConfigGatherer(*logging.Init("pg-cache-concurrent", true, false, io.Discard), &config.Config{}, true, nil)
-	newPGTableCacheServer(t, g.configuration, fake)
+	g := newPGTableCacheGatherer(t, &config.Config{}, fake)
 	const callers = 10
 	var wg sync.WaitGroup
 	for i := 0; i < callers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			m := &models.Metrics{}
-			m.DB.Metrics.Databases = []string{"app"}
-			m.DB.Metrics.Status = make(models.MetricGroupValue)
+			m := pgTableCacheMetrics("app")
 			if err := g.GetMetrics(m); err != nil {
 				t.Error(err)
 			}
@@ -230,95 +211,14 @@ func TestPGTableCacheConcurrentReportsRefreshOnlyOnce(t *testing.T) {
 	}
 }
 
-type pgTableCacheSQL struct {
-	mu                        sync.Mutex
-	tableQueries, statQueries int
-	failTables                bool
-	failTableQuery            int
-	failStatisticsDatabase    string
-	userTableStatistics       bool
-}
-
-func (f *pgTableCacheSQL) tableQueryCount() int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.tableQueries
-}
-
-func (f *pgTableCacheSQL) statQueryCount() int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.statQueries
-}
-
-func (f *pgTableCacheSQL) setFailure(all bool, query int) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.failTables = all
-	f.failTableQuery = query
-}
-
-func (f *pgTableCacheSQL) query(database, q string) (driver.Rows, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if strings.Contains(q, "information_schema.tables") {
-		f.tableQueries++
-		if f.failTables || f.tableQueries == f.failTableQuery {
-			return nil, errors.New("table query unavailable")
-		}
-		if strings.Contains(q, "SELECT COUNT(*)") {
-			return nil, errors.New("unexpected standalone table count query")
-		}
-		return &pgTableCacheRows{columns: []string{"table_type", "table_count", "total_size"}, values: []driver.Value{"BASE TABLE", int64(2), int64(100)}}, nil
-	}
-	if database == f.failStatisticsDatabase {
-		return nil, errors.New("pg_stat_user_tables unavailable")
-	}
-	if f.userTableStatistics && strings.Contains(q, "pg_stat_user_tables") {
-		return nil, errors.New("legacy table statistics view must not be queried")
-	}
-	f.statQueries++
-	if f.userTableStatistics && strings.Contains(q, "pg_catalog.pg_class") {
-		values := []driver.Value{int64(123), "public", "orders", int64(10), int64(90), int64(1980), int64(20), int64(0), int64(1), nil, "2026-10-13 10:00:00+00", int64(20), "2026-10-13 09:50:00+00", "2026-10-13 09:58:00+00"}
-		if database == "archive" {
-			values[4], values[10], values[12], values[13] = nil, nil, nil, nil
-		}
-		return &pgTableCacheRows{
-			columns: []string{"relid", "schemaname", "relname", "seq_scan", "idx_scan", "n_live_tup", "n_dead_tup", "vacuum_count", "autovacuum_count", "last_vacuum", "last_autovacuum", "n_mod_since_analyze", "last_analyze", "last_autoanalyze"},
-			values:  values,
-		}, nil
-	}
-	return &pgTableCacheRows{columns: []string{"value"}, values: []driver.Value{int64(f.statQueries)}}, nil
-}
-
-type pgTableCacheRows struct {
-	columns []string
-	values  []driver.Value
-	done    bool
-}
-
-func (r *pgTableCacheRows) Columns() []string { return r.columns }
-func (r *pgTableCacheRows) Close() error      { return nil }
-func (r *pgTableCacheRows) Next(dest []driver.Value) error {
-	if r.done {
-		return io.EOF
-	}
-	r.done = true
-	copy(dest, r.values)
-	return nil
-}
-
 func TestPGMinuteTableSizesNeverRefreshMissingExpiredOrFailedCache(t *testing.T) {
 	fake := &pgTableCacheSQL{}
-	g := NewDBMetricsConfigGatherer(*logging.Init("pg-minute-cache", false, false, io.Discard), &config.Config{}, true, nil)
-	newPGTableCacheServer(t, g.configuration, fake)
+	g := newPGTableCacheGatherer(t, &config.Config{}, fake)
 	now := time.Now()
 	g.now = func() time.Time { return now }
 	collect := func(full bool, want bool) {
 		t.Helper()
-		m := &models.Metrics{}
-		m.DB.Metrics.Databases = []string{"app"}
-		m.DB.Metrics.Status = make(models.MetricGroupValue)
+		m := pgTableCacheMetrics("app")
 		var err error
 		if full {
 			err = g.GetMetrics(m)

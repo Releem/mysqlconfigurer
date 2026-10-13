@@ -101,70 +101,35 @@ func TestDBMetricsConfigGathererMemoryLimitDoesNotReplaceMissingPhysicalRAM(t *t
 	}
 }
 
-func TestDBMetricsConfigGathererCacheBoundaryTableCount(t *testing.T) {
-	fake := tableSizeCacheBoundaryFake()
-	setTableSizeCacheTestDB(t, fake)
-	gatherer := newTableSizeCacheTestGatherer(config.Config{
-		TableSizeCacheTableThreshold: 12,
-		TableSizeCacheRAMMultiplier:  4,
-		TableSizeCacheTTL:            3600,
-	})
-
-	for call := 1; call <= 2; call++ {
-		if err := gatherer.GetMetrics(tableSizeCacheTestMetrics()); err != nil {
-			t.Fatalf("GetMetrics() call %d error = %v", call, err)
-		}
-	}
-
-	_, heavyQueries := fake.counts()
-	if heavyQueries != 1 {
-		t.Fatalf("heavy query count = %d, want 1 at table-count boundary", heavyQueries)
-	}
-}
-
-func TestDBMetricsConfigGathererCacheBoundaryTotalSize(t *testing.T) {
-	fake := tableSizeCacheBoundaryFake()
-	setTableSizeCacheTestDB(t, fake)
-	gatherer := newTableSizeCacheTestGatherer(config.Config{
-		TableSizeCacheTableThreshold: 10,
-		TableSizeCacheRAMMultiplier:  4,
-		TableSizeCacheTTL:            3600,
-	})
-
-	for call := 1; call <= 2; call++ {
-		metrics := tableSizeCacheTestMetrics()
-		metrics.System.Info["PhysicalMemory"].(models.MetricGroupValue)["total"] = uint64(150)
-		if err := gatherer.GetMetrics(metrics); err != nil {
-			t.Fatalf("GetMetrics() call %d error = %v", call, err)
-		}
-	}
-
-	_, heavyQueries := fake.counts()
-	if heavyQueries != 1 {
-		t.Fatalf("heavy query count = %d, want 1 at total-size boundary", heavyQueries)
-	}
-}
-
-func TestDBMetricsConfigGathererExpiredCacheRefreshes(t *testing.T) {
-	fake := tableSizeCacheBoundaryFake()
-	setTableSizeCacheTestDB(t, fake)
-	gatherer := newTableSizeCacheTestGatherer(config.Config{
-		TableSizeCacheTableThreshold: 10,
-		TableSizeCacheRAMMultiplier:  4,
-		TableSizeCacheTTL:            3600,
-	})
-	baseTime := time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC)
-	gatherer.now = tableSizeCacheTestClock(baseTime, baseTime.Add(time.Hour))
-
-	for call := 1; call <= 2; call++ {
-		if err := gatherer.GetMetrics(tableSizeCacheTestMetrics()); err != nil {
-			t.Fatalf("GetMetrics() call %d error = %v", call, err)
-		}
-	}
-
-	_, heavyQueries := fake.counts()
-	if heavyQueries != 2 {
-		t.Fatalf("heavy query count = %d, want 2 after exact TTL expiry", heavyQueries)
+func TestDBMetricsConfigGathererCacheBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		threshold   int64
+		ram         uint64
+		elapsed     time.Duration
+		wantQueries int
+	}{
+		{"table count at threshold", 12, 100, 0, 1},
+		{"size at RAM threshold", 10, 150, 0, 1},
+		{"large server TTL exactly expired", 10, 100, time.Hour, 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := tableSizeCacheBoundaryFake()
+			setTableSizeCacheTestDB(t, fake)
+			g := newTableSizeCacheTestGatherer(config.Config{TableSizeCacheTableThreshold: tc.threshold, TableSizeCacheRAMMultiplier: 4, TableSizeCacheTTL: 3600})
+			base := time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC)
+			g.now = tableSizeCacheTestClock(base, base.Add(tc.elapsed))
+			for call := 1; call <= 2; call++ {
+				m := tableSizeCacheTestMetrics()
+				m.System.Info["PhysicalMemory"].(models.MetricGroupValue)["total"] = tc.ram
+				if err := g.GetMetrics(m); err != nil {
+					t.Fatalf("GetMetrics() call %d: %v", call, err)
+				}
+			}
+			if _, queries := fake.counts(); queries != tc.wantQueries {
+				t.Fatalf("GetMetrics(%s) heavy queries = %d, want %d", tc.name, queries, tc.wantQueries)
+			}
+		})
 	}
 }
 

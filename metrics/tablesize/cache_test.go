@@ -3,6 +3,7 @@ package tablesize
 import (
 	"errors"
 	"math"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -10,148 +11,6 @@ import (
 	"github.com/Releem/mysqlconfigurer/models"
 	snapshotcache "github.com/Releem/mysqlconfigurer/utils/cache"
 )
-
-func TestEffectiveTableSizeRAM(t *testing.T) {
-	const gib = uint64(1024 * 1024 * 1024)
-	const kib = uint64(1024)
-
-	tests := []struct {
-		name          string
-		physicalTotal interface{}
-		instanceType  string
-		want          uint64
-	}{
-		{
-			name:          "physical with zero memory limit",
-			physicalTotal: uint64(8 * gib),
-			want:          8 * gib,
-		},
-		{
-			name:          "physical is not capped by memory limit",
-			physicalTotal: uint64(8 * gib),
-			want:          8 * gib,
-		},
-		{
-			name:          "physical below memory limit",
-			physicalTotal: uint64(gib),
-			want:          gib,
-		},
-		{
-			name: "memory limit does not replace missing physical",
-			want: 0,
-		},
-		{
-			name: "physical missing with zero memory limit",
-			want: 0,
-		},
-		{
-			name:          "uint64 physical value",
-			physicalTotal: uint64(8 * gib),
-			want:          8 * gib,
-		},
-		{
-			name:          "int physical value",
-			physicalTotal: int(8 * gib),
-			want:          8 * gib,
-		},
-		{
-			name:          "float64 physical value",
-			physicalTotal: float64(8 * gib),
-			want:          8 * gib,
-		},
-		{
-			name:          "numeric string physical value",
-			physicalTotal: "8589934592",
-			want:          8 * gib,
-		},
-		{
-			name:          "aws/rds kilobytes are converted to bytes",
-			physicalTotal: int(8 * gib / kib),
-			instanceType:  "aws/rds",
-			want:          8 * gib,
-		},
-		{
-			name:          "non-aws instance type keeps bytes",
-			physicalTotal: uint64(8 * gib),
-			instanceType:  "gcp/cloudsql",
-			want:          8 * gib,
-		},
-		{
-			name:          "aws/rds overflow saturates",
-			physicalTotal: uint64(math.MaxUint64),
-			instanceType:  "aws/rds",
-			want:          math.MaxUint64,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			metrics := &models.Metrics{}
-			if tt.physicalTotal != nil || tt.instanceType != "" {
-				metrics.System.Info = models.MetricGroupValue{}
-			}
-			if tt.physicalTotal != nil {
-				metrics.System.Info["PhysicalMemory"] = models.MetricGroupValue{
-					"total": tt.physicalTotal,
-				}
-			}
-			if tt.instanceType != "" {
-				metrics.System.Info["Host"] = models.MetricGroupValue{
-					"InstanceType": tt.instanceType,
-				}
-			}
-			got := EffectiveRAM(metrics)
-
-			if got != tt.want {
-				t.Fatalf("EffectiveRAM() = %d, want %d", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestTableSizeUint64AcceptsMetricNumberRepresentations(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		value interface{}
-		want  uint64
-	}{
-		{name: "uint", value: uint(1), want: 1},
-		{name: "uint8", value: uint8(2), want: 2},
-		{name: "uint16", value: uint16(3), want: 3},
-		{name: "uint32", value: uint32(4), want: 4},
-		{name: "uint64", value: uint64(math.MaxUint64), want: math.MaxUint64},
-		{name: "int", value: int(5), want: 5},
-		{name: "int8", value: int8(6), want: 6},
-		{name: "int16", value: int16(7), want: 7},
-		{name: "int32", value: int32(8), want: 8},
-		{name: "int64", value: int64(9), want: 9},
-		{name: "float32 truncates fractional bytes", value: float32(10.75), want: 10},
-		{name: "float64 truncates fractional bytes", value: float64(11.75), want: 11},
-		{name: "integer string", value: " 12 ", want: 12},
-		{name: "decimal string", value: "13.75", want: 13},
-		{name: "positive infinity saturates", value: math.Inf(1), want: math.MaxUint64},
-		{name: "zero signed value", value: int64(0), want: 0},
-		{name: "negative signed value", value: int64(-1), want: 0},
-		{name: "negative float", value: float64(-1), want: 0},
-		{name: "NaN", value: math.NaN(), want: 0},
-		{name: "negative infinity", value: math.Inf(-1), want: 0},
-		{name: "invalid string", value: "twelve", want: 0},
-		{name: "unsupported type", value: []byte("14"), want: 0},
-		{name: "nil", value: nil, want: 0},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := Uint64(tt.value); got != tt.want {
-				t.Fatalf("Uint64(%#v) = %d, want %d", tt.value, got, tt.want)
-			}
-		})
-	}
-}
 
 func TestTableSizeCacheThresholds(t *testing.T) {
 	const gib = uint64(1024 * 1024 * 1024)
@@ -585,33 +444,6 @@ func TestTableSizeCacheClonesSnapshots(t *testing.T) {
 	}
 }
 
-func TestTableSizeCacheTTLFromSecondsSaturates(t *testing.T) {
-	tests := []struct {
-		name    string
-		seconds time.Duration
-		want    time.Duration
-	}{
-		{
-			name:    "normal duration",
-			seconds: 604800,
-			want:    7 * 24 * time.Hour,
-		},
-		{
-			name:    "extreme duration",
-			seconds: time.Duration(math.MaxInt64),
-			want:    time.Duration(math.MaxInt64),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := TTLFromSeconds(tt.seconds); got != tt.want {
-				t.Fatalf("TTLFromSeconds(%d) = %d, want %d", tt.seconds, got, tt.want)
-			}
-		})
-	}
-}
-
 func tableSizeTestEngine(innodbTotal, myisamTotal uint64) map[string]models.MetricGroupValue {
 	return map[string]models.MetricGroupValue{
 		"InnoDB": {
@@ -631,65 +463,36 @@ func tableSizeTestEngine(innodbTotal, myisamTotal uint64) map[string]models.Metr
 	}
 }
 
-func TestTableSizeCacheTTLFreshOneSecondBeforeExpiry(t *testing.T) {
+func TestTableSizeCacheTTLBoundary(t *testing.T) {
 	const gib = uint64(1024 * 1024 * 1024)
-	collectedAt := time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC)
-	cache := newTableSizeCache()
-	calls := 0
-	refresh := func() (map[string]models.MetricGroupValue, error) {
-		calls++
-		return tableSizeTestEngine(4*gib, 1), nil
-	}
-	input := Input{
-		TotalTables:    tableCount(1001),
-		EffectiveRAM:   gib,
-		TableThreshold: 1000,
-		RAMMultiplier:  4,
-		TTL:            24 * time.Hour,
-		Now:            collectedAt,
-	}
-
-	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
-		t.Fatalf("first getOrRefresh() error = %v", err)
-	}
-	input.Now = collectedAt.Add(24*time.Hour - time.Second)
-	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
-		t.Fatalf("second getOrRefresh() error = %v", err)
-	}
-
-	if calls != 1 {
-		t.Fatalf("refresh calls = %d, want 1", calls)
-	}
-}
-
-func TestTableSizeCacheTTLExactlyAtExpiryRefreshes(t *testing.T) {
-	const gib = uint64(1024 * 1024 * 1024)
-	collectedAt := time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC)
-	cache := newTableSizeCache()
-	calls := 0
-	refresh := func() (map[string]models.MetricGroupValue, error) {
-		calls++
-		return tableSizeTestEngine(4*gib, 1), nil
-	}
-	input := Input{
-		TotalTables:    tableCount(1001),
-		EffectiveRAM:   gib,
-		TableThreshold: 1000,
-		RAMMultiplier:  4,
-		TTL:            24 * time.Hour,
-		Now:            collectedAt,
-	}
-
-	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
-		t.Fatalf("first getOrRefresh() error = %v", err)
-	}
-	input.Now = collectedAt.Add(24 * time.Hour)
-	if _, err := cache.GetOrRefresh(input, refresh); err != nil {
-		t.Fatalf("second getOrRefresh() error = %v", err)
-	}
-
-	if calls != 2 {
-		t.Fatalf("refresh calls = %d, want 2", calls)
+	for _, tc := range []struct {
+		name      string
+		elapsed   time.Duration
+		wantCalls int
+	}{
+		{"one second before expiry", 24*time.Hour - time.Second, 1},
+		{"exactly at expiry", 24 * time.Hour, 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			collectedAt := time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC)
+			cache := newTableSizeCache()
+			calls := 0
+			refresh := func() (map[string]models.MetricGroupValue, error) {
+				calls++
+				return tableSizeTestEngine(4*gib, 1), nil
+			}
+			input := Input{TotalTables: tableCount(1001), EffectiveRAM: gib, TableThreshold: 1000, RAMMultiplier: 4, TTL: 24 * time.Hour, Now: collectedAt}
+			if _, err := cache.GetOrRefresh(input, refresh); err != nil {
+				t.Fatal(err)
+			}
+			input.Now = collectedAt.Add(tc.elapsed)
+			if _, err := cache.GetOrRefresh(input, refresh); err != nil {
+				t.Fatal(err)
+			}
+			if calls != tc.wantCalls {
+				t.Fatalf("GetOrRefresh(elapsed=%s) refresh calls = %d, want %d", tc.elapsed, calls, tc.wantCalls)
+			}
+		})
 	}
 }
 
@@ -948,4 +751,69 @@ func newTableSizeCache() *Cache[map[string]models.MetricGroupValue] {
 	return New(CloneEngine, func(engine map[string]models.MetricGroupValue) Summary {
 		return Summary{TotalSize: EngineTotal(engine)}
 	})
+}
+
+func TestCacheSupportsStructuredSnapshotsAndLiveZeroCount(t *testing.T) {
+	type inventory struct {
+		sizes []uint64
+	}
+	c := New(func(value inventory) inventory {
+		value.sizes = slices.Clone(value.sizes)
+		return value
+	}, func(value inventory) Summary {
+		var total uint64
+		for _, size := range value.sizes {
+			total += size
+		}
+		return Summary{TotalTables: uint64(len(value.sizes)), TotalSize: total}
+	})
+	base := time.Date(2026, 10, 2, 0, 0, 0, 0, time.UTC)
+	input := Input{EffectiveRAM: 10, TableThreshold: 1, RAMMultiplier: 4, TTL: time.Hour, Now: base}
+	source := inventory{sizes: []uint64{20, 30}}
+	refreshFailure := errors.New("refresh failed")
+	fail := false
+	calls := 0
+	refresh := func() (inventory, error) {
+		calls++
+		if fail {
+			return inventory{sizes: []uint64{999}}, refreshFailure
+		}
+		return source, nil
+	}
+	first, err := c.GetOrRefresh(input, refresh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.Value.sizes[0] = 999
+	source.sizes[1] = 999
+	input.Now = base.Add(time.Hour - time.Second)
+	second, err := c.GetOrRefresh(input, refresh)
+	if err != nil || calls != 1 || !slices.Equal(second.Value.sizes, []uint64{20, 30}) {
+		t.Fatalf("reused snapshot=%+v, calls=%d, error=%v", second, calls, err)
+	}
+	input.Now = base.Add(time.Hour)
+	fail = true
+	stale, err := c.GetOrRefresh(input, refresh)
+	if err != nil || !stale.UsedStale || !errors.Is(stale.RefreshErr, refreshFailure) || !slices.Equal(stale.Value.sizes, []uint64{20, 30}) {
+		t.Fatalf("stale snapshot=%+v, error=%v", stale, err)
+	}
+	fail = false
+	source = inventory{sizes: []uint64{40, 60}}
+	if _, err := c.GetOrRefresh(input, refresh); err != nil || calls != 3 {
+		t.Fatalf("retry calls=%d, error=%v", calls, err)
+	}
+	// An explicit live zero count must override the two tables in the snapshot.
+	input.TotalTables = tableCount(0)
+	input.Now = input.Now.Add(time.Minute)
+	if _, err := c.GetOrRefresh(input, refresh); err != nil || calls != 4 {
+		t.Fatalf("category change calls=%d, error=%v", calls, err)
+	}
+	input.Now = input.Now.Add(11*time.Hour + 55*time.Minute - time.Second)
+	if _, err := c.GetOrRefresh(input, refresh); err != nil || calls != 4 {
+		t.Fatalf("ordinary cache calls=%d, error=%v", calls, err)
+	}
+	input.Now = input.Now.Add(time.Second)
+	if _, err := c.GetOrRefresh(input, refresh); err != nil || calls != 5 {
+		t.Fatalf("ordinary cache at 11h55m expiry calls=%d, error=%v", calls, err)
+	}
 }

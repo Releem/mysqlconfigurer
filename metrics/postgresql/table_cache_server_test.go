@@ -3,6 +3,7 @@ package postgresql
 import (
 	"database/sql/driver"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -13,6 +14,8 @@ import (
 	"time"
 
 	"github.com/Releem/mysqlconfigurer/config"
+	"github.com/Releem/mysqlconfigurer/models"
+	logging "github.com/google/logger"
 )
 
 // pgTableCacheServer implements startup, Ping and simple queries so collector
@@ -215,4 +218,96 @@ func pgTestRows(rows driver.Rows) []byte {
 		count++
 	}
 	return append(result, pgTestMessage('C', []byte(fmt.Sprintf("SELECT %d\x00", count)))...)
+}
+
+type pgTableCacheSQL struct {
+	mu                        sync.Mutex
+	tableQueries, statQueries int
+	failTables                bool
+	failTableQuery            int
+	failStatisticsDatabase    string
+	userTableStatistics       bool
+}
+
+func (f *pgTableCacheSQL) tableQueryCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.tableQueries
+}
+
+func (f *pgTableCacheSQL) statQueryCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.statQueries
+}
+
+func (f *pgTableCacheSQL) setFailure(all bool, query int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.failTables = all
+	f.failTableQuery = query
+}
+
+func (f *pgTableCacheSQL) query(database, q string) (driver.Rows, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if strings.Contains(q, "information_schema.tables") {
+		f.tableQueries++
+		if f.failTables || f.tableQueries == f.failTableQuery {
+			return nil, errors.New("table query unavailable")
+		}
+		if strings.Contains(q, "SELECT COUNT(*)") {
+			return nil, errors.New("unexpected standalone table count query")
+		}
+		return &pgTableCacheRows{columns: []string{"table_type", "table_count", "total_size"}, values: []driver.Value{"BASE TABLE", int64(2), int64(100)}}, nil
+	}
+	if database == f.failStatisticsDatabase {
+		return nil, errors.New("pg_stat_user_tables unavailable")
+	}
+	if f.userTableStatistics && strings.Contains(q, "pg_stat_user_tables") {
+		return nil, errors.New("legacy table statistics view must not be queried")
+	}
+	f.statQueries++
+	if f.userTableStatistics && strings.Contains(q, "pg_catalog.pg_class") {
+		values := []driver.Value{int64(123), "public", "orders", int64(10), int64(90), int64(1980), int64(20), int64(0), int64(1), nil, "2026-10-13 10:00:00+00", int64(20), "2026-10-13 09:50:00+00", "2026-10-13 09:58:00+00"}
+		if database == "archive" {
+			values[4], values[10], values[12], values[13] = nil, nil, nil, nil
+		}
+		return &pgTableCacheRows{
+			columns: []string{"relid", "schemaname", "relname", "seq_scan", "idx_scan", "n_live_tup", "n_dead_tup", "vacuum_count", "autovacuum_count", "last_vacuum", "last_autovacuum", "n_mod_since_analyze", "last_analyze", "last_autoanalyze"},
+			values:  values,
+		}, nil
+	}
+	return &pgTableCacheRows{columns: []string{"value"}, values: []driver.Value{int64(f.statQueries)}}, nil
+}
+
+type pgTableCacheRows struct {
+	columns []string
+	values  []driver.Value
+	done    bool
+}
+
+func (r *pgTableCacheRows) Columns() []string { return r.columns }
+func (r *pgTableCacheRows) Close() error      { return nil }
+func (r *pgTableCacheRows) Next(dest []driver.Value) error {
+	if r.done {
+		return io.EOF
+	}
+	r.done = true
+	copy(dest, r.values)
+	return nil
+}
+
+func newPGTableCacheGatherer(t *testing.T, cfg *config.Config, fake *pgTableCacheSQL) *DBMetricsConfigGatherer {
+	t.Helper()
+	g := NewDBMetricsConfigGatherer(*logging.Init(t.Name(), true, false, io.Discard), cfg, true, nil)
+	newPGTableCacheServer(t, cfg, fake)
+	return g
+}
+
+func pgTableCacheMetrics(databases ...string) *models.Metrics {
+	m := &models.Metrics{}
+	m.DB.Metrics.Databases = databases
+	m.DB.Metrics.Status = make(models.MetricGroupValue)
+	return m
 }

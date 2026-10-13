@@ -1,6 +1,6 @@
 # Releem Agent Installation Tests
 
-End-to-end tests for `install.sh`, `releem.sh` (Linux) and `windows/install.ps1`, `windows/mysqlconfigurer.ps1` (Windows).
+End-to-end tests for `install.sh`, `releem.sh` (Linux) and `windows/install.ps1`, `windows/releem.ps1` (Windows).
 
 Tests run on GCP spot (preemptible) VMs provisioned by Terraform, torn down after each run.
 
@@ -166,3 +166,27 @@ Checks cover exit code 3 for an unset/missing configuration directory, exit code
 11 for a missing active `!includedir` on apply, supported path quoting/separators,
 and preservation of code 1 for missing recommendations. Rollback checks the
 configuration directory but does not require an include, matching Linux.
+
+Run `pwsh -NoProfile -File tests/windows/test_legacy_configurer_wrapper.ps1`
+for offline checks of legacy argument/exit-code forwarding and both installer
+script downloads (fresh installation and update, with network calls mocked).
+
+Windows Test 5 also checks both installed script names after a delegated update:
+`releem.ps1` and `mysqlconfigurer.ps1` must match the payload, exit successfully,
+and reach the canonical usage dispatcher. Its mocked version endpoint always
+returns a newer version so release bumps do not turn the test into a no-op.
+
+For a local update regression without a VM, run:
+
+```powershell
+pwsh -NoProfile -File tests/windows/test_update_script_compatibility.ps1
+```
+
+This executes the real installer update branch with download/service mocks for
+legacy-only and outdated-script installations. It then runs both installed
+entry points through the actual help and argument-validation dispatchers.
+Only the Windows privilege bootstrap and paths are adapted for this offline test.
+
+The offline update regression also simulates a failed download of each required
+Windows script. Fresh installation and update must return code 1; update must
+stop before starting the service or logging success.

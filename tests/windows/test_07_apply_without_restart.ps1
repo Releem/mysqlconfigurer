@@ -1,4 +1,4 @@
-# Test 7: mysqlconfigurer.ps1 -Apply -NonInteractive -NoRestart copies config without restarting MySQL.
+# Test 7: releem.ps1 -Apply -NonInteractive -NoRestart copies config without restarting MySQL.
 
 param()
 
@@ -61,10 +61,10 @@ if (-not (Test-Path $StagingConfig)) {
     Add-Content -Path $StagingConfig -Value 'max_connections=222' -Encoding ASCII
 }
 
-Write-Info "Running mysqlconfigurer.ps1 -Configure..."
+Write-Info "Running releem.ps1 -Configure..."
 & powershell.exe -ExecutionPolicy Bypass -File $ConfigurerScript -Configure
 $configureExit = $LASTEXITCODE
-Assert-Zero "mysqlconfigurer.ps1 -Configure exited successfully" $configureExit
+Assert-Zero "releem.ps1 -Configure exited successfully" $configureExit
 
 $liveConfigDir  = Get-ReleemConfigValue -Path $ReleemConfFile -Key 'mysql_cnf_dir'
 $liveConfigPath = Join-Path $liveConfigDir 'z_aiops_mysql.cnf'
@@ -72,13 +72,13 @@ $liveConfigPath = Join-Path $liveConfigDir 'z_aiops_mysql.cnf'
 Remove-Item -Path $BackupConfig -Force -ErrorAction SilentlyContinue
 $beforeSnapshot = Get-ServiceSnapshot -ServiceName $DbService
 
-Write-Info "Running mysqlconfigurer.ps1 -Apply -NonInteractive -NoRestart..."
+Write-Info "Running releem.ps1 -Apply -NonInteractive -NoRestart..."
 & powershell.exe -ExecutionPolicy Bypass -File $ConfigurerScript -Apply -NonInteractive -NoRestart
 $applyExit = $LASTEXITCODE
 
 $afterSnapshot = Get-ServiceSnapshot -ServiceName $DbService
 
-Assert-Zero "mysqlconfigurer.ps1 -Apply -NonInteractive -NoRestart exited successfully" $applyExit
+Assert-Zero "releem.ps1 -Apply -NonInteractive -NoRestart exited successfully" $applyExit
 Assert-FileExists "Staging config file exists" $StagingConfig
 Assert-FileExists "Live config file copied" $liveConfigPath
 Assert-FileExists "Backup file preserved when restart is skipped" $BackupConfig

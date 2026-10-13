@@ -1,6 +1,6 @@
 # Offline checks: no database, service, administrator rights, or Pester required.
 $ErrorActionPreference = 'Stop'
-$scriptPath = Join-Path $PSScriptRoot '../../windows/mysqlconfigurer.ps1'
+$scriptPath = Join-Path $PSScriptRoot '../../windows/releem.ps1'
 $tokens = $null
 $parseErrors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile(

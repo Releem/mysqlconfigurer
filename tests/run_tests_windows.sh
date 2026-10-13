@@ -48,6 +48,7 @@ PAYLOAD_DIR="$(mktemp -d /tmp/releem-win-payload-XXXX)"
 trap 'rm -rf "$PAYLOAD_DIR"' EXIT
 
 cp "$REPO_ROOT/windows/install.ps1" "$PAYLOAD_DIR/install.ps1"
+cp "$REPO_ROOT/windows/releem.ps1" "$PAYLOAD_DIR/releem.ps1"
 cp "$REPO_ROOT/windows/mysqlconfigurer.ps1" "$PAYLOAD_DIR/mysqlconfigurer.ps1"
 cp "$SCRIPT_DIR/windows/helpers.ps1" "$PAYLOAD_DIR/helpers.ps1"
 cp "$SCRIPT_DIR/windows/run_all.ps1" "$PAYLOAD_DIR/run_all.ps1"
@@ -56,6 +57,7 @@ cp "$SCRIPT_DIR/windows/test_02_install_existing_user.ps1" "$PAYLOAD_DIR/test_02
 cp "$SCRIPT_DIR/windows/test_03_apply_config.ps1" "$PAYLOAD_DIR/test_03_apply_config.ps1"
 cp "$SCRIPT_DIR/windows/test_04_rollback_config.ps1" "$PAYLOAD_DIR/test_04_rollback_config.ps1"
 cp "$SCRIPT_DIR/windows/test_05_update_delegation.ps1" "$PAYLOAD_DIR/test_05_update_delegation.ps1"
+cp "$SCRIPT_DIR/windows/test_update_script_compatibility.ps1" "$PAYLOAD_DIR/test_update_script_compatibility.ps1"
 cp "$SCRIPT_DIR/windows/test_06_reinstall_existing_install.ps1" "$PAYLOAD_DIR/test_06_reinstall_existing_install.ps1"
 cp "$SCRIPT_DIR/windows/test_07_apply_without_restart.ps1" "$PAYLOAD_DIR/test_07_apply_without_restart.ps1"
 cp "$SCRIPT_DIR/windows/test_08_queue_apply.ps1" "$PAYLOAD_DIR/test_08_queue_apply.ps1"

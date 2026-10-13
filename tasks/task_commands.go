@@ -86,7 +86,7 @@ func powershellConfigurerCommand(releemDir string, scriptArgs []string, environm
 		"-ExecutionPolicy",
 		"Bypass",
 		"-File",
-		releemDir + "\\mysqlconfigurer.ps1",
+		releemDir + "\\releem.ps1",
 	}
 	args = append(args, scriptArgs...)
 

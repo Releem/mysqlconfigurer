@@ -38,13 +38,15 @@ $ErrorActionPreference = 'Stop'
 
 $AgentBinaryPath         = 'C:\Program Files\ReleemAgent\releem-agent.exe'
 $InstallerScriptPath     = 'C:\Program Files\ReleemAgent\install.ps1'
-$ConfigurerScriptPath    = 'C:\Program Files\ReleemAgent\mysqlconfigurer.ps1'
+$ConfigurerScriptPath    = 'C:\Program Files\ReleemAgent\releem.ps1'
+$LegacyConfigurerScriptPath = 'C:\Program Files\ReleemAgent\mysqlconfigurer.ps1'
 $ConfigFilePath          = 'C:\ProgramData\ReleemAgent\releem.conf'
 $ConfDirPath             = 'C:\ProgramData\ReleemAgent\conf.d'
 $InstallLogPath          = 'C:\ProgramData\ReleemAgent\releem-install.log'
 $AgentDownloadUrl        = 'https://releem.s3.us-east-1.amazonaws.com/v2/releem-agent.exe'
 $InstallerUrl            = 'https://releem.s3.us-east-1.amazonaws.com/v2/install.ps1'
-$ReleemAgentScriptUrl    = 'https://releem.s3.us-east-1.amazonaws.com/v2/mysqlconfigurer.ps1'
+$ReleemAgentScriptUrl    = 'https://releem.s3.us-east-1.amazonaws.com/v2/releem.ps1'
+$ReleemLegacyScriptUrl = 'https://releem.s3.us-east-1.amazonaws.com/v2/mysqlconfigurer.ps1'
 $ApiUrlUS                = 'https://api.releem.com'
 $ApiUrlEU                = 'https://api.eu.releem.com'
 
@@ -290,7 +292,7 @@ if ($u) {
     Write-Log "Releem Agent binary updated ($binarySize bytes): $AgentBinaryPath"
 
     # ---------------------------------------------------------------------------
-    # Download the latest install.ps1 and mysqlconfigurer.ps1
+    # Download the installer, canonical script, and compatibility entry point
     # ---------------------------------------------------------------------------
     Write-Log "Downloading latest installer script from $InstallerUrl ..."
     try {
@@ -301,13 +303,15 @@ if ($u) {
     }
     Write-Log "Installer script refreshed: $InstallerScriptPath"
 
-    Write-Log "Downloading latest mysqlconfigurer script from $ReleemAgentScriptUrl ..."
+    Write-Log "Downloading latest Releem scripts from $ReleemAgentScriptUrl ..."
     try {
-        Invoke-WebRequest -Uri $ReleemAgentScriptUrl -OutFile $ConfigurerScriptPath -UseBasicParsing
+        Invoke-WebRequest -Uri $ReleemAgentScriptUrl -OutFile $ConfigurerScriptPath -UseBasicParsing -ErrorAction Stop
+        Invoke-WebRequest -Uri $ReleemLegacyScriptUrl -OutFile $LegacyConfigurerScriptPath -UseBasicParsing -ErrorAction Stop
     } catch {
-        Write-Log "WARNING: Failed to download mysqlconfigurer script. $_"
+        Write-Log "ERROR: Failed to download required Releem scripts. $_"
+        $script:MainExitCode = 1; return
     }
-    Write-Log "Mysqlconfigurer script refreshed: $ConfigurerScriptPath"
+    Write-Log "Releem script refreshed: $ConfigurerScriptPath"
 
     # ---------------------------------------------------------------------------
     # Start the service
@@ -730,12 +734,14 @@ try {
 }
 
 # Download mysqlconfigurer script
-Write-Log "Downloading mysqlconfigurer script from $ReleemAgentScriptUrl ..."
+Write-Log "Downloading Releem scripts from $ReleemAgentScriptUrl ..."
 try {
-    Invoke-WebRequest -Uri $ReleemAgentScriptUrl -OutFile $ConfigurerScriptPath -UseBasicParsing
-    Write-Log "Mysqlconfigurer script saved: $ConfigurerScriptPath"
+    Invoke-WebRequest -Uri $ReleemAgentScriptUrl -OutFile $ConfigurerScriptPath -UseBasicParsing -ErrorAction Stop
+    Invoke-WebRequest -Uri $ReleemLegacyScriptUrl -OutFile $LegacyConfigurerScriptPath -UseBasicParsing -ErrorAction Stop
+    Write-Log "Releem script saved: $ConfigurerScriptPath"
 } catch {
-    Write-Log "WARNING: Failed to download mysqlconfigurer script. $_"
+    Write-Log "ERROR: Failed to download required Releem scripts. $_"
+    $script:MainExitCode = 1; return
 }
 
 # ---------------------------------------------------------------------------
@@ -750,9 +756,9 @@ if ($InstanceType -eq 'local') {
             throw "Required Windows PowerShell executable not found: $powerShellExe"
         }
         & $powerShellExe -NonInteractive -File $ConfigurerScriptPath -Configure
-        Write-Log "mysqlconfigurer.ps1 -Configure exited with code: $LASTEXITCODE"
+        Write-Log "releem.ps1 -Configure exited with code: $LASTEXITCODE"
     } else {
-        Write-Log 'WARNING: mysqlconfigurer.ps1 not found; skipping -Configure.'
+        Write-Log 'WARNING: releem.ps1 not found; skipping -Configure.'
     }
 }
 

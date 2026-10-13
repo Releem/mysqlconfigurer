@@ -1,4 +1,4 @@
-# Test 3: Apply recommended MySQL configuration via mysqlconfigurer.ps1 (Windows).
+# Test 3: Apply recommended MySQL configuration via releem.ps1 (Windows).
 # Pre-conditions:
 #   - Releem Agent is installed and running (run test_01 first)
 #   - Agent has sent metrics and API has generated a recommendation
@@ -44,17 +44,17 @@ if (-not (Test-Path $ConfigFile)) {
 }
 
 # Ensure mysql_cnf_dir is persisted by running configurer's configure flow.
-Write-Info "Running mysqlconfigurer.ps1 -Configure..."
+Write-Info "Running releem.ps1 -Configure..."
 & powershell.exe -ExecutionPolicy Bypass -File $ConfigurerScript -Configure
 $configureExit = $LASTEXITCODE
-Assert-Zero "mysqlconfigurer.ps1 -Configure exited successfully" $configureExit
+Assert-Zero "releem.ps1 -Configure exited successfully" $configureExit
 
-# --- Apply configuration using mysqlconfigurer.ps1 -Apply -NonInteractive ---
-Write-Info "Running mysqlconfigurer.ps1 -Apply -NonInteractive..."
+# --- Apply configuration using releem.ps1 -Apply -NonInteractive ---
+Write-Info "Running releem.ps1 -Apply -NonInteractive..."
 & powershell.exe -ExecutionPolicy Bypass -File $ConfigurerScript -Apply -NonInteractive
 $applyExit = $LASTEXITCODE
 
-Assert-Zero "mysqlconfigurer.ps1 -Apply -NonInteractive exited successfully" $applyExit
+Assert-Zero "releem.ps1 -Apply -NonInteractive exited successfully" $applyExit
 
 # --- Local assertions ---
 Assert-FileExists     "Recommended config file created" $ConfigFile

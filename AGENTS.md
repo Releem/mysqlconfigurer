@@ -11,7 +11,7 @@ Primary areas include:
 - `main.go`, `metrics/`, `tasks/`, `models/`, `utils/`, and `repeater/` for the Go agent.
 - `install.sh` and `releem.sh` for Linux install/apply flows;
   `mysqlconfigurer.sh` preserves legacy entry points.
-- `windows/install.ps1` and `windows/mysqlconfigurer.ps1` for Windows flows.
+- `windows/install.ps1` and `windows/releem.ps1` for Windows flows.
 - `releem-agent-on-premise/` and `docker/` for distribution-specific packaging.
 - `tests/` for Bats and Terraform-backed end-to-end installation tests.
 
@@ -102,7 +102,7 @@ cd tests
 1. Bump the version everywhere: `config/config.go` (`ReleemAgentVersion`),
    `install.sh` (header + `install_script_version`), `releem.sh`
    (header + `VERSION`), `mysqlconfigurer.sh` (compatibility header),
-   `windows/mysqlconfigurer.ps1` (`$ScriptVersion`),
+   `windows/releem.ps1` (`$ScriptVersion`),
    related tests (e.g. `tests/mysqlconfigurer.bats`,
    `tests/windows/test_05_update_delegation.ps1`), and
    `current_version_agent`. Do not edit built binaries.

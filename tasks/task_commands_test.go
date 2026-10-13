@@ -18,7 +18,7 @@ func TestWindowsTaskCommands(t *testing.T) {
 			cmd:  taskApplyManualCommand("windows", releemDir),
 			want: taskCommand{
 				name: "powershell.exe",
-				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\mysqlconfigurer.ps1`, "-Apply", "-NonInteractive"},
+				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\releem.ps1`, "-Apply", "-NonInteractive"},
 			},
 		},
 		{
@@ -42,7 +42,7 @@ func TestWindowsTaskCommands(t *testing.T) {
 			cmd:  taskApplyAutomaticCommand("windows", releemDir, "dynamic", false),
 			want: taskCommand{
 				name: "powershell.exe",
-				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\mysqlconfigurer.ps1`, "-Apply", "-NonInteractive", "-ApplyMode", "dynamic", "-NoRestart"},
+				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\releem.ps1`, "-Apply", "-NonInteractive", "-ApplyMode", "dynamic", "-NoRestart"},
 			},
 		},
 		{
@@ -50,7 +50,7 @@ func TestWindowsTaskCommands(t *testing.T) {
 			cmd:  taskApplyAutomaticCommand("windows", releemDir, "full", true),
 			want: taskCommand{
 				name: "powershell.exe",
-				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\mysqlconfigurer.ps1`, "-Apply", "-NonInteractive", "-ApplyMode", "full"},
+				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\releem.ps1`, "-Apply", "-NonInteractive", "-ApplyMode", "full"},
 			},
 		},
 		{
@@ -58,7 +58,7 @@ func TestWindowsTaskCommands(t *testing.T) {
 			cmd:  taskRollbackCommand("windows", releemDir),
 			want: taskCommand{
 				name: "powershell.exe",
-				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\mysqlconfigurer.ps1`, "-Rollback"},
+				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\releem.ps1`, "-Rollback"},
 				env:  []string{"RELEEM_ROLLBACK_CONFIRM=1"},
 			},
 		},

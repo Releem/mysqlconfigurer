@@ -5,7 +5,7 @@ $script:TestsPassed = 0
 $script:TestsFailed = 0
 
 $InstallScript    = if ($env:INSTALL_SCRIPT)    { $env:INSTALL_SCRIPT }    else { "C:\releem_tests\install.ps1" }
-$ConfigurerScript = if ($env:CONFIGURER_SCRIPT) { $env:CONFIGURER_SCRIPT } else { "C:\releem_tests\mysqlconfigurer.ps1" }
+$ConfigurerScript = if ($env:CONFIGURER_SCRIPT) { $env:CONFIGURER_SCRIPT } else { "C:\releem_tests\releem.ps1" }
 
 # Releem API base URL
 $ReleemApiBase = if ($env:RELEEM_API_BASE) { $env:RELEEM_API_BASE } else { "https://app.releem.com/api" }

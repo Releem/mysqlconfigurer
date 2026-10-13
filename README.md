@@ -194,3 +194,9 @@ You can help us by reporting problems, suggestions or contributing to the code.
 Go to our [issue tracker](https://github.com/releem/mysqlconfigurer/issues) and check if your problem is already reported. If not, create a new issue with a descriptive title and detail your suggestion or steps to reproduce the problem.
 
 If you have suggestions or want to discuss potential improvements, please visit our [Discussions](https://github.com/releem/mysqlconfigurer/discussions) page. We value your input and look forward to engaging with the community to enhance our product.
+
+### Windows management script
+
+`releem.ps1` is the Windows management entry point. Installation and updates
+also download `mysqlconfigurer.ps1`, which forwards legacy arguments and exit
+codes to `releem.ps1` in the same directory. Publish both files together.

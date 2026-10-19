@@ -166,10 +166,12 @@ pwsh -NoProfile -File tests/windows/test_configurer.ps1
 pwsh -NoProfile -File tests/windows/test_apply_prepared_unit.ps1
 ```
 
-Use `-Check ExitCodes`, `-Check Legacy`, or `-Check Update` to run one group.
+Use `-Check ExitCodes`, `-Check Legacy`, `-Check Update`, or
+`-Check InstallServices` to run one group.
 No database, service changes, administrator rights, or Pester are required.
 The suite checks:
 
+- Installer detection of MySQL 9.0, 9.7, 26.7 and existing MySQL/MariaDB service names, including restart command generation.
 - Directory/include exit codes, path escaping and configuration round trips.
 - Legacy aliases, switch values, arguments with spaces and exit-code forwarding.
 - Successful updates of legacy-only and outdated-script installations.

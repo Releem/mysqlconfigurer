@@ -1,14 +1,17 @@
 package tasks
 
 import (
+	"context"
 	"errors"
 	"io"
+	"net/http"
 	"strings"
 	"testing"
 	"testing/synctest"
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
+	"github.com/Releem/mysqlconfigurer/repeater"
 	logging "github.com/google/logger"
 )
 
@@ -52,6 +55,25 @@ func TestCloudRecommendationRequestFailuresStopBeforeProviderOperations(t *testi
 			})
 		}
 	}
+}
+
+func TestAWSRecommendationTimeoutHasDistinctAuditReason(t *testing.T) {
+	originalTransport := http.DefaultTransport
+	t.Cleanup(func() { http.DefaultTransport = originalTransport })
+	http.DefaultTransport = recommendationTimeoutTransport{}
+	configuration := awsApplyConfig("instance-custom", "")
+	logger := testAWSApplyLogger()
+	r := repeater.NewReleemConfigurationsRepeater(configuration, logger)
+	code, status, output := ApplyConfAwsRds(r, nil, logger, configuration, AWSApplyAll, nil)
+	if code == 0 || status != 4 || !strings.Contains(output, "configuration-request-timeout") {
+		t.Fatalf("ApplyConfAwsRds(timeout) = %d/%d %q", code, status, output)
+	}
+}
+
+type recommendationTimeoutTransport struct{}
+
+func (recommendationTimeoutTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, context.DeadlineExceeded
 }
 
 type selectedLocalApplyRepeater struct{ modes []models.ModeType }

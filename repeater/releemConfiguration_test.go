@@ -1,16 +1,44 @@
 package repeater
 
 import (
+	"context"
+	"errors"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
 	logging "github.com/google/logger"
 )
+
+func TestConfigurationRequestPreservesHTTPTimeout(t *testing.T) {
+	configuration := &config.Config{}
+	logger := *logging.Init("repeater-timeout-test", false, false, io.Discard)
+	defer logger.Close()
+	originalClient := newHTTPClient
+	t.Cleanup(func() { newHTTPClient = originalClient })
+	for _, stage := range []string{"request", "body"} {
+		t.Run(stage, func(t *testing.T) {
+			newHTTPClient = func() *http.Client {
+				return &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+					if stage == "request" {
+						return nil, context.DeadlineExceeded
+					}
+					return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(iotest.ErrReader(context.DeadlineExceeded)), Header: make(http.Header)}, nil
+				})}
+			}
+			r := NewReleemConfigurationsRepeater(configuration, logger)
+			body, err := r.ProcessMetrics(configuration, models.Metrics{}, models.ModeType{Name: "Configurations", Type: "GetJson"})
+			if body != "" || !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("ProcessMetrics(%s timeout) = %q, %v; want empty body and deadline exceeded", stage, body, err)
+			}
+		})
+	}
+}
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 

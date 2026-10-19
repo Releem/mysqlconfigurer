@@ -163,6 +163,7 @@ Run all offline scenarios with PowerShell 7 on Linux or PowerShell on Windows:
 
 ```powershell
 pwsh -NoProfile -File tests/windows/test_configurer.ps1
+pwsh -NoProfile -File tests/windows/test_apply_prepared_unit.ps1
 ```
 
 Use `-Check ExitCodes`, `-Check Legacy`, or `-Check Update` to run one group.

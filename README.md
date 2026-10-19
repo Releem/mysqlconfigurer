@@ -234,3 +234,7 @@ If you have suggestions or want to discuss potential improvements, please visit 
 `releem.ps1` is the Windows management entry point. Installation and updates
 also download `mysqlconfigurer.ps1`, which forwards legacy arguments and exit
 codes to `releem.ps1` in the same directory. Publish both files together.
+
+Full apply and managed rollback tasks pass `-ForceRestart` to `releem.ps1` so
+MySQL reloads the selected configuration even if the staged and live files
+match. Manual apply still skips an identical file.

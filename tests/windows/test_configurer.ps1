@@ -108,11 +108,11 @@ function Test-ConfigurerExitCodes {
     Set-Content $StagingCnfPath '[mysqld]'
     Set-Content $script:TestIniPath '[mysqld]'
     $script:ExitCode = 0
-    Invoke-ApplyConfig -Interactive $false -RestartService $false -ConfigurationApplyMode dynamic
+    Invoke-ApplyConfig -Interactive $false -RestartService $false
     Assert-Code 11 $script:ExitCode 'apply rejects missing include before modification'
     $mysql_cnf_dir = Join-Path $temp 'absent'
     $script:ExitCode = 0
-    Invoke-ApplyConfig -Interactive $false -RestartService $false -ConfigurationApplyMode dynamic
+    Invoke-ApplyConfig -Interactive $false -RestartService $false
     Assert-Code 3 $script:ExitCode 'apply rejects missing directory'
     # Execute the actual rollback branch without entering the Windows bootstrap.
     $rollbackBranch = $ast.Find({ param($node)
@@ -125,7 +125,7 @@ function Test-ConfigurerExitCodes {
     Assert-Code 3 $script:ExitCode 'rollback rejects missing directory'
     Remove-Item $StagingCnfPath
     $script:ExitCode = 0
-    Invoke-ApplyConfig -Interactive $false -RestartService $false -ConfigurationApplyMode dynamic
+    Invoke-ApplyConfig -Interactive $false -RestartService $false
     Assert-Code 1 $script:ExitCode 'missing recommendation retains code 1'
     $script:TestIniPath = $null
     Assert-Code 0 (Check-MySQLConfigInclude) 'undiscovered my.ini follows Linux behavior'
@@ -147,6 +147,8 @@ exit 11
     $driver = Join-Path $temp 'invoke.ps1'
     Set-Content $driver 'param($Wrapper); & $Wrapper -a -Automatic:$false -NoRestart -ApplyMode dynamic -k "test key with spaces"; exit $LASTEXITCODE'
     Invoke-TestScript $driver -Arguments @($wrapper) -ExpectedExit 11
+    Set-Content (Join-Path $temp 'releem.ps1') ($source.Substring($start, $end - $start) + 'if (-not $Apply -or -not $NonInteractive -or -not $ForceRestart) { exit 99 }; exit 0')
+    Invoke-TestScript $wrapper -Arguments @('-Apply', '-NonInteractive', '-ForceRestart')
     Set-Content (Join-Path $temp 'releem.ps1') ($source.Substring($start, $end - $start) + 'if (-not $Update) { exit 99 }; exit 0')
     Invoke-TestScript $wrapper -Arguments @('-u')
     Remove-Item (Join-Path $temp 'releem.ps1')

@@ -16,6 +16,9 @@
 .PARAMETER NoRestart
     Copy the recommended MySQL configuration without restarting MySQL.
 
+.PARAMETER ForceRestart
+    Restart even when the prepared file matches the live file, for full apply and rollback tasks.
+
 .PARAMETER QueueApply
     Ask the Releem Agent to create an apply_config job instead of applying locally.
 
@@ -49,6 +52,7 @@ param(
     [Alias('Automatic')]
     [switch]$NonInteractive,
     [switch]$NoRestart,
+    [switch]$ForceRestart,
     # Accepted for legacy callers; Go prepares the selected configuration before apply.
     [ValidateSet('dynamic', 'full')]
     [string]$ApplyMode = 'full',
@@ -356,13 +360,12 @@ function Invoke-ApplyConfig {
     param(
         [bool]$Interactive,
         [bool]$RestartService,
-        [ValidateSet('dynamic', 'full')]
-        [string]$ConfigurationApplyMode = 'full'
+        [bool]$ForceRestart = $false
     )
 
-    # Check that recommended config file exists in staging area
-    if (-not (Test-Path $StagingCnfPath)) {
-        Write-Log "ERROR: Recommended config file not found: $StagingCnfPath"
+    # Check that the configuration prepared by Releem Agent exists in the staging area
+    if (-not (Test-Path -LiteralPath $StagingCnfPath -PathType Leaf)) {
+        Write-Log "ERROR: Prepared configuration file not found: $StagingCnfPath. Run releem-agent.exe -c first."
         $script:ExitCode = 1; return
     }
 
@@ -377,10 +380,6 @@ function Invoke-ApplyConfig {
     $liveCnfPath = Join-Path $mysql_cnf_dir $DbConfigFileName
 
     Write-Log 'Using the configuration file prepared by Releem Agent.'
-    if (-not (Test-Path -LiteralPath $StagingCnfPath -PathType Leaf)) {
-        Write-Log 'ERROR: Prepared configuration file not found. Run releem-agent.exe -c first.'
-        $script:ExitCode = 1; return
-    }
 
     # Log full contents of staging config so user can see what will be applied
     $recommendedContent = Get-Content -Path $StagingCnfPath -Raw
@@ -393,16 +392,13 @@ function Invoke-ApplyConfig {
         $script:ExitCode = 2; return
     }
 
-    # Like Bash manual apply, an identical file needs neither backup nor restart.
-    if ($Interactive -and (Test-Path -LiteralPath $liveCnfPath -PathType Leaf)) {
+    # Manual apply skips identical files. Full apply and managed rollback must
+    # still restart to load the selected values, matching releem.sh -s automatic.
+    if ($RestartService -and -not $ForceRestart -and (Test-Path -LiteralPath $liveCnfPath -PathType Leaf)) {
         if ((Get-FileHash -LiteralPath $liveCnfPath).Hash -eq (Get-FileHash -LiteralPath $StagingCnfPath).Hash) {
             Write-Log 'The new configuration is identical to the current configuration. No restart is required!'
             return
         }
-    }
-    if ($Interactive -and -not $RestartService) {
-        Write-Log 'Restart disabled. Manual configuration application cancelled.'
-        $script:ExitCode = 5; return
     }
 
     # Prompt for confirmation (interactive) or proceed automatically
@@ -604,7 +600,7 @@ try {
         } else {
             Write-Log 'Starting -Apply: applying recommended MySQL configuration...'
         }
-        Invoke-ApplyConfig -Interactive (-not $NonInteractive) -RestartService (-not $NoRestart)
+        Invoke-ApplyConfig -Interactive (-not $NonInteractive) -RestartService (-not $NoRestart) -ForceRestart ([bool]$ForceRestart)
     }
 
     if ($QueueApply) {

@@ -58,6 +58,8 @@ func taskApplyAutomaticCommand(goos string, releemDir string, restart bool) task
 		args := []string{"-Apply", "-NonInteractive"}
 		if !restart {
 			args = append(args, "-NoRestart")
+		} else {
+			args = append(args, "-ForceRestart")
 		}
 		return powershellConfigurerCommand(releemDir, args, nil)
 	}

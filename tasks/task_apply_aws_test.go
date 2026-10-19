@@ -84,9 +84,7 @@ func TestApplyConfAwsRdsConvertsRecommendationRepeaterPanicToFailure(t *testing.
 	}
 }
 
-// TestApplyConfAwsRdsUsesNonemptyResponseWhenRepeaterLogsError
-// Current ProcessRepeaters logs the error and forwards its nonempty JSON body.
-func TestApplyConfAwsRdsUsesNonemptyResponseWhenRepeaterLogsError(t *testing.T) {
+func TestApplyConfAwsRdsRejectsNonemptyResponseWithRepeaterError(t *testing.T) {
 	client := mysqlApplyClient("instance-custom")
 	client.instancePages = map[string]*rds.DescribeDBParametersOutput{"": {
 		Parameters: []types.Parameter{modifiableAWSParameter("max_connections", "dynamic")},
@@ -104,11 +102,14 @@ func TestApplyConfAwsRdsUsesNonemptyResponseWhenRepeaterLogsError(t *testing.T) 
 		AWSApplyAll, nil,
 	)
 
-	if exitCode != awsApplyExitSuccess || status != awsApplyTaskStatusSuccess {
-		t.Fatalf("ApplyConfAwsRds(repeater error) = exit %d status %d, want %d/%d; output %s", exitCode, status, awsApplyExitSuccess, awsApplyTaskStatusSuccess, output)
+	if exitCode != awsApplyExitFailure || status != awsApplyTaskStatusFailure {
+		t.Fatalf("ApplyConfAwsRds(repeater error) = exit %d status %d, want %d/%d; output %s", exitCode, status, awsApplyExitFailure, awsApplyTaskStatusFailure, output)
 	}
-	if len(client.instanceModifyCalls) != 1 {
-		t.Fatalf("ApplyConfAwsRds(repeater error) instance modify calls = %d, want 1", len(client.instanceModifyCalls))
+	if len(client.instanceModifyCalls) != 0 || client.describeInstanceCalls != 0 {
+		t.Fatalf("ApplyConfAwsRds(repeater error) must not contact AWS: %+v", client.instanceModifyCalls)
+	}
+	if !strings.Contains(output, "configuration-request-failed") {
+		t.Fatalf("ApplyConfAwsRds(repeater error) must report request failure: %s", output)
 	}
 }
 

@@ -26,6 +26,18 @@ func ApplyConfGcpCloudSQL(repeaters models.MetricsRepeater, gatherers []models.M
 	var task_output string
 
 	metrics := utils.CollectMetrics(gatherers, logger, configuration)
+	mode, err := configurationRequestMode("GetJson", string(applyMode), task)
+	if err != nil {
+		return 1, 4, "Failed to parse task task_details JSON: " + err.Error()
+	}
+	recommend_var, err := requestConfigurationRecommendations(metrics, repeaters, configuration, mode)
+	if err != nil {
+		return 8, 4, "Failed to get configuration recommendations: " + err.Error()
+	}
+	recommendedVars := models.MetricGroupValue{}
+	if err := json.Unmarshal([]byte(recommend_var), &recommendedVars); err != nil {
+		return 8, 4, "Failed to parse configuration recommendations JSON: " + err.Error()
+	}
 
 	// Initialize GCP clients with Application Default Credentials
 	ctx := context.Background()
@@ -63,24 +75,6 @@ func ApplyConfGcpCloudSQL(repeaters models.MetricsRepeater, gatherers []models.M
 		logger.Infof("Current database flags count: %d", len(currentFlags))
 	}
 
-	mode, err := configurationRequestMode("GetJson", string(applyMode), task)
-	if err != nil {
-		logger.Error("Failed to parse task task_details JSON", err)
-		task_output = task_output + "Failed to parse task task_details JSON: " + err.Error()
-		task_status = 4
-		task_exit_code = 1
-		return task_exit_code, task_status, task_output
-	}
-	recommend_var := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, mode)
-	recommendedVars := models.MetricGroupValue{}
-	err = json.Unmarshal([]byte(recommend_var), &recommendedVars)
-	if err != nil {
-		logger.Error("Failed to parse configuration recommendations JSON", err)
-		task_output = task_output + "Failed to parse configuration recommendations JSON: " + err.Error()
-		task_status = 4
-		task_exit_code = 8
-		return task_exit_code, task_status, task_output
-	}
 	if applyMode == "dynamic" {
 		flagsResponse, flagsErr := sqlAdminService.Flags.List().DatabaseVersion(instance.DatabaseVersion).Context(ctx).Do()
 		if flagsErr != nil {

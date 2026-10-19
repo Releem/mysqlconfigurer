@@ -45,8 +45,8 @@ func TestDownloadConfigurationFile(t *testing.T) {
 	}{
 		{" ", nil, 1, 4},
 		{"", errors.New("offline"), 1, 4},
-		// ProcessRepeaters logs errors but retains a nonempty response.
-		{"partial data", errors.New("offline"), 0, 1},
+		// A repeater error fails the download even when part of a body arrived.
+		{"partial data", errors.New("offline"), 1, 4},
 	} {
 		r := &downloadCapture{body: tc.body, err: tc.err}
 		code, status, _ := DownloadConfigurationFile(&models.Metrics{}, r, &config.Config{}, logger, ApplyModeFull, nil)
@@ -158,5 +158,14 @@ func TestUnknownTaskAndInvalidSelectionReportFailure(t *testing.T) {
 		if r.statuses[0].Status != 3 || final.Status != 4 || final.ExitCode != tc.code {
 			t.Fatalf("ProcessTask(%s) statuses=%+v", tc.payload, r.statuses)
 		}
+	}
+}
+func TestDownloadConfigurationFileRejectsNilMetrics(t *testing.T) {
+	logger := logging.Init("nil-download-metrics", false, false, io.Discard)
+	defer logger.Close()
+	r := &downloadCapture{body: "[mysqld]"}
+	code, status, output := DownloadConfigurationFile(nil, r, &config.Config{}, *logger, ApplyModeFull, nil)
+	if code != 1 || status != 4 || output != "metrics unavailable" || r.mode.Type != "" {
+		t.Fatalf("DownloadConfigurationFile(nil) = %d/%d %q, request = %+v", code, status, output, r.mode)
 	}
 }

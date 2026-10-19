@@ -48,20 +48,50 @@ func execTaskCommand(command taskCommand, logger logging.Logger) (int, int, stri
 }
 
 // DownloadConfigurationFile prepares the file before either configurer can
-// back up, install or restart anything. Selection is passed directly to the configuration request.
+// back up, install or restart anything. Selection is passed directly to the
+// configuration request. The repeater is called directly so that its request,
+// read or write error is reported in the task output instead of only logged.
 func DownloadConfigurationFile(metrics *models.Metrics, repeater models.MetricsRepeater, configuration *config.Config, logger logging.Logger, applyMode ApplyModeType, task *models.Task) (int, int, string) {
 	if metrics == nil {
-		return 1, 4, "configuration download failed: metrics unavailable"
+		return 1, 4, "metrics unavailable"
 	}
 	mode, err := configurationRequestMode("Get", string(applyMode), task)
 	if err != nil {
 		return 1, 4, "Failed to parse task task_details JSON: " + err.Error()
 	}
-	repeater_response := utils.ProcessRepeaters(metrics, repeater, configuration, logger, mode)
+	repeater_response, err := repeater.ProcessMetrics(configuration, *metrics, mode)
+	if err != nil {
+		logger.Error("Configuration download failed: ", err)
+		return 1, 4, "configuration download failed: " + err.Error()
+	}
 	if strings.TrimSpace(repeater_response) == "" {
 		return 1, 4, "configuration download failed: empty response"
 	}
 	return 0, 1, "configuration downloaded successfully"
+}
+
+type recommendationRequestError struct{ err error }
+
+func (err *recommendationRequestError) Error() string { return err.err.Error() }
+func (err *recommendationRequestError) Unwrap() error { return err.err }
+
+// requestConfigurationRecommendations preserves errors even with a partial body.
+// It also turns repeater panics into failures before any configuration is applied.
+func requestConfigurationRecommendations(metrics *models.Metrics, repeater models.MetricsRepeater, configuration *config.Config, mode models.ModeType) (body string, err error) {
+	if metrics == nil {
+		return "", fmt.Errorf("metrics unavailable")
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			body = ""
+			err = &recommendationRequestError{fmt.Errorf("recommendation request panicked: %v", recovered)}
+		}
+	}()
+	body, err = repeater.ProcessMetrics(configuration, *metrics, mode)
+	if err != nil {
+		return "", &recommendationRequestError{err}
+	}
+	return body, nil
 }
 
 // configurationRequestMode carries optional task selection directly to the request.

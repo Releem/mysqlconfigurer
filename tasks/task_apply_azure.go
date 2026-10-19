@@ -38,6 +38,18 @@ func ApplyConfAzureMySQL(repeaters models.MetricsRepeater, gatherers []models.Me
 	}
 
 	metrics := utils.CollectMetrics(gatherers, logger, configuration)
+	mode, err := configurationRequestMode("GetJson", string(applyMode), task)
+	if err != nil {
+		return 1, 4, "Failed to parse task task_details JSON: " + err.Error()
+	}
+	recommendVar, err := requestConfigurationRecommendations(metrics, repeaters, configuration, mode)
+	if err != nil {
+		return 8, 4, "Failed to get configuration recommendations: " + err.Error()
+	}
+	recommendedVars := models.MetricGroupValue{}
+	if err := json.Unmarshal([]byte(recommendVar), &recommendedVars); err != nil {
+		return 8, 4, "Failed to parse configuration recommendations JSON: " + err.Error()
+	}
 	ctx := context.Background()
 
 	credential, err := azidentity.NewDefaultAzureCredential(nil)
@@ -76,26 +88,6 @@ func ApplyConfAzureMySQL(repeaters models.MetricsRepeater, gatherers []models.Me
 		task_exit_code, task_status = azureMySQLTaskErrorCode(err)
 		logger.Errorf("Failed to list Azure MySQL configurations: %v", err)
 		task_output = task_output + "Failed to list Azure MySQL configurations: " + err.Error() + "\n"
-		return task_exit_code, task_status, task_output
-	}
-
-	mode, err := configurationRequestMode("GetJson", string(applyMode), task)
-	if err != nil {
-		logger.Error("Failed to parse task task_details JSON", err)
-		task_output = task_output + "Failed to parse task task_details JSON: " + err.Error()
-		task_status = 4
-		task_exit_code = 1
-		return task_exit_code, task_status, task_output
-	}
-
-	recommendVar := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, mode)
-	recommendedVars := models.MetricGroupValue{}
-	err = json.Unmarshal([]byte(recommendVar), &recommendedVars)
-	if err != nil {
-		logger.Error("Failed to parse configuration recommendations JSON", err)
-		task_output = task_output + "Failed to parse configuration recommendations JSON: " + err.Error()
-		task_status = 4
-		task_exit_code = 8
 		return task_exit_code, task_status, task_output
 	}
 

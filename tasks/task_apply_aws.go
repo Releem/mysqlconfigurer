@@ -151,13 +151,11 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 		recordAWSApplyFailure(&result, awsrds.ScopeInstance, nil, fmt.Errorf("parse task details: %w", err))
 		return finish(awsApplyExitFailure, awsApplyTaskStatusFailure)
 	}
-	recommendationJSON := utils.ProcessRepeaters(
-		metrics,
-		repeaters,
-		configuration,
-		logger,
-		mode,
-	)
+	recommendationJSON, err := requestConfigurationRecommendations(metrics, repeaters, configuration, mode)
+	if err != nil {
+		recordAWSApplyFailure(&result, awsrds.ScopeInstance, nil, err)
+		return finish(awsApplyExitFailure, awsApplyTaskStatusFailure)
+	}
 	recommendations, err := decodeAWSRecommendations(recommendationJSON)
 	if err != nil {
 		recordAWSApplyFailure(&result, awsrds.ScopeInstance, nil, err)
@@ -640,6 +638,13 @@ func awsApplyExitCode(err error) int {
 }
 
 func awsApplySafeErrorCode(err error) string {
+	var requestErr *recommendationRequestError
+	if errors.As(err, &requestErr) {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return "configuration-request-timeout"
+		}
+		return "configuration-request-failed"
+	}
 	if errors.Is(err, errAWSApplyWaitTimeout) {
 		return awsApplyErrorTimeout
 	}

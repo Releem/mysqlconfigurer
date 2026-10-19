@@ -1,7 +1,7 @@
 # Offline Windows configurer checks. No database, service changes, administrator
 # privileges, or Pester required. Test 5 invokes this suite on Windows Server.
 param(
-    [ValidateSet('All', 'ExitCodes', 'Legacy', 'Update')]
+    [ValidateSet('All', 'ExitCodes', 'Legacy', 'Update', 'InstallServices')]
     [string]$Check = 'All',
     [string]$WindowsScriptDir = (Join-Path $PSScriptRoot '../../windows')
 )
@@ -258,12 +258,50 @@ function Test-ConfigurerUpdate {
     }
 }
 
+function Test-InstallerServiceDetection {
+    param($temp)
+    $ast = Get-ConfigurerAst install.ps1
+    $loop = $ast.Find({
+        param($node)
+        $node -is [Management.Automation.Language.ForEachStatementAst] -and
+            $node.Extent.Text -match 'Get-Service -Name' -and
+            $node.Extent.Text -match 'MysqlServiceName'
+    }, $true)
+    if (-not $loop) { throw 'Installer service detection loop was not found' }
+    $detectService = ConvertTo-TestScriptBlock $loop
+    $assignment = $ast.Find({
+        param($node)
+        $node -is [Management.Automation.Language.AssignmentStatementAst] -and
+            $node.Left.Extent.Text -eq '$restartCmd'
+    }, $true)
+    if (-not $assignment) { throw 'Installer restart command assignment was not found' }
+    $buildRestartCommand = ConvertTo-TestScriptBlock $assignment
+    function Write-Log { param($Message) }
+    function Get-Service {
+        param($Name, $ErrorAction)
+        if ($Name -eq $availableService) { return [pscustomobject]@{ Name = $Name } }
+    }
+    foreach ($availableService in @('MySQL90', 'MySQL97', 'MySQL267', 'MySQL84', 'MySQL80', 'MySQL57', 'MySQL56', 'MySQL', 'mariadb', 'mysqld', 'unknown')) {
+        $MysqlServiceName = $null
+        . $detectService
+        . $buildRestartCommand
+        if ($availableService -eq 'unknown') {
+            Assert-Code '' $restartCmd 'undetected service leaves restart command empty'
+        } else {
+            Assert-Code $availableService $MysqlServiceName 'detected MySQL service'
+            Assert-Code "net stop $availableService && net start $availableService" $restartCmd 'generated restart command'
+        }
+        Write-Host "PASS: installer service detection: $availableService"
+    }
+}
+
 # Parse each source only once and isolate each scenario's mocks and files.
 foreach ($name in @('install.ps1', 'releem.ps1', 'mysqlconfigurer.ps1')) { $null = Get-ConfigurerAst $name }
 foreach ($case in @(
     @{ Name = 'ExitCodes'; Function = 'Test-ConfigurerExitCodes' },
     @{ Name = 'Legacy'; Function = 'Test-LegacyEntryPoint' },
-    @{ Name = 'Update'; Function = 'Test-ConfigurerUpdate' }
+    @{ Name = 'Update'; Function = 'Test-ConfigurerUpdate' },
+    @{ Name = 'InstallServices'; Function = 'Test-InstallerServiceDetection' }
 )) {
     if ($Check -ne 'All' -and $Check -ne $case.Name) { continue }
     $temp = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString())

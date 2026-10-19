@@ -160,6 +160,66 @@ func TestUnknownTaskAndInvalidSelectionReportFailure(t *testing.T) {
 		}
 	}
 }
+
+// localApplyRepeater serves the dynamic recommendations and records requests.
+type localApplyRepeater struct {
+	json, file string
+	jsonErr    error
+	modes      []string
+}
+
+func (r *localApplyRepeater) ProcessMetrics(_ models.MetricContext, _ models.Metrics, mode models.ModeType) (string, error) {
+	r.modes = append(r.modes, mode.Type)
+	if mode.Type == "GetJson" {
+		return r.json, r.jsonErr
+	}
+	return r.file, nil
+}
+
+func TestApplyDynamicConfigurationLocalFetchesRecommendationsBeforeChangingFiles(t *testing.T) {
+	logger := *logging.Init("local-dynamic", false, false, io.Discard)
+	metrics := &models.Metrics{}
+	metrics.DB.Conf.Variables = models.MetricGroupValue{"max_connections": "200"}
+	for _, tc := range []struct {
+		name               string
+		repeater           *localApplyRepeater
+		commandExit        int
+		wantExit           int
+		wantModes          string
+		wantCommandRunning bool
+	}{
+		{"request_failure", &localApplyRepeater{jsonErr: errors.New("timeout"), file: "[mysqld]"}, 0, 1, "GetJson", false},
+		{"invalid_json", &localApplyRepeater{json: "not json", file: "[mysqld]"}, 0, 1, "GetJson", false},
+		{"empty_file", &localApplyRepeater{json: `{"max_connections":"200"}`}, 0, 1, "GetJson,Get", false},
+		{"configurer_failure", &localApplyRepeater{json: `{"max_connections":"200"}`, file: "[mysqld]"}, 3, 3, "GetJson,Get", true},
+		{"no_restart_failure_preserves_output", &localApplyRepeater{json: `{"max_connections":"200"}`, file: "[mysqld]"}, 7, 7, "GetJson,Get", true},
+		{"success", &localApplyRepeater{json: `{"max_connections":"200"}`, file: "[mysqld]"}, 0, 0, "GetJson,Get", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			commandRan := false
+			run := func(taskCommand, logging.Logger) (int, int, string) {
+				commandRan = true
+				if tc.commandExit != 0 {
+					return tc.commandExit, 4, "configurer failed\n"
+				}
+				return 0, 1, ""
+			}
+			var code int
+			var output string
+			// applyLocalRecommendations waits 10 seconds; synctest skips the wait.
+			synctest.Test(t, func(*testing.T) {
+				code, _, output = applyDynamicConfigurationLocal(metrics, tc.repeater, logger, &config.Config{}, &models.Task{TypeID: 4}, run)
+			})
+			if code != tc.wantExit || commandRan != tc.wantCommandRunning || strings.Join(tc.repeater.modes, ",") != tc.wantModes {
+				t.Fatalf("exit = %d, command ran = %t, requests = %v; want %d, %t, %s", code, commandRan, tc.repeater.modes, tc.wantExit, tc.wantCommandRunning, tc.wantModes)
+			}
+			if tc.commandExit != 0 && !strings.Contains(output, "configurer failed") {
+				t.Fatalf("applyDynamicConfigurationLocal lost configurer output: %q", output)
+			}
+		})
+	}
+}
+
 func TestDownloadConfigurationFileRejectsNilMetrics(t *testing.T) {
 	logger := logging.Init("nil-download-metrics", false, false, io.Discard)
 	defer logger.Close()

@@ -109,22 +109,8 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 			TaskStruct.Output = TaskStruct.Output + task_output
 
 		default:
-			TaskStruct.ExitCode, TaskStruct.Status, task_output = DownloadConfigurationFile(metrics, repeaters, configuration, logger, ApplyModeDynamic, TaskStruct)
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = applyDynamicConfigurationLocal(metrics, repeaters, logger, configuration, TaskStruct, execTaskCommand)
 			TaskStruct.Output = TaskStruct.Output + task_output
-			if TaskStruct.ExitCode != 0 {
-				break
-			}
-			TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskApplyAutomaticCommand(runtime.GOOS, configuration.ReleemDir, false), logger)
-			TaskStruct.Output = TaskStruct.Output + task_output
-			if TaskStruct.ExitCode == 7 {
-				rollBackConfigurationTask(TaskStruct, taskRollBackCommand(runtime.GOOS, configuration.ReleemDir), logger)
-			}
-			if TaskStruct.ExitCode != 0 {
-				break
-			}
-			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfLocal(metrics, repeaters, gatherers, logger, configuration, TaskStruct)
-			TaskStruct.Output = TaskStruct.Output + task_output
-
 		}
 
 	case 5, 8:

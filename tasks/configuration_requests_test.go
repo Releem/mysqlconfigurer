@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"testing/synctest"
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
@@ -51,4 +52,33 @@ func TestCloudRecommendationRequestFailuresStopBeforeProviderOperations(t *testi
 			})
 		}
 	}
+}
+
+type selectedLocalApplyRepeater struct{ modes []models.ModeType }
+
+func (r *selectedLocalApplyRepeater) ProcessMetrics(_ models.MetricContext, _ models.Metrics, mode models.ModeType) (string, error) {
+	r.modes = append(r.modes, mode)
+	if mode.Type == "GetJson" {
+		return `{"max_connections":"200"}`, nil
+	}
+	return "[mysqld]\nmax_connections=200", nil
+}
+
+func TestLocalDynamicApplyPassesSelectionToBothSeparateRequests(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		logger := logging.Init("local-configuration-selection", false, false, io.Discard)
+		defer logger.Close()
+		metrics := &models.Metrics{}
+		metrics.DB.Conf.Variables = models.MetricGroupValue{"max_connections": "200"}
+		r := &selectedLocalApplyRepeater{}
+		code, status, _ := applyDynamicConfigurationLocal(metrics, r, *logger, &config.Config{}, &models.Task{TypeID: 4, Details: `{"configuration_status_id":23}`}, func(taskCommand, logging.Logger) (int, int, string) { return 0, 1, "" })
+		if code != 0 || status != 1 || len(r.modes) != 2 {
+			t.Fatalf("applyDynamicConfigurationLocal = %d/%d, modes=%+v", code, status, r.modes)
+		}
+		for i, kind := range []string{"GetJson", "Get"} {
+			if r.modes[i].Type != kind || r.modes[i].ConfigurationStatusID != 23 || r.modes[i].ApplyMode != "dynamic" {
+				t.Fatalf("request %d = %+v, want %s with selection 23 and dynamic mode", i, r.modes[i], kind)
+			}
+		}
+	})
 }

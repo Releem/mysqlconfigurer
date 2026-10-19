@@ -395,7 +395,10 @@ function Invoke-ApplyConfig {
     # Manual apply skips identical files. Full apply and managed rollback must
     # still restart to load the selected values, matching releem.sh -s automatic.
     if ($RestartService -and -not $ForceRestart -and (Test-Path -LiteralPath $liveCnfPath -PathType Leaf)) {
-        if ((Get-FileHash -LiteralPath $liveCnfPath).Hash -eq (Get-FileHash -LiteralPath $StagingCnfPath).Hash) {
+        # Compare exact bytes using .NET APIs available in PowerShell 3.0.
+        $liveBytes = [System.Convert]::ToBase64String([System.IO.File]::ReadAllBytes($liveCnfPath))
+        $stagingBytes = [System.Convert]::ToBase64String([System.IO.File]::ReadAllBytes($StagingCnfPath))
+        if ($liveBytes -ceq $stagingBytes) {
             Write-Log 'The new configuration is identical to the current configuration. No restart is required!'
             return
         }

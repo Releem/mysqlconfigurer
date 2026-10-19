@@ -15,6 +15,8 @@ function Write-Log { param([string]$Message) }
 function Check-DbVersion { return 0 }
 function Read-Host { throw 'Unexpected interactive prompt' }
 function Restart-MySqlService { $script:restartCalls++; return $script:restartResult }
+# Windows Server 2012 ships PowerShell 3.0 without Get-FileHash.
+function Get-FileHash { throw 'Get-FileHash is unavailable on PowerShell 3.0' }
 function Send-TestEvent {
     if ($args -contains '-c') { throw 'Apply must not download a different configuration' }
     $global:releemPreparedTestEvents += ($args -join ' ')
@@ -64,8 +66,11 @@ try {
 
     [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`nmax_connections=300`n")
     $script:restartResult = 7
+    $restartCallsBefore = $script:restartCalls
     Invoke-ApplyConfig -Interactive $false -RestartService $true
     Assert-Equal $script:ExitCode 7
+    Assert-Equal $script:restartCalls ($restartCallsBefore + 1)
+    Assert-Equal ([IO.File]::ReadAllText($livePath)) ([IO.File]::ReadAllText($StagingCnfPath))
     Assert-Equal ([IO.File]::ReadAllText($BackupCnfPath)) 'original backup'
 
     [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`nmax_connections=400`n")

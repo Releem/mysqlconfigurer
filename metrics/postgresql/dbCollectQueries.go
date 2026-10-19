@@ -62,7 +62,7 @@ func (DBCollectQueriesOptimization *DBCollectQueriesOptimization) GetMetrics(met
 					collectExplainDetails(outputDigest, "mean_exec_time_us", capabilitySnapshot.SupportsPlanCacheMode, DBCollectQueriesOptimization.logger, DBCollectQueriesOptimization.configuration, explainState)
 				}()
 			}
-			metrics.DB.Queries = postgresQueryDetailMetricsForMode(sortedPostgresQueryDetails(outputDigest), DBCollectQueriesOptimization.configuration.QueryOptimization)
+			metrics.DB.Queries = postgresQueryDetailMetrics(sortedPostgresQueryDetails(outputDigest))
 		}
 	}
 

@@ -202,7 +202,7 @@ func (DBMetricsBase *DBMetricsBaseGatherer) GetMetrics(metrics *models.Metrics) 
 					DBMetricsBase.logger.Error(err)
 				}
 			} else {
-				metrics.DB.Queries = postgresQueryStatsLegacyMetrics(statementRows)
+				metrics.DB.Queries = postgresQueryStatsMetrics(statementRows)
 			}
 		}
 	}

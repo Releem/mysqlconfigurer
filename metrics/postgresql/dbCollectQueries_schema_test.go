@@ -56,23 +56,23 @@ func TestGetMetricsClearsLightweightQueriesWhenFullCollectionFails(t *testing.T)
 
 func TestPostgresqlExplainableStatementsMatchPostgresqlCommands(t *testing.T) {
 	for query, want := range map[string]bool{
-		"SELECT * FROM orders":                             true,
-		"  with recent AS (SELECT 1) SELECT * FROM recent": true,
-		"/* app=checkout */ SELECT * FROM orders":          true,
-		"-- trace\nSELECT 1":                               true,
-		"-- trace\nUPDATE orders SET status = 'done'":      false,
-		"/* SELECT */ VACUUM orders":                       false,
-		"TABLE orders":                                     false,
-		"DELETE FROM orders WHERE id = 1":                  false,
-		"INSERT INTO orders(id) VALUES (1)":                false,
+		"SELECT * FROM orders":                                                  true,
+		"  with recent AS (SELECT 1) SELECT * FROM recent":                      true,
+		"/* app=checkout */ SELECT * FROM orders":                               true,
+		"-- trace\nSELECT 1":                                                    true,
+		"-- trace\nUPDATE orders SET status = 'done'":                           false,
+		"/* SELECT */ VACUUM orders":                                            false,
+		"TABLE orders":                                                          false,
+		"DELETE FROM orders WHERE id = 1":                                       false,
+		"INSERT INTO orders(id) VALUES (1)":                                     false,
 		"WITH ranked AS (SELECT 1) INSERT INTO orders(id) SELECT 1 FROM ranked": true,
 		"WITH ranked AS (INSERT INTO orders(id) VALUES (1) RETURNING id) SELECT * FROM ranked": true,
-		"UPDATE orders SET status = 'done'":                false,
-		"COPY orders TO STDOUT":                            false,
-		"EXPLAIN SELECT * FROM orders":                     false,
-		"PREPARE q AS SELECT * FROM orders":                false,
-		"VACUUM orders":                                    false,
-		"":                                                 false,
+		"UPDATE orders SET status = 'done'":                                                    false,
+		"COPY orders TO STDOUT":                                                                false,
+		"EXPLAIN SELECT * FROM orders":                                                         false,
+		"PREPARE q AS SELECT * FROM orders":                                                    false,
+		"VACUUM orders":                                                                        false,
+		"":                                                                                     false,
 	} {
 		if got := isPgExplainableStatement(query); got != want {
 			t.Fatalf("isPgExplainableStatement(%q) = %v, want %v", query, got, want)
@@ -603,35 +603,35 @@ func TestExecuteExplainMapsSelectPermissionDeniedToNeedGrantPermission(t *testin
 
 func TestPgContainsDataModifyingCommand(t *testing.T) {
 	for query, want := range map[string]bool{
-		"SELECT * FROM orders": false,
-		"WITH ranked AS (SELECT 1) SELECT * FROM ranked": false,
-		"WITH ranked AS (SELECT 1) INSERT INTO orders(id) SELECT 1 FROM ranked": true,
-		"WITH ranked AS (INSERT INTO orders(id) VALUES (1) RETURNING id) SELECT * FROM ranked": true,
-		"WITH upd AS (UPDATE orders SET status = 'done' RETURNING id) SELECT * FROM upd": true,
-		"UPDATE orders o SET status = 'done'": true,
-		"WITH update AS (SELECT 1) SELECT * FROM update": false,
-		"SELECT 'INSERT INTO orders(id) VALUES (1)'": false,
-		"DELETE FROM orders WHERE id = 1": true,
-		"WITH x AS (INSERT target VALUES (1) RETURNING *) SELECT * FROM x": true,
-		"INSERT target (id) VALUES (1)": true,
-		"INSERT target DEFAULT VALUES": true,
-		"INSERT target SELECT 1": true,
-		"INSERT INTO orders AS o VALUES (1)": true,
-		"INSERT INTO orders o VALUES (1)": true,
-		"INSERT INTO orders o (id) VALUES (1)": true,
-		"WITH ins AS (INSERT INTO orders o VALUES (1) RETURNING *) SELECT * FROM ins": true,
-		"INSERT INTO ONLY foo (id) VALUES (1)": true,
-		"INSERT INTO ONLY (foo) VALUES (1)": true,
-		"WITH ins AS (INSERT INTO ONLY foo VALUES (1) RETURNING *) SELECT * FROM ins": true,
-		"WITH insert AS (SELECT 1) SELECT * FROM insert": false,
-		"SELECT insert FROM orders": false,
+		"SELECT * FROM orders":                                                                                false,
+		"WITH ranked AS (SELECT 1) SELECT * FROM ranked":                                                      false,
+		"WITH ranked AS (SELECT 1) INSERT INTO orders(id) SELECT 1 FROM ranked":                               true,
+		"WITH ranked AS (INSERT INTO orders(id) VALUES (1) RETURNING id) SELECT * FROM ranked":                true,
+		"WITH upd AS (UPDATE orders SET status = 'done' RETURNING id) SELECT * FROM upd":                      true,
+		"UPDATE orders o SET status = 'done'":                                                                 true,
+		"WITH update AS (SELECT 1) SELECT * FROM update":                                                      false,
+		"SELECT 'INSERT INTO orders(id) VALUES (1)'":                                                          false,
+		"DELETE FROM orders WHERE id = 1":                                                                     true,
+		"WITH x AS (INSERT target VALUES (1) RETURNING *) SELECT * FROM x":                                    true,
+		"INSERT target (id) VALUES (1)":                                                                       true,
+		"INSERT target DEFAULT VALUES":                                                                        true,
+		"INSERT target SELECT 1":                                                                              true,
+		"INSERT INTO orders AS o VALUES (1)":                                                                  true,
+		"INSERT INTO orders o VALUES (1)":                                                                     true,
+		"INSERT INTO orders o (id) VALUES (1)":                                                                true,
+		"WITH ins AS (INSERT INTO orders o VALUES (1) RETURNING *) SELECT * FROM ins":                         true,
+		"INSERT INTO ONLY foo (id) VALUES (1)":                                                                true,
+		"INSERT INTO ONLY (foo) VALUES (1)":                                                                   true,
+		"WITH ins AS (INSERT INTO ONLY foo VALUES (1) RETURNING *) SELECT * FROM ins":                         true,
+		"WITH insert AS (SELECT 1) SELECT * FROM insert":                                                      false,
+		"SELECT insert FROM orders":                                                                           false,
 		"WITH ranked AS (SELECT 1) INSERT INTO dest WITH extra AS (SELECT * FROM ranked) SELECT * FROM extra": true,
-		"INSERT INTO dest TABLE src": true,
-		"WITH x AS (INSERT INTO dest TABLE src RETURNING *) SELECT * FROM x": true,
-		"UPDATE ONLY (orders) SET status = 'done'": true,
-		"UPDATE orders * SET status = 'done'": true,
-		"WITH upd AS (UPDATE ONLY (orders) SET status = 'done' RETURNING id) SELECT * FROM upd": true,
-		"WITH upd AS (UPDATE orders * SET status = 'done' RETURNING id) SELECT * FROM upd": true,
+		"INSERT INTO dest TABLE src":                                                                          true,
+		"WITH x AS (INSERT INTO dest TABLE src RETURNING *) SELECT * FROM x":                                  true,
+		"UPDATE ONLY (orders) SET status = 'done'":                                                            true,
+		"UPDATE orders * SET status = 'done'":                                                                 true,
+		"WITH upd AS (UPDATE ONLY (orders) SET status = 'done' RETURNING id) SELECT * FROM upd":               true,
+		"WITH upd AS (UPDATE orders * SET status = 'done' RETURNING id) SELECT * FROM upd":                    true,
 	} {
 		if got := pgContainsDataModifyingCommand(query); got != want {
 			t.Fatalf("pgContainsDataModifyingCommand(%q) = %v, want %v", query, got, want)
@@ -703,7 +703,7 @@ func (c *pgExplainRecordingConn) ExecContext(_ context.Context, query string, _ 
 	return driver.RowsAffected(0), nil
 }
 
-func (c *pgExplainRecordingConn) QueryContext(_ context.Context, query string, _ []driver.NamedValue) (driver.Rows, error) {
+func (c *pgExplainRecordingConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	c.driver.queries = append(c.driver.queries, query)
 	if c.driver.queryRows != nil {
 		return c.driver.queryRows, nil
@@ -843,4 +843,19 @@ func TestPostgresqlParameterizedExplainDiscardsSessionWhenCleanupFails(t *testin
 			}
 		})
 	}
+}
+
+// pgRecordingConnector opens recording connections without sql.Register, so
+// tests can rerun in one process (go test -count=N) without a duplicate-driver panic.
+type pgRecordingConnector struct{ driver *pgExplainRecordingDriver }
+
+func (c pgRecordingConnector) Connect(context.Context) (driver.Conn, error) { return c.driver.Open("") }
+
+func (c pgRecordingConnector) Driver() driver.Driver { return c.driver }
+
+func openPgRecordingDB(t *testing.T, recorder *pgExplainRecordingDriver) *sql.DB {
+	t.Helper()
+	db := sql.OpenDB(pgRecordingConnector{driver: recorder})
+	t.Cleanup(func() { db.Close() })
+	return db
 }

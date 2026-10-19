@@ -75,6 +75,9 @@ func configurationRequestMode(requestType string, applyMode string, task *models
 		return mode, nil
 	}
 	if task.Details == "" {
+		if task.TypeID == 8 {
+			return mode, fmt.Errorf("managed rollback requires configuration selection")
+		}
 		return mode, nil
 	}
 	var details AppliedConfigurationInfo

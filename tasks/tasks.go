@@ -57,9 +57,12 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 	if envelope.ID == nil || *envelope.ID <= 0 || envelope.TypeID == nil || *envelope.TypeID < 0 {
 		return
 	}
-	var TaskStruct *models.Task
-	if err := json.Unmarshal([]byte(RepeaterResponse), &TaskStruct); err != nil {
+	TaskStruct := &models.Task{}
+	if err := json.Unmarshal([]byte(RepeaterResponse), TaskStruct); err != nil {
 		logger.Error("Failed to parse task description JSON: ", err)
+		return
+	}
+	if TaskStruct.ID <= 0 || TaskStruct.TypeID < 0 {
 		return
 	}
 

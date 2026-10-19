@@ -3,12 +3,14 @@ package tasks
 import (
 	"encoding/json"
 	"errors"
-	"github.com/Releem/mysqlconfigurer/config"
-	"github.com/Releem/mysqlconfigurer/models"
-	logging "github.com/google/logger"
 	"io"
 	"strings"
 	"testing"
+	"testing/synctest"
+
+	"github.com/Releem/mysqlconfigurer/config"
+	"github.com/Releem/mysqlconfigurer/models"
+	logging "github.com/google/logger"
 )
 
 type downloadCapture struct {
@@ -55,7 +57,7 @@ func TestDownloadConfigurationFile(t *testing.T) {
 }
 
 func TestConfigurationRequestModeValidation(t *testing.T) {
-	for _, details := range []string{"{}", "null", `{"configuration_status_id":-1}`, `{"configuration_id":12}`, `{"configuration_status_id":"1"}`, "broken"} {
+	for _, details := range []string{"", "{}", "null", `{"configuration_status_id":-1}`, `{"configuration_id":12}`, `{"configuration_status_id":"1"}`, "broken"} {
 		if _, err := configurationRequestMode("Get", "full", &models.Task{TypeID: 8, Details: details}); err == nil {
 			t.Fatalf("accepted %s", details)
 		}
@@ -72,7 +74,6 @@ func TestConfigurationRequestModeValidation(t *testing.T) {
 		details, mode string
 		id            int
 	}{
-		{"", "full", 0},
 		{`{"configuration_status_id":1}`, "full", 1},
 		{`{"configuration_status_id":12}`, "dynamic", 12},
 	} {
@@ -91,7 +92,7 @@ func TestConfigurationRequestModeValidation(t *testing.T) {
 
 func TestInvalidEnvelopeNeverStartsTask(t *testing.T) {
 	logger := *logging.Init("invalid-task", false, false, io.Discard)
-	for _, payload := range []string{`{}`, `null`, `[]`, `{"task_id":1}`, `{"task_id":0,"task_type_id":0}`, `{"task_id":1,"task_type_id":-1}`, `{"response_type":"configuration_application_reconciliation"}`} {
+	for _, payload := range []string{`{}`, `null`, `[]`, `{"task_id":1}`, `{"task_id":1,"task_type_id":null}`, `{"task_id":0,"task_type_id":0}`, `{"task_id":1,"task_type_id":-1}`, `{"response_type":"configuration_application_reconciliation"}`} {
 		r := &taskRepeaterStub{taskPayload: payload}
 		ProcessTask(r, nil, logger, &config.Config{})
 		if len(r.statuses) != 0 {
@@ -142,9 +143,14 @@ func TestUnknownTaskAndInvalidSelectionReportFailure(t *testing.T) {
 	}{
 		{`{"task_id":1,"task_type_id":9}`, 4},
 		{`{"task_id":1,"task_type_id":8,"task_details":"{}"}`, 1},
+		// A managed rollback without any selection must not apply the latest configuration.
+		{`{"task_id":1,"task_type_id":8}`, 1},
+		// Explicit type 0 is valid; the empty download stops it before applying.
+		{`{"task_id":1,"task_type_id":0}`, 1},
 	} {
 		r := &taskRepeaterStub{taskPayload: tc.payload}
-		ProcessTask(r, nil, logger, &config.Config{})
+		// ProcessTask waits 10 seconds before reporting; synctest skips the wait.
+		synctest.Test(t, func(*testing.T) { ProcessTask(r, nil, logger, &config.Config{}) })
 		if len(r.statuses) != 2 {
 			t.Fatalf("ProcessTask(%s) reported %d statuses, want 2", tc.payload, len(r.statuses))
 		}

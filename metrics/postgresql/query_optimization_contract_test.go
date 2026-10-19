@@ -29,22 +29,40 @@ func TestPgStatStatementsCapabilityMatrix(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			query := pgStatStatementsQuery(PostgresCapabilitySnapshot{
+			capabilities := PostgresCapabilitySnapshot{
 				TimingColumn:             test.timingColumn,
 				HasRows:                  test.hasRows,
 				PgStatStatementsRelation: `"public"."pg_stat_statements"`,
-			}, postgresQueryFull)
-
-			for _, want := range []string{
-				test.timingColumn,
-				test.wantRowsExpr,
-				fmt.Sprintf("(sum(s.%s) * 1000)::double precision AS total_exec_time_us", test.timingColumn),
-				fmt.Sprintf("(COALESCE(sum(s.%s) / NULLIF(sum(s.calls), 0), 0) * 1000)::double precision AS mean_exec_time_us", test.timingColumn),
-				"min(s.query) AS query",
+			}
+			for _, profile := range []struct {
+				name  string
+				value postgresQueryProfile
+			}{
+				{"lightweight", postgresQueryLightweight},
+				{"full", postgresQueryFull},
 			} {
-				if !strings.Contains(query, want) {
-					t.Fatalf("pg_stat_statements query missing %q: %s", want, query)
-				}
+				t.Run(profile.name, func(t *testing.T) {
+					query := pgStatStatementsQuery(capabilities, profile.value)
+					for _, want := range []string{
+						fmt.Sprintf("(sum(s.%s) * 1000)::double precision AS total_exec_time_us", test.timingColumn),
+						fmt.Sprintf("(COALESCE(sum(s.%s) / NULLIF(sum(s.calls), 0), 0) * 1000)::double precision AS mean_exec_time_us", test.timingColumn),
+					} {
+						if !strings.Contains(query, want) {
+							t.Errorf("pg_stat_statements query missing %q: %s", want, query)
+						}
+					}
+					if profile.value == postgresQueryLightweight {
+						if strings.Contains(query, "s.rows") || strings.Contains(query, "AS rows") || strings.Contains(query, "s.query)") {
+							t.Errorf("lightweight query must omit row counts and SQL text: %s", query)
+						}
+						return
+					}
+					for _, want := range []string{test.wantRowsExpr, "min(s.query) AS query"} {
+						if !strings.Contains(query, want) {
+							t.Errorf("full pg_stat_statements query missing %q: %s", want, query)
+						}
+					}
+				})
 			}
 		})
 	}
@@ -69,39 +87,33 @@ func TestCollectPostgresQueryDetailsSkipsNullQueryIDAndPreservesValidRows(t *tes
 	}
 
 	want := []PostgresQueryDetail{
-		{PostgresQueryStats: PostgresQueryStats{Datname: "app", QueryID: "42", Calls: 3, TotalExecTimeUS: 9000, MeanExecTimeUS: 3000, TotalExecTimeMS: 9000, MeanExecTimeMS: 3000, Rows: 12}, Query: "SELECT 42"},
-		{PostgresQueryStats: PostgresQueryStats{Datname: "analytics", QueryID: "84", Calls: 2, TotalExecTimeUS: 4000, MeanExecTimeUS: 2000, TotalExecTimeMS: 4000, MeanExecTimeMS: 2000, Rows: 8}, Query: "SELECT 84"},
+		{PostgresQueryStats: PostgresQueryStats{Datname: "app", QueryID: "42", Calls: 3, TotalExecTimeUS: 9000, MeanExecTimeUS: 3000}, Query: "SELECT 42", Rows: 12},
+		{PostgresQueryStats: PostgresQueryStats{Datname: "analytics", QueryID: "84", Calls: 2, TotalExecTimeUS: 4000, MeanExecTimeUS: 2000}, Query: "SELECT 84", Rows: 8},
 	}
 	if !reflect.DeepEqual(details, want) {
 		t.Fatalf("valid pg_stat_statements rows: got %#v want %#v", details, want)
 	}
 }
 
-func TestPostgresQueryPayloadContractPreservesMicrosecondsAndLegacyShape(t *testing.T) {
+func TestPostgresQueryPayloadContractPreservesMicroseconds(t *testing.T) {
 	row := PostgresQueryDetail{
 		PostgresQueryStats: PostgresQueryStats{
 			Datname: "app", QueryID: "42", Calls: 3,
-			TotalExecTimeUS: 9000, MeanExecTimeUS: 3000, Rows: 12,
+			TotalExecTimeUS: 9000, MeanExecTimeUS: 3000,
 		},
 		Query: "SELECT 42",
+		Rows:  12,
 	}
 
-	legacy := postgresQueryDetailMetricsForMode([]PostgresQueryDetail{row}, false)[0]
-	assertExactPostgresMetricKeys(t, legacy, "datname", "queryid", "query", "query_text", "calls", "total_exec_time_us", "mean_exec_time_us")
-	if legacy["total_exec_time_us"] != float64(9000) || legacy["mean_exec_time_us"] != float64(3000) {
-		t.Fatalf("legacy PostgreSQL timing must remain native microseconds: %#v", legacy)
+	payload := postgresQueryDetailMetrics([]PostgresQueryDetail{row})[0]
+	assertExactPostgresMetricKeys(t, payload, "datname", "queryid", "query", "calls", "total_exec_time_us", "mean_exec_time_us", "rows")
+	if payload["rows"] != uint64(12) || payload["total_exec_time_us"] != float64(9000) || payload["mean_exec_time_us"] != float64(3000) {
+		t.Fatalf("PostgreSQL query payload must keep native microseconds and rows: %#v", payload)
 	}
-
-	for _, forbidden := range []string{"rows", "total_exec_time_ms", "mean_exec_time_ms", "format", "queries_format", "postgresql_format"} {
-		if _, exists := legacy[forbidden]; exists {
-			t.Fatalf("regular monitoring payload must remain legacy and marker-free; found %q in %#v", forbidden, legacy)
+	for _, forbidden := range []string{"query_text", "total_exec_time_ms", "mean_exec_time_ms", "format", "queries_format", "postgresql_format"} {
+		if _, exists := payload[forbidden]; exists {
+			t.Fatalf("PostgreSQL query payload must not contain %q: %#v", forbidden, payload)
 		}
-	}
-
-	optimization := postgresQueryDetailMetricsForMode([]PostgresQueryDetail{row}, true)[0]
-	assertExactPostgresMetricKeys(t, optimization, "datname", "queryid", "query", "calls", "total_exec_time_us", "mean_exec_time_us", "rows")
-	if optimization["rows"] != uint64(12) || optimization["total_exec_time_us"] != float64(9000) || optimization["mean_exec_time_us"] != float64(3000) {
-		t.Fatalf("query-optimization payload must retain native PostgreSQL fields: %#v", optimization)
 	}
 }
 

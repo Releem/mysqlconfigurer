@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strings"
 	"testing"
@@ -210,10 +211,26 @@ func TestCollectPgStatStatementsAgainstPostgres(t *testing.T) {
 	}
 	for _, row := range rows {
 		if row.Query == "SELECT count(*) FROM releem_pgss_it.probe" {
-			if row.Calls != 3 || row.Rows != 3 || row.TotalExecTimeMS < 0 || row.MeanExecTimeMS < 0 {
+			if row.Calls != 3 || row.Rows != 3 || row.TotalExecTimeUS < 0 || row.MeanExecTimeUS < 0 {
 				t.Fatalf("unexpected PGSS payload: %#v", row)
 			}
-			return
+			stats, err := collectPostgresQueryStats(context.Background(), db, capabilities)
+			if err != nil {
+				t.Fatalf("lightweight PGSS collection: %v", err)
+			}
+			for _, stat := range stats {
+				if stat.Datname != row.Datname || stat.QueryID != row.QueryID {
+					continue
+				}
+				// The two reads are separate snapshots that sum several entries,
+				// so timings may differ by rounding; identity and calls must not.
+				if stat.Calls != row.Calls || !pgTimingsClose(stat.TotalExecTimeUS, row.TotalExecTimeUS) || !pgTimingsClose(stat.MeanExecTimeUS, row.MeanExecTimeUS) {
+					t.Fatalf("lightweight PGSS statistics = %#v, want full profile statistics %#v", stat, row.PostgresQueryStats)
+				}
+				assertExactPostgresMetricKeys(t, stat.metricGroupValue(), "datname", "queryid", "calls", "total_exec_time_us", "mean_exec_time_us")
+				return
+			}
+			t.Fatalf("probe query %s was not found in lightweight PGSS payload: %#v", row.QueryID, stats)
 		}
 	}
 	t.Fatalf("probe query was not found in PGSS payload: %#v", rows)
@@ -249,4 +266,10 @@ func TestExecuteExplainPgStatStatementsTypedLiteralsAgainstPostgres(t *testing.T
 	if explain == "" {
 		t.Fatal("expected PostgreSQL EXPLAIN JSON")
 	}
+}
+
+// pgTimingsClose compares pg_stat_statements timings within a relative
+// tolerance, allowing for float summation order between snapshots.
+func pgTimingsClose(a, b float64) bool {
+	return math.Abs(a-b) <= 1e-6*math.Max(1, math.Max(math.Abs(a), math.Abs(b)))
 }

@@ -126,7 +126,6 @@ func TestPostgresQueryProfilesUseNativeFields(t *testing.T) {
 		Calls:           3,
 		TotalExecTimeUS: 9000,
 		MeanExecTimeUS:  3000,
-		Rows:            12,
 	}
 	lightweight := stats.metricGroupValue()
 	for key, expected := range map[string]interface{}{
@@ -135,65 +134,45 @@ func TestPostgresQueryProfilesUseNativeFields(t *testing.T) {
 		"calls":              uint64(3),
 		"total_exec_time_us": float64(9000),
 		"mean_exec_time_us":  float64(3000),
-		"rows":               uint64(12),
 	} {
 		if lightweight[key] != expected {
 			t.Fatalf("lightweight field %s: expected %#v, got %#v", key, expected, lightweight[key])
 		}
 	}
-	for _, forbidden := range []string{"query", "query_text", "SUM_ROWS_SENT", "total_exec_time_ms", "mean_exec_time_ms"} {
+	for _, forbidden := range []string{"query", "query_text", "rows", "SUM_ROWS_SENT", "total_exec_time_ms", "mean_exec_time_ms"} {
 		if _, ok := lightweight[forbidden]; ok {
 			t.Fatalf("lightweight PostgreSQL payload must not include %s: %#v", forbidden, lightweight)
 		}
 	}
 
-	detail := PostgresQueryDetail{PostgresQueryStats: stats, Query: "select 1", Explain: "{}", ExplainError: ""}
+	detail := PostgresQueryDetail{PostgresQueryStats: stats, Query: "select 1", Rows: 12, Explain: "{}", ExplainError: ""}
 	full := detail.metricGroupValue()
-	if full["query"] != "select 1" || full["explain"] != "{}" {
-		t.Fatalf("full profile should include query and explain: %#v", full)
+	if full["query"] != "select 1" || full["rows"] != uint64(12) || full["explain"] != "{}" {
+		t.Fatalf("full profile should include query, rows, and explain: %#v", full)
 	}
 	if _, ok := full["explain_error"]; ok {
 		t.Fatalf("empty optional explain_error should be omitted: %#v", full)
 	}
 }
 
-func TestPostgresQueryPayloadModes(t *testing.T) {
+// The platform reads PostgreSQL SQL text from "query"; the MySQL-style
+// "query_text" alias is not sent, whether or not query optimization is enabled.
+func TestPostgresQueryDetailPayload(t *testing.T) {
 	row := PostgresQueryDetail{
 		PostgresQueryStats: PostgresQueryStats{
 			Datname: "app", QueryID: "42", Calls: 3,
-			TotalExecTimeUS: 9000, MeanExecTimeUS: 3000, Rows: 12,
+			TotalExecTimeUS: 9000, MeanExecTimeUS: 3000,
 		},
 		Query: "select 1",
+		Rows:  12,
 	}
-	legacy := postgresQueryDetailMetricsForMode([]PostgresQueryDetail{row}, false)[0]
-	legacyKeys := map[string]struct{}{
-		"datname": {}, "queryid": {}, "calls": {}, "query": {}, "query_text": {},
-		"total_exec_time_us": {}, "mean_exec_time_us": {},
-	}
-	if len(legacy) != len(legacyKeys) {
-		t.Fatalf("legacy payload keys: got %#v, want %#v", legacy, legacyKeys)
-	}
-	for key := range legacy {
-		if _, ok := legacyKeys[key]; !ok {
-			t.Fatalf("legacy payload contains unexpected key %s: %#v", key, legacy)
-		}
-	}
-	for key, want := range map[string]interface{}{
-		"query": "select 1", "query_text": "select 1",
+	payload := postgresQueryDetailMetrics([]PostgresQueryDetail{row})[0]
+	want := models.MetricGroupValue{
+		"datname": "app", "queryid": "42", "calls": uint64(3), "query": "select 1", "rows": uint64(12),
 		"total_exec_time_us": float64(9000), "mean_exec_time_us": float64(3000),
-	} {
-		if legacy[key] != want {
-			t.Fatalf("legacy %s: got %#v want %#v", key, legacy[key], want)
-		}
 	}
-	for _, key := range []string{"rows", "SUM_ROWS_SENT", "total_exec_time_ms", "mean_exec_time_ms"} {
-		if _, ok := legacy[key]; ok {
-			t.Fatalf("legacy payload contains %s", key)
-		}
-	}
-	native := postgresQueryDetailMetricsForMode([]PostgresQueryDetail{row}, true)[0]
-	if native["rows"] != uint64(12) || native["total_exec_time_us"] != float64(9000) {
-		t.Fatalf("unexpected native payload: %#v", native)
+	if !reflect.DeepEqual(payload, want) {
+		t.Fatalf("query detail payload: got %#v want %#v", payload, want)
 	}
 }
 
@@ -206,9 +185,9 @@ func TestSerializedMetricsModelHasNoPostgresFormatEnvelopeFields(t *testing.T) {
 	}
 }
 
-func TestDBMetricsBasePreservesLegacyLightweightQueryPayload(t *testing.T) {
-	driverName := "releem_pg_base_legacy_lightweight_payload_test"
-	sql.Register(driverName, pgBaseLegacyLightweightDriver{})
+func TestDBMetricsBasePublishesLightweightQueryPayload(t *testing.T) {
+	driverName := "releem_pg_base_lightweight_payload_test"
+	sql.Register(driverName, pgBaseLightweightDriver{})
 	db, err := sql.Open(driverName, "")
 	if err != nil {
 		t.Fatal(err)
@@ -219,7 +198,7 @@ func TestDBMetricsBasePreservesLegacyLightweightQueryPayload(t *testing.T) {
 	models.DB = db
 	defer func() { models.DB = previousDB }()
 
-	logger := *logging.Init("postgresql-base-legacy-lightweight-test", false, false, io.Discard)
+	logger := *logging.Init("postgresql-base-lightweight-test", false, false, io.Discard)
 	defer logger.Close()
 	capabilities := &PostgresCapabilities{detect: func(context.Context, *sql.DB) (PostgresCapabilitySnapshot, error) {
 		return PostgresCapabilitySnapshot{
@@ -247,31 +226,31 @@ func TestDBMetricsBasePreservesLegacyLightweightQueryPayload(t *testing.T) {
 		"mean_exec_time_us":  float64(3000),
 	}
 	if !reflect.DeepEqual(query, want) {
-		t.Fatalf("base gatherer must preserve legacy lightweight query fields: got %#v want %#v", query, want)
+		t.Fatalf("base gatherer lightweight query payload = %#v, want %#v", query, want)
 	}
 }
 
-type pgBaseLegacyLightweightDriver struct{}
+type pgBaseLightweightDriver struct{}
 
-func (pgBaseLegacyLightweightDriver) Open(string) (driver.Conn, error) {
-	return pgBaseLegacyLightweightConn{}, nil
+func (pgBaseLightweightDriver) Open(string) (driver.Conn, error) {
+	return pgBaseLightweightConn{}, nil
 }
 
-type pgBaseLegacyLightweightConn struct{}
+type pgBaseLightweightConn struct{}
 
-func (pgBaseLegacyLightweightConn) Prepare(string) (driver.Stmt, error) {
+func (pgBaseLightweightConn) Prepare(string) (driver.Stmt, error) {
 	return nil, errors.New("unexpected prepared statement")
 }
 
-func (pgBaseLegacyLightweightConn) Close() error {
+func (pgBaseLightweightConn) Close() error {
 	return nil
 }
 
-func (pgBaseLegacyLightweightConn) Begin() (driver.Tx, error) {
+func (pgBaseLightweightConn) Begin() (driver.Tx, error) {
 	return nil, errors.New("unexpected transaction")
 }
 
-func (pgBaseLegacyLightweightConn) QueryContext(_ context.Context, query string, _ []driver.NamedValue) (driver.Rows, error) {
+func (pgBaseLightweightConn) QueryContext(_ context.Context, query string, _ []driver.NamedValue) (driver.Rows, error) {
 	switch {
 	case strings.Contains(query, "FROM pg_stat_"):
 		return &pgExplainRows{columns: []string{"metric"}}, nil
@@ -282,7 +261,7 @@ func (pgBaseLegacyLightweightConn) QueryContext(_ context.Context, query string,
 	case strings.Contains(query, "COUNT(*) FROM"):
 		return &pgExplainRows{columns: []string{"count"}, rows: [][]driver.Value{{int64(1)}}}, nil
 	case strings.Contains(query, `FROM "public"."pg_stat_statements" s`):
-		return &pgExplainRows{columns: []string{"datname", "queryid", "calls", "total_exec_time_us", "mean_exec_time_us", "rows"}, rows: [][]driver.Value{{"app", "42", int64(3), float64(9000), float64(3000), int64(12)}}}, nil
+		return &pgExplainRows{columns: []string{"datname", "queryid", "calls", "total_exec_time_us", "mean_exec_time_us"}, rows: [][]driver.Value{{"app", "42", int64(3), float64(9000), float64(3000)}}}, nil
 	case strings.Contains(query, "FROM pg_stat_activity"):
 		return &pgExplainRows{columns: []string{"pid"}}, nil
 	default:
@@ -342,8 +321,11 @@ func TestPgStatStatementsProfilesHaveDistinctProjection(t *testing.T) {
 	lightweight := pgStatStatementsQuery(capabilities, postgresQueryLightweight)
 	full := pgStatStatementsQuery(capabilities, postgresQueryFull)
 
-	if strings.Contains(lightweight, "min(s.query)") {
-		t.Fatalf("lightweight profile must not collect SQL text: %s", lightweight)
+	if strings.Contains(lightweight, "min(s.query)") || strings.Contains(lightweight, "AS rows") {
+		t.Fatalf("lightweight profile must not collect SQL text or rows: %s", lightweight)
+	}
+	if !strings.Contains(full, "sum(s.rows)::bigint AS rows") {
+		t.Fatalf("full profile must collect rows: %s", full)
 	}
 	if !strings.Contains(full, "min(s.query) AS query") {
 		t.Fatalf("full profile must collect SQL text: %s", full)

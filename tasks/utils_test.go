@@ -161,6 +161,33 @@ func TestUnknownTaskAndInvalidSelectionReportFailure(t *testing.T) {
 	}
 }
 
+// flakyGatherer succeeds until failAfter calls, as when the database stops
+// responding after a configuration task restarted it.
+type flakyGatherer struct {
+	calls, failAfter int
+}
+
+func (g *flakyGatherer) GetMetrics(*models.Metrics) error {
+	g.calls++
+	if g.calls > g.failAfter {
+		return errors.New("database unavailable")
+	}
+	return nil
+}
+
+func TestProcessTaskReportsFinalStatusWhenMetricsFailAfterTask(t *testing.T) {
+	logger := *logging.Init("final-status", false, false, io.Discard)
+	r := &taskRepeaterStub{taskPayload: `{"task_id":1,"task_type_id":9}`}
+	gatherer := &flakyGatherer{failAfter: 1}
+	synctest.Test(t, func(*testing.T) { ProcessTask(r, []models.MetricsGatherer{gatherer}, logger, &config.Config{}) })
+	if gatherer.calls != 2 {
+		t.Fatalf("gatherer calls = %d, want 2", gatherer.calls)
+	}
+	if len(r.statuses) != 2 || r.statuses[1].ExitCode != 4 || r.statuses[1].Status != 4 {
+		t.Fatalf("statuses = %+v, want started and final failure", r.statuses)
+	}
+}
+
 // localApplyRepeater serves the dynamic recommendations and records requests.
 type localApplyRepeater struct {
 	json, file string

@@ -173,9 +173,12 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 	}
 
 	time.Sleep(10 * time.Second)
-	metrics = utils.CollectMetrics(gatherers, logger, configuration)
-	if metrics == nil {
-		return
+	// The started status was already sent, so the final status must be sent
+	// even when the database is down after the task; the first snapshot is reused.
+	if final := utils.CollectMetrics(gatherers, logger, configuration); final != nil {
+		metrics = final
+	} else {
+		logger.Error("Failed to collect metrics after the task; reporting its status with the earlier snapshot")
 	}
 	logger.Infof(" * Task with id - %d and type id - %d completed with code %d", TaskStruct.ID, TaskStruct.TypeID, TaskStruct.ExitCode)
 

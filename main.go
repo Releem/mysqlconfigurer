@@ -52,8 +52,12 @@ type Service struct {
 type Programm struct{}
 
 func exitRunWithError(args ...interface{}) {
+	exitRunWithCode(1, args...)
+}
+
+func exitRunWithCode(code int, args ...interface{}) {
 	logger.Error(args...)
-	os.Exit(1)
+	os.Exit(code)
 }
 
 func (programm *Programm) Stop() {
@@ -402,7 +406,8 @@ func main() {
 	var err error
 	configurationApplyMode, command, err = parseConfigurationApplyMode(*GetConfigRun, command)
 	if err != nil {
-		exitRunWithError(err)
+		// Usage errors keep exit code 2 for scripts that branch on it.
+		exitRunWithCode(2, err)
 	}
 
 	if shouldRunOneShotMode(len(command), *SetConfigRun, *GetConfigRun, *InitialConfigRun, *AgentEvent, *AgentTask) {

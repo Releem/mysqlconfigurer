@@ -100,3 +100,18 @@ config_value() {
     [ "$status" -eq 0 ]
     [ "$output" = $'10000\n4\n604800\nreleem-cluster-group' ]
 }
+
+@test "Docker entrypoint sets the PostgreSQL database connection limit" {
+    run_entrypoint
+    [ "$status" -eq 0 ]
+    [ "$(config_value pg_max_db_connections)" = "10" ]
+
+    run_entrypoint RELEEM_PG_MAX_DB_CONNECTIONS=25
+    [ "$status" -eq 0 ]
+    [ "$(config_value pg_max_db_connections)" = "25" ]
+
+    run env -i PATH="${PATH}" RELEEM_PG_MAX_DB_CONNECTIONS=25 bash -c 'source "$1"; printf "%s\n" "$pg_max_db_connections"' \
+        bash "${BATS_TEST_DIRNAME}/../docker/releem.conf.tpl"
+    [ "$status" -eq 0 ]
+    [ "$output" = "25" ]
+}

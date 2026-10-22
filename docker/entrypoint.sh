@@ -28,6 +28,7 @@ pg_port="${RELEEM_PG_PORT:-${PG_PORT:-5432}}"
 pg_ssl_mode=${RELEEM_PG_SSL_MODE:-${PG_SSL:-false}}
 pg_restart_service="${RELEEM_PG_RESTART_SERVICE:-/bin/systemctl restart postgresql}"
 pg_cnf_dir="${RELEEM_PG_CONF_DIR:-/etc/postgresql/releem.conf.d}"
+pg_max_db_connections=${RELEEM_PG_MAX_DB_CONNECTIONS:-10}
 releem_cnf_dir="/opt/releem/conf"
 instance_type="${INSTANCE_TYPE:-local}"
 aws_region="${AWS_REGION}"

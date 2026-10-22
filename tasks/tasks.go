@@ -14,6 +14,13 @@ import (
 	logging "github.com/google/logger"
 )
 
+type ApplyModeType string
+
+const (
+	ApplyModeDynamic ApplyModeType = "dynamic"
+	ApplyModeFull    ApplyModeType = "full"
+)
+
 type schemaChangeExecutor interface {
 	Execute(phase2.ExecuteOptions) (*phase2.ExecuteResult, error)
 }
@@ -30,38 +37,59 @@ func ProcessTaskFunc(repeaters models.MetricsRepeater, gatherers []models.Metric
 
 func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer, logger logging.Logger, configuration *config.Config) {
 	defer utils.HandlePanic(configuration, logger)
-	var TaskStruct *models.Task
 	var task_output string
 
 	metrics := utils.CollectMetrics(gatherers, logger, configuration)
-	RepeaterResponse := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Get"})
-	logger.Infof("Task details: %s", RepeaterResponse)
-
-	err := json.Unmarshal([]byte(RepeaterResponse), &TaskStruct)
+	if metrics == nil {
+		return
+	}
+	RepeaterResponse, err := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Get"})
 	if err != nil {
+		logger.Error("Failed to get task: ", err)
+		return
+	}
+	logger.Infof("Task info: %s", RepeaterResponse)
+
+	var envelope struct {
+		ID     *int `json:"task_id"`
+		TypeID *int `json:"task_type_id"`
+	}
+	if err := json.Unmarshal(RepeaterResponse, &envelope); err != nil {
 		logger.Error("Failed to parse task description JSON: ", err)
 		return
 	}
-	if TaskStruct == nil {
+	if envelope.ID == nil || *envelope.ID <= 0 || envelope.TypeID == nil || *envelope.TypeID < 0 {
+		return
+	}
+	TaskStruct := &models.Task{}
+	if err := json.Unmarshal(RepeaterResponse, TaskStruct); err != nil {
+		logger.Error("Failed to parse task description JSON: ", err)
+		return
+	}
+	if TaskStruct.ID <= 0 || TaskStruct.TypeID < 0 {
 		return
 	}
 
 	startedTask := *TaskStruct
 	startedTask.Status = 3
 	metrics.ReleemAgent.Tasks = startedTask
-	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Status"})
+	if _, err := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Status"}); err != nil {
+		logger.Error("Failed to report task start: ", err)
+	}
 	logger.Infof(" * Task with id - %d and type id - %d is being started...", TaskStruct.ID, TaskStruct.TypeID)
 
 	switch TaskStruct.TypeID {
 	case 0:
+		TaskStruct.ExitCode, TaskStruct.Status, task_output = DownloadConfigurationFile(metrics, repeaters, configuration, logger, ApplyModeFull, TaskStruct)
+		TaskStruct.Output = TaskStruct.Output + task_output
+		if TaskStruct.ExitCode != 0 {
+			break
+		}
 		TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskApplyManualCommand(runtime.GOOS, configuration.ReleemDir), logger)
 		TaskStruct.Output = TaskStruct.Output + task_output
 
 		if TaskStruct.ExitCode == 7 {
-			var rollback_exit_code int
-			rollback_exit_code, _, task_output = execTaskCommand(taskRollbackCommand(runtime.GOOS, configuration.ReleemDir), logger)
-			TaskStruct.Output = TaskStruct.Output + task_output
-			logger.Info(" * Task rollbacked with code ", rollback_exit_code)
+			rollBackConfigurationTask(TaskStruct, taskRollBackCommand(runtime.GOOS, configuration.ReleemDir), logger)
 		}
 
 	case 1:
@@ -69,7 +97,7 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 		TaskStruct.Output = TaskStruct.Output + task_output
 	case 2:
 		TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskUpdateCommand(runtime.GOOS, configuration.ReleemDir), logger)
-		TaskStruct.Output = TaskStruct.Output + task_output
+		TaskStruct.Output += task_output
 	case 3:
 		TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskQueriesOptimizationCommand(runtime.GOOS, configuration.ReleemDir), logger)
 		TaskStruct.Output = TaskStruct.Output + task_output
@@ -77,52 +105,43 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 		switch configuration.InstanceType {
 		case "aws/rds":
 			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfAwsRds(
-				repeaters, gatherers, logger, configuration, AWSApplyDynamicOnly)
+				repeaters, gatherers, logger, configuration, AWSApplyDynamicOnly, TaskStruct)
 			TaskStruct.Output = TaskStruct.Output + task_output
 		case "gcp/cloudsql":
-			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfGcpCloudSQL(repeaters, gatherers, logger, configuration, "dynamic")
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfGcpCloudSQL(repeaters, gatherers, logger, configuration, ApplyModeDynamic, TaskStruct)
 			TaskStruct.Output = TaskStruct.Output + task_output
 		case "azure/mysql":
-			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfAzureMySQL(repeaters, gatherers, logger, configuration, "dynamic", false)
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfAzureMySQL(repeaters, gatherers, logger, configuration, ApplyModeDynamic, false, TaskStruct)
 			TaskStruct.Output = TaskStruct.Output + task_output
 
 		default:
-			TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskApplyAutomaticCommand(runtime.GOOS, configuration.ReleemDir, "dynamic", false), logger)
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = applyDynamicConfigurationLocal(metrics, repeaters, logger, configuration, TaskStruct, execTaskCommand)
 			TaskStruct.Output = TaskStruct.Output + task_output
-			if TaskStruct.ExitCode == 7 {
-				var rollback_exit_code int
-				rollback_exit_code, _, task_output = execTaskCommand(taskRollbackCommand(runtime.GOOS, configuration.ReleemDir), logger)
-				TaskStruct.Output = TaskStruct.Output + task_output
-				logger.Info(" * Task rollbacked with code ", rollback_exit_code)
-			}
-
-			if TaskStruct.ExitCode == 0 {
-				TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfLocal(metrics, repeaters, gatherers, logger, configuration)
-				TaskStruct.Output = TaskStruct.Output + task_output
-			}
 		}
 
-	case 5:
+	case 5, 8:
 		switch configuration.InstanceType {
 		case "aws/rds":
 			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfAwsRds(
-				repeaters, gatherers, logger, configuration, AWSApplyAll)
+				repeaters, gatherers, logger, configuration, AWSApplyAll, TaskStruct)
 			TaskStruct.Output = TaskStruct.Output + task_output
 		case "gcp/cloudsql":
-			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfGcpCloudSQL(repeaters, gatherers, logger, configuration, "full")
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfGcpCloudSQL(repeaters, gatherers, logger, configuration, ApplyModeFull, TaskStruct)
 			TaskStruct.Output = TaskStruct.Output + task_output
 		case "azure/mysql":
-			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfAzureMySQL(repeaters, gatherers, logger, configuration, "full", true)
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = ApplyConfAzureMySQL(repeaters, gatherers, logger, configuration, ApplyModeFull, true, TaskStruct)
 			TaskStruct.Output = TaskStruct.Output + task_output
 
 		default:
-			TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskApplyAutomaticCommand(runtime.GOOS, configuration.ReleemDir, "full", true), logger)
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = DownloadConfigurationFile(metrics, repeaters, configuration, logger, ApplyModeFull, TaskStruct)
+			TaskStruct.Output = TaskStruct.Output + task_output
+			if TaskStruct.ExitCode != 0 {
+				break
+			}
+			TaskStruct.ExitCode, TaskStruct.Status, task_output = execTaskCommand(taskApplyAutomaticCommand(runtime.GOOS, configuration.ReleemDir, true), logger)
 			TaskStruct.Output = TaskStruct.Output + task_output
 			if TaskStruct.ExitCode == 7 {
-				var rollback_exit_code int
-				rollback_exit_code, _, task_output = execTaskCommand(taskRollbackCommand(runtime.GOOS, configuration.ReleemDir), logger)
-				TaskStruct.Output = TaskStruct.Output + task_output
-				logger.Info(" * Task rollbacked with code ", rollback_exit_code)
+				rollBackConfigurationTask(TaskStruct, taskRollBackCommand(runtime.GOOS, configuration.ReleemDir), logger)
 			}
 		}
 
@@ -145,9 +164,16 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 			TaskStruct.Details, logger, configuration, metrics)
 		if TaskStruct.ExitCode == 0 {
 			metrics.ReleemAgent.Tasks = *TaskStruct
-			RepeaterResponse := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskByName", Type: "custom_queries_optimization"})
+			RepeaterResponse, err := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskByName", Type: "custom_queries_optimization"})
+			if err != nil {
+				logger.Error("Failed to send query optimization result: ", err)
+				TaskStruct.ExitCode = 1
+				TaskStruct.Status = 4
+				TaskStruct.Output += "Failed to send query optimization result: " + err.Error()
+				break
+			}
 
-			mergedJSON, err := utils.MergeJSONStrings(TaskStruct.Details, RepeaterResponse, "custom_queries_optimization_response")
+			mergedJSON, err := utils.MergeJSONStrings(TaskStruct.Details, string(RepeaterResponse), "custom_queries_optimization_response")
 			if err != nil {
 				logger.Error("Failed to merge task_details JSON: ", err)
 			} else {
@@ -160,11 +186,19 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 	}
 
 	time.Sleep(10 * time.Second)
-	metrics = utils.CollectMetrics(gatherers, logger, configuration)
+	// The started status was already sent, so the final status must be sent
+	// even when the database is down after the task; the first snapshot is reused.
+	if final := utils.CollectMetrics(gatherers, logger, configuration); final != nil {
+		metrics = final
+	} else {
+		logger.Error("Failed to collect metrics after the task; reporting its status with the earlier snapshot")
+	}
 	logger.Infof(" * Task with id - %d and type id - %d completed with code %d", TaskStruct.ID, TaskStruct.TypeID, TaskStruct.ExitCode)
 
 	metrics.ReleemAgent.Tasks = *TaskStruct
-	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Status"})
+	if _, err := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Status"}); err != nil {
+		logger.Error("Failed to report task completion: ", err)
+	}
 }
 
 func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, taskdetails string, taskID int) (int, int, string, string) {

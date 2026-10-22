@@ -222,6 +222,21 @@ INNER
     [ -f "${marker}" ]
 }
 
+@test "apply via agent/cron (-s auto) reports a failed job request" {
+    write_mysql_conf
+    printf '#!/bin/sh\necho "task request failed" >&2\nexit 1\n' > "${TEST_WORKDIR}/releem-agent"
+    chmod +x "${TEST_WORKDIR}/releem-agent"
+    run env \
+        PATH="${MOCK_BIN}:${PATH}" \
+        RELEEM_TEST_MODE=1 \
+        RELEEM_CONF_DIR="${TEST_CONF_DIR}/" \
+        RELEEM_CONF_FILE="${TEST_CONF_FILE}" \
+        bash "${CONFIGURER_SH}" -s auto
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Failed to create the job to apply the configuration"* ]]
+}
+
 @test "apply via agent/cron (-s auto) exits successfully" {
     write_mysql_conf
     run env \
@@ -235,7 +250,7 @@ INNER
     [[ "$output" == *"Sending request to create a job"* ]]
 }
 
-@test "automatic apply forwards dynamic mode to agent config download" {
+@test "automatic apply uses prepared dynamic file without downloading" {
     write_mysql_conf "aws/rds"
     echo "8.0.36" > "${TEST_CONF_DIR}/db_version"
     cat > "${TEST_CONF_DIR}/z_aiops_mysql.cnf" <<'EOF'
@@ -259,24 +274,70 @@ EOF
         bash "${CONFIGURER_SH}" -s automatic dynamic
 
     [ "$status" -eq 0 ]
-    run grep -Fx -- "-c dynamic" "${TEST_CALLS_LOG}"
+    run grep -E -- "(^| )-c( |$)" "${TEST_CALLS_LOG}"
+    [ "$status" -eq 1 ]
+    run grep -F "max_connections=200" "${TEST_DB_DIR}/z_aiops_mysql.cnf"
     [ "$status" -eq 0 ]
 }
 
-@test "initial config command (-s initial) applies initial_config_mysql.cnf" {
+@test "automatic apply without restart deletes the backup on success" {
+    write_mysql_conf "aws/rds"
+    echo "8.0.36" > "${TEST_CONF_DIR}/db_version"
+    printf '#!/usr/bin/env bash\nexit 0\n' > "${TEST_WORKDIR}/releem-agent"
+    chmod +x "${TEST_WORKDIR}/releem-agent"
+    printf '[mysqld]\nmax_connections=100\n' > "${TEST_DB_DIR}/z_aiops_mysql.cnf"
+    printf '[mysqld]\nmax_connections=200\n' > "${TEST_CONF_DIR}/z_aiops_mysql.cnf"
+    apply_without_restart() {
+        run env \
+            PATH="${MOCK_BIN}:${PATH}" \
+            RELEEM_TEST_MODE=1 \
+            RELEEM_RESTART_SERVICE=0 \
+            RELEEM_CONF_DIR="${TEST_CONF_DIR}/" \
+            RELEEM_CONF_FILE="${TEST_CONF_FILE}" \
+            mysqlcmd="${MOCK_BIN}/mariadb" \
+            bash "${CONFIGURER_SH}" -s automatic dynamic
+    }
+
+    # Successful copying without restart completes the apply.
+    apply_without_restart
+    [ "$status" -eq 0 ]
+    grep -qF "max_connections=200" "${TEST_DB_DIR}/z_aiops_mysql.cnf"
+    [ ! -e "${TEST_CONF_DIR}/z_aiops_mysql.cnf.bkp" ]
+
+    # A later successful apply also removes any older backup.
+    printf '[mysqld]\nmax_connections=100\n' > "${TEST_CONF_DIR}/z_aiops_mysql.cnf.bkp"
+    printf '[mysqld]\nmax_connections=300\n' > "${TEST_CONF_DIR}/z_aiops_mysql.cnf"
+    apply_without_restart
+    [ "$status" -eq 0 ]
+    grep -qF "max_connections=300" "${TEST_DB_DIR}/z_aiops_mysql.cnf"
+    [ ! -e "${TEST_CONF_DIR}/z_aiops_mysql.cnf.bkp" ]
+}
+
+@test "initial config downloads fresh content before applying initial_config_mysql.cnf" {
     write_restart_scripts
     write_mysql_conf "aws/rds" "bash ${TEST_TMPDIR}/restart_ok.sh"
     echo "8.0.36" > "${TEST_CONF_DIR}/db_version"
     cat > "${TEST_CONF_DIR}/initial_config_mysql.cnf" <<'EOF'
 [mysqld]
-max_connections = 200
+max_connections = 300
 EOF
     cat > "${TEST_DB_DIR}/initial_config_mysql.cnf" <<'EOF'
 [mysqld]
 max_connections = 100
 EOF
 
+    cat > "${TEST_WORKDIR}/releem-agent" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$*" >> "$TEST_AGENT_CALLS"
+case "$1" in
+    --initial) printf '[mysqld]\nmax_connections = 200\n' > "$RELEEM_CONF_DIR/initial_config_mysql.cnf" ;;
+    --event=config_applied) exit 0 ;;
+    *) exit 92 ;;
+esac
+EOF
+
     run env \
+        TEST_AGENT_CALLS="${TEST_TMPDIR}/agent.calls" \
         PATH="${MOCK_BIN}:${PATH}" \
         RELEEM_TEST_MODE=1 \
         RELEEM_RESTART_SERVICE=0 \
@@ -286,6 +347,7 @@ EOF
         bash "${CONFIGURER_SH}" -s initial
 
     [ "$status" -eq 0 ]
+    [ "$(cat "${TEST_TMPDIR}/agent.calls")" = "$(printf '%s\n' --initial --event=config_applied)" ]
     run grep -E "max_connections = 200" "${TEST_DB_DIR}/initial_config_mysql.cnf"
     [ "$status" -eq 0 ]
 }
@@ -560,4 +622,179 @@ releem_apply_manual
     run bash -c 'RELEEM_TEST_MODE=1 source "$1"; DATABASE_TYPE=mysql; RELEEM_DB_VERSION_FILE="$2"; releem_apply_manual' _ "$CONFIGURER_SH" "${TEST_TMPDIR}/version"
     [ "$status" -eq 2 ]
     [[ "$output" == *"lower than 5.6.8"* ]]
+}
+
+@test "manual apply uses prepared file without invoking configuration download" {
+    write_mysql_conf
+    echo "8.0.36" > "${TEST_CONF_DIR}/db_version"
+    printf '[mysqld]\nmax_connections=200\n' > "${TEST_CONF_DIR}/z_aiops_mysql.cnf"
+    cp "${TEST_CONF_DIR}/z_aiops_mysql.cnf" "${TEST_DB_DIR}/z_aiops_mysql.cnf"
+    printf '#!/bin/sh\necho unexpected-download\nexit 99\n' > "${TEST_WORKDIR}/releem-agent"
+    run env PATH="${MOCK_BIN}:${PATH}" RELEEM_TEST_MODE=1 RELEEM_RESTART_SERVICE=0 \
+        RELEEM_CONF_DIR="${TEST_CONF_DIR}/" RELEEM_CONF_FILE="${TEST_CONF_FILE}" \
+        bash "${CONFIGURER_SH}" -a
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"identical to the current configuration"* ]]
+    [[ "$output" != *"unexpected-download"* ]]
+}
+
+@test "manual apply refuses missing prepared file" {
+    write_mysql_conf
+    echo "8.0.36" > "${TEST_CONF_DIR}/db_version"
+    run env PATH="${MOCK_BIN}:${PATH}" RELEEM_TEST_MODE=1 RELEEM_RESTART_SERVICE=0 \
+        RELEEM_CONF_DIR="${TEST_CONF_DIR}/" RELEEM_CONF_FILE="${TEST_CONF_FILE}" \
+        bash "${CONFIGURER_SH}" -a
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"configuration was not found"* ]]
+    [ ! -f "${TEST_DB_DIR}/z_aiops_mysql.cnf" ]
+}
+
+
+@test "manual and automatic apply consume the Go-downloaded file without fetching configuration" {
+    write_restart_scripts
+    write_mysql_conf
+    echo "8.0.36" > "${TEST_CONF_DIR}/db_version"
+    cat > "${TEST_WORKDIR}/releem-agent" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$*" >> "$TEST_AGENT_CALLS"
+case "$1" in -c|--initial|-f) exit 91 ;; esac
+exit 0
+EOF
+    local mode
+    for mode in manual automatic; do
+        printf '[mysqld]\nmax_connections=100\n' > "${TEST_DB_DIR}/z_aiops_mysql.cnf"
+        printf '[mysqld]\nmax_connections=200\n' > "${TEST_CONF_DIR}/z_aiops_mysql.cnf"
+        local -a arguments=(-a)
+        [ "$mode" != automatic ] || arguments=(-s automatic dynamic)
+        local restart_flag=0
+        [ "$mode" != manual ] || restart_flag=1
+        run env PATH="${MOCK_BIN}:${PATH}" RELEEM_TEST_MODE=1 RELEEM_RESTART_SERVICE="$restart_flag" \
+            TEST_AGENT_CALLS="${TEST_TMPDIR}/agent.calls" RELEEM_CONF_DIR="${TEST_CONF_DIR}/" \
+            RELEEM_CONF_FILE="${TEST_CONF_FILE}" bash "${CONFIGURER_SH}" "${arguments[@]}"
+        [ "$status" -eq 0 ]
+        grep -qx max_connections=200 "${TEST_DB_DIR}/z_aiops_mysql.cnf"
+    done
+    ! grep -E '^(-c|--initial|-f)( |$)' "${TEST_TMPDIR}/agent.calls"
+}
+
+@test "apply refuses missing Go-downloaded configuration without changing the live file" {
+    write_mysql_conf
+    echo "8.0.36" > "${TEST_CONF_DIR}/db_version"
+    printf '[mysqld]\nmax_connections=100\n' > "${TEST_DB_DIR}/z_aiops_mysql.cnf"
+    local mode
+    for mode in manual automatic initial; do
+        local -a arguments=(-a)
+        [ "$mode" != automatic ] || arguments=(-s automatic)
+        [ "$mode" != initial ] || arguments=(-s initial)
+        run env PATH="${MOCK_BIN}:${PATH}" RELEEM_TEST_MODE=1 RELEEM_RESTART_SERVICE=0 \
+            RELEEM_CONF_DIR="${TEST_CONF_DIR}/" RELEEM_CONF_FILE="${TEST_CONF_FILE}" \
+            bash "${CONFIGURER_SH}" "${arguments[@]}"
+        [ "$status" -eq 1 ]
+        if [ "$mode" = initial ]; then
+            [[ "$output" == *"releem-agent --initial"* ]]
+        fi
+        grep -qx max_connections=100 "${TEST_DB_DIR}/z_aiops_mysql.cnf"
+    done
+}
+
+@test "failed initial download preserves live configuration despite stale initial content" {
+    write_restart_scripts
+    write_mysql_conf "aws/rds" "bash ${TEST_TMPDIR}/restart_ok.sh"
+    echo "8.0.36" > "${TEST_CONF_DIR}/db_version"
+    printf '[mysqld]\nmax_connections=300\n' > "${TEST_CONF_DIR}/initial_config_mysql.cnf"
+    printf '[mysqld]\nmax_connections=100\n' > "${TEST_DB_DIR}/initial_config_mysql.cnf"
+    printf '[mysqld]\nmax_connections=150\n' > "${TEST_DB_DIR}/z_aiops_mysql.cnf"
+    cp -R "${TEST_DB_DIR}" "${TEST_TMPDIR}/original-dbconf"
+    cat > "${TEST_WORKDIR}/releem-agent" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$*" >> "$TEST_AGENT_CALLS"
+exit 91
+EOF
+    run env PATH="${MOCK_BIN}:${PATH}" RELEEM_TEST_MODE=1 RELEEM_RESTART_SERVICE=1 \
+        TEST_AGENT_CALLS="${TEST_TMPDIR}/agent.calls" RELEEM_CONF_DIR="${TEST_CONF_DIR}/" \
+        RELEEM_CONF_FILE="${TEST_CONF_FILE}" bash "${CONFIGURER_SH}" -s initial
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Failed to download the initial configuration"* ]]
+    [ "$(cat "${TEST_TMPDIR}/agent.calls")" = --initial ]
+    diff -r "${TEST_TMPDIR}/original-dbconf" "${TEST_DB_DIR}"
+    [ ! -s "${TEST_CALLS_LOG}" ]
+}
+
+@test "each apply backs up the current file and only success removes the backup" {
+    write_restart_scripts
+    write_mysql_conf "aws/rds" "bash ${TEST_TMPDIR}/restart_fail.sh"
+    echo "8.0.36" > "${TEST_CONF_DIR}/db_version"
+    printf '[mysqld]\nmax_connections=100\n' > "${TEST_DB_DIR}/z_aiops_mysql.cnf"
+    printf '[mysqld]\nmax_connections=200\n' > "${TEST_CONF_DIR}/z_aiops_mysql.cnf"
+    printf 'older backup\n' > "${TEST_CONF_DIR}/z_aiops_mysql.cnf.bkp"
+    apply_or_rollback() {
+        run env PATH="${MOCK_BIN}:${PATH}" RELEEM_TEST_MODE=1 RELEEM_RESTART_SERVICE=1 \
+            RELEEM_CONF_DIR="${TEST_CONF_DIR}/" RELEEM_CONF_FILE="${TEST_CONF_FILE}" \
+            mysqlcmd="${MOCK_BIN}/mariadb" bash "${CONFIGURER_SH}" "$@"
+    }
+    apply_or_rollback -s automatic
+    [ "$status" -eq 7 ]
+    grep -qF 'max_connections=100' "${TEST_CONF_DIR}/z_aiops_mysql.cnf.bkp"
+
+    # An identical failed retry must restart and replace the backup.
+    apply_or_rollback -a
+    [ "$status" -eq 7 ]
+    grep -qF 'max_connections=200' "${TEST_CONF_DIR}/z_aiops_mysql.cnf.bkp"
+    printf '[mysqld]\nmax_connections=300\n' > "${TEST_CONF_DIR}/z_aiops_mysql.cnf"
+    apply_or_rollback -a
+    [ "$status" -eq 7 ]
+    grep -qF 'max_connections=200' "${TEST_CONF_DIR}/z_aiops_mysql.cnf.bkp"
+
+    apply_or_rollback -r
+    [ "$status" -eq 7 ]
+    cmp "${TEST_DB_DIR}/z_aiops_mysql.cnf" "${TEST_CONF_DIR}/z_aiops_mysql.cnf.bkp"
+
+    write_mysql_conf "aws/rds" "bash ${TEST_TMPDIR}/restart_ok.sh"
+    apply_or_rollback -r
+    [ "$status" -eq 0 ]
+    grep -qF 'max_connections=200' "${TEST_DB_DIR}/z_aiops_mysql.cnf"
+    [ ! -e "${TEST_CONF_DIR}/z_aiops_mysql.cnf.bkp" ]
+
+    for mode in manual automatic; do
+        printf '[mysqld]\n# %s\n' "$mode" > "${TEST_CONF_DIR}/z_aiops_mysql.cnf"
+        if [ "$mode" = manual ]; then
+            apply_or_rollback -a
+        else
+            apply_or_rollback -s automatic
+        fi
+        [ "$status" -eq 0 ]
+        [ ! -e "${TEST_CONF_DIR}/z_aiops_mysql.cnf.bkp" ]
+    done
+
+    # A rollback after a successful apply removes the Releem configuration.
+    apply_or_rollback -r
+    [ "$status" -eq 0 ]
+    [ ! -e "${TEST_DB_DIR}/z_aiops_mysql.cnf" ]
+}
+
+@test "failed configuration copy preserves the current-file backup" {
+    write_restart_scripts
+    write_mysql_conf "aws/rds" "bash ${TEST_TMPDIR}/restart_ok.sh"
+    echo "8.0.36" > "${TEST_CONF_DIR}/db_version"
+    printf '[mysqld]\nmax_connections=100\n' > "${TEST_DB_DIR}/z_aiops_mysql.cnf"
+    printf '[mysqld]\nmax_connections=200\n' > "${TEST_CONF_DIR}/z_aiops_mysql.cnf"
+    local real_cp
+    real_cp="$(command -v cp)"
+    export TEST_REAL_CP="$real_cp" TEST_STAGED_CONFIG="${TEST_CONF_DIR}/z_aiops_mysql.cnf"
+    create_mock_cmd "cp" '
+for arg in "$@"; do
+    [ "$arg" != "$TEST_STAGED_CONFIG" ] || exit 1
+done
+exec "$TEST_REAL_CP" "$@"
+'
+    for apply in manual automatic; do
+        local args=(-a)
+        [ "$apply" != automatic ] || args=(-s automatic)
+        run env PATH="${MOCK_BIN}:${PATH}" RELEEM_TEST_MODE=1 RELEEM_RESTART_SERVICE=1 \
+            RELEEM_CONF_DIR="${TEST_CONF_DIR}/" RELEEM_CONF_FILE="${TEST_CONF_FILE}" \
+            mysqlcmd="${MOCK_BIN}/mariadb" bash "${CONFIGURER_SH}" "${args[@]}"
+        [ "$status" -ne 0 ]
+        grep -qF 'max_connections=100' "${TEST_CONF_DIR}/z_aiops_mysql.cnf.bkp"
+        grep -qF 'max_connections=100' "${TEST_DB_DIR}/z_aiops_mysql.cnf"
+    done
 }

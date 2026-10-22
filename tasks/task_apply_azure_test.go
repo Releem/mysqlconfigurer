@@ -54,7 +54,7 @@ func TestAzureConfigurationEligibleForApplyMode(t *testing.T) {
 	tests := []struct {
 		name      string
 		metadata  azureMySQLConfigurationMetadata
-		applyMode string
+		applyMode ApplyModeType
 		want      bool
 	}{
 		{name: "dynamic mode accepts dynamic", metadata: azureMySQLConfigurationMetadata{dynamic: true}, applyMode: "dynamic", want: true},

@@ -50,17 +50,20 @@ func taskUpdateCommand(goos string, releemDir string) taskCommand {
 	if goos == "windows" {
 		return powershellConfigurerCommand(releemDir, []string{"-Update"}, nil)
 	}
-
 	return shellCommand(goos, releemDir+"/releem.sh -u", nil)
 }
 
-func taskApplyAutomaticCommand(goos string, releemDir string, applyMode string, restart bool) taskCommand {
+func taskApplyAutomaticCommand(goos string, releemDir string, restart bool) taskCommand {
 	if goos == "windows" {
-		args := []string{"-Apply", "-NonInteractive", "-ApplyMode", applyMode}
+		args := []string{"-Apply", "-NonInteractive"}
 		if !restart {
 			args = append(args, "-NoRestart")
 		}
-		return powershellConfigurerCommand(releemDir, args, nil)
+		var environment []string
+		if restart {
+			environment = []string{"RELEEM_FORCE_RESTART=1"}
+		}
+		return powershellConfigurerCommand(releemDir, args, environment)
 	}
 
 	restartValue := "0"
@@ -68,10 +71,10 @@ func taskApplyAutomaticCommand(goos string, releemDir string, applyMode string, 
 		restartValue = "1"
 	}
 
-	return shellCommand(goos, releemDir+"/releem.sh -s automatic "+applyMode, []string{"RELEEM_RESTART_SERVICE=" + restartValue})
+	return shellCommand(goos, releemDir+"/releem.sh -s automatic", []string{"RELEEM_RESTART_SERVICE=" + restartValue})
 }
 
-func taskRollbackCommand(goos string, releemDir string) taskCommand {
+func taskRollBackCommand(goos string, releemDir string) taskCommand {
 	if goos == "windows" {
 		return powershellConfigurerCommand(releemDir, []string{"-Rollback"}, []string{"RELEEM_ROLLBACK_CONFIRM=1"})
 	}

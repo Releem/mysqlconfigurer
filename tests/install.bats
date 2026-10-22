@@ -47,11 +47,7 @@ done
 if [ -n "$out" ]; then
   mkdir -p "$(dirname "$out")"
   if [[ "$out" == *"releem-agent"* ]]; then
-    cat >"$out" <<'"'"'INNER'"'"'
-#!/usr/bin/env bash
-exit 0
-INNER
-    chmod +x "$out"
+    cp /bin/true "$out"
   elif [[ "$out" == *"mysqlconfigurer.sh"* || "$out" == *"releem.sh"* ]]; then
     cat >"$out" <<'"'"'INNER'"'"'
 #!/usr/bin/env bash
@@ -1781,7 +1777,11 @@ printf "%s\n" "$*" >> "${DOWNLOAD_LOG}"
 while [ "$#" -gt 0 ]; do
     if [ "$1" = -o ]; then out="$2"; shift 2; else shift; fi
 done
-printf '\''#!/usr/bin/env bash\nprintf "%%s:%%s\\n" "${0##*/}" "$*" >> "$CONFIGURER_CALLS"\n'\'' > "$out"
+if [[ "$out" == *releem-agent* ]]; then
+    cp /bin/true "$out"
+else
+    printf '\''#!/usr/bin/env bash\nprintf "%%s:%%s\\n" "${0##*/}" "$*" >> "$CONFIGURER_CALLS"\n'\'' > "$out"
+fi
 '
     local workdir="${TEST_TMPDIR}/workdir"
     mkdir -p "$workdir"
@@ -1794,6 +1794,179 @@ printf '\''#!/usr/bin/env bash\nprintf "%%s:%%s\\n" "${0##*/}" "$*" >> "$CONFIGU
     [ "$(wc -l < "${TEST_TMPDIR}/download.log")" -eq 3 ]
     grep -F mysqlconfigurer.sh "${TEST_TMPDIR}/download.log"
     [ "$(cat "${TEST_TMPDIR}/calls")" = releem.sh:-p ]
+}
+
+@test "fresh install reinstall and update stage root v2 artifacts inside the workdir" {
+    prepare_common_install_mocks
+    create_mock_cmd "curl" '
+out=""; url=""; fail_http=0
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --fail) fail_http=1; shift ;;
+        -o) out="$2"; shift 2 ;;
+        https://*) url="$1"; shift ;;
+        *) shift ;;
+    esac
+done
+case "$out" in "$RELEEM_WORKDIR"/.releem-release.*/"${out##*/}") ;; *) exit 95 ;; esac
+[ -d "${out%/*}" ] || exit 96
+printf "%s\n" "${out%/*}" >> "$STAGING_LOG"
+printf "%s\n" "$url" >> "$DOWNLOAD_LOG"
+[ "$fail_http" -eq 1 ] || exit 94
+case "$url" in
+    https://releem.s3.amazonaws.com/v2/releem-agent-x86_64) cp /bin/true "$out" ;;
+    https://releem.s3.amazonaws.com/v2/releem.sh|https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh)
+        printf "#!/bin/sh\nexit 0\n" > "$out" ;;
+    *) exit 93 ;;
+esac
+'
+    local scenario action workdir="${TEST_TMPDIR}/workdir" downloads="${TEST_TMPDIR}/downloads"
+    for scenario in fresh reinstall update; do
+        rm -rf "$workdir"
+        action=download_releem_agent
+        if [ "$scenario" != fresh ]; then
+            mkdir -p "$workdir/conf" "$workdir/.old-dir"
+            cp /bin/true "$workdir/releem-agent"
+            echo old > "$workdir/releem.conf"
+            echo old > "$workdir/conf/old.cnf"
+            echo old > "$workdir/.old-dir/file"
+        fi
+        [ "$scenario" != update ] || action=releem_update
+        : > "$downloads"
+        : > "${TEST_TMPDIR}/staging"
+        run env PATH="${MOCK_BIN}:${PATH}" RELEEM_TEST_MODE=1 RELEEM_WORKDIR="$workdir" \
+            TMPDIR="$TEST_TMPDIR" RELEEM_API_KEY=k1 DOWNLOAD_LOG="$downloads" STAGING_LOG="${TEST_TMPDIR}/staging" \
+            bash -c 'source "$1"; "$2"' _ "$INSTALL_SH" "$action"
+        [ "$status" -eq 0 ]
+        [ "$(sort -u "${TEST_TMPDIR}/staging" | wc -l)" -eq 1 ]
+        [ -z "$(find "$workdir" -name '.releem-release.*' -print)" ]
+        [ -x "$workdir/releem-agent" ]
+        [ -x "$workdir/releem.sh" ]
+        [ -x "$workdir/mysqlconfigurer.sh" ]
+        if [ "$scenario" = update ]; then
+            [ -f "$workdir/releem.conf" ]
+            [ -f "$workdir/conf/old.cnf" ]
+            [ -f "$workdir/.old-dir/file" ]
+        else
+            [ -d "$workdir/conf" ]
+            [ ! -e "$workdir/releem.conf" ]
+            [ ! -e "$workdir/conf/old.cnf" ]
+            [ ! -e "$workdir/.old-dir" ]
+        fi
+        [ "$(cat "$downloads")" = "$(printf 'https://releem.s3.amazonaws.com/v2/%s\n' \
+            releem-agent-x86_64 releem.sh mysqlconfigurer.sh)" ]
+    done
+}
+
+prepare_release_failure_mocks() {
+    prepare_common_install_mocks
+    create_mock_cmd "curl" '
+out=""; url=""; fail_http=0
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --fail) fail_http=1; shift ;;
+        -o) out="$2"; shift 2 ;;
+        https://*) url="$1"; shift ;;
+        *) shift ;;
+    esac
+done
+case "$url" in
+    https://releem.s3.amazonaws.com/v2/releem-agent-x86_64|https://releem.s3.amazonaws.com/v2/releem.sh|https://releem.s3.amazonaws.com/v2/mysqlconfigurer.sh) ;;
+    *) exit 93 ;;
+esac
+if [[ "$url" == */"$FAIL_ARTIFACT" ]]; then
+    case "$FAIL_KIND" in
+        http) [ "$fail_http" = 0 ] || exit 22; echo "<html>not found</html>" > "$out" ;;
+        empty) : > "$out" ;;
+        missing) rm -f "$out" ;;
+        syntax) printf "if then\n" > "$out" ;;
+        corrupt) printf '\''#!/bin/sh\necho executed > "$BINARY_EXECUTED"\n'\'' > "$out" ;;
+    esac
+elif [[ "$url" == */releem-agent-* ]]; then
+    cp /bin/true "$out"
+else
+    printf "#!/bin/sh\nexit 0\n" > "$out"
+fi
+'
+}
+
+@test "release download failures preserve update files and leave reinstalls uninstalled" {
+    prepare_release_failure_mocks
+    local workdir="${TEST_TMPDIR}/workdir" original="${TEST_TMPDIR}/original"
+    mkdir -p "$workdir/conf" "$original"
+    printf '#!/bin/sh\necho "$*" >> "$SERVICE_CALLS"\nrm -f "$SERVICE_RUNNING"\n' > "$workdir/releem-agent"
+    printf '#!/bin/sh\necho original\n' > "$workdir/releem.sh"
+    cp "$workdir/releem.sh" "$workdir/mysqlconfigurer.sh"
+    echo original-config > "$workdir/releem.conf"
+    echo original-conf > "$workdir/conf/database.cnf"
+    chmod +x "$workdir/releem-agent" "$workdir/releem.sh" "$workdir/mysqlconfigurer.sh"
+    cp -R "$workdir/." "$original/"
+    touch "${TEST_TMPDIR}/running"
+    local action artifact failure
+    for action in download_releem_agent releem_update; do
+        for artifact in releem-agent-x86_64 releem.sh mysqlconfigurer.sh; do
+            for failure in http empty missing syntax corrupt; do
+                [ "$artifact:$failure" != releem-agent-x86_64:syntax ] || continue
+                [ "$failure" != corrupt ] || [ "$artifact" = releem-agent-x86_64 ] || continue
+                rm -rf "$workdir"
+                mkdir -p "$workdir"
+                cp -R "$original/." "$workdir/"
+                run env PATH="${MOCK_BIN}:${PATH}" RELEEM_TEST_MODE=1 RELEEM_WORKDIR="$workdir" \
+                    TMPDIR="$TEST_TMPDIR" RELEEM_API_KEY=k1 FAIL_ARTIFACT="$artifact" FAIL_KIND="$failure" \
+                    SERVICE_CALLS="${TEST_TMPDIR}/service.calls" SERVICE_RUNNING="${TEST_TMPDIR}/running" \
+                    BINARY_EXECUTED="${TEST_TMPDIR}/binary.executed" \
+                    bash -c 'source "$1"; "$2"' _ "$INSTALL_SH" "$action"
+                if [ "$status" -ne 1 ]; then
+                    echo "unexpected status $status: $action $artifact $failure: $output"
+                    return 1
+                fi
+                if [ "$action" = releem_update ]; then
+                    diff -r "$original" "$workdir"
+                else
+                    [ -d "$workdir/conf" ]
+                    [ -z "$(find "$workdir" -mindepth 1 ! -path "$workdir/conf" -print)" ]
+                fi
+                [ ! -e "${TEST_TMPDIR}/service.calls" ]
+                [ -e "${TEST_TMPDIR}/running" ]
+                [ ! -e "${TEST_TMPDIR}/binary.executed" ]
+            done
+        done
+    done
+}
+
+@test "fresh release failures clean staging and leave an empty configuration directory" {
+    prepare_release_failure_mocks
+    local existing failure workdir="${TEST_TMPDIR}/new-install"
+    for existing in no yes; do
+        for failure in http empty missing syntax; do
+            rm -rf "$workdir"
+            [ "$existing" != yes ] || mkdir -p "$workdir"
+            run env PATH="${MOCK_BIN}:${PATH}" RELEEM_TEST_MODE=1 RELEEM_WORKDIR="$workdir" \
+                TMPDIR="$TEST_TMPDIR" FAIL_ARTIFACT=mysqlconfigurer.sh FAIL_KIND="$failure" \
+                bash -c 'source "$1"; download_releem_agent' _ "$INSTALL_SH"
+            [ "$status" -eq 1 ]
+            [ -d "$workdir/conf" ]
+            [ -z "$(find "$workdir" -mindepth 1 ! -path "$workdir/conf" -print)" ]
+        done
+    done
+}
+
+@test "staging creation failure leaves an empty configuration directory" {
+    prepare_common_install_mocks
+    create_mock_cmd "mktemp" 'printf "%s\n" "$*" > "$MKTEMP_CALLS"; exit 87'
+    local existing workdir="${TEST_TMPDIR}/new-install"
+    for existing in no yes; do
+        rm -rf "$workdir"
+        rm -f "${TEST_TMPDIR}/mktemp.calls"
+        [ "$existing" != yes ] || mkdir -p "$workdir"
+        run env PATH="${MOCK_BIN}:${PATH}" RELEEM_TEST_MODE=1 RELEEM_WORKDIR="$workdir" \
+            MKTEMP_CALLS="${TEST_TMPDIR}/mktemp.calls" \
+            bash -c 'source "$1"; download_releem_agent' _ "$INSTALL_SH"
+        [ "$status" -eq 1 ]
+        [ "$(cat "${TEST_TMPDIR}/mktemp.calls")" = "-d $workdir/.releem-release.XXXXXX" ]
+        [ -d "$workdir/conf" ]
+        [ -z "$(find "$workdir" -mindepth 1 ! -path "$workdir/conf" -print)" ]
+    done
 }
 
 @test "cron setup uses neutral name and preserves existing legacy jobs" {
@@ -1867,12 +2040,16 @@ done
 echo "$out" >> "${UPDATE_CURL_LOG}"
 if [ -n "$out" ]; then
   mkdir -p "$(dirname "$out")"
+  if [[ "$out" == *releem-agent* ]]; then
+    cp /bin/true "$out"
+  else
   cat >"$out" <<'"'"'INNER'"'"'
 #!/usr/bin/env bash
 echo "$@" >> "${UPDATE_AGENT_LOG}"
 exit 0
 INNER
   chmod +x "$out"
+  fi
 fi
 echo "200"
 '
@@ -1914,21 +2091,69 @@ EOF
     [ "$status" -eq 0 ]
 }
 
-@test "update validates unreadable downloads through sudo" {
+@test "update succeeds with a warning when post-update configuration generation fails" {
+    prepare_common_install_mocks
+    local workdir="${TEST_TMPDIR}/workdir" replacement="${TEST_TMPDIR}/replacement-agent"
+    mkdir -p "$workdir"
+    cat > "$replacement" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$*" >> "$AGENT_CALLS"
+if [ "$1" = -f ]; then
+    echo 'configuration API unavailable' >&2
+    exit 1
+fi
+EOF
+    cp "$replacement" "$workdir/releem-agent"
+    chmod +x "$replacement" "$workdir/releem-agent"
+    run env PATH="${MOCK_BIN}:${PATH}" RELEEM_TEST_MODE=1 RELEEM_WORKDIR="$workdir" \
+        RELEEM_API_KEY=k1 REPLACEMENT_AGENT="$replacement" AGENT_CALLS="${TEST_TMPDIR}/agent.calls" \
+        bash -c '
+            source "$1"
+            download_release_artifacts() {
+                cp "$REPLACEMENT_AGENT" "$1/releem-agent.new"
+                printf "#!/bin/sh\n# installed script\n" > "$1/releem.sh.new"
+                cp "$1/releem.sh.new" "$1/mysqlconfigurer.sh.new"
+                chmod 755 "$1/"*.new
+            }
+            releem_update
+        ' _ "$INSTALL_SH"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"WARNING:"* ]]
+    [[ "$output" == *"Releem Agent updated successfully."* ]]
+    [ "$(cat "${TEST_TMPDIR}/agent.calls")" = "$(printf '%s\n' stop start -f)" ]
+    cmp "$replacement" "$workdir/releem-agent"
+    grep -q 'installed script' "$workdir/releem.sh"
+    [ -z "$(find "$workdir" -name '.releem-release.*' -print)" ]
+}
+
+@test "reinstall and update validate unreadable downloads through sudo under restrictive umask" {
     prepare_common_install_mocks
     create_mock_cmd "sudo" '
 if [ "$1" = curl ]; then
   "$@" || exit $?
   # Model root-owned downloads that the installer user cannot read.
   for arg in "$@"; do
-    case "$arg" in *.sh.new) chmod 000 "$arg" ;; esac
+    case "$arg" in *.new) chmod 000 "$arg" ;; esac
   done
 elif [ "$1" = bash ] && [ "$2" = -n ]; then
   chmod u+r "$3"
   "$@"
   result=$?
   chmod 000 "$3"
-  echo "$3" >> "${UPDATE_SYNTAX_LOG}"
+  basename "$3" >> "${UPDATE_SYNTAX_LOG}"
+  exit "$result"
+elif [ "$1" = test ]; then
+  case "$2" in
+    -f|-s) printf "%s %s\n" "$2" "${3##*/}" >> "${UPDATE_VALIDATION_LOG}" ;;
+  esac
+  "$@"
+elif [ "$1" = od ]; then
+  file="${@: -1}"
+  chmod u+r "$file"
+  "$@"
+  result=$?
+  chmod 000 "$file"
+  echo od >> "${UPDATE_BINARY_CHECK_LOG}"
   exit "$result"
 else
   "$@"
@@ -1940,16 +2165,26 @@ fi
     printf '#!/bin/sh\nexit 0\n' > "$workdir/releem-agent"
     chmod +x "$workdir/releem-agent"
 
-    run env PATH="${MOCK_BIN}:${PATH}" RELEEM_TEST_MODE=1 \
-        RELEEM_WORKDIR="$workdir" RELEEM_API_KEY="k1" UPDATE_SYNTAX_LOG="$checks" \
-        bash -c 'umask 077; source "$1"; sudo_cmd=sudo; releem_update' _ "$INSTALL_SH"
+    local action
+    for action in download_releem_agent releem_update; do
+        rm -f "$checks" "${TEST_TMPDIR}/validation.calls" "${TEST_TMPDIR}/binary-check.calls"
+        run env PATH="${MOCK_BIN}:${PATH}" RELEEM_TEST_MODE=1 TMPDIR="$TEST_TMPDIR" \
+            RELEEM_WORKDIR="$workdir" RELEEM_API_KEY="k1" UPDATE_SYNTAX_LOG="$checks" \
+            UPDATE_VALIDATION_LOG="${TEST_TMPDIR}/validation.calls" \
+            UPDATE_BINARY_CHECK_LOG="${TEST_TMPDIR}/binary-check.calls" \
+            bash -c 'umask 077; source "$1"; sudo_cmd=sudo; "$2"' _ "$INSTALL_SH" "$action"
 
-    [ "$status" -eq 0 ]
-    [ -x "$workdir/releem.sh" ]
-    [ -x "$workdir/mysqlconfigurer.sh" ]
-    # Also verify privilege use when the test suite itself runs as root.
-    [ "$(cat "$checks")" = "$(printf '%s\n%s' "$workdir/releem.sh.new" "$workdir/mysqlconfigurer.sh.new")" ]
-    [[ "$output" == *"Releem Agent updated successfully."* ]]
+        [ "$status" -eq 0 ]
+        [ -x "$workdir/releem-agent" ]
+        [ -x "$workdir/releem.sh" ]
+        [ -x "$workdir/mysqlconfigurer.sh" ]
+        [ "$(cat "${TEST_TMPDIR}/binary-check.calls")" = od ]
+        # Verify privilege use even when the test suite itself runs as root.
+        [ "$(cat "$checks")" = "$(printf '%s\n%s' releem.sh.new mysqlconfigurer.sh.new)" ]
+        [ "$(cat "${TEST_TMPDIR}/validation.calls")" = "$(printf '%s\n' \
+            '-f releem-agent.new' '-s releem-agent.new' '-f releem.sh.new' '-s releem.sh.new' \
+            '-f mysqlconfigurer.sh.new' '-s mysqlconfigurer.sh.new')" ]
+    done
 }
 
 @test "postgresql catalog grants preserve newline identifiers from NUL records" {

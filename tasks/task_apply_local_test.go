@@ -79,7 +79,7 @@ func TestLocalDynamicApplyQueries(t *testing.T) {
 	}
 }
 
-func TestApplyConfLocalIncludesLogsInTaskOutput(t *testing.T) {
+func TestApplyLocalRecommendationsIncludesLogsInTaskOutput(t *testing.T) {
 	tests := []struct {
 		name            string
 		postgresql      bool
@@ -98,6 +98,15 @@ func TestApplyConfLocalIncludesLogsInTaskOutput(t *testing.T) {
 			wantQueries:     []string{"set global max_connections=200"},
 			wantStatus:      1,
 			wantOutput:      "max_connections: 100 -> 200\nDynamic apply: changes_applied=true, restart_required=false, insufficient_privileges=false, errors=false\n",
+		},
+		{
+			name:            "mysql statement failure keeps apply exit code 8",
+			recommendations: `{"max_connections":"200"}`,
+			current:         models.MetricGroupValue{"max_connections": "100"},
+			execErr:         errors.New("statement failed"),
+			wantQueries:     []string{"set global max_connections=200"},
+			wantExit:        8, wantStatus: 4,
+			wantOutput: "max_connections: 100 -> 200\nmax_connections: statement failed\nDynamic apply: changes_applied=false, restart_required=false, insufficient_privileges=false, errors=true\n",
 		},
 		{
 			name:            "postgresql reload with multiple changes",
@@ -144,16 +153,20 @@ func TestApplyConfLocalIncludesLogsInTaskOutput(t *testing.T) {
 				}
 				metrics := &models.Metrics{}
 				metrics.DB.Conf.Variables = tt.current
-				code, status, output := ApplyConfLocal(metrics, &awsApplyRepeater{recommendations: tt.recommendations}, nil, *logger, configuration)
+				recommendations, code, status, output := fetchLocalRecommendations(metrics, &awsApplyRepeater{recommendations: tt.recommendations}, *logger, configuration, nil)
+				if code != 0 {
+					t.Fatalf("fetchLocalRecommendations(%s) = %d/%d %q, want success", tt.name, code, status, output)
+				}
+				code, status, output = applyLocalRecommendations(metrics, recommendations, *logger, configuration)
 				if code != tt.wantExit || status != tt.wantStatus || output != tt.wantOutput {
-					t.Errorf("ApplyConfLocal(%s) = %d/%d %q, want %d/%d %q", tt.name, code, status, output, tt.wantExit, tt.wantStatus, tt.wantOutput)
+					t.Errorf("applyLocalRecommendations(%s) = %d/%d %q, want %d/%d %q", tt.name, code, status, output, tt.wantExit, tt.wantStatus, tt.wantOutput)
 				}
 				if !reflect.DeepEqual(connector.queries, tt.wantQueries) {
-					t.Errorf("ApplyConfLocal(%s) queries = %v, want %v", tt.name, connector.queries, tt.wantQueries)
+					t.Errorf("applyLocalRecommendations(%s) queries = %v, want %v", tt.name, connector.queries, tt.wantQueries)
 				}
 				for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
 					if !strings.Contains(log.String(), line) {
-						t.Errorf("ApplyConfLocal(%s) agent log missing task output line %q", tt.name, line)
+						t.Errorf("applyLocalRecommendations(%s) agent log missing task output line %q", tt.name, line)
 					}
 				}
 			})

@@ -39,23 +39,24 @@ func TestWindowsTaskCommands(t *testing.T) {
 		},
 		{
 			name: "type 4 applies config without restart",
-			cmd:  taskApplyAutomaticCommand("windows", releemDir, "dynamic", false),
+			cmd:  taskApplyAutomaticCommand("windows", releemDir, false),
 			want: taskCommand{
 				name: "powershell.exe",
-				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\releem.ps1`, "-Apply", "-NonInteractive", "-ApplyMode", "dynamic", "-NoRestart"},
+				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\releem.ps1`, "-Apply", "-NonInteractive", "-NoRestart"},
 			},
 		},
 		{
 			name: "type 5 applies config with restart",
-			cmd:  taskApplyAutomaticCommand("windows", releemDir, "full", true),
+			cmd:  taskApplyAutomaticCommand("windows", releemDir, true),
 			want: taskCommand{
 				name: "powershell.exe",
-				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\releem.ps1`, "-Apply", "-NonInteractive", "-ApplyMode", "full"},
+				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\releem.ps1`, "-Apply", "-NonInteractive"},
+				env:  []string{"RELEEM_FORCE_RESTART=1"},
 			},
 		},
 		{
 			name: "rollback confirms non-interactively",
-			cmd:  taskRollbackCommand("windows", releemDir),
+			cmd:  taskRollBackCommand("windows", releemDir),
 			want: taskCommand{
 				name: "powershell.exe",
 				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\releem.ps1`, "-Rollback"},
@@ -88,7 +89,7 @@ func TestLinuxTaskCommandsUseReleemConfigurer(t *testing.T) {
 		},
 		{
 			name: "rollback uses releem.sh -r",
-			cmd:  taskRollbackCommand("linux", releemDir),
+			cmd:  taskRollBackCommand("linux", releemDir),
 			want: taskCommand{name: "sh", args: []string{"-c", "/opt/releem/releem.sh -r"}, env: []string{"RELEEM_RESTART_SERVICE=1"}},
 		},
 		{
@@ -118,19 +119,19 @@ func TestLinuxTaskCommandsUseReleemConfigurer(t *testing.T) {
 		},
 		{
 			name: "type 4 uses automatic apply without restart",
-			cmd:  taskApplyAutomaticCommand("linux", releemDir, "dynamic", false),
+			cmd:  taskApplyAutomaticCommand("linux", releemDir, false),
 			want: taskCommand{
 				name: "sh",
-				args: []string{"-c", "/opt/releem/releem.sh -s automatic dynamic"},
+				args: []string{"-c", "/opt/releem/releem.sh -s automatic"},
 				env:  []string{"RELEEM_RESTART_SERVICE=0"},
 			},
 		},
 		{
 			name: "type 5 uses automatic apply with restart",
-			cmd:  taskApplyAutomaticCommand("linux", releemDir, "full", true),
+			cmd:  taskApplyAutomaticCommand("linux", releemDir, true),
 			want: taskCommand{
 				name: "sh",
-				args: []string{"-c", "/opt/releem/releem.sh -s automatic full"},
+				args: []string{"-c", "/opt/releem/releem.sh -s automatic"},
 				env:  []string{"RELEEM_RESTART_SERVICE=1"},
 			},
 		},
@@ -142,5 +143,15 @@ func TestLinuxTaskCommandsUseReleemConfigurer(t *testing.T) {
 				t.Fatalf("command mismatch\nwant: %#v\n got: %#v", tt.want, tt.cmd)
 			}
 		})
+	}
+}
+
+func TestUpdateCommandRemainsAvailable(t *testing.T) {
+	if got := taskUpdateCommand("linux", "/agent"); !reflect.DeepEqual(got.args, []string{"-c", "/agent/releem.sh -u"}) {
+		t.Fatal(got)
+	}
+	got := taskUpdateCommand("windows", `C:\Agent`)
+	if got.args[len(got.args)-1] != "-Update" {
+		t.Fatal(got)
 	}
 }

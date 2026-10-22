@@ -26,7 +26,7 @@ type azureMySQLConfigurationMetadata struct {
 }
 
 func ApplyConfAzureMySQL(repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer,
-	logger logging.Logger, configuration *config.Config, applyMode string, restart bool) (int, int, string) {
+	logger logging.Logger, configuration *config.Config, applyMode ApplyModeType, restart bool, task *models.Task) (int, int, string) {
 
 	task_exit_code, task_status := 0, 1
 	var task_output string
@@ -38,6 +38,18 @@ func ApplyConfAzureMySQL(repeaters models.MetricsRepeater, gatherers []models.Me
 	}
 
 	metrics := utils.CollectMetrics(gatherers, logger, configuration)
+	mode, err := configurationRequestMode("GetJson", string(applyMode), task)
+	if err != nil {
+		return 1, 4, "Failed to parse task task_details JSON: " + err.Error()
+	}
+	recommendVar, err := requestConfigurationRecommendations(metrics, repeaters, configuration, logger, mode)
+	if err != nil {
+		return 8, 4, "Failed to get configuration recommendations: " + err.Error()
+	}
+	recommendedVars := models.MetricGroupValue{}
+	if err := json.Unmarshal([]byte(recommendVar), &recommendedVars); err != nil {
+		return 8, 4, "Failed to parse configuration recommendations JSON: " + err.Error()
+	}
 	ctx := context.Background()
 
 	credential, err := azidentity.NewDefaultAzureCredential(nil)
@@ -77,15 +89,6 @@ func ApplyConfAzureMySQL(repeaters models.MetricsRepeater, gatherers []models.Me
 		logger.Errorf("Failed to list Azure MySQL configurations: %v", err)
 		task_output = task_output + "Failed to list Azure MySQL configurations: " + err.Error() + "\n"
 		return task_exit_code, task_status, task_output
-	}
-
-	recommendedVars := models.MetricGroupValue{}
-	recommendVar := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Configurations", Type: "GetJson", ApplyMode: applyMode})
-	err = json.Unmarshal([]byte(recommendVar), &recommendedVars)
-	if err != nil {
-		logger.Error(err)
-		task_output = task_output + err.Error()
-		return 8, 4, task_output
 	}
 
 	var updates []*armmysqlflexibleservers.ConfigurationForBatchUpdate
@@ -205,8 +208,8 @@ func ApplyConfAzureMySQL(repeaters models.MetricsRepeater, gatherers []models.Me
 	return task_exit_code, task_status, task_output
 }
 
-func azureConfigurationEligibleForApplyMode(metadata azureMySQLConfigurationMetadata, applyMode string) bool {
-	return !metadata.readOnly && (applyMode != "dynamic" || metadata.dynamic)
+func azureConfigurationEligibleForApplyMode(metadata azureMySQLConfigurationMetadata, applyMode ApplyModeType) bool {
+	return !metadata.readOnly && (applyMode != ApplyModeDynamic || metadata.dynamic)
 }
 
 func loadAzureMySQLConfigurations(ctx context.Context, configurationsClient *armmysqlflexibleservers.ConfigurationsClient,

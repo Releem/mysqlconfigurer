@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
-	"github.com/Releem/mysqlconfigurer/utils"
 	logging "github.com/google/logger"
 
 	"time"
@@ -27,7 +27,6 @@ var newHTTPClient = func() *http.Client {
 }
 
 func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.MetricContext, metrics models.Metrics, Mode models.ModeType) (string, error) {
-	defer utils.HandlePanic(repeater.configuration, repeater.logger)
 	repeater.logger.V(5).Info(Mode.Name, Mode.Type)
 	var buffer bytes.Buffer
 	encoder := json.NewEncoder(&buffer)
@@ -93,24 +92,32 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 		return "", errors.New("Request: could not create request: " + err.Error())
 	}
 	req.Header.Set("x-releem-api-key", context.GetApiKey())
-	if Mode.Name == "Configurations" && Mode.ApplyMode != "" {
-		req.Header.Set("X-Releem-Apply-Mode", Mode.ApplyMode)
-	}
-	if Mode.Name == "Configurations" && Mode.Type == "GetJson" {
-		req.Header.Set("Accept", "application/json")
+	if Mode.Name == "Configurations" {
+		if Mode.ApplyMode != "" {
+			req.Header.Set("X-Releem-Apply-Mode", Mode.ApplyMode)
+		}
+		if Mode.Type == "GetJson" {
+			req.Header.Set("Accept", "application/json")
+		}
+		if Mode.ConfigurationStatusID > 0 {
+			req.Header.Set("X-Releem-Configuration-Status-Id", strconv.Itoa(Mode.ConfigurationStatusID))
+		}
 	}
 	res, err := newHTTPClient().Do(req)
 	if err != nil {
-		return "", errors.New("Request: error making http request: " + err.Error())
+		return "", fmt.Errorf("Request: error making http request: %w", err)
 	}
 	defer res.Body.Close()
 
 	body_res, err := io.ReadAll(res.Body)
 	if err != nil {
-		return "", errors.New("Response: error read body request: " + err.Error())
+		return "", fmt.Errorf("Response: error read body request: %w", err)
 	}
 	if res.StatusCode != 200 && res.StatusCode != 201 {
 		return "", errors.New("Response: status code: " + strconv.Itoa(res.StatusCode) + " Response: body:\n" + string(body_res))
+	}
+	if Mode.Name == "Configurations" && len(bytes.TrimSpace(body_res)) == 0 {
+		return "", errors.New("empty configuration response")
 	}
 	repeater.logger.V(5).Info("Response: status code: ", res.StatusCode)
 	repeater.logger.V(5).Info("Response: body:\n", string(body_res))

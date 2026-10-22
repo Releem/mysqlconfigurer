@@ -77,18 +77,23 @@ function releem_update() {
     detect_releem_api_key
     printf "\033[37m\n * Downloading latest version of Releem Agent.\033[0m\n"
 
-    $sudo_cmd curl -w "%{http_code}" -L -o $RELEEM_WORKDIR/releem-agent.new $RELEEM_AGENT_BINARY_URL
-    $sudo_cmd curl --fail -w "%{http_code}" -L -o "$RELEEM_WORKDIR/releem.sh.new" "$RELEEM_AGENT_SCRIPT_URL"
-    $sudo_cmd curl --fail -w "%{http_code}" -L -o "$RELEEM_WORKDIR/mysqlconfigurer.sh.new" "$RELEEM_AGENT_LEGACY_SCRIPT_URL"
-    $sudo_cmd bash -n "$RELEEM_WORKDIR/releem.sh.new"
-    $sudo_cmd bash -n "$RELEEM_WORKDIR/mysqlconfigurer.sh.new"
-    $sudo_cmd $RELEEM_WORKDIR/releem-agent  stop || true
-    $sudo_cmd mv $RELEEM_WORKDIR/releem-agent.new $RELEEM_WORKDIR/releem-agent
-    $sudo_cmd mv "$RELEEM_WORKDIR/releem.sh.new" "$RELEEM_WORKDIR/releem.sh"
-    $sudo_cmd mv "$RELEEM_WORKDIR/mysqlconfigurer.sh.new" "$RELEEM_WORKDIR/mysqlconfigurer.sh"
-    $sudo_cmd chmod 755 "$RELEEM_WORKDIR/releem.sh" "$RELEEM_WORKDIR/mysqlconfigurer.sh" "$RELEEM_WORKDIR/releem-agent"
+    local download_dir
+    download_dir=$($sudo_cmd mktemp -d "$RELEEM_WORKDIR/.releem-release.XXXXXX") || return 1
+    if ! download_release_artifacts "$download_dir"; then
+        $sudo_cmd rm -rf "$download_dir"
+        return 1
+    fi
+    $sudo_cmd "$RELEEM_WORKDIR/releem-agent" stop || true
+    $sudo_cmd mv "$download_dir/releem-agent.new" "$RELEEM_WORKDIR/releem-agent"
+    $sudo_cmd mv "$download_dir/releem.sh.new" "$RELEEM_WORKDIR/releem.sh"
+    $sudo_cmd mv "$download_dir/mysqlconfigurer.sh.new" "$RELEEM_WORKDIR/mysqlconfigurer.sh"
+    $sudo_cmd rm -rf "$download_dir"
     $sudo_cmd $RELEEM_WORKDIR/releem-agent start || true
-    $sudo_cmd $RELEEM_WORKDIR/releem-agent -f
+    # The update is complete at this point; a failed configuration request must
+    # not trip errexit and report the already-applied update as a failure.
+    if ! $sudo_cmd $RELEEM_WORKDIR/releem-agent -f; then
+        printf "\033[33m\n WARNING: Releem Agent was updated, but the configuration request failed. It will be retried on the next scheduled run.\033[0m\n"
+    fi
     
     echo
     echo
@@ -98,6 +103,31 @@ function releem_update() {
     echo
 
     exit 0
+}
+
+# Stage inside the workdir so moved artifacts retain its SELinux labels.
+# Keep installed files intact until the entire release is validated.
+# Downloads may be root-owned under a restrictive umask, so validate via sudo too.
+function download_release_artifacts() {
+    local download_dir="$1" file binary_magic
+    $sudo_cmd curl --fail -L -o "$download_dir/releem-agent.new" "$RELEEM_AGENT_BINARY_URL" || return 1
+    $sudo_cmd curl --fail -L -o "$download_dir/releem.sh.new" "$RELEEM_AGENT_SCRIPT_URL" || return 1
+    $sudo_cmd curl --fail -L -o "$download_dir/mysqlconfigurer.sh.new" "$RELEEM_AGENT_LEGACY_SCRIPT_URL" || return 1
+    for file in releem-agent releem.sh mysqlconfigurer.sh; do
+        if ! $sudo_cmd test -f "$download_dir/$file.new" || ! $sudo_cmd test -s "$download_dir/$file.new"; then
+            printf '\nDownloaded release file is missing or empty: %s\n' "$file" >&2
+            return 1
+        fi
+    done
+    # Linux and FreeBSD agents are ELF files. Inspect bytes without executing them.
+    binary_magic=$($sudo_cmd od -An -tx1 -N4 "$download_dir/releem-agent.new") || return 1
+    if [ "$(printf '%s' "$binary_magic" | tr -d '[:space:]')" != 7f454c46 ]; then
+        printf '\nDownloaded Agent binary does not have an ELF header; no Agent files were replaced.\n' >&2
+        return 1
+    fi
+    $sudo_cmd bash -n "$download_dir/releem.sh.new" || return 1
+    $sudo_cmd bash -n "$download_dir/mysqlconfigurer.sh.new" || return 1
+    $sudo_cmd chmod 755 "$download_dir/releem-agent.new" "$download_dir/releem.sh.new" "$download_dir/mysqlconfigurer.sh.new" || return 1
 }
 
 # Detect instance type based on environment variables
@@ -1087,18 +1117,21 @@ function configure_db_memory_limit() {
 }    
 
 function download_releem_agent() {
-    $sudo_cmd rm -rf $RELEEM_WORKDIR
-    # Create work directory
-    if [ ! -e $RELEEM_CONF_FILE ]; then
-        $sudo_cmd mkdir -p $RELEEM_WORKDIR
-        $sudo_cmd mkdir -p $RELEEM_WORKDIR/conf
-    fi
-
     printf "\033[37m\n * Downloading Releem Agent, architecture $(arch).\033[0m\n"
-    $sudo_cmd curl -L -o $RELEEM_WORKDIR/releem-agent $RELEEM_AGENT_BINARY_URL
-    $sudo_cmd curl --fail -L -o "$RELEEM_WORKDIR/releem.sh" "$RELEEM_AGENT_SCRIPT_URL"
-    $sudo_cmd curl --fail -L -o "$RELEEM_WORKDIR/mysqlconfigurer.sh" "$RELEEM_AGENT_LEGACY_SCRIPT_URL"
-    $sudo_cmd chmod 755 "$RELEEM_WORKDIR/releem.sh" "$RELEEM_WORKDIR/mysqlconfigurer.sh" "$RELEEM_WORKDIR/releem-agent"
+    $sudo_cmd rm -rf "$RELEEM_WORKDIR"
+    $sudo_cmd mkdir -p "$RELEEM_WORKDIR/conf"
+
+    local download_dir
+    download_dir=$($sudo_cmd mktemp -d "$RELEEM_WORKDIR/.releem-release.XXXXXX") || return 1
+    if ! download_release_artifacts "$download_dir"; then
+        $sudo_cmd rm -rf "$download_dir"
+        return 1
+    fi
+    
+    $sudo_cmd mv "$download_dir/releem-agent.new" "$RELEEM_WORKDIR/releem-agent"
+    $sudo_cmd mv "$download_dir/releem.sh.new" "$RELEEM_WORKDIR/releem.sh"
+    $sudo_cmd mv "$download_dir/mysqlconfigurer.sh.new" "$RELEEM_WORKDIR/mysqlconfigurer.sh"
+    $sudo_cmd rm -rf "$download_dir"
 }
 
 function configure_releem_agent() {

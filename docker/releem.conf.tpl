@@ -84,6 +84,10 @@ pg_restart_service="${RELEEM_PG_RESTART_SERVICE:-/bin/systemctl restart postgres
 # The path to copy the recommended config.
 pg_cnf_dir="${RELEEM_PG_CONF_DIR:-/etc/postgresql/releem.conf.d}"
 
+# PgMaxDbConnections int `hcl:"pg_max_db_connections"`
+# Defaults to 10, how many PostgreSQL databases keep a pooled connection between collections.
+pg_max_db_connections=${RELEEM_PG_MAX_DB_CONNECTIONS:-10}
+
 
 # ReleemConfDir string `hcl:"releem_cnf_dir"`
 # Releem Agent configuration path.

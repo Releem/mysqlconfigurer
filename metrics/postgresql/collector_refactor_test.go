@@ -186,9 +186,7 @@ func TestSerializedMetricsModelHasNoPostgresFormatEnvelopeFields(t *testing.T) {
 }
 
 func TestDBMetricsBasePublishesLightweightQueryPayload(t *testing.T) {
-	driverName := "releem_pg_base_lightweight_payload_test"
-	sql.Register(driverName, pgBaseLightweightDriver{})
-	db, err := sql.Open(driverName, "")
+	db, err := openPgTestDB(pgBaseLightweightDriver{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,7 +268,6 @@ func (pgBaseLightweightConn) QueryContext(_ context.Context, query string, _ []d
 }
 
 func TestQueryContextRowsReturnsPartialValuesOnScanError(t *testing.T) {
-	driverName := "releem_pg_partial_scan_helper_test"
 	recorder := &pgExplainRecordingDriver{
 		queryRows: &pgExplainRows{
 			columns: []string{"value"},
@@ -280,8 +277,7 @@ func TestQueryContextRowsReturnsPartialValuesOnScanError(t *testing.T) {
 			},
 		},
 	}
-	sql.Register(driverName, recorder)
-	db, err := sql.Open(driverName, "")
+	db, err := openPgTestDB(recorder)
 	if err != nil {
 		t.Fatal(err)
 	}

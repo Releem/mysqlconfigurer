@@ -115,7 +115,7 @@ var encodeAWSApplyResult awsApplyResultEncoder = func(result *awsrds.ApplyResult
 }
 
 func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer,
-	logger logging.Logger, configuration *config.Config, mode AWSApplyMode) (int, int, string) {
+	logger logging.Logger, configuration *config.Config, applyMode AWSApplyMode, task *models.Task) (int, int, string) {
 	result := newAWSApplyResult(configuration)
 	finish := func(exitCode, status int) (int, int, string) {
 		output, encodeErr := encodeAWSApplyOutput(&result)
@@ -146,13 +146,16 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 		recordAWSApplyFailure(&result, awsrds.ScopeInstance, nil, fmt.Errorf("collect current metrics: no metrics returned"))
 		return finish(awsApplyExitFailure, awsApplyTaskStatusFailure)
 	}
-	recommendationJSON := utils.ProcessRepeaters(
-		metrics,
-		repeaters,
-		configuration,
-		logger,
-		models.ModeType{Name: "Configurations", Type: "GetJson", ApplyMode: awsApplyModeName(mode)},
-	)
+	mode, err := configurationRequestMode("GetJson", awsApplyModeName(applyMode), task)
+	if err != nil {
+		recordAWSApplyFailure(&result, awsrds.ScopeInstance, nil, fmt.Errorf("parse task details: %w", err))
+		return finish(awsApplyExitFailure, awsApplyTaskStatusFailure)
+	}
+	recommendationJSON, err := requestConfigurationRecommendations(metrics, repeaters, configuration, logger, mode)
+	if err != nil {
+		recordAWSApplyFailure(&result, awsrds.ScopeInstance, nil, err)
+		return finish(awsApplyExitFailure, awsApplyTaskStatusFailure)
+	}
 	recommendations, err := decodeAWSRecommendations(recommendationJSON)
 	if err != nil {
 		recordAWSApplyFailure(&result, awsrds.ScopeInstance, nil, err)
@@ -238,8 +241,8 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 		ClusterParameters:       clusterParameters,
 		Recommendations:         recommendations,
 		CurrentValues:           awsCurrentParameterValues(metrics.DB.Conf.Variables),
-		PendingRebootOnly:       mode == AWSApplyPendingRebootOnly,
-		DynamicOnly:             mode == AWSApplyDynamicOnly,
+		PendingRebootOnly:       applyMode == AWSApplyPendingRebootOnly,
+		DynamicOnly:             applyMode == AWSApplyDynamicOnly,
 	})
 	result = plannedResult
 
@@ -282,8 +285,8 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 	return finish(awsApplyExitSuccess, awsApplyTaskStatusSuccess)
 }
 
-func awsApplyModeName(mode AWSApplyMode) string {
-	if mode == AWSApplyDynamicOnly {
+func awsApplyModeName(applyMode AWSApplyMode) string {
+	if applyMode == AWSApplyDynamicOnly {
 		return "dynamic"
 	}
 	return "full"
@@ -635,6 +638,13 @@ func awsApplyExitCode(err error) int {
 }
 
 func awsApplySafeErrorCode(err error) string {
+	var requestErr *recommendationRequestError
+	if errors.As(err, &requestErr) {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return "configuration-request-timeout"
+		}
+		return "configuration-request-failed"
+	}
 	if errors.Is(err, errAWSApplyWaitTimeout) {
 		return awsApplyErrorTimeout
 	}

@@ -61,7 +61,7 @@ func TestGCPApplyOperationFailureReturnsTaskResult(t *testing.T) {
 	}
 	logger := logging.Init("gcp-apply-test", false, false, io.Discard)
 	defer logger.Close()
-	code, status, output := ApplyConfGcpCloudSQL(&awsApplyRepeater{recommendations: `{"max_connections":"200"}`}, []models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{"max_connections": "100"}}}, *logger, &config.Config{GcpProjectId: "test", GcpCloudSqlInstance: "db"}, "full")
+	code, status, output := ApplyConfGcpCloudSQL(&awsApplyRepeater{recommendations: `{"max_connections":"200"}`}, []models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{"max_connections": "100"}}}, *logger, &config.Config{GcpProjectId: "test", GcpCloudSqlInstance: "db"}, ApplyModeFull, nil)
 	if code != 8 || status != 4 || !strings.Contains(output, "operation rejected") {
 		t.Fatalf("ApplyConfGcpCloudSQL = %d/%d %q, want 8/4 and operation error", code, status, output)
 	}

@@ -20,12 +20,24 @@ var newGCPApplyService = func(ctx context.Context) (*sqladmin.Service, error) {
 }
 
 func ApplyConfGcpCloudSQL(repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer,
-	logger logging.Logger, configuration *config.Config, applyMode string) (int, int, string) {
+	logger logging.Logger, configuration *config.Config, applyMode ApplyModeType, task *models.Task) (int, int, string) {
 
 	var task_exit_code, task_status int = 0, 1
 	var task_output string
 
 	metrics := utils.CollectMetrics(gatherers, logger, configuration)
+	mode, err := configurationRequestMode("GetJson", string(applyMode), task)
+	if err != nil {
+		return 1, 4, "Failed to parse task task_details JSON: " + err.Error()
+	}
+	recommend_var, err := requestConfigurationRecommendations(metrics, repeaters, configuration, logger, mode)
+	if err != nil {
+		return 8, 4, "Failed to get configuration recommendations: " + err.Error()
+	}
+	recommendedVars := models.MetricGroupValue{}
+	if err := json.Unmarshal([]byte(recommend_var), &recommendedVars); err != nil {
+		return 8, 4, "Failed to parse configuration recommendations JSON: " + err.Error()
+	}
 
 	// Initialize GCP clients with Application Default Credentials
 	ctx := context.Background()
@@ -63,13 +75,6 @@ func ApplyConfGcpCloudSQL(repeaters models.MetricsRepeater, gatherers []models.M
 		logger.Infof("Current database flags count: %d", len(currentFlags))
 	}
 
-	recommendedVars := models.MetricGroupValue{}
-	recommend_var := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Configurations", Type: "GetJson", ApplyMode: applyMode})
-	err = json.Unmarshal([]byte(recommend_var), &recommendedVars)
-	if err != nil {
-		logger.Error(err)
-		task_output = task_output + err.Error()
-	}
 	if applyMode == "dynamic" {
 		flagsResponse, flagsErr := sqlAdminService.Flags.List().DatabaseVersion(instance.DatabaseVersion).Context(ctx).Do()
 		if flagsErr != nil {
@@ -163,8 +168,8 @@ func ApplyConfGcpCloudSQL(repeaters models.MetricsRepeater, gatherers []models.M
 
 }
 
-func filterGCPRecommendationsByApplyMode(recommendations models.MetricGroupValue, flags []*sqladmin.Flag, applyMode string) (models.MetricGroupValue, []string) {
-	if applyMode != "dynamic" {
+func filterGCPRecommendationsByApplyMode(recommendations models.MetricGroupValue, flags []*sqladmin.Flag, applyMode ApplyModeType) (models.MetricGroupValue, []string) {
+	if applyMode != ApplyModeDynamic {
 		return recommendations, nil
 	}
 	knownFlags := make(map[string]bool, len(flags))

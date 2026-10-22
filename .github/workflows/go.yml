@@ -26,7 +26,16 @@ jobs:
         sudo apt-get install -y bats
 
     - name: Run shell tests
-      run: bats tests/install.bats tests/mysqlconfigurer.bats
+      run: bats tests/install.bats tests/mysqlconfigurer.bats tests/release.bats tests/docker.bats tests/docker_entrypoint.bats
+
+    # Offline Windows configurer checks; ubuntu-latest ships PowerShell 7.
+    - name: Run offline PowerShell tests
+      shell: pwsh
+      run: |
+        foreach ($test in 'tests/windows/test_configurer.ps1', 'tests/windows/test_apply_prepared_unit.ps1') {
+          pwsh -NoProfile -File $test
+          if ($LASTEXITCODE -ne 0) { throw "$test failed with exit code $LASTEXITCODE" }
+        }
 
     - name: Build
       run: bash build.sh

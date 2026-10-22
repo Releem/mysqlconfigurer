@@ -73,7 +73,7 @@ func TestApplyConfAwsRdsConvertsRecommendationRepeaterPanicToFailure(t *testing.
 		[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{"max_connections": "100"}}},
 		testAWSApplyLogger(),
 		awsApplyConfig("instance-custom", ""),
-		AWSApplyAll,
+		AWSApplyAll, nil,
 	)
 
 	if exitCode != awsApplyExitFailure || status != awsApplyTaskStatusFailure {
@@ -84,15 +84,7 @@ func TestApplyConfAwsRdsConvertsRecommendationRepeaterPanicToFailure(t *testing.
 	}
 }
 
-// TestApplyConfAwsRdsIgnoresRecommendationRepeaterErrorWithValidJSON
-// documents a change in this branch: applyConfAWSRDS now calls
-// utils.ProcessRepeaters, which only logs a repeater error and still returns
-// whatever JSON body the repeater produced. A repeater that returns valid
-// JSON alongside a non-nil error therefore no longer fails the apply task
-// (unlike utils.ProcessRepeatersWithError, which does not exist in this
-// branch's utils package) — the error is swallowed and processing continues
-// as if the recommendations were valid.
-func TestApplyConfAwsRdsIgnoresRecommendationRepeaterErrorWithValidJSON(t *testing.T) {
+func TestApplyConfAwsRdsRejectsNonemptyResponseWithRepeaterError(t *testing.T) {
 	client := mysqlApplyClient("instance-custom")
 	client.instancePages = map[string]*rds.DescribeDBParametersOutput{"": {
 		Parameters: []types.Parameter{modifiableAWSParameter("max_connections", "dynamic")},
@@ -107,14 +99,17 @@ func TestApplyConfAwsRdsIgnoresRecommendationRepeaterErrorWithValidJSON(t *testi
 		[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{"max_connections": "100"}}},
 		testAWSApplyLogger(),
 		awsApplyConfig("instance-custom", ""),
-		AWSApplyAll,
+		AWSApplyAll, nil,
 	)
 
-	if exitCode != awsApplyExitSuccess || status != awsApplyTaskStatusSuccess {
-		t.Fatalf("ApplyConfAwsRds(repeater error) = exit %d status %d, want %d/%d; output %s", exitCode, status, awsApplyExitSuccess, awsApplyTaskStatusSuccess, output)
+	if exitCode != awsApplyExitFailure || status != awsApplyTaskStatusFailure {
+		t.Fatalf("ApplyConfAwsRds(repeater error) = exit %d status %d, want %d/%d; output %s", exitCode, status, awsApplyExitFailure, awsApplyTaskStatusFailure, output)
 	}
-	if len(client.instanceModifyCalls) != 1 {
-		t.Fatalf("ApplyConfAwsRds(repeater error) instance modify calls = %d, want 1: valid JSON is applied despite the swallowed repeater error", len(client.instanceModifyCalls))
+	if len(client.instanceModifyCalls) != 0 || client.describeInstanceCalls != 0 {
+		t.Fatalf("ApplyConfAwsRds(repeater error) must not contact AWS: %+v", client.instanceModifyCalls)
+	}
+	if !strings.Contains(output, "configuration-request-failed") {
+		t.Fatalf("ApplyConfAwsRds(repeater error) must report request failure: %s", output)
 	}
 }
 
@@ -136,7 +131,7 @@ func TestApplyConfAwsRdsSerializationFailureCannotReturnSuccess(t *testing.T) {
 		[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{}}},
 		testAWSApplyLogger(),
 		awsApplyConfig("instance-custom", ""),
-		AWSApplyAll,
+		AWSApplyAll, nil,
 	)
 
 	if exitCode != awsApplyExitFailure || status != awsApplyTaskStatusFailure {
@@ -289,7 +284,7 @@ func TestApplyConfAwsRdsRequiresInstanceParameterGroupInSync(t *testing.T) {
 				}}},
 				testAWSApplyLogger(),
 				awsApplyConfig("instance-custom", "cluster-custom"),
-				AWSApplyAll,
+				AWSApplyAll, nil,
 			)
 
 			if exitCode != tt.wantExit {
@@ -359,7 +354,7 @@ func TestApplyConfAwsRdsRequiresWriterClusterParameterGroupInSync(t *testing.T) 
 				}}},
 				testAWSApplyLogger(),
 				awsApplyConfig("instance-custom", "cluster-custom"),
-				AWSApplyAll,
+				AWSApplyAll, nil,
 			)
 
 			if exitCode != tt.wantExit {
@@ -426,7 +421,7 @@ func TestApplyConfAwsRdsRefreshesDiscoveryRoutesScopesAndBatchesTwentyPlusOne(t 
 		[]models.MetricsGatherer{gatherer},
 		testAWSApplyLogger(),
 		awsApplyConfig("instance-custom", "cluster-custom"),
-		AWSApplyAll,
+		AWSApplyAll, nil,
 	)
 
 	if exitCode != awsApplyExitPendingReboot || status != awsApplyTaskStatusFailure {
@@ -496,7 +491,7 @@ func TestApplyConfAwsRdsRejectsInstanceGroupMismatchBeforePlanning(t *testing.T)
 				[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{"instance_value": "1", "cluster_value": "1"}}},
 				testAWSApplyLogger(),
 				awsApplyConfig("instance-custom", "cluster-custom"),
-				AWSApplyAll,
+				AWSApplyAll, nil,
 			)
 
 			if exitCode != 3 || status != awsApplyTaskStatusFailure {
@@ -539,7 +534,7 @@ func TestApplyConfAwsRdsClusterGroupMismatchDoesNotBlockInstanceOnlyPlan(t *test
 		[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{"instance_value": "1"}}},
 		testAWSApplyLogger(),
 		awsApplyConfig("instance-custom", "configured-cluster"),
-		AWSApplyAll,
+		AWSApplyAll, nil,
 	)
 
 	if exitCode != awsApplyExitSuccess || status != awsApplyTaskStatusSuccess {
@@ -595,7 +590,7 @@ func TestApplyConfAwsRdsRejectsClusterParameterWithoutMutableClusterGroup(t *tes
 				[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{"cluster_value": "1"}}},
 				testAWSApplyLogger(),
 				awsApplyConfig("instance-custom", tt.configuredGroup),
-				AWSApplyAll,
+				AWSApplyAll, nil,
 			)
 
 			if exitCode != awsApplyExitClusterParameterGroupMismatch || status != awsApplyTaskStatusFailure {
@@ -631,7 +626,7 @@ func TestApplyConfAwsRdsSkipsIneligibleClusterParameterForMatchingGroup(t *testi
 		[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{"cluster_value": "1"}}},
 		testAWSApplyLogger(),
 		awsApplyConfig("instance-custom", "cluster-custom"),
-		AWSApplyAll,
+		AWSApplyAll, nil,
 	)
 
 	if exitCode != awsApplyExitSuccess || status != awsApplyTaskStatusSuccess {
@@ -672,7 +667,7 @@ func TestApplyConfAwsRdsGroupMismatchPrecedesParameterGroupReadiness(t *testing.
 				[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{}}},
 				testAWSApplyLogger(),
 				awsApplyConfig("instance-custom", "cluster-custom"),
-				AWSApplyAll,
+				AWSApplyAll, nil,
 			)
 
 			if exitCode != 3 || status != awsApplyTaskStatusFailure {
@@ -701,7 +696,7 @@ func TestApplyConfAwsRdsReportsInstanceGroupMismatchOnceAtScopeLevel(t *testing.
 		[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{}}},
 		testAWSApplyLogger(),
 		cfg,
-		AWSApplyAll,
+		AWSApplyAll, nil,
 	)
 
 	if exitCode != 3 || status != awsApplyTaskStatusFailure {
@@ -778,7 +773,7 @@ func TestApplyConfAwsRdsReaderClusterGroupNeverModifiesCluster(t *testing.T) {
 				[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{"cluster_value": "1"}}},
 				testAWSApplyLogger(),
 				awsApplyConfig("instance-custom", tt.configuredGroup),
-				AWSApplyAll,
+				AWSApplyAll, nil,
 			)
 
 			if exitCode != awsApplyExitSuccess || status != awsApplyTaskStatusSuccess {
@@ -816,7 +811,7 @@ func TestApplyConfAwsRdsReaderStillRequiresClusterReadiness(t *testing.T) {
 		[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{"cluster_value": "1"}}},
 		testAWSApplyLogger(),
 		awsApplyConfig("instance-custom", "cluster-custom"),
-		AWSApplyAll,
+		AWSApplyAll, nil,
 	)
 
 	if exitCode != awsApplyExitClusterParameterGroupNotInSync || status != awsApplyTaskStatusFailure {
@@ -850,7 +845,7 @@ func TestApplyConfAwsRdsInstanceOnlyPlanStillRequiresClusterReadiness(t *testing
 				[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{"instance_value": "1"}}},
 				testAWSApplyLogger(),
 				awsApplyConfig("instance-custom", "cluster-custom"),
-				AWSApplyAll,
+				AWSApplyAll, nil,
 			)
 
 			if exitCode != awsApplyExitClusterParameterGroupNotInSync || status != awsApplyTaskStatusFailure {
@@ -897,7 +892,7 @@ func TestApplyConfAwsRdsUnknownRecommendationRequiresClusterGroup(t *testing.T) 
 				[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{"instance_value": "1"}}},
 				testAWSApplyLogger(),
 				awsApplyConfig("instance-custom", tt.configuredClusterGroup),
-				AWSApplyAll,
+				AWSApplyAll, nil,
 			)
 
 			if exitCode != awsApplyExitClusterParameterGroupMismatch || status != awsApplyTaskStatusFailure {
@@ -928,7 +923,7 @@ func TestApplyConfAwsRdsEmptyInstanceGroupReturnsExitThree(t *testing.T) {
 		[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{"shared_name": "1"}}},
 		testAWSApplyLogger(),
 		awsApplyConfig("", "cluster-custom"),
-		AWSApplyAll,
+		AWSApplyAll, nil,
 	)
 
 	if exitCode != 3 || status != awsApplyTaskStatusFailure {
@@ -992,7 +987,7 @@ func TestApplyConfAwsRdsPendingRebootReturnsExitTenForEitherScope(t *testing.T) 
 				[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{tt.variable: "1"}}},
 				testAWSApplyLogger(),
 				tt.config,
-				AWSApplyAll,
+				AWSApplyAll, nil,
 			)
 
 			if exitCode != 10 || status != awsApplyTaskStatusFailure {
@@ -1078,7 +1073,7 @@ func TestApplyConfAwsRdsExitTenUsesAppliedGroupStatus(t *testing.T) {
 				[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{variable: "1"}}},
 				testAWSApplyLogger(),
 				configuration,
-				AWSApplyAll,
+				AWSApplyAll, nil,
 			)
 
 			if exitCode != tt.wantExit || status != tt.wantStatus {
@@ -1106,7 +1101,7 @@ func TestApplyConfAwsRdsDefaultInstanceGroupBlocksClusterOnlyApply(t *testing.T)
 		[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{"cluster_value": "1"}}},
 		testAWSApplyLogger(),
 		awsApplyConfig(defaultGroup, "cluster-custom"),
-		AWSApplyAll,
+		AWSApplyAll, nil,
 	)
 
 	if exitCode != awsApplyExitParameterGroupMismatch || status != awsApplyTaskStatusFailure {
@@ -1137,7 +1132,7 @@ func TestApplyConfAwsRdsEmptyPlanIsSuccessfulNoOp(t *testing.T) {
 		[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{"unknown": "1"}}},
 		testAWSApplyLogger(),
 		awsApplyConfig("instance-custom", "cluster-custom"),
-		AWSApplyAll,
+		AWSApplyAll, nil,
 	)
 
 	if exitCode != awsApplyExitSuccess || status != awsApplyTaskStatusSuccess {
@@ -1173,7 +1168,7 @@ func TestApplyConfAwsRdsAWSFailurePreservesEarlierBatchesAndNamesFailure(t *test
 		[]models.MetricsGatherer{&awsApplyGatherer{current: current}},
 		testAWSApplyLogger(),
 		awsApplyConfig("instance-custom", ""),
-		AWSApplyAll,
+		AWSApplyAll, nil,
 	)
 
 	if exitCode != awsApplyExitFailure || status != awsApplyTaskStatusFailure {
@@ -1205,7 +1200,7 @@ func TestApplyConfAwsRdsAccessDeniedHasDistinctExitCode(t *testing.T) {
 		[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{"max_connections": "100"}}},
 		testAWSApplyLogger(),
 		awsApplyConfig("instance-custom", ""),
-		AWSApplyAll,
+		AWSApplyAll, nil,
 	)
 
 	if exitCode != awsApplyExitAccessDenied || status != awsApplyTaskStatusFailure {
@@ -1263,7 +1258,7 @@ func TestApplyConfAwsRdsOrdinaryRDSMySQLUsesOnlyInstanceModifyAPI(t *testing.T) 
 		[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{"max_connections": "100"}}},
 		testAWSApplyLogger(),
 		awsApplyConfig("instance-custom", ""),
-		AWSApplyAll,
+		AWSApplyAll, nil,
 	)
 
 	if exitCode != awsApplyExitSuccess || status != awsApplyTaskStatusSuccess {
@@ -1292,7 +1287,7 @@ func TestApplyConfAwsRdsUsesDBMetricsOnlyWhenAWSOmitsParameterValue(t *testing.T
 		}}},
 		testAWSApplyLogger(),
 		awsApplyConfig("instance-custom", ""),
-		AWSApplyAll,
+		AWSApplyAll, nil,
 	)
 
 	if exitCode != awsApplyExitSuccess || status != awsApplyTaskStatusSuccess {
@@ -1351,7 +1346,7 @@ func TestApplyConfAwsRdsTreatsPostgreSQLDBMetricsFallbackAsAWSNative(t *testing.
 		}}},
 		testAWSApplyLogger(),
 		awsApplyConfig("instance-custom", ""),
-		AWSApplyAll,
+		AWSApplyAll, nil,
 	)
 
 	if exitCode != awsApplyExitSuccess || status != awsApplyTaskStatusSuccess {
@@ -1432,7 +1427,7 @@ func TestApplyConfAwsRdsConvertsPostgreSQLByteRecommendationsToAWSNativeUnits(t 
 				[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{}}},
 				testAWSApplyLogger(),
 				tt.configuration,
-				AWSApplyAll,
+				AWSApplyAll, nil,
 			)
 
 			if exitCode != awsApplyExitSuccess || status != awsApplyTaskStatusSuccess {
@@ -1473,7 +1468,7 @@ func TestApplyConfAwsRdsRepeatedPendingRebootUsesCanonicalAWSValuesForBothScopes
 			}}},
 			testAWSApplyLogger(),
 			awsApplyConfig("instance-custom", "cluster-custom"),
-			AWSApplyPendingRebootOnly,
+			AWSApplyPendingRebootOnly, nil,
 		)
 
 		if exitCode != awsApplyExitSuccess || status != awsApplyTaskStatusSuccess {
@@ -1987,7 +1982,7 @@ func TestAWSApplyFailureOutputDoesNotContainConfigSecrets(t *testing.T) {
 		[]models.MetricsGatherer{&awsApplyGatherer{current: map[string]interface{}{"max_connections": "100"}}},
 		logger,
 		cfg,
-		AWSApplyAll,
+		AWSApplyAll, nil,
 	)
 
 	combined := output + logOutput.String()

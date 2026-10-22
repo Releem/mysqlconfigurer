@@ -6,6 +6,7 @@ param(
     [Alias('Automatic')]
     [switch]$NonInteractive,
     [switch]$NoRestart,
+    [switch]$ForceRestart,
     [ValidateSet('dynamic', 'full')]
     [string]$ApplyMode = 'full',
     [switch]$QueueApply,

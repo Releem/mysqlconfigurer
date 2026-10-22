@@ -60,71 +60,6 @@ The easiest way to get started with Releem is with [our managed service in the c
 
 To start using Releem just sign up at [https://releem.com](https://releem.com/?utm_source=github&utm_medium=link&utm_campaign=signup#) and install Releem Agent on your server.
 
-### Linux configurer and periodic metrics
-
-`/opt/releem/releem.sh` handles configuration apply, rollback, query
-optimization setup, and agent updates for MySQL, MariaDB, and PostgreSQL.
-`mysqlconfigurer.sh` remains a compatibility entry point with the same arguments
-and exit codes. Agent updates leave existing cron jobs and their schedules intact;
-new installations, updates, and Docker images download both scripts. The agent
-and installer call only `releem.sh`; the legacy script remains available
-for compatibility, including existing cron jobs. Both scripts
-must be published together. Legacy installers that download only
-`mysqlconfigurer.sh` fetch the implementation on its first invocation if it is
-missing.
-
-Minute reports read table-size aggregates only from the last successful cache
-snapshot, even if it has expired. An empty cache leaves these aggregates absent;
-minute reports never populate or refresh it. Only 12-hour reports (and manual
-full collection with `-f`) may populate or refresh the cache. Table counts and
-sizes by engine/type are reused
-for 12 hours on ordinary servers. MySQL/MariaDB still collect their total table
-count and engine support live. Large MySQL/MariaDB and PostgreSQL servers use
-the same size-cache rules: more than 10,000 tables and total size greater than
-four times physical RAM, with a default TTL of seven days. The existing
-`table_size_cache_table_threshold`, `table_size_cache_ram_multiplier`, and
-`table_size_cache_ttl_seconds` settings continue to control that large-server
-policy. PostgreSQL derives its total table count by summing `Table Number` across the
-cached table-type aggregates; it does not issue a separate table-count query. Database
-activity, processlist, and latency are collected on each report. Caches are in memory and
-reset when the agent restarts; a failed refresh retains the last successful
-snapshot and retries on the next full collection. Failed or partial results are
-never cached. Both DBMS collectors use the shared
-table-size policy in `metrics/tablesize`, backed by the typed snapshot cache in
-`utils/cache`. A failed first collection of table sizes returns the error for
-both MySQL and PostgreSQL. Neither collector caches or sends partial table aggregates.
-
-PostgreSQL keeps one connection handle per database between collections and
-shares it between per-database statistics, table sizes, and EXPLAIN. At most
-`pg_max_db_connections` databases (default 10) stay open; the least
-recently used one is closed when another database is needed, and a handle's
-idle server connection closes after 10 minutes without use. The setting limits
-how many databases keep a connection between collections, not the server's
-`max_connections`: while gatherers run concurrently, a database in use may
-briefly hold an extra connection until it is released. MySQL/MariaDB
-EXPLAIN uses a single connection for the whole pass and switches schemas with
-`USE`; a schema that cannot be selected is reported as `connection_failed`.
-
-### PostgreSQL reload permission for existing installations
-
-Local PostgreSQL configuration apply without restart requires permission to run
-`pg_catalog.pg_reload_conf()`. The Linux installer grants this when it creates or
-updates the monitoring role. Binary updates do not change database permissions;
-existing installations and manually provisioned monitoring accounts need this
-one-time grant before using dynamic apply.
-
-Connect as a PostgreSQL superuser to the Agent's configured `pg_database`
-(default: `postgres`) and run the following, replacing `releem` with the configured
-`pg_user` if different:
-
-```sql
-GRANT EXECUTE ON FUNCTION pg_catalog.pg_reload_conf() TO "releem";
-SELECT has_function_privilege('releem', 'pg_catalog.pg_reload_conf()', 'EXECUTE');
-```
-
-The check should return `true`. Repeat the grant if the Agent switches databases,
-because function permissions belong to each database. This grant does not give
-the monitoring role superuser status.
 
 ### Aurora parameter groups
 
@@ -210,3 +145,7 @@ If you have suggestions or want to discuss potential improvements, please visit 
 `releem.ps1` is the Windows management entry point. Installation and updates
 also download `mysqlconfigurer.ps1`, which forwards legacy arguments and exit
 codes to `releem.ps1` in the same directory. Publish both files together.
+
+Full apply and managed rollback tasks set `RELEEM_FORCE_RESTART=1` for `releem.ps1` so
+MySQL reloads the selected configuration even if the staged and live files
+match. Manual apply skips an identical file unless a failed attempt left a backup or `-ForceRestart` is passed.

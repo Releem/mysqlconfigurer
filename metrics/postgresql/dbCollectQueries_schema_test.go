@@ -21,9 +21,7 @@ func TestGetMetricsClearsLightweightQueriesWhenFullCollectionFails(t *testing.T)
 	logger := *logging.Init("postgresql-full-query-failure-test", false, false, io.Discard)
 	defer logger.Close()
 	recorder := &pgExplainRecordingDriver{queryError: errors.New("full query collection failed")}
-	driverName := "releem_pg_full_query_collection_failure_test"
-	sql.Register(driverName, recorder)
-	db, err := sql.Open(driverName, "")
+	db, err := openPgTestDB(recorder)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,8 +128,7 @@ func TestPostgresqlExplainCollectsIndependentSuccessfulQuotas(t *testing.T) {
 			}, nil
 		},
 	}
-	sql.Register("releem_pg_explain_success_quota_test", recorder)
-	db, err := sql.Open("releem_pg_explain_success_quota_test", "")
+	db, err := openPgTestDB(recorder)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,8 +183,7 @@ func TestPostgresqlExplainCollectsPerRankingSuccessLimitForOverlappingQueries(t 
 			return &pgExplainRows{columns: []string{"QUERY PLAN"}, rows: [][]driver.Value{{"{}"}}}, nil
 		},
 	}
-	sql.Register("releem_pg_explain_overlapping_quota_test", recorder)
-	db, err := sql.Open("releem_pg_explain_overlapping_quota_test", "")
+	db, err := openPgTestDB(recorder)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,12 +251,11 @@ func TestPostgresqlExplainAttemptsAreDeduplicatedOnlyWithinCollection(t *testing
 
 func TestPostgresqlExplainCollectionStateKeepsOneConnectionPerDatabase(t *testing.T) {
 	recorder := &pgExplainRecordingDriver{}
-	sql.Register("releem_pg_explain_connection_state_test", recorder)
-	dbA, err := sql.Open("releem_pg_explain_connection_state_test", "a")
+	dbA, err := openPgTestDB(recorder)
 	if err != nil {
 		t.Fatal(err)
 	}
-	dbB, err := sql.Open("releem_pg_explain_connection_state_test", "b")
+	dbB, err := openPgTestDB(recorder)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -324,8 +319,7 @@ func TestPostgresqlExplainCollectionStateCachesFailedDatabaseForCurrentCollectio
 
 func TestPostgresqlExplainPreservesOriginalQuotedIdentifiers(t *testing.T) {
 	recorder := &pgExplainRecordingDriver{}
-	sql.Register("releem_pg_explain_quotes_test", recorder)
-	db, err := sql.Open("releem_pg_explain_quotes_test", "")
+	db, err := openPgTestDB(recorder)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -349,8 +343,7 @@ func TestPostgresqlExplainPreservesOriginalQuotedIdentifiers(t *testing.T) {
 
 func TestPostgresqlParameterizedExplainDoesNotFallBackToDirectExplain(t *testing.T) {
 	recorder := &pgExplainRecordingDriver{failPrepare: true}
-	sql.Register("releem_pg_explain_prepared_test", recorder)
-	db, err := sql.Open("releem_pg_explain_prepared_test", "")
+	db, err := openPgTestDB(recorder)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -379,8 +372,7 @@ func TestPostgresqlParameterizedExplainFallsBackForIndeterminateParameterType(t 
 			return nil, errors.New("unexpected explain query")
 		},
 	}
-	sql.Register("releem_pg_explain_prepared_type_error_test", recorder)
-	db, err := sql.Open("releem_pg_explain_prepared_type_error_test", "")
+	db, err := openPgTestDB(recorder)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -406,8 +398,7 @@ func TestPostgresqlParameterizedExplainFallsBackForIndeterminateParameterType(t 
 
 func TestPostgresqlParameterizedExplainNormalizesPgStatStatementsTypedLiterals(t *testing.T) {
 	recorder := &pgExplainRecordingDriver{}
-	sql.Register("releem_pg_explain_typed_literals_test", recorder)
-	db, err := sql.Open("releem_pg_explain_typed_literals_test", "")
+	db, err := openPgTestDB(recorder)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -445,8 +436,7 @@ func TestNormalizePgStatStatementsTypedParametersNormalizesInterval(t *testing.T
 
 func TestPostgresqlParameterizedExplainCleansUpSessionAfterExplainError(t *testing.T) {
 	recorder := &pgExplainRecordingDriver{queryError: fmt.Errorf("explain failed")}
-	sql.Register("releem_pg_explain_cleanup_test", recorder)
-	db, err := sql.Open("releem_pg_explain_cleanup_test", "")
+	db, err := openPgTestDB(recorder)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -478,8 +468,7 @@ func TestPostgresqlParameterizedExplainCleansUpSessionAfterExplainError(t *testi
 
 func TestPostgresqlParameterizedExplainDoesNotRetryCandidateSchemas(t *testing.T) {
 	recorder := &pgExplainRecordingDriver{prepareError: fmt.Errorf(`pq: relation "orders" does not exist`)}
-	sql.Register("releem_pg_explain_prepared_no_schema_retry_test", recorder)
-	db, err := sql.Open("releem_pg_explain_prepared_no_schema_retry_test", "")
+	db, err := openPgTestDB(recorder)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -500,8 +489,7 @@ func TestPostgresqlParameterizedExplainDoesNotRetryCandidateSchemas(t *testing.T
 
 func TestPostgresqlExplainDoesNotRetryCandidateSchemas(t *testing.T) {
 	recorder := &pgExplainRecordingDriver{queryError: fmt.Errorf(`pq: relation "orders" does not exist`)}
-	sql.Register("releem_pg_explain_no_schema_retry_test", recorder)
-	db, err := sql.Open("releem_pg_explain_no_schema_retry_test", "")
+	db, err := openPgTestDB(recorder)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -555,9 +543,7 @@ ON CONFLICT (site_url, gf_entry_id) DO NOTHING`
 			return nil, permissionDenied
 		},
 	}
-	driverName := "releem_pg_explain_insert_permission_test"
-	sql.Register(driverName, recorder)
-	db, err := sql.Open(driverName, "")
+	db, err := openPgTestDB(recorder)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -587,9 +573,7 @@ func TestExecuteExplainMapsSelectPermissionDeniedToNeedGrantPermission(t *testin
 			return nil, permissionDenied
 		},
 	}
-	driverName := "releem_pg_explain_select_permission_test"
-	sql.Register(driverName, recorder)
-	db, err := sql.Open(driverName, "")
+	db, err := openPgTestDB(recorder)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -826,9 +810,7 @@ func TestPostgresqlParameterizedExplainDiscardsSessionWhenCleanupFails(t *testin
 					return &pgExplainRows{columns: []string{"plan"}, rows: [][]driver.Value{{"[]"}}}, nil
 				},
 			}
-			driverName := "releem_pg_explain_discard_" + strings.ReplaceAll(tt.name, " ", "_")
-			sql.Register(driverName, recorder)
-			db, err := sql.Open(driverName, "")
+			db, err := openPgTestDB(recorder)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -845,17 +827,22 @@ func TestPostgresqlParameterizedExplainDiscardsSessionWhenCleanupFails(t *testin
 	}
 }
 
-// pgRecordingConnector opens recording connections without sql.Register, so
+// pgTestConnector opens test-driver connections without sql.Register, so
 // tests can rerun in one process (go test -count=N) without a duplicate-driver panic.
-type pgRecordingConnector struct{ driver *pgExplainRecordingDriver }
+type pgTestConnector struct{ driver driver.Driver }
 
-func (c pgRecordingConnector) Connect(context.Context) (driver.Conn, error) { return c.driver.Open("") }
+func (c pgTestConnector) Connect(context.Context) (driver.Conn, error) { return c.driver.Open("") }
 
-func (c pgRecordingConnector) Driver() driver.Driver { return c.driver }
+func (c pgTestConnector) Driver() driver.Driver { return c.driver }
+
+// openPgTestDB returns an error only to keep call sites shaped like sql.Open.
+func openPgTestDB(testDriver driver.Driver) (*sql.DB, error) {
+	return sql.OpenDB(pgTestConnector{driver: testDriver}), nil
+}
 
 func openPgRecordingDB(t *testing.T, recorder *pgExplainRecordingDriver) *sql.DB {
 	t.Helper()
-	db := sql.OpenDB(pgRecordingConnector{driver: recorder})
+	db, _ := openPgTestDB(recorder)
 	t.Cleanup(func() { db.Close() })
 	return db
 }

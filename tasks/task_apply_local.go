@@ -3,34 +3,71 @@ package tasks
 import (
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
-	"github.com/Releem/mysqlconfigurer/utils"
 	logging "github.com/google/logger"
 )
 
-func ApplyConfLocal(metrics *models.Metrics, repeaters models.MetricsRepeater, gatherers []models.MetricsGatherer, logger logging.Logger, configuration *config.Config) (int, int, string) {
+// applyDynamicConfigurationLocal runs a type 4 task on a local server. The
+// recommendations are fetched and validated before the configurer touches the
+// live configuration directory, so a failed JSON request leaves it unchanged.
+// JSON and file downloads are separate requests; an optional task selection is
+// passed to both, but an unselected task may see a newer configuration in Get.
+func applyDynamicConfigurationLocal(metrics *models.Metrics, repeaters models.MetricsRepeater, logger logging.Logger, configuration *config.Config, task *models.Task, run func(taskCommand, logging.Logger) (int, int, string)) (int, int, string) {
+	recommendations, exitCode, status, output := fetchLocalRecommendations(metrics, repeaters, logger, configuration, task)
+	if exitCode != 0 {
+		return exitCode, status, output
+	}
+	exitCode, status, stepOutput := DownloadConfigurationFile(metrics, repeaters, configuration, logger, ApplyModeDynamic, task)
+	output += stepOutput
+	if exitCode != 0 {
+		return exitCode, status, output
+	}
+	exitCode, status, stepOutput = run(taskApplyAutomaticCommand(runtime.GOOS, configuration.ReleemDir, false), logger)
+	output += stepOutput
+	if exitCode != 0 {
+		return exitCode, status, output
+	}
+	exitCode, status, stepOutput = applyLocalRecommendations(metrics, recommendations, logger, configuration)
+	return exitCode, status, output + stepOutput
+}
+
+// fetchLocalRecommendations requests the dynamic recommendations as JSON. A
+// failed request or invalid JSON returns exit code 1 before any changes. Code 8
+// is reserved for failures while applying SET GLOBAL statements.
+func fetchLocalRecommendations(metrics *models.Metrics, repeaters models.MetricsRepeater, logger logging.Logger, configuration *config.Config, task *models.Task) (models.MetricGroupValue, int, int, string) {
+	mode, err := configurationRequestMode("GetJson", string(ApplyModeDynamic), task)
+	if err != nil {
+		logger.Error("Failed to parse task task_details JSON", err)
+		return nil, 1, 4, "Failed to parse task task_details JSON: " + err.Error()
+	}
+	recommend_var, err := requestConfigurationRecommendations(metrics, repeaters, configuration, logger, mode)
+	if err != nil {
+		logger.Error("Failed to get configuration recommendations", err)
+		return nil, 1, 4, "Failed to get configuration recommendations: " + err.Error()
+	}
+	result_data := models.MetricGroupValue{}
+	if err := json.Unmarshal([]byte(recommend_var), &result_data); err != nil {
+		logger.Error("Failed to parse configuration recommendations JSON", err)
+		return nil, 1, 4, "Failed to parse configuration recommendations JSON: " + err.Error()
+	}
+	return result_data, 0, 1, ""
+}
+
+func applyLocalRecommendations(metrics *models.Metrics, result_data models.MetricGroupValue, logger logging.Logger, configuration *config.Config) (int, int, string) {
 	var task_exit_code, task_status int
 	var task_output string
 
-	result_data := models.MetricGroupValue{}
 	// flush_queries := []string{"flush status", "flush statistic"}
 	need_restart := false
 	need_privileges := false
 	need_flush := false
 	error_exist := false
-
-	recommend_var := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Configurations", Type: "GetJson", ApplyMode: "dynamic"})
-	err := json.Unmarshal([]byte(recommend_var), &result_data)
-	if err != nil {
-		message := fmt.Sprintf("Failed to parse dynamic configuration: %v", err)
-		logger.Error(message)
-		task_output += message + "\n"
-	}
 
 	operations := localDynamicApplyQueries(configuration.GetDatabaseType(), result_data, metrics.DB.Conf.Variables)
 	for _, operation := range operations {

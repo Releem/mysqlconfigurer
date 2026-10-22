@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"testing/synctest"
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
@@ -34,7 +35,9 @@ func TestProcessTaskSkipsTaskType6WhenDisabled(t *testing.T) {
 	}
 	cfg := &config.Config{}
 
-	ProcessTask(repeater, nil, logger, cfg)
+	synctest.Test(t, func(t *testing.T) {
+		ProcessTask(repeater, nil, logger, cfg)
+	})
 
 	if len(repeater.statuses) != 2 {
 		t.Fatalf("status updates = %d, want 2", len(repeater.statuses))
@@ -71,7 +74,9 @@ func TestProcessTaskRunsTaskType6WhenEnabled(t *testing.T) {
 	}
 	cfg := &config.Config{EnableExecDDL: true}
 
-	ProcessTask(repeater, nil, logger, cfg)
+	synctest.Test(t, func(t *testing.T) {
+		ProcessTask(repeater, nil, logger, cfg)
+	})
 
 	if len(repeater.statuses) != 2 {
 		t.Fatalf("status updates = %d, want 2", len(repeater.statuses))

@@ -81,10 +81,30 @@ $afterSnapshot = Get-ServiceSnapshot -ServiceName $DbService
 Assert-Zero "releem.ps1 -Apply -NonInteractive -NoRestart exited successfully" $applyExit
 Assert-FileExists "Staging config file exists" $StagingConfig
 Assert-FileExists "Live config file copied" $liveConfigPath
-Assert-FileExists "Backup file preserved when restart is skipped" $BackupConfig
+# Successful copying without restart also completes the apply.
+Assert-FileNotExists "Backup removed after successful apply without restart" $BackupConfig
 Assert-ServiceRunning "DB service still running" $DbService
 Assert-ServiceRunning "releem-agent still running" "releem-agent"
 Assert-Equal "MySQL process id unchanged without restart" $beforeSnapshot.ProcessId $afterSnapshot.ProcessId
 Assert-Equal "MySQL process start time unchanged without restart" $beforeSnapshot.StartTime $afterSnapshot.StartTime
+
+# A successful no-restart apply replaces and removes an older backup too.
+$pendingBackup = "[mysqld]`r`n# pending recovery backup`r`n"
+[System.IO.File]::WriteAllText($BackupConfig, $pendingBackup)
+Add-Content -Path $StagingConfig -Value '# second no-restart apply' -Encoding ASCII
+$beforeSnapshot = Get-ServiceSnapshot -ServiceName $DbService
+
+Write-Info "Running releem.ps1 -Apply -NonInteractive -NoRestart with a pending recovery backup..."
+& powershell.exe -ExecutionPolicy Bypass -File $ConfigurerScript -Apply -NonInteractive -NoRestart
+$applyExit = $LASTEXITCODE
+
+$afterSnapshot = Get-ServiceSnapshot -ServiceName $DbService
+
+Assert-Zero "releem.ps1 -Apply -NonInteractive -NoRestart with pending backup exited successfully" $applyExit
+Assert-FileNotExists "Older backup removed after successful apply" $BackupConfig
+Assert-FileContains "Live config file updated" $liveConfigPath '# second no-restart apply'
+Assert-Equal "MySQL process id unchanged on second apply" $beforeSnapshot.ProcessId $afterSnapshot.ProcessId
+Assert-Equal "MySQL process start time unchanged on second apply" $beforeSnapshot.StartTime $afterSnapshot.StartTime
+Remove-Item -Path $BackupConfig -Force -ErrorAction SilentlyContinue
 
 Show-Summary "Test 7: Apply configuration without restart"

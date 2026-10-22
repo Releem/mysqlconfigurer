@@ -69,9 +69,7 @@ func TestPgStatStatementsCapabilityMatrix(t *testing.T) {
 }
 
 func TestCollectPostgresQueryDetailsSkipsNullQueryIDAndPreservesValidRows(t *testing.T) {
-	driverName := "releem_pg_null_queryid_contract_test"
-	sql.Register(driverName, pgNullQueryIDDriver{})
-	db, err := sql.Open(driverName, "")
+	db, err := openPgTestDB(pgNullQueryIDDriver{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +141,6 @@ func TestPostgresExplainQuotaMatrixCountsOnlySuccessfulUniquePlans(t *testing.T)
 
 	state := u.NewExplainCollectionState()
 	defer state.Close()
-	driverName := "releem_pg_explain_quota_contract_test"
 	recorder := &pgExplainRecordingDriver{
 		explainHandler: func(query string) (driver.Rows, error) {
 			if strings.Contains(query, "/*fail*/") {
@@ -159,8 +156,7 @@ func TestPostgresExplainQuotaMatrixCountsOnlySuccessfulUniquePlans(t *testing.T)
 			}, nil
 		},
 	}
-	sql.Register(driverName, recorder)
-	db, err := sql.Open(driverName, "")
+	db, err := openPgTestDB(recorder)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -199,8 +195,7 @@ func TestPostgresExplainCachesConnectionFailurePerDatabaseAndContinues(t *testin
 
 	state := u.NewExplainCollectionState()
 	defer state.Close()
-	driverName := "releem_pg_explain_connection_failure_contract_test"
-	sql.Register(driverName, &pgExplainRecordingDriver{
+	db, err := openPgTestDB(&pgExplainRecordingDriver{
 		explainHandler: func(string) (driver.Rows, error) {
 			return &pgExplainRows{
 				columns: []string{"QUERY PLAN"},
@@ -208,7 +203,6 @@ func TestPostgresExplainCachesConnectionFailurePerDatabaseAndContinues(t *testin
 			}, nil
 		},
 	})
-	db, err := sql.Open(driverName, "")
 	if err != nil {
 		t.Fatal(err)
 	}

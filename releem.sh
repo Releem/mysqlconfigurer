@@ -465,7 +465,7 @@ function releem_apply_config() {
         releem_apply_auto
     elif [ "$1" == "automatic" ]; 
     then
-        releem_apply_automatic "" "$2"
+        releem_apply_automatic
     elif [ "$1" == "initial" ]; 
     then        
         releem_apply_automatic "initial"
@@ -475,8 +475,11 @@ function releem_apply_config() {
 }
  
 function releem_apply_auto() {
-    $RELEEM_WORKDIR/releem-agent --task=apply_config > /dev/null
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Sending request to create a job to apply the configuration.\033[0m\n"
+    if ! $RELEEM_WORKDIR/releem-agent --task=apply_config > /dev/null; then
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Failed to create the job to apply the configuration. Check the Releem Agent log and try again.\033[0m\n"
+        exit 1
+    fi
     exit 0
 }
 
@@ -490,7 +493,7 @@ function releem_apply_manual() {
     fi    
     if [ "$DATABASE_TYPE" == "mysql" ]; then
         if ! check_db_version; then        
-                printf "\033[31m\n * MySQL version is lower than 5.6.8. Check the documentation https://github.com/Releem/mysqlconfigurer#how-to-apply-the-recommended-configuration for applying the configuration. \033[0m\n"        
+                printf "\033[31m\n * MySQL version is lower than 5.6.8. Check the documentation https://github.com/Releem/mysqlconfigurer#how-to-apply-the-recommended-configuration for applying the configuration. \033[0m\n"
             exit 2
         fi
         if [ -f "$MYSQL_MY_CNF_PATH" ]; then
@@ -507,19 +510,18 @@ function releem_apply_manual() {
     fi
 
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended ${DATABASE_NAME} configuration.\033[0m\n"
-    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the latest up-to-date configuration.\033[0m\n"
-    $RELEEM_WORKDIR/releem-agent -c >/dev/null 2>&1 || true
+    printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Using the configuration file prepared by Releem Agent.\033[0m\n"
     if [ ! -f $RELEEM_DB_CONFIG_FILE ]; then
         printf "\033[37m\n * Recommended ${DATABASE_NAME} configuration was not found.\033[0m"
         printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"
-        printf "\033[32m\n $RELEEM_WORKDIR/releem-agent -f \033[0m\n\n"
+        printf "\033[32m\n $RELEEM_WORKDIR/releem-agent -c full \033[0m\n\n"
         exit 1;
     fi
     diff_cmd=$(which diff || true)
     if [ -n "$diff_cmd" ];then
         diff "${RELEEM_DB_CONFIG_DIR}/${RELEEM_DB_CONFIG_FILE_NAME}" "$RELEEM_DB_CONFIG_FILE" > /dev/null 2>&1
         retVal=$?
-        if [ $retVal -eq 0 ];
+        if [ $retVal -eq 0 ] && [ ! -f "${RELEEM_CONF_DIR}${RELEEM_DB_CONFIG_FILE_NAME}.bkp" ];
         then
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m The new configuration is identical to the current configuration. No restart is required!\033[0m\n"
             exit 0
@@ -543,10 +545,12 @@ function releem_apply_manual() {
     fi
 
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Copying file $RELEEM_DB_CONFIG_FILE to directory $RELEEM_DB_CONFIG_DIR/.\033[0m\n"
-    if [ ! -f "${RELEEM_CONF_DIR}${RELEEM_DB_CONFIG_FILE_NAME}.bkp" ]; then
-        yes | cp -f "${RELEEM_DB_CONFIG_DIR}/${RELEEM_DB_CONFIG_FILE_NAME}" "${RELEEM_CONF_DIR}${RELEEM_DB_CONFIG_FILE_NAME}.bkp"
+    if [ -f "${RELEEM_DB_CONFIG_DIR}/${RELEEM_DB_CONFIG_FILE_NAME}" ]; then
+        cp -f "${RELEEM_DB_CONFIG_DIR}/${RELEEM_DB_CONFIG_FILE_NAME}" "${RELEEM_CONF_DIR}${RELEEM_DB_CONFIG_FILE_NAME}.bkp" || exit 1
+    else
+        rm -f "${RELEEM_CONF_DIR}${RELEEM_DB_CONFIG_FILE_NAME}.bkp"
     fi    
-    yes | cp -fr $RELEEM_DB_CONFIG_FILE $RELEEM_DB_CONFIG_DIR/
+    cp -f "$RELEEM_DB_CONFIG_FILE" "$RELEEM_DB_CONFIG_DIR/" || exit 1
     chmod 644 $RELEEM_DB_CONFIG_DIR/*
 
     if [ -z "$RELEEM_COMMAND_RESTART_SERVICE" ]; then
@@ -595,7 +599,7 @@ function releem_apply_automatic() {
     fi
     if [ "$DATABASE_TYPE" == "mysql" ]; then
         if ! check_db_version; then        
-                printf "\033[31m\n * MySQL version is lower than 5.6.8. Check the documentation https://github.com/Releem/mysqlconfigurer#how-to-apply-the-recommended-configuration for applying the configuration. \033[0m\n"        
+                printf "\033[31m\n * MySQL version is lower than 5.6.8. Check the documentation https://github.com/Releem/mysqlconfigurer#how-to-apply-the-recommended-configuration for applying the configuration. \033[0m\n"
             exit 2
         fi
         if [ -f "$MYSQL_MY_CNF_PATH" ]; then
@@ -613,16 +617,22 @@ function releem_apply_automatic() {
 
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended ${DATABASE_NAME} configuration.\033[0m\n"
     if [ "$1" == "initial" ]; then
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the initial configuration.\033[0m\n"
-        $RELEEM_WORKDIR/releem-agent --initial >/dev/null 2>&1 || true
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Using the initial configuration prepared by Releem Agent.\033[0m\n"
+        if ! "$RELEEM_WORKDIR/releem-agent" --initial >/dev/null 2>&1; then
+            printf '\nFailed to download the initial configuration; no database configuration was changed.\n' >&2
+            exit 1
+        fi
     else
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the latest up-to-date configuration.\033[0m\n"
-        $RELEEM_WORKDIR/releem-agent -c "${2:-full}" >/dev/null 2>&1 || true
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Using the configuration file prepared by Releem Agent.\033[0m\n"
     fi
     if [ ! -f $DB_CONFIG_FILE ]; then
         printf "\033[37m\n * Recommended ${DATABASE_NAME} configuration was not found.\033[0m"
         printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"
-        printf "\033[32m\n $RELEEM_WORKDIR/releem-agent -f \033[0m\n\n"
+        if [ "$1" == "initial" ]; then
+            printf "\033[32m\n $RELEEM_WORKDIR/releem-agent --initial \033[0m\n\n"
+        else
+            printf "\033[32m\n $RELEEM_WORKDIR/releem-agent -c full \033[0m\n\n"
+        fi
         exit 1;
     fi
     FLAG_RESTART_SERVICE=1
@@ -640,10 +650,13 @@ function releem_apply_automatic() {
 
 
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Copying file $DB_CONFIG_FILE to directory $RELEEM_DB_CONFIG_DIR/.\033[0m\n"
-    if [ ! -f "${DB_CONFIG_FILE}.bkp" ]; then
-        yes | cp -f "${RELEEM_DB_CONFIG_DIR}/${DB_CONFIG_FILE_NAME}" "${DB_CONFIG_FILE}.bkp"
+    # Every attempt saves the file it is about to replace.
+    if [ -f "${RELEEM_DB_CONFIG_DIR}/${DB_CONFIG_FILE_NAME}" ]; then
+        cp -f "${RELEEM_DB_CONFIG_DIR}/${DB_CONFIG_FILE_NAME}" "${DB_CONFIG_FILE}.bkp" || exit 1
+    else
+        rm -f "${DB_CONFIG_FILE}.bkp"
     fi    
-    yes | cp -fr $DB_CONFIG_FILE $RELEEM_DB_CONFIG_DIR/
+    cp -f "$DB_CONFIG_FILE" "$RELEEM_DB_CONFIG_DIR/" || exit 1
     chmod 644 $RELEEM_DB_CONFIG_DIR/*
 
     if [ "$FLAG_RESTART_SERVICE" -ne 0 ]; then
@@ -678,6 +691,7 @@ function releem_apply_automatic() {
         fi
     else
         RESTART_CODE=0
+        rm -f "${DB_CONFIG_FILE}.bkp"
     fi
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Sending notification to Releem Platform. \033[0m\n"
     $RELEEM_WORKDIR/releem-agent --event=config_applied > /dev/null
@@ -859,18 +873,13 @@ function main() {
         fi
     fi
 
-    local configuration_apply_mode="full"
-    if [ "${!#}" == "dynamic" ] || [ "${!#}" == "full" ]; then
-        configuration_apply_mode="${!#}"
-    fi
-
     while getopts "k:m:s:arpu" option
     do
       case "${option}" in
         k) RELEEM_API_KEY=${OPTARG};;
         m) DB_MEMORY_LIMIT=${OPTARG};;
         a) releem_apply_manual;;
-        s) releem_apply_config "${OPTARG}" "${configuration_apply_mode}";;
+        s) releem_apply_config "${OPTARG}";;
         r) releem_rollback_config;;
         p) releem_configure_database;;
         u) update_agent; exit 0;;

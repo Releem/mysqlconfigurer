@@ -18,15 +18,30 @@ import (
 	"github.com/pkg/errors"
 )
 
+// ProcessRepeaters returns the repeater's response. A repeater panic is
+// reported like any other through HandlePanic and returned as an error, so no
+// caller mistakes it for a successful empty response.
 func ProcessRepeaters(metrics *models.Metrics, repeaters models.MetricsRepeater,
-	configuration *config.Config, logger logging.Logger, Mode models.ModeType) string {
+	configuration *config.Config, logger logging.Logger, Mode models.ModeType) (result []byte, err error) {
 	defer HandlePanic(configuration, logger)
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			result, err = nil, fmt.Errorf("repeater panicked: %v", recovered)
+			panic(recovered) // HandlePanic reports it; the named results are kept.
+		}
+	}()
 
-	result, err := repeaters.ProcessMetrics(configuration, *metrics, Mode)
-	if err != nil {
-		logger.Error("Repeater failed ", err)
+	if metrics == nil {
+		return nil, errors.New("metrics unavailable")
 	}
-	return result
+	body, err := repeaters.ProcessMetrics(configuration, *metrics, Mode)
+	if err != nil {
+		return nil, err
+	}
+	if Mode.Name == "Configurations" && strings.TrimSpace(body) == "" {
+		return nil, errors.New("empty configuration response")
+	}
+	return []byte(body), nil
 }
 
 func CollectMetrics(gatherers []models.MetricsGatherer, logger logging.Logger, configuration *config.Config) *models.Metrics {

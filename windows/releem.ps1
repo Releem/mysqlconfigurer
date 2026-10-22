@@ -8,13 +8,16 @@
     Deployed to C:\Program Files\ReleemAgent\releem.ps1
 
 .PARAMETER Apply
-    Apply the recommended MySQL configuration (with user confirmation).
+    Apply the MySQL configuration downloaded by Releem Agent (with user confirmation).
 
 .PARAMETER NonInteractive
     Apply the recommended MySQL configuration non-interactively.
 
 .PARAMETER NoRestart
     Copy the recommended MySQL configuration without restarting MySQL.
+
+.PARAMETER ForceRestart
+    Restart even when the prepared file matches the live file, for full apply and rollback tasks.
 
 .PARAMETER QueueApply
     Ask the Releem Agent to create an apply_config job instead of applying locally.
@@ -33,7 +36,8 @@
 
 .EXAMPLE
     .\releem.ps1 -Configure
-    .\releem.ps1 -Apply
+    & .\releem-agent.exe -c full
+    if ($LASTEXITCODE -eq 0) { .\releem.ps1 -Apply }
     .\releem.ps1 -Apply -NonInteractive
     .\releem.ps1 -Apply -NonInteractive -NoRestart
     .\releem.ps1 -QueueApply
@@ -48,6 +52,8 @@ param(
     [Alias('Automatic')]
     [switch]$NonInteractive,
     [switch]$NoRestart,
+    [switch]$ForceRestart,
+    # Retained for legacy callers; Go prepares the configuration before apply.
     [ValidateSet('dynamic', 'full')]
     [string]$ApplyMode = 'full',
     [switch]$QueueApply,
@@ -354,15 +360,14 @@ function Invoke-ApplyConfig {
     param(
         [bool]$Interactive,
         [bool]$RestartService,
-        [ValidateSet('dynamic', 'full')]
-        [string]$ConfigurationApplyMode
+        [bool]$ForceRestart = $false
     )
 
-    # Check that recommended config file exists in staging area
-    if (-not (Test-Path $StagingCnfPath)) {
-        Write-Log "ERROR: Recommended config file not found: $StagingCnfPath"
+    if (-not (Test-Path -LiteralPath $StagingCnfPath -PathType Leaf)) {
+        Write-Log "ERROR: Recommended configuration file not found: $StagingCnfPath. Run Releem Agent to download the configuration before applying it."
         $script:ExitCode = 1; return
     }
+    $ForceRestart = $ForceRestart -or ($env:RELEEM_FORCE_RESTART -eq '1')
 
     $directoryCode = Check-MySQLConfigDirectory
     if ($directoryCode -ne 0) {
@@ -374,17 +379,10 @@ function Invoke-ApplyConfig {
     }
     $liveCnfPath = Join-Path $mysql_cnf_dir $DbConfigFileName
 
-    Write-Log 'Getting the latest up-to-date configuration.'
-    if (Test-Path $AgentBinaryPath) {
-        & $AgentBinaryPath -c $ConfigurationApplyMode
-        $getConfigExitCode = $LASTEXITCODE
-        Write-Log "releem-agent.exe -c $ConfigurationApplyMode exited with code: $getConfigExitCode"
-    } else {
-        Write-Log "WARNING: Releem Agent binary not found, skipping configuration refresh: $AgentBinaryPath"
-    }
+    Write-Log 'Using the configuration file prepared by Releem Agent.'
 
     # Log full contents of staging config so user can see what will be applied
-    $recommendedContent = Get-Content -Path $StagingCnfPath -Raw
+    $recommendedContent = Get-Content -LiteralPath $StagingCnfPath -Raw
     Write-Log "Contents of ${StagingCnfPath}:`n$recommendedContent"
 
     # Check MySQL version >= 5.6.8
@@ -392,6 +390,19 @@ function Invoke-ApplyConfig {
     if ((Check-DbVersion) -ne 0) {
         Write-Log 'ERROR: MySQL version is lower than 5.6.8. Check the documentation https://github.com/Releem/mysqlconfigurer#how-to-apply-the-recommended-configuration for applying the configuration.'
         $script:ExitCode = 2; return
+    }
+
+    # A backup marks a failed attempt; identical retries must still restart.
+    if ($RestartService -and -not $ForceRestart -and
+        -not (Test-Path -LiteralPath $BackupCnfPath) -and
+        (Test-Path -LiteralPath $liveCnfPath -PathType Leaf)) {
+        # Compare exact bytes using .NET APIs available in PowerShell 3.0.
+        $liveBytes = [System.Convert]::ToBase64String([System.IO.File]::ReadAllBytes($liveCnfPath))
+        $stagingBytes = [System.Convert]::ToBase64String([System.IO.File]::ReadAllBytes($StagingCnfPath))
+        if ($liveBytes -ceq $stagingBytes) {
+            Write-Log 'The new configuration is identical to the current configuration. No restart is required!'
+            return
+        }
     }
 
     # Prompt for confirmation (interactive) or proceed automatically
@@ -407,10 +418,10 @@ function Invoke-ApplyConfig {
         Write-Log 'Running in non-interactive mode - copying configuration without restarting MySQL'
     }
 
-    # Back up the current live config before applying
+    # Every attempt saves the file it is about to replace.
     $noBomUtf8 = New-Object System.Text.UTF8Encoding $false
-    if (Test-Path $liveCnfPath) {
-        Copy-Item -Path $liveCnfPath -Destination $BackupCnfPath -Force
+    if (Test-Path -LiteralPath $liveCnfPath -PathType Leaf) {
+        Copy-Item -LiteralPath $liveCnfPath -Destination $BackupCnfPath -Force
         Write-Log "Backed up current live config to: $BackupCnfPath"
     } else {
         [System.IO.File]::WriteAllText($BackupCnfPath, "[mysqld]`r`n", $noBomUtf8)
@@ -418,12 +429,12 @@ function Invoke-ApplyConfig {
     }
 
     # Copy staging config to MySQL conf dir
-    New-Item -Path $mysql_cnf_dir -ItemType Directory -Force | Out-Null
-    $stagingContent = Get-Content -Path $StagingCnfPath -Raw
+    $stagingContent = Get-Content -LiteralPath $StagingCnfPath -Raw
     [System.IO.File]::WriteAllText($liveCnfPath, $stagingContent, $noBomUtf8)
     Write-Log "Copied recommended config to $liveCnfPath"
 
     if (-not $RestartService) {
+        Remove-Item -LiteralPath $BackupCnfPath -Force
         & $AgentBinaryPath --event=config_applied
         $applyEventCode = $LASTEXITCODE
         Write-Log "Agent event 'config_applied' fired with exit code $applyEventCode"
@@ -448,8 +459,7 @@ function Invoke-ApplyConfig {
         $script:ExitCode = $restartCode; return
     }
 
-    # Successfully applied — remove backup
-    Remove-Item -Path $BackupCnfPath -Force
+    Remove-Item -LiteralPath $BackupCnfPath -Force
     Write-Log "Backup removed after successful apply: $BackupCnfPath"
 
     # Fire config_applied event (non-fatal)
@@ -592,7 +602,7 @@ try {
         } else {
             Write-Log 'Starting -Apply: applying recommended MySQL configuration...'
         }
-        Invoke-ApplyConfig -Interactive (-not $NonInteractive) -RestartService (-not $NoRestart) -ConfigurationApplyMode $ApplyMode
+        Invoke-ApplyConfig -Interactive (-not $NonInteractive) -RestartService (-not $NoRestart) -ForceRestart ([bool]$ForceRestart)
     }
 
     if ($QueueApply) {
@@ -660,10 +670,9 @@ try {
             $script:ExitCode = $restartCode; return
         }
 
-        # Remove backup on successful restart
-        if (Test-Path $BackupCnfPath) {
-            Remove-Item -Path $BackupCnfPath -Force
-            Write-Log "Backup file removed: $BackupCnfPath"
+        if (Test-Path -LiteralPath $BackupCnfPath) {
+            Remove-Item -LiteralPath $BackupCnfPath -Force
+            Write-Log "Backup removed after successful rollback: $BackupCnfPath"
         }
 
         # Fire config_rollback event (non-fatal)
@@ -677,7 +686,7 @@ try {
     if ($Update) {
         Write-Log 'Starting -Update: checking for latest Releem Agent version...'
 
-        $tempPath = Join-Path $env:TEMP 'install_new.ps1'
+        $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName() + '.ps1')
 
         # Fetch remote version
         $remoteVersionRaw = $null
@@ -687,6 +696,13 @@ try {
             Write-Log "ERROR: Failed to fetch remote version from ${CurrentVersionUrl}: $_"
             $script:ExitCode = 1; return
         }
+
+        if ($remoteVersionRaw -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?$') {
+            Write-Log "ERROR: Invalid release version: $remoteVersionRaw"
+            $script:ExitCode = 1; return
+        }
+        # Reject overflowing version components before comparing versions.
+        $null = [version]$remoteVersionRaw
 
         Write-Log "Remote version: $remoteVersionRaw  Current version: $ScriptVersion"
 
@@ -710,9 +726,13 @@ try {
 
         Write-Log "Newer version $remoteVersionRaw available. Refreshing installer script..."
 
-        # Download the latest installer script, then delegate update work to it.
+        # Validate the installer before replacing the installed copy.
         try {
             Invoke-WebRequest -Uri $InstallerScriptUrl -OutFile $tempPath -UseBasicParsing -ErrorAction Stop
+            if ((Get-Item -LiteralPath $tempPath).Length -le 0) { throw 'Downloaded installer is empty.' }
+            $tokens = $null; $parseErrors = $null
+            $null = [System.Management.Automation.Language.Parser]::ParseFile($tempPath, [ref]$tokens, [ref]$parseErrors)
+            if ($parseErrors.Count -gt 0) { throw 'Downloaded installer contains PowerShell syntax errors.' }
         } catch {
             Write-Log "ERROR: Failed to download installer script from ${InstallerScriptUrl}: $_"
             $script:ExitCode = 1; return
@@ -761,6 +781,9 @@ try {
     Write-Log "ERROR: An unexpected error occurred: $_"
     $script:ExitCode = 1
 } finally {
+    if (Get-Variable -Name tempPath -ErrorAction SilentlyContinue) {
+        Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+    }
     Send-ConfigurerLog
     exit $script:ExitCode
 }

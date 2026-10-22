@@ -698,7 +698,7 @@ try {
     if ($Update) {
         Write-Log 'Starting -Update: checking for latest Releem Agent version...'
 
-        $tempPath = Join-Path $env:TEMP 'install_new.ps1'
+        $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ([System.IO.Path]::GetRandomFileName() + '.ps1')
 
         # Fetch remote version
         $remoteVersionRaw = $null
@@ -708,6 +708,13 @@ try {
             Write-Log "ERROR: Failed to fetch remote version from ${CurrentVersionUrl}: $_"
             $script:ExitCode = 1; return
         }
+
+        if ($remoteVersionRaw -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?$') {
+            Write-Log "ERROR: Invalid release version: $remoteVersionRaw"
+            $script:ExitCode = 1; return
+        }
+        # Reject overflowing version components before comparing versions.
+        $null = [version]$remoteVersionRaw
 
         Write-Log "Remote version: $remoteVersionRaw  Current version: $ScriptVersion"
 
@@ -731,9 +738,13 @@ try {
 
         Write-Log "Newer version $remoteVersionRaw available. Refreshing installer script..."
 
-        # Download the latest installer script, then delegate update work to it.
+        # Validate the installer before replacing the installed copy.
         try {
             Invoke-WebRequest -Uri $InstallerScriptUrl -OutFile $tempPath -UseBasicParsing -ErrorAction Stop
+            if ((Get-Item -LiteralPath $tempPath).Length -le 0) { throw 'Downloaded installer is empty.' }
+            $tokens = $null; $parseErrors = $null
+            $null = [System.Management.Automation.Language.Parser]::ParseFile($tempPath, [ref]$tokens, [ref]$parseErrors)
+            if ($parseErrors.Count -gt 0) { throw 'Downloaded installer contains PowerShell syntax errors.' }
         } catch {
             Write-Log "ERROR: Failed to download installer script from ${InstallerScriptUrl}: $_"
             $script:ExitCode = 1; return
@@ -782,6 +793,9 @@ try {
     Write-Log "ERROR: An unexpected error occurred: $_"
     $script:ExitCode = 1
 } finally {
+    if (Get-Variable -Name tempPath -ErrorAction SilentlyContinue) {
+        Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+    }
     Send-ConfigurerLog
     exit $script:ExitCode
 }

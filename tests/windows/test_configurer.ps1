@@ -104,7 +104,7 @@ function Test-ConfigurerExitCodes {
         }
     }
     $mysql_cnf_dir = $originalDirectory
-    $StagingCnfPath = Join-Path $temp 'recommendation.cnf'
+    $StagingCnfPath = Join-Path $temp 'z_aiops_mysql.cnf'
     Set-Content $StagingCnfPath '[mysqld]'
     Set-Content $script:TestIniPath '[mysqld]'
     $script:ExitCode = 0
@@ -165,13 +165,9 @@ function Test-ConfigurerUpdate {
     $InstallerScriptPath = Join-Path $programDir 'install.ps1'
     $ConfigurerScriptPath = Join-Path $programDir 'releem.ps1'
     $LegacyConfigurerScriptPath = Join-Path $programDir 'mysqlconfigurer.ps1'
-    $AgentDownloadUrl = 'https://example.test/releem-agent.exe'
-    $InstallerUrl = 'https://example.test/install.ps1'
-    $ReleemAgentScriptUrl = 'https://example.test/releem.ps1'
-    $ReleemLegacyScriptUrl = 'https://example.test/mysqlconfigurer.ps1'
+    $CurrentVersionUrl = 'https://example.test/current_version_agent'
+    $DownloadBaseUrl = 'https://releem.s3.us-east-1.amazonaws.com/v2'
 
-    # Use the actual command dispatcher; relocate its Windows bootstrap so this
-    # test can run without administrator rights and also under PowerShell on Linux.
     $canonicalSource = Get-Content (Join-Path $root 'releem.ps1') -Raw
     $start = $canonicalSource.IndexOf('$currentPrincipal = ')
     $end = $canonicalSource.IndexOf('# Logging setup:', $start)
@@ -181,82 +177,346 @@ function Test-ConfigurerUpdate {
     $legacySource = Get-Content (Join-Path $root 'mysqlconfigurer.ps1') -Raw
     $installerSource = Get-Content (Join-Path $root 'install.ps1') -Raw
     $installer = Get-ConfigurerAst install.ps1
-    $update = $installer.Find({ param($node)
-        $node -is [Management.Automation.Language.IfStatementAst] -and
-        $node.Clauses[0].Item1.Extent.Text -eq '$u'
+    foreach ($name in @('Install-AgentFiles')) {
+        $node = $installer.Find({ param($n)
+            $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $name
+        }, $true)
+        if (-not $node) { throw "Missing installer function: $name" }
+        . (ConvertTo-TestScriptBlock $node)
+    }
+    $update = $installer.Find({ param($n)
+        $n -is [Management.Automation.Language.IfStatementAst] -and $n.Clauses[0].Item1.Extent.Text -eq '$u'
     }, $true)
     if (-not $update) { throw 'Missing installer update branch' }
+    $updateBody = ConvertTo-TestScriptBlock $update.Clauses[0].Item2 -Body
     function Write-Log { param($Message) $script:messages += $Message }
-    function Stop-ReleemAgentForReplacement { param($Reason) }
-    function Get-Service { param($Name, $ErrorAction) return [pscustomobject]@{ Status = 'Running' } }
-    function Invoke-WebRequest { param($Uri, $OutFile, [switch]$UseBasicParsing)
+    function Stop-ReleemAgentForReplacement {
+        param($Reason)
+        $global:releemConfigurerTestOrder += 'stop'
+        if ($global:releemConfigurerTestService.Status -ne 'Absent') { $global:releemConfigurerTestService.Status = 'Stopped' }
+    }
+    function Get-Service { param($Name, $ErrorAction)
+        if ($global:releemConfigurerTestService.Status -eq 'Absent' -or ($script:fresh -and -not $global:releemConfigurerTestService.Installed)) { return $null }
+        return [pscustomobject]@{ Status = $global:releemConfigurerTestService.Status }
+    }
+    function Start-Service {
+        [CmdletBinding()]
+        param($Name)
+        Assert-Code 'releem-agent' $Name 'rollback restarts the original agent service'
+        $script:rollbackRestartCalls++
+        $global:releemConfigurerTestOrder += 'rollback-start'
+        # Restarting before even the last restoration/cleanup is unsafe.
+        foreach ($path in @($InstallerScriptPath, $ConfigurerScriptPath, $LegacyConfigurerScriptPath, $AgentBinaryPath)) {
+            if ($script:expectedRestoredFiles.ContainsKey($path)) {
+                Assert-Code $script:expectedRestoredFiles[$path] ([Convert]::ToBase64String([IO.File]::ReadAllBytes($path))) 'all originals restored before restart'
+            } else {
+                Assert-Code $false (Test-Path -LiteralPath $path) 'absent originals cleaned before restart'
+            }
+        }
+        if ($script:restartFailure -eq 'throw') { throw 'Simulated service restart failure' }
+        if ($script:restartFailure -ne 'stays-stopped') { $global:releemConfigurerTestService.Status = 'Running' }
+    }
+    function Copy-Item {
+        [CmdletBinding()]
+        param([Alias('Path')]$LiteralPath, $Destination, [switch]$Force)
+        $installedPaths = @($InstallerScriptPath, $ConfigurerScriptPath, $LegacyConfigurerScriptPath, $AgentBinaryPath)
+        if ($installedPaths -contains $LiteralPath) { $script:recoveryDir = Split-Path -Parent $Destination }
+        if ($installedPaths -contains $Destination) {
+            if ($script:replacementFailed) {
+                if ($Destination -eq $script:failRestorePath) { throw 'Simulated restore failure' }
+            } else {
+                $script:replacementCopies++
+                if ($script:replacementCopies -eq $script:failCopyNumber) {
+                    $script:replacementFailed = $true
+                    if ($script:partialCopy) { [IO.File]::WriteAllText($Destination, 'partial replacement') }
+                    throw 'Simulated replacement failure'
+                }
+            }
+        }
+        Microsoft.PowerShell.Management\Copy-Item @PSBoundParameters
+    }
+    function Invoke-WebRequest {
+        [CmdletBinding()]
+        param($Uri, $OutFile, [switch]$UseBasicParsing)
         $script:downloads += $Uri
+        if ($Uri -eq $CurrentVersionUrl) {
+            if ($Uri -eq $script:failDownloadUri) { throw 'Simulated version fetch failure' }
+            $script:pointerReads++
+            return [pscustomobject]@{ Content = $script:pointer }
+        }
+        $global:releemConfigurerTestOrder += "download:$Uri"
         if ($Uri -eq $script:failDownloadUri) { throw "Simulated download failure: $Uri" }
-        switch ($Uri) {
-            $AgentDownloadUrl { Set-Content $OutFile 'exit 0' }
-            $InstallerUrl { Set-Content $OutFile $installerSource }
-            $ReleemAgentScriptUrl { Set-Content $OutFile $canonicalSource }
-            $ReleemLegacyScriptUrl { Set-Content $OutFile $legacySource }
+        if ($Uri -eq $script:missingDownloadUri) { return }
+        if ($Uri -eq $script:emptyDownloadUri) { [IO.File]::WriteAllText($OutFile, ''); return }
+        if ($Uri -eq $script:invalidDownloadUri) { Set-Content $OutFile 'function {'; return }
+        if ($Uri -eq $script:installerOverride) { Set-Content $OutFile $installerSource; return }
+        if ($Uri -notmatch ('^' + [regex]::Escape("$DownloadBaseUrl/"))) {
+            throw "Unexpected download URL: $Uri"
+        }
+        switch ([IO.Path]::GetFileName($Uri)) {
+            'releem-agent.exe' { Set-Content $OutFile @'
+$global:releemConfigurerTestOrder += ($args -join ' ')
+if ($args -contains 'install') { $global:releemConfigurerTestService.Installed = $true }
+if ($args -contains 'start') { $global:releemConfigurerTestService.Status = 'Running' }
+foreach ($path in @($InstallerScriptPath, $ConfigurerScriptPath, $LegacyConfigurerScriptPath)) {
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Agent invoked before script install: $path" }
+}
+$global:LASTEXITCODE = 0
+'@ }
+            'install.ps1' { Set-Content $OutFile $installerSource }
+            'releem.ps1' { Set-Content $OutFile $canonicalSource }
+            'mysqlconfigurer.ps1' { Set-Content $OutFile $legacySource }
             default { throw "Unexpected download: $Uri" }
         }
     }
-    $script:failDownloadUri = ''
-    $script:messages = @()
+    function Reset-Scenario {
+        $script:downloads = @(); $global:releemConfigurerTestOrder = @(); $script:messages = @()
+        $script:failDownloadUri = ''; $script:missingDownloadUri = ''; $script:emptyDownloadUri = ''; $script:invalidDownloadUri = ''
+        $script:installerOverride = ''
+        $script:pointer = '99.0.0'; $script:pointerReads = 0
+        $script:fresh = $false; $global:releemConfigurerTestService = @{ Status = 'Running'; Installed = $false }
+        $script:rollbackRestartCalls = 0
+        $script:expectedRestoredFiles = @{}; $script:restartFailure = ''
+        $script:MainExitCode = 0
+        $script:replacementCopies = 0; $script:failCopyNumber = 0; $script:replacementFailed = $false
+        $script:partialCopy = $false; $script:failRestorePath = ''; $script:recoveryDir = ''
+    }
+
     foreach ($scenario in @('legacy-only', 'both-outdated')) {
+        Reset-Scenario
         Remove-Item $ConfigurerScriptPath -Force -ErrorAction SilentlyContinue
         Set-Content $LegacyConfigurerScriptPath 'exit 97'
         if ($scenario -eq 'both-outdated') { Set-Content $ConfigurerScriptPath 'exit 98' }
-        $script:downloads = @()
-        $script:MainExitCode = 99
-        & (ConvertTo-TestScriptBlock $update.Clauses[0].Item2 -Body)
-        if ($script:MainExitCode -ne 0) { throw "Update failed: $scenario / $script:MainExitCode" }
-        foreach ($uri in @($ReleemAgentScriptUrl, $ReleemLegacyScriptUrl)) {
-            if (@($script:downloads | Where-Object { $_ -eq $uri }).Count -ne 1) { throw "Update must download $uri once" }
+        & $updateBody
+        Assert-Code 0 $script:MainExitCode "update: $scenario"
+        Assert-Code 0 $script:pointerReads 'installer uses mutable URLs without reading a version pointer'
+        foreach ($name in @('install.ps1', 'releem.ps1', 'mysqlconfigurer.ps1', 'releem-agent.exe')) {
+            Assert-Code 1 @($script:downloads | Where-Object { $_ -eq "$DownloadBaseUrl/$name" }).Count "mutable $name"
         }
+        Assert-Code 'start' $global:releemConfigurerTestOrder[-1] 'all downloads precede service start'
         foreach ($entryPoint in @($ConfigurerScriptPath, $LegacyConfigurerScriptPath)) {
-            if (-not (Test-Path $entryPoint -PathType Leaf)) { throw "Update did not install $entryPoint" }
             Invoke-TestScript $entryPoint -Pattern 'Usage: releem.ps1'
             Invoke-TestScript $entryPoint -Arguments @('-NonInteractive') -ExpectedExit 1 -Pattern '-NonInteractive can only be used together with -Apply'
         }
-        Write-Host "PASS: $scenario update installs working canonical and legacy entry points"
-    }
-    # Each required script must fail the real update before service start or success.
-    foreach ($uri in @($ReleemAgentScriptUrl, $ReleemLegacyScriptUrl)) {
-        $script:failDownloadUri = $uri
-        $script:messages = @()
-        $script:MainExitCode = 99
-        & (ConvertTo-TestScriptBlock $update.Clauses[0].Item2 -Body)
-        if ($script:MainExitCode -ne 1) { throw "Download failure was reported as success: $uri" }
-        if ($script:messages -contains 'Starting Releem Agent service...' -or
-            $script:messages -contains 'Releem Agent updated successfully.') {
-            throw "Update continued after required script download failure: $uri"
-        }
-        Write-Host "PASS: update stops on failed download of $([IO.Path]::GetFileName($uri))"
+        Write-Host "PASS: $scenario update installs the complete mutable artifact set"
     }
 
-    # Exercise the fresh-install download block and ensure its catch exits dispatch.
-    $downloadBlocks = $installer.FindAll({ param($node)
-        $node -is [Management.Automation.Language.TryStatementAst] -and
-        $node.Body.Statements[0].Extent.Text.StartsWith('Invoke-WebRequest -Uri $ReleemAgentScriptUrl')
+    # Execute the fresh install's real download and service statements in source order.
+    $freshStart = $installerSource.IndexOf("Install-AgentFiles -StopReason 'before reinstall'")
+    $freshEnd = $installerSource.IndexOf('# MySQL user setup', $freshStart)
+    $serviceStart = $installerSource.IndexOf('# Optional first-run flag check')
+    $serviceEnd = $installerSource.IndexOf('# Enable query monitoring', $serviceStart)
+    if ($freshStart -lt 0 -or $freshEnd -lt 0 -or $serviceStart -lt 0 -or $serviceEnd -lt 0) { throw 'Missing fresh install sequence' }
+    $freshBody = [scriptblock]::Create($installerSource.Substring($freshStart, $freshEnd - $freshStart) + "`n" + $installerSource.Substring($serviceStart, $serviceEnd - $serviceStart))
+    $freshDownloads = $installer.FindAll({ param($n)
+        $n -is [Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Install-AgentFiles' -and $n.Extent.StartOffset -ge $freshStart
     }, $true)
-    if ($downloadBlocks.Count -ne 2) { throw 'Expected fresh-install and update download blocks' }
-    $freshDownload = $downloadBlocks[1].Extent.Text
-    $script:failDownloadUri = ''
-    $script:downloads = @()
-    & (ConvertTo-TestScriptBlock $downloadBlocks[1])
-    if (($script:downloads -join ',') -ne (@($ReleemAgentScriptUrl, $ReleemLegacyScriptUrl) -join ',')) {
-        throw 'Fresh installation must download both required scripts once, in order'
-    }
-    Write-Host 'PASS: fresh installation downloads both entry points'
-    foreach ($uri in @($ReleemAgentScriptUrl, $ReleemLegacyScriptUrl)) {
-        $script:failDownloadUri = $uri
-        $script:MainExitCode = 99
-        $script:continued = $false
-        & ([scriptblock]::Create($freshDownload + "`n" + '$script:continued = $true'))
-        if ($script:MainExitCode -ne 1 -or $script:continued) {
-            throw "Fresh installation continued after required script download failure: $uri"
+    Assert-Code 1 $freshDownloads.Count 'one complete download before fresh install service operations'
+    foreach ($mode in @('update', 'fresh')) {
+        foreach ($failure in @('none', 'install.ps1', 'releem.ps1', 'mysqlconfigurer.ps1', 'releem-agent.exe', 'missing', 'empty', 'empty-binary', 'syntax')) {
+            Reset-Scenario
+            $script:fresh = $mode -eq 'fresh'
+            foreach ($path in @($AgentBinaryPath, $InstallerScriptPath, $ConfigurerScriptPath, $LegacyConfigurerScriptPath)) { Set-Content $path 'old installed file' }
+            if ($failure -eq 'missing') { $script:missingDownloadUri = "$DownloadBaseUrl/releem-agent.exe" }
+            elseif ($failure -eq 'empty-binary') { $script:emptyDownloadUri = "$DownloadBaseUrl/releem-agent.exe" }
+            elseif ($failure -eq 'empty') { $script:emptyDownloadUri = "$DownloadBaseUrl/releem.ps1" }
+            elseif ($failure -eq 'syntax') { $script:invalidDownloadUri = "$DownloadBaseUrl/mysqlconfigurer.ps1" }
+            elseif ($failure -ne 'none') { $script:failDownloadUri = "$DownloadBaseUrl/$failure" }
+            $failed = $false
+            try {
+                if ($mode -eq 'fresh') { & $freshBody } else { & $updateBody }
+            } catch { $failed = $true }
+            Assert-Code ($failure -ne 'none') $failed "$mode / $failure failure"
+            if ($failed) {
+                if ($global:releemConfigurerTestOrder -contains 'stop' -or $global:releemConfigurerTestOrder -contains 'install' -or $global:releemConfigurerTestOrder -contains 'start') { throw "$mode touched service after $failure failure" }
+                foreach ($path in @($AgentBinaryPath, $InstallerScriptPath, $ConfigurerScriptPath, $LegacyConfigurerScriptPath)) {
+                    Assert-Code "old installed file`n" ([IO.File]::ReadAllText($path).Replace("`r`n", "`n")) 'failed download preserves installed set'
+                }
+            } else {
+                Assert-Code 'stop' $global:releemConfigurerTestOrder[4] "$mode stops only after all four downloads"
+                Assert-Code 'start' $global:releemConfigurerTestOrder[-1] "$mode starts only after complete download"
+            }
+            Write-Host "PASS: $mode / $failure validates complete set before install/start"
         }
-        Write-Host "PASS: fresh installation stops on failed download of $([IO.Path]::GetFileName($uri))"
+    }
+
+    # A copy may fail before writing or after truncating its destination. Restore
+    # each original byte-for-byte and remove files absent before installation.
+    $installedPaths = @($InstallerScriptPath, $ConfigurerScriptPath, $LegacyConfigurerScriptPath, $AgentBinaryPath)
+    foreach ($mode in @('update', 'fresh')) {
+        foreach ($originalSet in @('complete', 'legacy-only', 'none')) {
+            foreach ($boundary in 1..4) {
+                foreach ($partial in @($false, $true)) {
+                    Reset-Scenario
+                    $script:fresh = $mode -eq 'fresh'
+                    $originals = @{}
+                    foreach ($path in $installedPaths) {
+                        Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+                        if ($originalSet -eq 'complete' -or ($originalSet -eq 'legacy-only' -and $path -in @($LegacyConfigurerScriptPath, $AgentBinaryPath))) {
+                            [IO.File]::WriteAllBytes($path, [byte[]]@(0, 255, 10, $originals.Count))
+                            $originals[$path] = [Convert]::ToBase64String([IO.File]::ReadAllBytes($path))
+                        }
+                    }
+                    $script:expectedRestoredFiles = $originals
+                    $script:failCopyNumber = $boundary; $script:partialCopy = $partial
+                    $failureMessage = ''
+                    try {
+                        if ($mode -eq 'fresh') { & $freshBody } else { & $updateBody }
+                    } catch { $failureMessage = $_.Exception.Message }
+                    if ($failureMessage -notmatch 'Simulated replacement failure') { throw "Expected copy failure: $failureMessage" }
+                    foreach ($path in $installedPaths) {
+                        if ($originals.ContainsKey($path)) {
+                            Assert-Code $originals[$path] ([Convert]::ToBase64String([IO.File]::ReadAllBytes($path))) "$mode restores $path after copy $boundary"
+                        } else {
+                            Assert-Code $false (Test-Path -LiteralPath $path) "$mode removes originally absent $path after copy $boundary"
+                        }
+                    }
+                    if ($global:releemConfigurerTestOrder -contains 'install' -or $global:releemConfigurerTestOrder -contains 'start') { throw 'Failed replacement must not install/start the service' }
+                    $expectedRestarts = if ($mode -eq 'update') { 1 } else { 0 }
+                    Assert-Code $expectedRestarts $script:rollbackRestartCalls 'only an initially running service is restarted after restoration'
+                    if ($expectedRestarts) { Assert-Code 'Running' $global:releemConfigurerTestService.Status 'restored agent is running again' }
+                    if ($script:recoveryDir) { Assert-Code $false (Test-Path -LiteralPath $script:recoveryDir) 'successful restore cleans temporary backups' }
+                }
+            }
+            Write-Host "PASS: $mode / $originalSet restores original set at all four copy boundaries, including partial writes"
+        }
+    }
+
+    # A failed restoration must preserve all recovery copies and continue trying
+    # other files, with the retained path and affected destination in the error.
+    Reset-Scenario
+    foreach ($path in $installedPaths) { [IO.File]::WriteAllText($path, "original: $path") }
+    $script:failCopyNumber = 4; $script:partialCopy = $true
+    $script:failRestorePath = $ConfigurerScriptPath
+    $failureMessage = ''
+    try { & $updateBody } catch { $failureMessage = $_.Exception.Message }
+    try {
+        if ($failureMessage -notmatch 'Simulated restore failure' -or
+            -not $failureMessage.Contains($ConfigurerScriptPath) -or
+            -not $script:recoveryDir -or -not $failureMessage.Contains($script:recoveryDir)) {
+            throw "Missing actionable recovery error: $failureMessage"
+        }
+        foreach ($path in $installedPaths) {
+            $name = if ($path -eq $AgentBinaryPath) { 'releem-agent.exe' } else { Split-Path -Leaf $path }
+            Assert-Code "original: $path" ([IO.File]::ReadAllText((Join-Path $script:recoveryDir $name))) 'restore failure keeps every original backup'
+            if ($path -ne $ConfigurerScriptPath) { Assert-Code "original: $path" ([IO.File]::ReadAllText($path)) 'restore continues after a file fails' }
+        }
+        if ($global:releemConfigurerTestOrder -contains 'start') { throw 'Restore failure must not start service' }
+        Assert-Code 0 $script:rollbackRestartCalls 'incomplete restoration must never restart the service'
+        Write-Host 'PASS: restore failure preserves recovery backups and reports recovery location'
+    } finally {
+        if ($script:recoveryDir -and (Test-Path -LiteralPath $script:recoveryDir)) {
+            Remove-Item -LiteralPath (Split-Path -Parent $script:recoveryDir) -Recurse -Force
+        }
+    }
+
+    foreach ($initialState in @('Stopped', 'Absent')) {
+        foreach ($boundary in 1..4) {
+            Reset-Scenario
+            $global:releemConfigurerTestService.Status = $initialState
+            foreach ($path in $installedPaths) { [IO.File]::WriteAllText($path, "original: $path") }
+            $script:failCopyNumber = $boundary; $script:partialCopy = $true
+            $failureMessage = ''
+            try { Install-AgentFiles -StopReason 'test restoration' } catch { $failureMessage = $_.Exception.Message }
+            if ($failureMessage -notmatch 'Simulated replacement failure') { throw "Expected replacement failure: $failureMessage" }
+            Assert-Code 0 $script:rollbackRestartCalls "$initialState service must remain unstarted"
+            Assert-Code $initialState $global:releemConfigurerTestService.Status 'original service state preserved'
+            foreach ($path in $installedPaths) { Assert-Code "original: $path" ([IO.File]::ReadAllText($path)) 'restored originals without service restart' }
+        }
+        Write-Host "PASS: originally $initialState service is never restarted after restoration"
+    }
+
+    foreach ($restartFailure in @('throw', 'stays-stopped')) {
+        Reset-Scenario
+        foreach ($path in $installedPaths) {
+            [IO.File]::WriteAllText($path, "original: $path")
+            $script:expectedRestoredFiles[$path] = [Convert]::ToBase64String([IO.File]::ReadAllBytes($path))
+        }
+        $script:failCopyNumber = 4; $script:partialCopy = $true; $script:restartFailure = $restartFailure
+        $failureMessage = ''
+        try { Install-AgentFiles -StopReason 'test restart failure' } catch { $failureMessage = $_.Exception.Message }
+        try {
+            Assert-Code 1 $script:rollbackRestartCalls 'restart attempted once after complete restoration'
+            Assert-Code 'Stopped' $global:releemConfigurerTestService.Status 'failed restart is not reported as running'
+            if ($failureMessage -notmatch 'Simulated replacement failure' -or
+                $failureMessage -notmatch 'restart' -or $failureMessage -notmatch 'Start-Service' -or
+                -not $failureMessage.Contains($script:recoveryDir)) { throw "Missing actionable restart error: $failureMessage" }
+            foreach ($path in $installedPaths) {
+                Assert-Code "original: $path" ([IO.File]::ReadAllText($path)) 'restart failure preserves restored originals'
+                $name = if ($path -eq $AgentBinaryPath) { 'releem-agent.exe' } else { Split-Path -Leaf $path }
+                Assert-Code "original: $path" ([IO.File]::ReadAllText((Join-Path $script:recoveryDir $name))) 'restart failure retains recovery backups'
+            }
+            Write-Host "PASS: rollback restart failure / $restartFailure preserves restored files and recovery backups"
+        } finally {
+            if ($script:recoveryDir -and (Test-Path -LiteralPath $script:recoveryDir)) {
+                Remove-Item -LiteralPath (Split-Path -Parent $script:recoveryDir) -Recurse -Force
+            }
+        }
+    }
+
+    # Execute the canonical update dispatcher with default and overridden endpoints.
+    $canonical = Get-ConfigurerAst releem.ps1
+    $dispatch = $canonical.Find({ param($n)
+        $n -is [Management.Automation.Language.IfStatementAst] -and $n.Clauses[0].Item1.Extent.Text -eq '$Update'
+    }, $true)
+    $dispatchBody = ConvertTo-TestScriptBlock $dispatch.Clauses[0].Item2 -Body
+    function powershell.exe {
+        param($ExecutionPolicy, $File, [switch]$u)
+        Assert-Code 0 $args.Count 'no extra delegation arguments'
+        Assert-Code $true ([bool]$u) 'delegated update mode'
+        Assert-Code 'delegation-test-key' $env:RELEEM_API_KEY 'delegated API key'
+        $script:delegated++
+        $global:LASTEXITCODE = 0
+    }
+    $previousKey = $env:RELEEM_API_KEY
+    try {
+        foreach ($case in @(
+            @{ Version = '99.0.0'; Override = '' },
+            @{ Version = '99.0.0.1'; Override = '' },
+            @{ Version = '99.0.0.1'; Override = 'https://override.test/install.ps1' }
+        )) {
+            $override = $case.Override
+            Reset-Scenario
+            $script:delegated = 0
+            $script:pointer = $case.Version
+            $script:installerOverride = $override
+            $InstallerScriptUrl = if ($override) { $override } else { "$DownloadBaseUrl/install.ps1" }
+            $ScriptVersion = '1.26.0'; $apikey = 'delegation-test-key'; $script:ExitCode = 99
+            & $dispatchBody
+            Assert-Code 0 $script:ExitCode 'configurer update succeeded'
+            Assert-Code 1 $script:delegated 'installer invoked once'
+            Assert-Code 1 $script:pointerReads 'configurer reads version pointer once'
+            $expectedInstaller = if ($override) { $override } else { "$DownloadBaseUrl/install.ps1" }
+            Assert-Code $expectedInstaller $script:downloads[-1] 'installer uses mutable URL or explicit override'
+            Write-Host "PASS: configurer delegates mutable update for $($case.Version) and honors endpoint overrides"
+        }
+        foreach ($failure in @('pointer', 'fetch', 'download', 'missing', 'empty', 'syntax')) {
+            Reset-Scenario
+            $script:delegated = 0; $InstallerScriptUrl = "$DownloadBaseUrl/install.ps1"; $script:ExitCode = 99
+            $uri = "$DownloadBaseUrl/install.ps1"
+            switch ($failure) {
+                'pointer' { $script:pointer = '../invalid' }
+                'fetch' { $script:failDownloadUri = $CurrentVersionUrl }
+                'download' { $script:failDownloadUri = $uri }
+                'missing' { $script:missingDownloadUri = $uri }
+                'empty' { $script:emptyDownloadUri = $uri }
+                'syntax' { $script:invalidDownloadUri = $uri }
+            }
+            & $dispatchBody
+            Assert-Code 1 $script:ExitCode "configurer rejects $failure"
+            Assert-Code 0 $script:delegated 'invalid update never delegates'
+        }
+        foreach ($bad in @('latest', '../99.0.0', '99.0.0/extra', '1.2', '1.2.3.4.5', '')) {
+            Reset-Scenario
+            $script:pointer = $bad; $script:delegated = 0; $script:ExitCode = 99
+            & $dispatchBody
+            Assert-Code 1 $script:ExitCode "configurer rejects invalid version: $bad"
+            Assert-Code 0 $script:delegated 'invalid version never delegates'
+            Assert-Code 1 $script:downloads.Count 'invalid version performs no installer download'
+        }
+        Write-Host 'PASS: configurer rejects invalid pointer and missing/empty/invalid installer'
+    } finally {
+        $env:RELEEM_API_KEY = $previousKey
     }
 }
 
@@ -311,6 +571,7 @@ foreach ($case in @(
     try {
         & $case.Function $temp
     } finally {
+        Remove-Variable -Name releemConfigurerTestOrder, releemConfigurerTestService -Scope Global -ErrorAction SilentlyContinue
         Remove-Item $temp -Recurse -Force
     }
 }

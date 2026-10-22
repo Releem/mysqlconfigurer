@@ -43,10 +43,7 @@ $LegacyConfigurerScriptPath = 'C:\Program Files\ReleemAgent\mysqlconfigurer.ps1'
 $ConfigFilePath          = 'C:\ProgramData\ReleemAgent\releem.conf'
 $ConfDirPath             = 'C:\ProgramData\ReleemAgent\conf.d'
 $InstallLogPath          = 'C:\ProgramData\ReleemAgent\releem-install.log'
-$AgentDownloadUrl        = 'https://releem.s3.us-east-1.amazonaws.com/v2/releem-agent.exe'
-$InstallerUrl            = 'https://releem.s3.us-east-1.amazonaws.com/v2/install.ps1'
-$ReleemAgentScriptUrl    = 'https://releem.s3.us-east-1.amazonaws.com/v2/releem.ps1'
-$ReleemLegacyScriptUrl = 'https://releem.s3.us-east-1.amazonaws.com/v2/mysqlconfigurer.ps1'
+$DownloadBaseUrl         = 'https://releem.s3.us-east-1.amazonaws.com/v2'
 $ApiUrlUS                = 'https://api.releem.com'
 $ApiUrlEU                = 'https://api.eu.releem.com'
 
@@ -59,6 +56,99 @@ function Write-Log {
     param([string]$Message)
     Write-Host $Message
     Add-Content -Path $InstallLogPath -Value $Message
+}
+
+function Install-AgentFiles {
+    param([string]$StopReason)
+
+    # Validate the complete set before replacing any installed file. In particular,
+    # a failed script download must never leave a new agent starting with old scripts.
+    $downloadDir = Join-Path ([System.IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString())
+    New-Item -Path $downloadDir -ItemType Directory -ErrorAction Stop | Out-Null
+    $keepRecoveryFiles = $false
+    try {
+        $files = @(
+            @{ Name = 'install.ps1'; Destination = $InstallerScriptPath },
+            @{ Name = 'releem.ps1'; Destination = $ConfigurerScriptPath },
+            @{ Name = 'mysqlconfigurer.ps1'; Destination = $LegacyConfigurerScriptPath },
+            @{ Name = 'releem-agent.exe'; Destination = $AgentBinaryPath }
+        )
+        foreach ($file in $files) {
+            $source = Join-Path $downloadDir $file.Name
+            $uri = "$DownloadBaseUrl/$($file.Name)"
+            Write-Log "Downloading agent file from $uri ..."
+            Invoke-WebRequest -Uri $uri -OutFile $source -UseBasicParsing -ErrorAction Stop
+            if (-not (Test-Path -LiteralPath $source -PathType Leaf) -or (Get-Item -LiteralPath $source).Length -le 0) {
+                throw "Downloaded agent file is missing or empty: $uri"
+            }
+            if ($file.Name -like '*.ps1') {
+                $tokens = $null; $parseErrors = $null
+                $null = [System.Management.Automation.Language.Parser]::ParseFile($source, [ref]$tokens, [ref]$parseErrors)
+                if ($parseErrors.Count -gt 0) { throw "Downloaded script contains PowerShell syntax errors: $uri" }
+            }
+        }
+        $originalService = Get-Service -Name 'releem-agent' -ErrorAction SilentlyContinue
+        $serviceWasRunning = $originalService -and $originalService.Status -eq 'Running'
+        Stop-ReleemAgentForReplacement -Reason $StopReason
+        # Save the entire original set before replacing anything. Missing files
+        # must remain missing if a fresh install or legacy upgrade fails.
+        $backupDir = Join-Path $downloadDir 'originals'
+        New-Item -Path $backupDir -ItemType Directory -ErrorAction Stop | Out-Null
+        foreach ($file in $files) {
+            $file.HadOriginal = Test-Path -LiteralPath $file.Destination -PathType Leaf
+            if ($file.HadOriginal) {
+                Copy-Item -LiteralPath $file.Destination -Destination (Join-Path $backupDir $file.Name) -Force -ErrorAction Stop
+            } elseif (Test-Path -LiteralPath $file.Destination) {
+                throw "Cannot replace agent file: destination is not a file: $($file.Destination)"
+            }
+        }
+        $attemptedFiles = @()
+        try {
+            foreach ($file in $files) {
+                # A failed copy may already have truncated its destination.
+                $attemptedFiles += $file
+                Copy-Item -LiteralPath (Join-Path $downloadDir $file.Name) -Destination $file.Destination -Force -ErrorAction Stop
+            }
+        } catch {
+            $replacementError = $_
+            $restoreErrors = @()
+            foreach ($file in $attemptedFiles) {
+                try {
+                    if ($file.HadOriginal) {
+                        Copy-Item -LiteralPath (Join-Path $backupDir $file.Name) -Destination $file.Destination -Force -ErrorAction Stop
+                    } elseif (Test-Path -LiteralPath $file.Destination) {
+                        Remove-Item -LiteralPath $file.Destination -Force -ErrorAction Stop
+                    }
+                } catch {
+                    $restoreErrors += "$($file.Destination): $_"
+                }
+            }
+            if ($restoreErrors.Count -gt 0) {
+                $keepRecoveryFiles = $true
+                $absentPaths = @($files | Where-Object { -not $_.HadOriginal } | ForEach-Object { $_.Destination }) -join ', '
+                throw "Agent file replacement failed: $replacementError. Automatic restore failed: $($restoreErrors -join '; '). Recovery backups retained at '$backupDir'. Restore the saved files to their original destinations before starting the agent. Remove any new files at originally absent destinations: $absentPaths"
+            }
+            $recoveryStatus = 'The original file set was restored.'
+            if ($serviceWasRunning) {
+                try {
+                    Start-Service -Name 'releem-agent' -ErrorAction Stop
+                    $restoredService = Get-Service -Name 'releem-agent' -ErrorAction Stop
+                    if (-not $restoredService -or $restoredService.Status -ne 'Running') {
+                        throw 'Releem Agent service is not running after the restart attempt.'
+                    }
+                } catch {
+                    $keepRecoveryFiles = $true
+                    throw "Agent file replacement failed: $replacementError. The original file set was restored, but the Releem Agent service restart failed: $_. Recovery backups retained at '$backupDir'. Check the Windows service logs, then run Start-Service -Name 'releem-agent' to restore service."
+                }
+                $recoveryStatus += ' The previously running Releem Agent service was restarted.'
+            }
+            throw "Agent file replacement failed: $replacementError. $recoveryStatus Retry the installation."
+        }
+    } finally {
+        if (-not $keepRecoveryFiles) {
+            Remove-Item -LiteralPath $downloadDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 # ---------------------------------------------------------------------------
@@ -264,54 +354,7 @@ try {
 if ($u) {
     Write-Log '=== Update mode ==='
 
-    # ---------------------------------------------------------------------------
-    # Stop the service
-    # ---------------------------------------------------------------------------
-    Stop-ReleemAgentForReplacement -Reason 'before update'
-
-    # ---------------------------------------------------------------------------
-    # Download the latest releem-agent.exe binary
-    # ---------------------------------------------------------------------------
-    Write-Log "Downloading latest Releem Agent binary from $AgentDownloadUrl ..."
-    try {
-        Invoke-WebRequest -Uri $AgentDownloadUrl -OutFile $AgentBinaryPath -UseBasicParsing
-    } catch {
-        Write-Log "ERROR: Failed to download Releem Agent binary. $_"
-        $script:MainExitCode = 1; return
-    }
-
-    if (-not (Test-Path $AgentBinaryPath)) {
-        Write-Log 'ERROR: Releem Agent binary not found after download.'
-        $script:MainExitCode = 1; return
-    }
-    $binarySize = (Get-Item $AgentBinaryPath).Length
-    if ($binarySize -le 0) {
-        Write-Log 'ERROR: Downloaded Releem Agent binary is empty.'
-        $script:MainExitCode = 1; return
-    }
-    Write-Log "Releem Agent binary updated ($binarySize bytes): $AgentBinaryPath"
-
-    # ---------------------------------------------------------------------------
-    # Download the installer, canonical script, and compatibility entry point
-    # ---------------------------------------------------------------------------
-    Write-Log "Downloading latest installer script from $InstallerUrl ..."
-    try {
-        Invoke-WebRequest -Uri $InstallerUrl -OutFile $InstallerScriptPath -UseBasicParsing
-    } catch {
-        Write-Log "ERROR: Failed to download installer script. $_"
-        $script:MainExitCode = 1; return
-    }
-    Write-Log "Installer script refreshed: $InstallerScriptPath"
-
-    Write-Log "Downloading latest Releem scripts from $ReleemAgentScriptUrl ..."
-    try {
-        Invoke-WebRequest -Uri $ReleemAgentScriptUrl -OutFile $ConfigurerScriptPath -UseBasicParsing -ErrorAction Stop
-        Invoke-WebRequest -Uri $ReleemLegacyScriptUrl -OutFile $LegacyConfigurerScriptPath -UseBasicParsing -ErrorAction Stop
-    } catch {
-        Write-Log "ERROR: Failed to download required Releem scripts. $_"
-        $script:MainExitCode = 1; return
-    }
-    Write-Log "Releem script refreshed: $ConfigurerScriptPath"
+    Install-AgentFiles -StopReason 'before update'
 
     # ---------------------------------------------------------------------------
     # Start the service
@@ -487,37 +530,8 @@ Write-Log 'Directory ready: C:\ProgramData\ReleemAgent\conf.d'
 New-Item -Path 'C:\Program Files\ReleemAgent' -ItemType Directory -Force | Out-Null
 Write-Log 'Directory ready: C:\Program Files\ReleemAgent'
 
-# ---------------------------------------------------------------------------
-# Stop the existing agent before replacing the binary during reinstall.
-# ---------------------------------------------------------------------------
-
-Stop-ReleemAgentForReplacement -Reason 'before reinstall'
-
-# ---------------------------------------------------------------------------
-# Agent binary download from S3
-# ---------------------------------------------------------------------------
-
-Write-Log "Downloading Releem Agent from $AgentDownloadUrl ..."
-
-try {
-    Invoke-WebRequest -Uri $AgentDownloadUrl -OutFile $AgentBinaryPath -UseBasicParsing
-} catch {
-    Write-Log "ERROR: Failed to download Releem Agent binary. $_"
-    $script:MainExitCode = 1; return
-}
-
-if (-not (Test-Path $AgentBinaryPath)) {
-    Write-Log 'ERROR: Releem Agent binary not found after download.'
-    $script:MainExitCode = 1; return
-}
-
-$binarySize = (Get-Item $AgentBinaryPath).Length
-if ($binarySize -le 0) {
-    Write-Log 'ERROR: Downloaded Releem Agent binary is empty.'
-    $script:MainExitCode = 1; return
-}
-
-Write-Log "Releem Agent binary downloaded successfully ($binarySize bytes): $AgentBinaryPath"
+# Download and validate all required files before stopping the existing agent.
+Install-AgentFiles -StopReason 'before reinstall'
 
 # ---------------------------------------------------------------------------
 # MySQL user setup (create_mysql_user)
@@ -723,26 +737,6 @@ Write-Log "Releem Agent service is running."
 # ---------------------------------------------------------------------------
 # Scheduled Task for daily auto-updates
 # ---------------------------------------------------------------------------
-
-# Download and save installer script for scheduled task use
-Write-Log "Downloading installer script from $InstallerUrl ..."
-try {
-    Invoke-WebRequest -Uri $InstallerUrl -OutFile $InstallerScriptPath -UseBasicParsing
-    Write-Log "Installer script saved: $InstallerScriptPath"
-} catch {
-    Write-Log "WARNING: Failed to download installer script. Scheduled task will download it on first run. $_"
-}
-
-# Download mysqlconfigurer script
-Write-Log "Downloading Releem scripts from $ReleemAgentScriptUrl ..."
-try {
-    Invoke-WebRequest -Uri $ReleemAgentScriptUrl -OutFile $ConfigurerScriptPath -UseBasicParsing -ErrorAction Stop
-    Invoke-WebRequest -Uri $ReleemLegacyScriptUrl -OutFile $LegacyConfigurerScriptPath -UseBasicParsing -ErrorAction Stop
-    Write-Log "Releem script saved: $ConfigurerScriptPath"
-} catch {
-    Write-Log "ERROR: Failed to download required Releem scripts. $_"
-    $script:MainExitCode = 1; return
-}
 
 # ---------------------------------------------------------------------------
 # Enable query monitoring for local instances (equivalent to Linux: $RELEEM_COMMAND -p)

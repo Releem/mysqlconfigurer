@@ -151,7 +151,7 @@ func ApplyConfAwsRds(repeaters models.MetricsRepeater, gatherers []models.Metric
 		recordAWSApplyFailure(&result, awsrds.ScopeInstance, nil, fmt.Errorf("parse task details: %w", err))
 		return finish(awsApplyExitFailure, awsApplyTaskStatusFailure)
 	}
-	recommendationJSON, err := requestConfigurationRecommendations(metrics, repeaters, configuration, mode)
+	recommendationJSON, err := requestConfigurationRecommendations(metrics, repeaters, configuration, logger, mode)
 	if err != nil {
 		recordAWSApplyFailure(&result, awsrds.ScopeInstance, nil, err)
 		return finish(awsApplyExitFailure, awsApplyTaskStatusFailure)

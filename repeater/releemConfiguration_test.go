@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -14,6 +16,54 @@ import (
 	"github.com/Releem/mysqlconfigurer/models"
 	logging "github.com/google/logger"
 )
+
+func TestEmptyConfigurationResponsePreservesStaging(t *testing.T) {
+	previous := http.DefaultTransport
+	t.Cleanup(func() { http.DefaultTransport = previous })
+	logger := logging.Init("empty-configuration", false, false, io.Discard)
+	defer logger.Close()
+	for _, dbType := range []string{"mysql", "postgresql"} {
+		for _, requestType := range []string{"Get", "GetInitial", "Default", "GetJson"} {
+			for _, existing := range []bool{false, true} {
+				t.Run(dbType+"/"+requestType+"/existing="+strconv.FormatBool(existing), func(t *testing.T) {
+					configuration := &config.Config{ReleemConfDir: t.TempDir()}
+					filename := "z_aiops_mysql.cnf"
+					if dbType == "postgresql" {
+						configuration.PgUser, configuration.PgPassword = "test", "test"
+						filename = "z_aiops_postgresql.conf"
+					}
+					if requestType == "GetInitial" {
+						filename = "initial_config_mysql.cnf"
+					}
+					path := filepath.Join(configuration.ReleemConfDir, filename)
+					const original = "max_connections=200\n"
+					if existing {
+						if err := os.WriteFile(path, []byte(original), 0600); err != nil {
+							t.Fatal(err)
+						}
+					}
+					r := NewReleemConfigurationsRepeater(configuration, *logger)
+					for _, body := range []string{"", " \n\t"} {
+						http.DefaultTransport = applicationTransport(func(*http.Request) (*http.Response, error) {
+							return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+						})
+						if _, err := r.ProcessMetrics(configuration, models.Metrics{}, models.ModeType{Name: "Configurations", Type: requestType}); err == nil {
+							t.Errorf("ProcessMetrics(%q) accepted empty configuration %q", requestType, body)
+						}
+						data, err := os.ReadFile(path)
+						if existing {
+							if err != nil || string(data) != original {
+								t.Fatalf("staging after empty response = %q, %v; want %q", data, err, original)
+							}
+						} else if !os.IsNotExist(err) {
+							t.Fatalf("empty response created staging: %q, %v", data, err)
+						}
+					}
+				})
+			}
+		}
+	}
+}
 
 func TestConfigurationRequestPreservesHTTPTimeout(t *testing.T) {
 	configuration := &config.Config{}

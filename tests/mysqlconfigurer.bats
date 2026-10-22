@@ -222,6 +222,21 @@ INNER
     [ -f "${marker}" ]
 }
 
+@test "apply via agent/cron (-s auto) reports a failed job request" {
+    write_mysql_conf
+    printf '#!/bin/sh\necho "task request failed" >&2\nexit 1\n' > "${TEST_WORKDIR}/releem-agent"
+    chmod +x "${TEST_WORKDIR}/releem-agent"
+    run env \
+        PATH="${MOCK_BIN}:${PATH}" \
+        RELEEM_TEST_MODE=1 \
+        RELEEM_CONF_DIR="${TEST_CONF_DIR}/" \
+        RELEEM_CONF_FILE="${TEST_CONF_FILE}" \
+        bash "${CONFIGURER_SH}" -s auto
+
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Failed to create the job to apply the configuration"* ]]
+}
+
 @test "apply via agent/cron (-s auto) exits successfully" {
     write_mysql_conf
     run env \

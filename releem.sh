@@ -475,8 +475,11 @@ function releem_apply_config() {
 }
  
 function releem_apply_auto() {
-    $RELEEM_WORKDIR/releem-agent --task=apply_config > /dev/null
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Sending request to create a job to apply the configuration.\033[0m\n"
+    if ! $RELEEM_WORKDIR/releem-agent --task=apply_config > /dev/null; then
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[31m Failed to create the job to apply the configuration. Check the Releem Agent log and try again.\033[0m\n"
+        exit 1
+    fi
     exit 0
 }
 

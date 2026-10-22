@@ -43,14 +43,18 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 	if metrics == nil {
 		return
 	}
-	RepeaterResponse := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Get"})
+	RepeaterResponse, err := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Get"})
+	if err != nil {
+		logger.Error("Failed to get task: ", err)
+		return
+	}
 	logger.Infof("Task info: %s", RepeaterResponse)
 
 	var envelope struct {
 		ID     *int `json:"task_id"`
 		TypeID *int `json:"task_type_id"`
 	}
-	if err := json.Unmarshal([]byte(RepeaterResponse), &envelope); err != nil {
+	if err := json.Unmarshal(RepeaterResponse, &envelope); err != nil {
 		logger.Error("Failed to parse task description JSON: ", err)
 		return
 	}
@@ -58,7 +62,7 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 		return
 	}
 	TaskStruct := &models.Task{}
-	if err := json.Unmarshal([]byte(RepeaterResponse), TaskStruct); err != nil {
+	if err := json.Unmarshal(RepeaterResponse, TaskStruct); err != nil {
 		logger.Error("Failed to parse task description JSON: ", err)
 		return
 	}
@@ -69,7 +73,9 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 	startedTask := *TaskStruct
 	startedTask.Status = 3
 	metrics.ReleemAgent.Tasks = startedTask
-	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Status"})
+	if _, err := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Status"}); err != nil {
+		logger.Error("Failed to report task start: ", err)
+	}
 	logger.Infof(" * Task with id - %d and type id - %d is being started...", TaskStruct.ID, TaskStruct.TypeID)
 
 	switch TaskStruct.TypeID {
@@ -158,9 +164,16 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 			TaskStruct.Details, logger, configuration, metrics)
 		if TaskStruct.ExitCode == 0 {
 			metrics.ReleemAgent.Tasks = *TaskStruct
-			RepeaterResponse := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskByName", Type: "custom_queries_optimization"})
+			RepeaterResponse, err := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "TaskByName", Type: "custom_queries_optimization"})
+			if err != nil {
+				logger.Error("Failed to send query optimization result: ", err)
+				TaskStruct.ExitCode = 1
+				TaskStruct.Status = 4
+				TaskStruct.Output += "Failed to send query optimization result: " + err.Error()
+				break
+			}
 
-			mergedJSON, err := utils.MergeJSONStrings(TaskStruct.Details, RepeaterResponse, "custom_queries_optimization_response")
+			mergedJSON, err := utils.MergeJSONStrings(TaskStruct.Details, string(RepeaterResponse), "custom_queries_optimization_response")
 			if err != nil {
 				logger.Error("Failed to merge task_details JSON: ", err)
 			} else {
@@ -183,7 +196,9 @@ func ProcessTask(repeaters models.MetricsRepeater, gatherers []models.MetricsGat
 	logger.Infof(" * Task with id - %d and type id - %d completed with code %d", TaskStruct.ID, TaskStruct.TypeID, TaskStruct.ExitCode)
 
 	metrics.ReleemAgent.Tasks = *TaskStruct
-	utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Status"})
+	if _, err := utils.ProcessRepeaters(metrics, repeaters, configuration, logger, models.ModeType{Name: "Task", Type: "Status"}); err != nil {
+		logger.Error("Failed to report task completion: ", err)
+	}
 }
 
 func ApplySchemaChanges(logger logging.Logger, configuration *config.Config, taskdetails string, taskID int) (int, int, string, string) {

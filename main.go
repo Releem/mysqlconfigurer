@@ -57,6 +57,7 @@ func exitRunWithError(args ...interface{}) {
 
 func exitRunWithCode(code int, args ...interface{}) {
 	logger.Error(args...)
+	logger.Close()
 	os.Exit(code)
 }
 
@@ -70,6 +71,12 @@ func (programm *Programm) Start() {
 }
 
 func (programm *Programm) Run() {
+	if err := programm.run(); err != nil {
+		exitRunWithError(err)
+	}
+}
+
+func (programm *Programm) run() error {
 	// var gatherers map[string][]models.MetricsGatherer
 	gatherers := make(map[string][]models.MetricsGatherer)
 	var Mode models.ModeType
@@ -313,7 +320,7 @@ func (programm *Programm) Run() {
 
 		gatherers["sample_queries"] = append(gatherers["sample_queries"], mysql.NewDBCollectSampleQueriesGatherer(logger, configuration))
 	}
-	metrics.RunWorker(gatherers, repeaters, logger, configuration, Mode)
+	return metrics.RunWorker(gatherers, repeaters, logger, configuration, Mode)
 
 }
 
@@ -390,6 +397,10 @@ func parseConfigurationApplyMode(getConfig bool, args []string) (string, []strin
 }
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	logger = *logging.Init("releem-agent", true, defaultSystemLogFlag(), io.Discard)
 	defer logger.Close()
 	logging.SetFlags(log.LstdFlags | log.Lshortfile)
@@ -407,27 +418,32 @@ func main() {
 	configurationApplyMode, command, err = parseConfigurationApplyMode(*GetConfigRun, command)
 	if err != nil {
 		// Usage errors keep exit code 2 for scripts that branch on it.
-		exitRunWithCode(2, err)
+		logger.Error(err)
+		return 2
 	}
 
 	if shouldRunOneShotMode(len(command), *SetConfigRun, *GetConfigRun, *InitialConfigRun, *AgentEvent, *AgentTask) {
-		(&Programm{}).Run()
+		if err := (&Programm{}).run(); err != nil {
+			logger.Error(err)
+			return 1
+		}
 		logger.Info("Exiting")
-		os.Exit(0)
+		return 0
 	}
 
 	dependencies := defaultDependencies()
 	srv, err := daemon.New(serviceName, serviceDescription, daemon.SystemDaemon, dependencies...)
 	if err != nil {
 		logger.Error("Error: ", err)
-		os.Exit(1)
+		return 1
 	}
 	service := &Service{srv}
 	status, err := service.Manage(command)
 
 	if err != nil {
 		logger.Info(status, "\nError: ", err)
-		os.Exit(1)
+		return 1
 	}
 	logger.Info(status)
+	return 0
 }

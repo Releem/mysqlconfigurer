@@ -46,7 +46,7 @@ func fetchLocalRecommendations(metrics *models.Metrics, repeaters models.Metrics
 		logger.Error("Failed to parse task task_details JSON", err)
 		return nil, 1, 4, "Failed to parse task task_details JSON: " + err.Error()
 	}
-	recommend_var, err := requestConfigurationRecommendations(metrics, repeaters, configuration, mode)
+	recommend_var, err := requestConfigurationRecommendations(metrics, repeaters, configuration, logger, mode)
 	if err != nil {
 		logger.Error("Failed to get configuration recommendations", err)
 		return nil, 1, 4, "Failed to get configuration recommendations: " + err.Error()

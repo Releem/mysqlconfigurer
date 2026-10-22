@@ -42,7 +42,7 @@ func ApplyConfAzureMySQL(repeaters models.MetricsRepeater, gatherers []models.Me
 	if err != nil {
 		return 1, 4, "Failed to parse task task_details JSON: " + err.Error()
 	}
-	recommendVar, err := requestConfigurationRecommendations(metrics, repeaters, configuration, mode)
+	recommendVar, err := requestConfigurationRecommendations(metrics, repeaters, configuration, logger, mode)
 	if err != nil {
 		return 8, 4, "Failed to get configuration recommendations: " + err.Error()
 	}

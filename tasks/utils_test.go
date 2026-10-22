@@ -252,7 +252,7 @@ func TestDownloadConfigurationFileRejectsNilMetrics(t *testing.T) {
 	defer logger.Close()
 	r := &downloadCapture{body: "[mysqld]"}
 	code, status, output := DownloadConfigurationFile(nil, r, &config.Config{}, *logger, ApplyModeFull, nil)
-	if code != 1 || status != 4 || output != "metrics unavailable" || r.mode.Type != "" {
+	if code != 1 || status != 4 || output != "configuration download failed: metrics unavailable" || r.mode.Type != "" {
 		t.Fatalf("DownloadConfigurationFile(nil) = %d/%d %q, request = %+v", code, status, output, r.mode)
 	}
 }

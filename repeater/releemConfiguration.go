@@ -118,6 +118,9 @@ func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.Metri
 	if res.StatusCode != 200 && res.StatusCode != 201 {
 		return "", errors.New("Response: status code: " + strconv.Itoa(res.StatusCode) + " Response: body:\n" + string(body_res))
 	}
+	if Mode.Name == "Configurations" && len(bytes.TrimSpace(body_res)) == 0 {
+		return "", errors.New("empty configuration response")
+	}
 	repeater.logger.V(5).Info("Response: status code: ", res.StatusCode)
 	repeater.logger.V(5).Info("Response: body:\n", string(body_res))
 

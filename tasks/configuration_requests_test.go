@@ -19,9 +19,23 @@ func TestRecommendationRequestPreservesErrorsAndRejectsPartialBody(t *testing.T)
 	wantErr := errors.New("connection interrupted")
 	r := &downloadCapture{body: `{"max_connections":"200"}`, err: wantErr}
 	mode := models.ModeType{Name: "Configurations", Type: "GetJson", ApplyMode: "dynamic", ConfigurationStatusID: 23}
-	body, err := requestConfigurationRecommendations(&models.Metrics{}, r, &config.Config{}, mode)
+	logger := logging.Init("recommendation-errors", false, false, io.Discard)
+	defer logger.Close()
+	body, err := requestConfigurationRecommendations(&models.Metrics{}, r, &config.Config{}, *logger, mode)
 	if body != "" || !errors.Is(err, wantErr) || r.mode != mode {
 		t.Fatalf("requestConfigurationRecommendations = %q, %v, mode %+v; want empty body, original error, mode %+v", body, err, r.mode, mode)
+	}
+}
+
+func TestEmptyRecommendationResponseIsARequestFailure(t *testing.T) {
+	logger := logging.Init("empty-recommendations", false, false, io.Discard)
+	defer logger.Close()
+	for _, response := range []string{"", " \n\t"} {
+		body, err := requestConfigurationRecommendations(&models.Metrics{}, &downloadCapture{body: response}, &config.Config{}, *logger, models.ModeType{Name: "Configurations", Type: "GetJson"})
+		var requestErr *recommendationRequestError
+		if body != "" || !errors.As(err, &requestErr) || awsApplySafeErrorCode(err) != "configuration-request-failed" {
+			t.Errorf("requestConfigurationRecommendations(%q) = %q, %v; want empty body and classified request error", response, body, err)
+		}
 	}
 }
 

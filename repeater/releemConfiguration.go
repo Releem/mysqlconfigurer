@@ -12,7 +12,6 @@ import (
 
 	"github.com/Releem/mysqlconfigurer/config"
 	"github.com/Releem/mysqlconfigurer/models"
-	"github.com/Releem/mysqlconfigurer/utils"
 	logging "github.com/google/logger"
 
 	"time"
@@ -28,7 +27,6 @@ var newHTTPClient = func() *http.Client {
 }
 
 func (repeater ReleemConfigurationsRepeater) ProcessMetrics(context models.MetricContext, metrics models.Metrics, Mode models.ModeType) (string, error) {
-	defer utils.HandlePanic(repeater.configuration, repeater.logger)
 	repeater.logger.V(5).Info(Mode.Name, Mode.Type)
 	var buffer bytes.Buffer
 	encoder := json.NewEncoder(&buffer)

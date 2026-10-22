@@ -81,16 +81,14 @@ $afterSnapshot = Get-ServiceSnapshot -ServiceName $DbService
 Assert-Zero "releem.ps1 -Apply -NonInteractive -NoRestart exited successfully" $applyExit
 Assert-FileExists "Staging config file exists" $StagingConfig
 Assert-FileExists "Live config file copied" $liveConfigPath
-# MySQL kept running, so the copied file is the base for the next backup:
-# the backup this apply created is removed, as in releem.sh -s automatic.
-Assert-FileNotExists "Backup created by this apply removed when restart is skipped" $BackupConfig
+# Successful copying without restart also completes the apply.
+Assert-FileNotExists "Backup removed after successful apply without restart" $BackupConfig
 Assert-ServiceRunning "DB service still running" $DbService
 Assert-ServiceRunning "releem-agent still running" "releem-agent"
 Assert-Equal "MySQL process id unchanged without restart" $beforeSnapshot.ProcessId $afterSnapshot.ProcessId
 Assert-Equal "MySQL process start time unchanged without restart" $beforeSnapshot.StartTime $afterSnapshot.StartTime
 
-# A backup left by an earlier failed restart is the last configuration known
-# to start MySQL, so an apply without restart must keep it unchanged.
+# A successful no-restart apply replaces and removes an older backup too.
 $pendingBackup = "[mysqld]`r`n# pending recovery backup`r`n"
 [System.IO.File]::WriteAllText($BackupConfig, $pendingBackup)
 Add-Content -Path $StagingConfig -Value '# second no-restart apply' -Encoding ASCII
@@ -103,8 +101,7 @@ $applyExit = $LASTEXITCODE
 $afterSnapshot = Get-ServiceSnapshot -ServiceName $DbService
 
 Assert-Zero "releem.ps1 -Apply -NonInteractive -NoRestart with pending backup exited successfully" $applyExit
-Assert-FileExists "Pending recovery backup preserved" $BackupConfig
-Assert-Equal "Pending recovery backup unchanged" $pendingBackup ([System.IO.File]::ReadAllText($BackupConfig))
+Assert-FileNotExists "Older backup removed after successful apply" $BackupConfig
 Assert-FileContains "Live config file updated" $liveConfigPath '# second no-restart apply'
 Assert-Equal "MySQL process id unchanged on second apply" $beforeSnapshot.ProcessId $afterSnapshot.ProcessId
 Assert-Equal "MySQL process start time unchanged on second apply" $beforeSnapshot.StartTime $afterSnapshot.StartTime

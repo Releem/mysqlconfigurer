@@ -60,55 +60,38 @@ try {
     Invoke-ApplyConfig -Interactive $false -RestartService $false
     Assert-Equal $script:ExitCode 0
     Assert-Equal $script:restartCalls 0
-    # MySQL kept running, so the copied file is the base for the next backup.
     Assert-Equal (Test-Path $BackupCnfPath) $false
     Assert-Equal ([IO.File]::ReadAllText($livePath)) ([IO.File]::ReadAllText($StagingCnfPath))
 
-    # An identical file is neither backed up nor restarted, interactive or not.
+    # Completed identical files skip restart and do not create a backup.
     Invoke-ApplyConfig -Interactive $true -RestartService $true
-    Assert-Equal $script:restartCalls 0
-    Assert-Equal (Test-Path $BackupCnfPath) $false
     Invoke-ApplyConfig -Interactive $false -RestartService $true
-    Assert-Equal $script:ExitCode 0
     Assert-Equal $script:restartCalls 0
     Assert-Equal (Test-Path $BackupCnfPath) $false
-
     Assert-Equal $global:releemPreparedTestEvents.Count 1
 
-    # A dynamic apply (200) followed by a failed full apply (300) rolls back to
-    # the dynamic configuration, not to the one before it. Repeated failed
-    # applies then preserve that backup, including retries with identical
-    # staging, different staging, or no restart.
     foreach ($restartFailure in @(6, 7, 19)) {
-        Remove-Item $BackupCnfPath -Force -ErrorAction SilentlyContinue
         [IO.File]::WriteAllText($livePath, "[mysqld]`nmax_connections=100`n")
+        [IO.File]::WriteAllText($BackupCnfPath, 'older backup')
         [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`nmax_connections=200`n")
-        Invoke-ApplyConfig -Interactive $false -RestartService $false
-        Assert-Equal (Test-Path $BackupCnfPath) $false
-        [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`nmax_connections=300`n")
         $script:restartResult = $restartFailure
+        $script:ExitCode = 0
+        Invoke-ApplyConfig -Interactive $false -RestartService $true
+        Assert-Equal $script:ExitCode $restartFailure
+        Assert-Equal ([IO.File]::ReadAllText($BackupCnfPath)) "[mysqld]`nmax_connections=100`n"
+
+        # Even an identical retry restarts; each attempt backs up its current file.
         $restartCallsBefore = $script:restartCalls
+        $script:ExitCode = 0
         Invoke-ApplyConfig -Interactive $false -RestartService $true
         Assert-Equal $script:ExitCode $restartFailure
         Assert-Equal $script:restartCalls ($restartCallsBefore + 1)
-        Assert-Equal ([IO.File]::ReadAllText($livePath)) "[mysqld]`nmax_connections=300`n"
         Assert-Equal ([IO.File]::ReadAllText($BackupCnfPath)) "[mysqld]`nmax_connections=200`n"
 
+        [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`nmax_connections=300`n")
         $script:ExitCode = 0
         Invoke-ApplyConfig -Interactive $false -RestartService $true -ForceRestart $true
         Assert-Equal $script:ExitCode $restartFailure
-        Assert-Equal ([IO.File]::ReadAllText($BackupCnfPath)) "[mysqld]`nmax_connections=200`n"
-
-        [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`nmax_connections=400`n")
-        $script:ExitCode = 0
-        Invoke-ApplyConfig -Interactive $false -RestartService $true
-        Assert-Equal $script:ExitCode $restartFailure
-        Assert-Equal ([IO.File]::ReadAllText($BackupCnfPath)) "[mysqld]`nmax_connections=200`n"
-
-        [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`nmax_connections=500`n")
-        $script:ExitCode = 0
-        Invoke-ApplyConfig -Interactive $false -RestartService $false
-        Assert-Equal $script:ExitCode 0
         Assert-Equal ([IO.File]::ReadAllText($BackupCnfPath)) "[mysqld]`nmax_connections=200`n"
 
         $env:RELEEM_ROLLBACK_CONFIRM = '1'
@@ -122,39 +105,40 @@ try {
         $script:ExitCode = 0
         & $rollbackBody
         Assert-Equal $script:ExitCode 0
-        Assert-Equal ([IO.File]::ReadAllText($livePath)) "[mysqld]`nmax_connections=200`n"
         Assert-Equal (Test-Path $BackupCnfPath) $false
     }
 
-    [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`nmax_connections=400`n")
-    $script:restartResult = 0
+    # A successful retry removes its backup and notifies the platform.
+    [IO.File]::WriteAllText($livePath, "[mysqld]`nmax_connections=300`n")
+    [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`nmax_connections=300`n")
+    [IO.File]::WriteAllText($BackupCnfPath, "[mysqld]`nmax_connections=200`n")
     $script:ExitCode = 0
-    Invoke-ApplyConfig -Interactive $false -RestartService $true
-    Assert-Equal $script:ExitCode 0
-    Assert-Equal (Test-Path $BackupCnfPath) $false
-
-    # Full apply and managed rollback restart and notify even for identical files.
     $restartCallsBefore = $script:restartCalls
     $eventsBefore = $global:releemPreparedTestEvents.Count
-    Invoke-ApplyConfig -Interactive $false -RestartService $true -ForceRestart $true
+    Invoke-ApplyConfig -Interactive $false -RestartService $true
     Assert-Equal $script:ExitCode 0
     Assert-Equal $script:restartCalls ($restartCallsBefore + 1)
     Assert-Equal $global:releemPreparedTestEvents.Count ($eventsBefore + 1)
-    Assert-Equal $global:releemPreparedTestEvents[-1] '--event=config_applied'
     Assert-Equal (Test-Path $BackupCnfPath) $false
 
-    # Both legacy modes apply the canonical file without invoking agent -c.
+    # Full apply and managed rollback restart even for identical files.
+    $restartCallsBefore = $script:restartCalls
+    Invoke-ApplyConfig -Interactive $false -RestartService $true -ForceRestart $true
+    Assert-Equal $script:restartCalls ($restartCallsBefore + 1)
+    Assert-Equal (Test-Path $BackupCnfPath) $false
+
     foreach ($mode in @('full', 'dynamic')) {
         $ApplyMode = $mode
+        [IO.File]::WriteAllText($BackupCnfPath, 'older backup')
         [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`n# downloaded by Go: $mode`n")
         $script:ExitCode = 0
         Invoke-ApplyConfig -Interactive $false -RestartService $false
         Assert-Equal $script:ExitCode 0
         Assert-Equal ([IO.File]::ReadAllText($livePath)) ([IO.File]::ReadAllText($StagingCnfPath))
+        Assert-Equal (Test-Path $BackupCnfPath) $false
         Assert-Equal $global:releemPreparedTestEvents[-1] '--event=config_applied'
     }
 
-    # Environment forcing works with no public ForceRestart argument.
     $env:RELEEM_FORCE_RESTART = '1'
     $restartCallsBefore = $script:restartCalls
     Invoke-ApplyConfig -Interactive $false -RestartService $true

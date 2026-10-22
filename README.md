@@ -148,4 +148,4 @@ codes to `releem.ps1` in the same directory. Publish both files together.
 
 Full apply and managed rollback tasks set `RELEEM_FORCE_RESTART=1` for `releem.ps1` so
 MySQL reloads the selected configuration even if the staged and live files
-match. Manual apply still skips an identical file unless `-ForceRestart` is passed.
+match. Manual apply skips an identical file unless a failed attempt left a backup or `-ForceRestart` is passed.

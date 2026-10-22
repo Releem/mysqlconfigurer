@@ -521,7 +521,7 @@ function releem_apply_manual() {
     if [ -n "$diff_cmd" ];then
         diff "${RELEEM_DB_CONFIG_DIR}/${RELEEM_DB_CONFIG_FILE_NAME}" "$RELEEM_DB_CONFIG_FILE" > /dev/null 2>&1
         retVal=$?
-        if [ $retVal -eq 0 ];
+        if [ $retVal -eq 0 ] && [ ! -f "${RELEEM_CONF_DIR}${RELEEM_DB_CONFIG_FILE_NAME}.bkp" ];
         then
             printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m The new configuration is identical to the current configuration. No restart is required!\033[0m\n"
             exit 0
@@ -545,10 +545,12 @@ function releem_apply_manual() {
     fi
 
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Copying file $RELEEM_DB_CONFIG_FILE to directory $RELEEM_DB_CONFIG_DIR/.\033[0m\n"
-    if [ ! -f "${RELEEM_CONF_DIR}${RELEEM_DB_CONFIG_FILE_NAME}.bkp" ]; then
-        yes | cp -f "${RELEEM_DB_CONFIG_DIR}/${RELEEM_DB_CONFIG_FILE_NAME}" "${RELEEM_CONF_DIR}${RELEEM_DB_CONFIG_FILE_NAME}.bkp"
+    if [ -f "${RELEEM_DB_CONFIG_DIR}/${RELEEM_DB_CONFIG_FILE_NAME}" ]; then
+        cp -f "${RELEEM_DB_CONFIG_DIR}/${RELEEM_DB_CONFIG_FILE_NAME}" "${RELEEM_CONF_DIR}${RELEEM_DB_CONFIG_FILE_NAME}.bkp" || exit 1
+    else
+        rm -f "${RELEEM_CONF_DIR}${RELEEM_DB_CONFIG_FILE_NAME}.bkp"
     fi    
-    yes | cp -fr $RELEEM_DB_CONFIG_FILE $RELEEM_DB_CONFIG_DIR/
+    cp -f "$RELEEM_DB_CONFIG_FILE" "$RELEEM_DB_CONFIG_DIR/" || exit 1
     chmod 644 $RELEEM_DB_CONFIG_DIR/*
 
     if [ -z "$RELEEM_COMMAND_RESTART_SERVICE" ]; then
@@ -648,14 +650,13 @@ function releem_apply_automatic() {
 
 
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Copying file $DB_CONFIG_FILE to directory $RELEEM_DB_CONFIG_DIR/.\033[0m\n"
-    # An existing backup means an earlier restart failed; keep that last
-    # known-good configuration until a restart or rollback succeeds.
-    local BACKUP_CREATED=0
-    if [ ! -f "${DB_CONFIG_FILE}.bkp" ]; then
-        yes | cp -f "${RELEEM_DB_CONFIG_DIR}/${DB_CONFIG_FILE_NAME}" "${DB_CONFIG_FILE}.bkp"
-        BACKUP_CREATED=1
+    # Every attempt saves the file it is about to replace.
+    if [ -f "${RELEEM_DB_CONFIG_DIR}/${DB_CONFIG_FILE_NAME}" ]; then
+        cp -f "${RELEEM_DB_CONFIG_DIR}/${DB_CONFIG_FILE_NAME}" "${DB_CONFIG_FILE}.bkp" || exit 1
+    else
+        rm -f "${DB_CONFIG_FILE}.bkp"
     fi    
-    yes | cp -fr $DB_CONFIG_FILE $RELEEM_DB_CONFIG_DIR/
+    cp -f "$DB_CONFIG_FILE" "$RELEEM_DB_CONFIG_DIR/" || exit 1
     chmod 644 $RELEEM_DB_CONFIG_DIR/*
 
     if [ "$FLAG_RESTART_SERVICE" -ne 0 ]; then
@@ -690,12 +691,7 @@ function releem_apply_automatic() {
         fi
     else
         RESTART_CODE=0
-        # The database kept running while the new file was installed, so it is
-        # the base for the next backup. A backup left by an earlier failed
-        # restart is kept: it is still the only configuration known to start.
-        if [ "$BACKUP_CREATED" -eq 1 ]; then
-            rm -f "${DB_CONFIG_FILE}.bkp"
-        fi
+        rm -f "${DB_CONFIG_FILE}.bkp"
     fi
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Sending notification to Releem Platform. \033[0m\n"
     $RELEEM_WORKDIR/releem-agent --event=config_applied > /dev/null

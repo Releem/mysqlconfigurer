@@ -392,9 +392,10 @@ function Invoke-ApplyConfig {
         $script:ExitCode = 2; return
     }
 
-    # Manual apply skips identical files. Full apply and managed rollback must
-    # still restart to load the selected values, matching releem.sh -s automatic.
-    if ($RestartService -and -not $ForceRestart -and (Test-Path -LiteralPath $liveCnfPath -PathType Leaf)) {
+    # A backup marks a failed attempt; identical retries must still restart.
+    if ($RestartService -and -not $ForceRestart -and
+        -not (Test-Path -LiteralPath $BackupCnfPath) -and
+        (Test-Path -LiteralPath $liveCnfPath -PathType Leaf)) {
         # Compare exact bytes using .NET APIs available in PowerShell 3.0.
         $liveBytes = [System.Convert]::ToBase64String([System.IO.File]::ReadAllBytes($liveCnfPath))
         $stagingBytes = [System.Convert]::ToBase64String([System.IO.File]::ReadAllBytes($StagingCnfPath))
@@ -417,19 +418,14 @@ function Invoke-ApplyConfig {
         Write-Log 'Running in non-interactive mode - copying configuration without restarting MySQL'
     }
 
-    # An existing backup means an earlier restart failed; keep that last
-    # known-good configuration until a restart or rollback succeeds.
+    # Every attempt saves the file it is about to replace.
     $noBomUtf8 = New-Object System.Text.UTF8Encoding $false
-    $backupCreated = $false
-    if (-not (Test-Path -LiteralPath $BackupCnfPath)) {
-        $backupCreated = $true
-        if (Test-Path -LiteralPath $liveCnfPath -PathType Leaf) {
-            Copy-Item -LiteralPath $liveCnfPath -Destination $BackupCnfPath -Force
-            Write-Log "Backed up current live config to: $BackupCnfPath"
-        } else {
-            [System.IO.File]::WriteAllText($BackupCnfPath, "[mysqld]`r`n", $noBomUtf8)
-            Write-Log "Created baseline backup (no prior live config): $BackupCnfPath"
-        }
+    if (Test-Path -LiteralPath $liveCnfPath -PathType Leaf) {
+        Copy-Item -LiteralPath $liveCnfPath -Destination $BackupCnfPath -Force
+        Write-Log "Backed up current live config to: $BackupCnfPath"
+    } else {
+        [System.IO.File]::WriteAllText($BackupCnfPath, "[mysqld]`r`n", $noBomUtf8)
+        Write-Log "Created baseline backup (no prior live config): $BackupCnfPath"
     }
 
     # Copy staging config to MySQL conf dir
@@ -438,13 +434,7 @@ function Invoke-ApplyConfig {
     Write-Log "Copied recommended config to $liveCnfPath"
 
     if (-not $RestartService) {
-        # MySQL kept running while the new file was installed, so it is the base
-        # for the next backup, as in releem.sh. A backup left by an earlier
-        # failed restart is kept: it is still the only configuration known to start.
-        if ($backupCreated) {
-            Remove-Item -LiteralPath $BackupCnfPath -Force
-            Write-Log "Backup removed after copying without restart: $BackupCnfPath"
-        }
+        Remove-Item -LiteralPath $BackupCnfPath -Force
         & $AgentBinaryPath --event=config_applied
         $applyEventCode = $LASTEXITCODE
         Write-Log "Agent event 'config_applied' fired with exit code $applyEventCode"
@@ -469,8 +459,7 @@ function Invoke-ApplyConfig {
         $script:ExitCode = $restartCode; return
     }
 
-    # Successfully applied — remove backup
-    Remove-Item -Path $BackupCnfPath -Force
+    Remove-Item -LiteralPath $BackupCnfPath -Force
     Write-Log "Backup removed after successful apply: $BackupCnfPath"
 
     # Fire config_applied event (non-fatal)
@@ -681,10 +670,9 @@ try {
             $script:ExitCode = $restartCode; return
         }
 
-        # Remove backup on successful restart
-        if (Test-Path $BackupCnfPath) {
-            Remove-Item -Path $BackupCnfPath -Force
-            Write-Log "Backup file removed: $BackupCnfPath"
+        if (Test-Path -LiteralPath $BackupCnfPath) {
+            Remove-Item -LiteralPath $BackupCnfPath -Force
+            Write-Log "Backup removed after successful rollback: $BackupCnfPath"
         }
 
         # Fire config_rollback event (non-fatal)

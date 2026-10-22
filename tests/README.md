@@ -43,7 +43,7 @@ Tests 3 and 4 depend on test 1 having run first. The run_all scripts handle this
 | 4 | Rollback configuration | Rolls back the applied config |
 | 5 | Update delegation | Verifies update flow delegation |
 | 6 | Reinstall existing installation | Reinstalls over an existing agent installation |
-| 7 | Apply without restart | Applies configuration without restarting MySQL; removes the backup it created and keeps a pending recovery backup |
+| 7 | Apply without restart | Applies configuration without restarting MySQL; removes the backup after successful copying without restart |
 | 8 | Queue apply | Verifies queued apply behavior |
 | 9 | Reinstall rewrites config without prompt | Reinstalls without interactive credential prompts |
 | 10 | Install with prompted root password | Installs without `RELEEM_MYSQL_ROOT_PASSWORD` and supplies the root password interactively |
@@ -204,8 +204,9 @@ The suite checks:
 - Initial apply downloads fresh initial configuration first; download failure preserves the live configuration.
 - Missing downloaded configurations fail before changing live configuration files.
 - Empty configuration responses preserve the existing staging file.
-- Linux and Windows apply keep an existing recovery backup across failed restart retries and later applies; it is removed after a successful restart or rollback. An apply without restart that created the backup removes it, so a dynamic apply becomes the rollback target for a later failed full apply.
+- Linux and Windows back up the current live file before each apply, replacing any existing backup. Successful apply (including copying without restart) or rollback removes the backup; failures leave it available for recovery. Retrying an apply backs up the current file again, even if a previous attempt failed.
 - Full apply and managed rollback force restarts when required.
+- Manual apply retries the restart for identical staging/live files when a backup exists from a failed attempt. Without a backup, identical manual applies can skip restarting. After successful apply, rollback removes the Releem configuration because no backup remains.
 
 Update scenarios execute the real installer branch with download/service mocks,
 then run both installed entry points through the actual help and validation

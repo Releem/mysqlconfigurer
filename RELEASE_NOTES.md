@@ -256,3 +256,22 @@
 - Fixed Windows apply validation for persisted configuration paths and aligned missing-directory and missing-include exit codes with Linux.
 - Expanded regression coverage for connection lifecycle, table-size cache expiry, PostgreSQL statistics, and Linux and Windows script compatibility.
 - Bumped agent, installer, management script, and related test versions to 1.26.0.
+
+## 1.26.1
+
+- Added support for applying a selected configuration by `configuration_status_id` and rolling back to a selected configuration through managed rollback tasks.
+- Moved configuration downloads for local apply tasks into the Go agent. Linux and Windows management scripts apply the prepared file; initial setup downloads fresh initial configuration before applying it.
+- Improved task validation and terminal-status reporting when post-task metrics are unavailable, without presenting pre-apply configuration values as fresh observations.
+- Preserved configuration request errors and timeout causes across local and cloud apply paths. Repeater panics now return errors instead of being treated as successful empty responses. Empty configuration responses no longer overwrite the existing staging file.
+- Made one-shot configuration collection wait for completion and report failures. Docker startup and completed Linux updates tolerate a failed initial or post-update configuration request.
+- Restored query sample collection before one-shot query optimization reports.
+- Validated complete installer artifact sets before replacement and added Windows recovery for failed file replacement, including restoration of the previous service state.
+- Aligned Linux and Windows apply backups: each attempt replaces the backup with the current live file; successful apply, including copying without restart, removes it, while failures retain it. Successful rollback also removes the backup. Manual retries with a retained backup restart even when staged and live files match.
+- Preserved PowerShell 3.0 compatibility for configuration file comparisons and forced restarts for full apply and managed rollback tasks on Windows.
+- Exposed the PostgreSQL database connection pool limit through Docker configuration and expanded Go, Bats, and offline PowerShell regression coverage.
+- Aligned PostgreSQL query payloads with lightweight and full collection profiles: lightweight reports contain query identifiers, calls, and execution timings; full reports additionally include query text, row counts, and available EXPLAIN results.
+- Added Windows installer detection for MySQL90, MySQL97, and MySQL267 service names.
+- Preserved CLI usage-error exit code 2 and propagated one-shot collection failures to the process exit status.
+- Updated GitHub Actions dependencies and replaced the S3 upload action with AWS CLI publication that fails the workflow on upload errors. CI now runs release-publication, Docker, and offline PowerShell regression checks.
+- Added PostgreSQL EXPLAIN permission-hint regression tests, including SELECT row-locking and substring expressions.
+- Bumped agent, installer, management script, and related test versions to 1.26.1.

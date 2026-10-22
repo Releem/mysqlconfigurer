@@ -44,7 +44,7 @@ EOF
 reset_publication() {
     rm -rf "$PUBLIC_STORE"
     mkdir -p "$PUBLIC_STORE/v2"
-    printf '1.26.0\n' > "$PUBLIC_STORE/v2/current_version_agent"
+    printf '1.26.1\n' > "$PUBLIC_STORE/v2/current_version_agent"
     local name
     for name in "$TEST_TMPDIR/v2/"*; do
         [ "${name##*/}" != current_version_agent ] || continue
@@ -101,7 +101,7 @@ teardown() { rm -rf "$TEST_TMPDIR"; }
             if [ "$failure_seen" -eq 0 ]; then
                 cmp "$TEST_TMPDIR/v2/$name" "$PUBLIC_STORE/v2/$name"
             elif [ "$name" = current_version_agent ]; then
-                [ "$(cat "$PUBLIC_STORE/v2/$name")" = 1.26.0 ]
+                [ "$(cat "$PUBLIC_STORE/v2/$name")" = 1.26.1 ]
             else
                 [ "$(cat "$PUBLIC_STORE/v2/$name")" = legacy-installer ]
             fi

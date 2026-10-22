@@ -230,8 +230,7 @@ func TestCollectDbSchemaReusesPooledHandle(t *testing.T) {
 	logger := *logging.Init("postgres-schema-pooled-handle-test", false, false, io.Discard)
 	defer logger.Close()
 	recorder := &pgExplainRecordingDriver{}
-	sql.Register("releem_pg_schema_pool_test", recorder)
-	pooled, err := sql.Open("releem_pg_schema_pool_test", "")
+	pooled, err := openPgTestDB(recorder)
 	if err != nil {
 		t.Fatal(err)
 	}

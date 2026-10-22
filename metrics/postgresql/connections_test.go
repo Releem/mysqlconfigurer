@@ -13,8 +13,7 @@ import (
 
 func TestAcquireDefaultDatabaseSharesPinnedMainConnection(t *testing.T) {
 	recorder := &pgExplainRecordingDriver{}
-	sql.Register("releem_pg_default_database_test", recorder)
-	main, err := sql.Open("releem_pg_default_database_test", "")
+	main, err := openPgTestDB(recorder)
 	if err != nil {
 		t.Fatal(err)
 	}

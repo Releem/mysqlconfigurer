@@ -10,15 +10,22 @@ foreach ($name in @('Check-MySQLConfigDirectory', 'Check-MySQLConfigInclude', 'I
     if (-not $function) { throw "Missing function: $name" }
     Invoke-Expression $function.Extent.Text
 }
+$rollbackBranch = $ast.Find({ param($node)
+    $node -is [Management.Automation.Language.IfStatementAst] -and
+    $node.Clauses[0].Item1.Extent.Text -eq '$Rollback'
+}, $true)
+if (-not $rollbackBranch) { throw 'Missing rollback branch' }
+$rollbackText = $rollbackBranch.Clauses[0].Item2.Extent.Text
+$rollbackBody = [scriptblock]::Create($rollbackText.Substring(1, $rollbackText.Length - 2))
 function Find-MyIniPath { return $null }
-function Write-Log { param([string]$Message) }
+function Write-Log { param([string]$Message) if ($env:RELEEM_TEST_VERBOSE) { Write-Host $Message } }
 function Check-DbVersion { return 0 }
 function Read-Host { throw 'Unexpected interactive prompt' }
 function Restart-MySqlService { $script:restartCalls++; return $script:restartResult }
 # Windows Server 2012 ships PowerShell 3.0 without Get-FileHash.
 function Get-FileHash { throw 'Get-FileHash is unavailable on PowerShell 3.0' }
 function Send-TestEvent {
-    if ($args -contains '-c') { throw 'Apply must not download a different configuration' }
+    if ($args -contains '-c') { throw 'Apply must never download configuration' }
     $global:releemPreparedTestEvents += ($args -join ' ')
     $global:LASTEXITCODE = 0
 }
@@ -36,6 +43,10 @@ $AgentBinaryPath = Join-Path $root 'agent-stub.ps1'
 $script:restartCalls = 0
 $script:restartResult = 0
 $global:releemPreparedTestEvents = @()
+$ApplyMode = 'full'
+$previousForce = $env:RELEEM_FORCE_RESTART
+$previousRollbackConfirm = $env:RELEEM_ROLLBACK_CONFIRM
+Remove-Item Env:RELEEM_FORCE_RESTART -ErrorAction SilentlyContinue
 try {
     $script:ExitCode = 0
     Invoke-ApplyConfig -Interactive $false -RestartService $true
@@ -45,33 +56,75 @@ try {
 
     [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`nmax_connections=200`n")
     [IO.File]::WriteAllText($livePath, "[mysqld]`nmax_connections=100`n")
-    [IO.File]::WriteAllText($BackupCnfPath, 'original backup')
     $script:ExitCode = 0
     Invoke-ApplyConfig -Interactive $false -RestartService $false
     Assert-Equal $script:ExitCode 0
     Assert-Equal $script:restartCalls 0
-    Assert-Equal ([IO.File]::ReadAllText($BackupCnfPath)) 'original backup'
+    # MySQL kept running, so the copied file is the base for the next backup.
+    Assert-Equal (Test-Path $BackupCnfPath) $false
     Assert-Equal ([IO.File]::ReadAllText($livePath)) ([IO.File]::ReadAllText($StagingCnfPath))
 
     # An identical file is neither backed up nor restarted, interactive or not.
     Invoke-ApplyConfig -Interactive $true -RestartService $true
     Assert-Equal $script:restartCalls 0
-    Assert-Equal ([IO.File]::ReadAllText($BackupCnfPath)) 'original backup'
+    Assert-Equal (Test-Path $BackupCnfPath) $false
     Invoke-ApplyConfig -Interactive $false -RestartService $true
     Assert-Equal $script:ExitCode 0
     Assert-Equal $script:restartCalls 0
-    Assert-Equal ([IO.File]::ReadAllText($BackupCnfPath)) 'original backup'
+    Assert-Equal (Test-Path $BackupCnfPath) $false
 
     Assert-Equal $global:releemPreparedTestEvents.Count 1
 
-    [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`nmax_connections=300`n")
-    $script:restartResult = 7
-    $restartCallsBefore = $script:restartCalls
-    Invoke-ApplyConfig -Interactive $false -RestartService $true
-    Assert-Equal $script:ExitCode 7
-    Assert-Equal $script:restartCalls ($restartCallsBefore + 1)
-    Assert-Equal ([IO.File]::ReadAllText($livePath)) ([IO.File]::ReadAllText($StagingCnfPath))
-    Assert-Equal ([IO.File]::ReadAllText($BackupCnfPath)) 'original backup'
+    # A dynamic apply (200) followed by a failed full apply (300) rolls back to
+    # the dynamic configuration, not to the one before it. Repeated failed
+    # applies then preserve that backup, including retries with identical
+    # staging, different staging, or no restart.
+    foreach ($restartFailure in @(6, 7, 19)) {
+        Remove-Item $BackupCnfPath -Force -ErrorAction SilentlyContinue
+        [IO.File]::WriteAllText($livePath, "[mysqld]`nmax_connections=100`n")
+        [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`nmax_connections=200`n")
+        Invoke-ApplyConfig -Interactive $false -RestartService $false
+        Assert-Equal (Test-Path $BackupCnfPath) $false
+        [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`nmax_connections=300`n")
+        $script:restartResult = $restartFailure
+        $restartCallsBefore = $script:restartCalls
+        Invoke-ApplyConfig -Interactive $false -RestartService $true
+        Assert-Equal $script:ExitCode $restartFailure
+        Assert-Equal $script:restartCalls ($restartCallsBefore + 1)
+        Assert-Equal ([IO.File]::ReadAllText($livePath)) "[mysqld]`nmax_connections=300`n"
+        Assert-Equal ([IO.File]::ReadAllText($BackupCnfPath)) "[mysqld]`nmax_connections=200`n"
+
+        $script:ExitCode = 0
+        Invoke-ApplyConfig -Interactive $false -RestartService $true -ForceRestart $true
+        Assert-Equal $script:ExitCode $restartFailure
+        Assert-Equal ([IO.File]::ReadAllText($BackupCnfPath)) "[mysqld]`nmax_connections=200`n"
+
+        [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`nmax_connections=400`n")
+        $script:ExitCode = 0
+        Invoke-ApplyConfig -Interactive $false -RestartService $true
+        Assert-Equal $script:ExitCode $restartFailure
+        Assert-Equal ([IO.File]::ReadAllText($BackupCnfPath)) "[mysqld]`nmax_connections=200`n"
+
+        [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`nmax_connections=500`n")
+        $script:ExitCode = 0
+        Invoke-ApplyConfig -Interactive $false -RestartService $false
+        Assert-Equal $script:ExitCode 0
+        Assert-Equal ([IO.File]::ReadAllText($BackupCnfPath)) "[mysqld]`nmax_connections=200`n"
+
+        $env:RELEEM_ROLLBACK_CONFIRM = '1'
+        $script:ExitCode = 0
+        & $rollbackBody
+        Assert-Equal $script:ExitCode $restartFailure
+        Assert-Equal ([IO.File]::ReadAllText($livePath)) "[mysqld]`nmax_connections=200`n"
+        Assert-Equal ([IO.File]::ReadAllText($BackupCnfPath)) "[mysqld]`nmax_connections=200`n"
+
+        $script:restartResult = 0
+        $script:ExitCode = 0
+        & $rollbackBody
+        Assert-Equal $script:ExitCode 0
+        Assert-Equal ([IO.File]::ReadAllText($livePath)) "[mysqld]`nmax_connections=200`n"
+        Assert-Equal (Test-Path $BackupCnfPath) $false
+    }
 
     [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`nmax_connections=400`n")
     $script:restartResult = 0
@@ -90,11 +143,66 @@ try {
     Assert-Equal $global:releemPreparedTestEvents[-1] '--event=config_applied'
     Assert-Equal (Test-Path $BackupCnfPath) $false
 
+    # Both legacy modes apply the canonical file without invoking agent -c.
+    foreach ($mode in @('full', 'dynamic')) {
+        $ApplyMode = $mode
+        [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`n# downloaded by Go: $mode`n")
+        $script:ExitCode = 0
+        Invoke-ApplyConfig -Interactive $false -RestartService $false
+        Assert-Equal $script:ExitCode 0
+        Assert-Equal ([IO.File]::ReadAllText($livePath)) ([IO.File]::ReadAllText($StagingCnfPath))
+        Assert-Equal $global:releemPreparedTestEvents[-1] '--event=config_applied'
+    }
+
+    # Environment forcing works with no public ForceRestart argument.
+    $env:RELEEM_FORCE_RESTART = '1'
+    $restartCallsBefore = $script:restartCalls
+    Invoke-ApplyConfig -Interactive $false -RestartService $true
+    Assert-Equal $script:restartCalls ($restartCallsBefore + 1)
+    Assert-Equal (Test-Path $BackupCnfPath) $false
+    Remove-Item Env:RELEEM_FORCE_RESTART
+
+    # Missing staging and a directory in its place preserve live config and backup.
+    [IO.File]::WriteAllText($BackupCnfPath, 'original baseline')
+    $liveBefore = [Convert]::ToBase64String([IO.File]::ReadAllBytes($livePath))
+    $backupBefore = [Convert]::ToBase64String([IO.File]::ReadAllBytes($BackupCnfPath))
+    $eventsBefore = $global:releemPreparedTestEvents.Count
+    $restartCallsBefore = $script:restartCalls
+    Remove-Item $StagingCnfPath
+    foreach ($failure in @('missing', 'directory')) {
+        if ($failure -eq 'directory') { New-Item $StagingCnfPath -ItemType Directory | Out-Null }
+        $script:ExitCode = 0
+        Invoke-ApplyConfig -Interactive $false -RestartService $true
+        Assert-Equal $script:ExitCode 1
+        Assert-Equal ([Convert]::ToBase64String([IO.File]::ReadAllBytes($livePath))) $liveBefore
+        Assert-Equal ([Convert]::ToBase64String([IO.File]::ReadAllBytes($BackupCnfPath))) $backupBefore
+        Assert-Equal $script:restartCalls $restartCallsBefore
+        Assert-Equal $global:releemPreparedTestEvents.Count $eventsBefore
+    }
+    Remove-Item $StagingCnfPath
+
+    # Baseline and BOM semantics stay canonical when Go supplies a BOM file.
+    # A failed restart keeps the baseline backup so it can be inspected.
+    Remove-Item $livePath, $BackupCnfPath
+    $bomUtf8 = New-Object Text.UTF8Encoding $true
+    [IO.File]::WriteAllText($StagingCnfPath, "[mysqld]`r`nmax_connections=888`r`n", $bomUtf8)
+    $script:restartResult = 7
+    $script:ExitCode = 0
+    Invoke-ApplyConfig -Interactive $false -RestartService $true
+    Assert-Equal $script:ExitCode 7
+    $script:restartResult = 0
+    Assert-Equal ([IO.File]::ReadAllText($BackupCnfPath)) "[mysqld]`r`n"
+    Assert-Equal ([IO.File]::ReadAllBytes($BackupCnfPath)[0]) 91
+    Assert-Equal ([IO.File]::ReadAllBytes($livePath)[0]) 91
+    Assert-Equal ([IO.File]::ReadAllText($livePath)) ([IO.File]::ReadAllText($StagingCnfPath))
+
     $mysql_cnf_dir = Join-Path $root 'missing'
     Invoke-ApplyConfig -Interactive $false -RestartService $true
     Assert-Equal $script:ExitCode 3
-    Write-Host 'Prepared configuration apply tests passed.'
+    Write-Host 'Canonical configuration apply tests passed.'
 } finally {
+    $env:RELEEM_FORCE_RESTART = $previousForce
+    $env:RELEEM_ROLLBACK_CONFIRM = $previousRollbackConfirm
     Remove-Variable -Name releemPreparedTestEvents -Scope Global -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $root -Recurse -Force
 }

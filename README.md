@@ -146,6 +146,6 @@ If you have suggestions or want to discuss potential improvements, please visit 
 also download `mysqlconfigurer.ps1`, which forwards legacy arguments and exit
 codes to `releem.ps1` in the same directory. Publish both files together.
 
-Full apply and managed rollback tasks pass `-ForceRestart` to `releem.ps1` so
+Full apply and managed rollback tasks set `RELEEM_FORCE_RESTART=1` for `releem.ps1` so
 MySQL reloads the selected configuration even if the staged and live files
-match. Manual apply still skips an identical file.
+match. Manual apply still skips an identical file unless `-ForceRestart` is passed.

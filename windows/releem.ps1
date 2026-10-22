@@ -8,7 +8,7 @@
     Deployed to C:\Program Files\ReleemAgent\releem.ps1
 
 .PARAMETER Apply
-    Apply the prepared MySQL configuration (with user confirmation).
+    Apply the MySQL configuration downloaded by Releem Agent (with user confirmation).
 
 .PARAMETER NonInteractive
     Apply the recommended MySQL configuration non-interactively.
@@ -53,7 +53,7 @@ param(
     [switch]$NonInteractive,
     [switch]$NoRestart,
     [switch]$ForceRestart,
-    # Accepted for legacy callers; Go prepares the selected configuration before apply.
+    # Retained for legacy callers; Go prepares the configuration before apply.
     [ValidateSet('dynamic', 'full')]
     [string]$ApplyMode = 'full',
     [switch]$QueueApply,
@@ -363,11 +363,11 @@ function Invoke-ApplyConfig {
         [bool]$ForceRestart = $false
     )
 
-    # Check that the configuration prepared by Releem Agent exists in the staging area
     if (-not (Test-Path -LiteralPath $StagingCnfPath -PathType Leaf)) {
-        Write-Log "ERROR: Prepared configuration file not found: $StagingCnfPath. Run releem-agent.exe -c first."
+        Write-Log "ERROR: Recommended configuration file not found: $StagingCnfPath. Run Releem Agent to download the configuration before applying it."
         $script:ExitCode = 1; return
     }
+    $ForceRestart = $ForceRestart -or ($env:RELEEM_FORCE_RESTART -eq '1')
 
     $directoryCode = Check-MySQLConfigDirectory
     if ($directoryCode -ne 0) {
@@ -382,7 +382,7 @@ function Invoke-ApplyConfig {
     Write-Log 'Using the configuration file prepared by Releem Agent.'
 
     # Log full contents of staging config so user can see what will be applied
-    $recommendedContent = Get-Content -Path $StagingCnfPath -Raw
+    $recommendedContent = Get-Content -LiteralPath $StagingCnfPath -Raw
     Write-Log "Contents of ${StagingCnfPath}:`n$recommendedContent"
 
     # Check MySQL version >= 5.6.8
@@ -417,9 +417,12 @@ function Invoke-ApplyConfig {
         Write-Log 'Running in non-interactive mode - copying configuration without restarting MySQL'
     }
 
-    # Back up the current live config before applying
+    # An existing backup means an earlier restart failed; keep that last
+    # known-good configuration until a restart or rollback succeeds.
     $noBomUtf8 = New-Object System.Text.UTF8Encoding $false
+    $backupCreated = $false
     if (-not (Test-Path -LiteralPath $BackupCnfPath)) {
+        $backupCreated = $true
         if (Test-Path -LiteralPath $liveCnfPath -PathType Leaf) {
             Copy-Item -LiteralPath $liveCnfPath -Destination $BackupCnfPath -Force
             Write-Log "Backed up current live config to: $BackupCnfPath"
@@ -430,11 +433,18 @@ function Invoke-ApplyConfig {
     }
 
     # Copy staging config to MySQL conf dir
-    $stagingContent = Get-Content -Path $StagingCnfPath -Raw
+    $stagingContent = Get-Content -LiteralPath $StagingCnfPath -Raw
     [System.IO.File]::WriteAllText($liveCnfPath, $stagingContent, $noBomUtf8)
     Write-Log "Copied recommended config to $liveCnfPath"
 
     if (-not $RestartService) {
+        # MySQL kept running while the new file was installed, so it is the base
+        # for the next backup, as in releem.sh. A backup left by an earlier
+        # failed restart is kept: it is still the only configuration known to start.
+        if ($backupCreated) {
+            Remove-Item -LiteralPath $BackupCnfPath -Force
+            Write-Log "Backup removed after copying without restart: $BackupCnfPath"
+        }
         & $AgentBinaryPath --event=config_applied
         $applyEventCode = $LASTEXITCODE
         Write-Log "Agent event 'config_applied' fired with exit code $applyEventCode"

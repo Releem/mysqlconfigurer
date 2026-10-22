@@ -514,7 +514,7 @@ function releem_apply_manual() {
     if [ ! -f $RELEEM_DB_CONFIG_FILE ]; then
         printf "\033[37m\n * Recommended ${DATABASE_NAME} configuration was not found.\033[0m"
         printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"
-        printf "\033[32m\n $RELEEM_WORKDIR/releem-agent -f \033[0m\n\n"
+        printf "\033[32m\n $RELEEM_WORKDIR/releem-agent -c full \033[0m\n\n"
         exit 1;
     fi
     diff_cmd=$(which diff || true)
@@ -615,15 +615,22 @@ function releem_apply_automatic() {
 
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Applying the recommended ${DATABASE_NAME} configuration.\033[0m\n"
     if [ "$1" == "initial" ]; then
-        printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Getting the initial configuration.\033[0m\n"
-        $RELEEM_WORKDIR/releem-agent --initial >/dev/null 2>&1 || true
+        printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Using the initial configuration prepared by Releem Agent.\033[0m\n"
+        if ! "$RELEEM_WORKDIR/releem-agent" --initial >/dev/null 2>&1; then
+            printf '\nFailed to download the initial configuration; no database configuration was changed.\n' >&2
+            exit 1
+        fi
     else
         printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Using the configuration file prepared by Releem Agent.\033[0m\n"
     fi
     if [ ! -f $DB_CONFIG_FILE ]; then
         printf "\033[37m\n * Recommended ${DATABASE_NAME} configuration was not found.\033[0m"
         printf "\033[37m\n * Please apply recommended configuration later or run Releem Agent manually:\033[0m"
-        printf "\033[32m\n $RELEEM_WORKDIR/releem-agent -f \033[0m\n\n"
+        if [ "$1" == "initial" ]; then
+            printf "\033[32m\n $RELEEM_WORKDIR/releem-agent --initial \033[0m\n\n"
+        else
+            printf "\033[32m\n $RELEEM_WORKDIR/releem-agent -c full \033[0m\n\n"
+        fi
         exit 1;
     fi
     FLAG_RESTART_SERVICE=1
@@ -641,8 +648,12 @@ function releem_apply_automatic() {
 
 
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[37m Copying file $DB_CONFIG_FILE to directory $RELEEM_DB_CONFIG_DIR/.\033[0m\n"
+    # An existing backup means an earlier restart failed; keep that last
+    # known-good configuration until a restart or rollback succeeds.
+    local BACKUP_CREATED=0
     if [ ! -f "${DB_CONFIG_FILE}.bkp" ]; then
         yes | cp -f "${RELEEM_DB_CONFIG_DIR}/${DB_CONFIG_FILE_NAME}" "${DB_CONFIG_FILE}.bkp"
+        BACKUP_CREATED=1
     fi    
     yes | cp -fr $DB_CONFIG_FILE $RELEEM_DB_CONFIG_DIR/
     chmod 644 $RELEEM_DB_CONFIG_DIR/*
@@ -679,6 +690,12 @@ function releem_apply_automatic() {
         fi
     else
         RESTART_CODE=0
+        # The database kept running while the new file was installed, so it is
+        # the base for the next backup. A backup left by an earlier failed
+        # restart is kept: it is still the only configuration known to start.
+        if [ "$BACKUP_CREATED" -eq 1 ]; then
+            rm -f "${DB_CONFIG_FILE}.bkp"
+        fi
     fi
     printf "\n`date +%Y%m%d-%H:%M:%S`\033[32m Sending notification to Releem Platform. \033[0m\n"
     $RELEEM_WORKDIR/releem-agent --event=config_applied > /dev/null

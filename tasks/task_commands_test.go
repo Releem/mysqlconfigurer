@@ -50,7 +50,8 @@ func TestWindowsTaskCommands(t *testing.T) {
 			cmd:  taskApplyAutomaticCommand("windows", releemDir, true),
 			want: taskCommand{
 				name: "powershell.exe",
-				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\releem.ps1`, "-Apply", "-NonInteractive", "-ForceRestart"},
+				args: []string{"-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", `C:\Program Files\ReleemAgent\releem.ps1`, "-Apply", "-NonInteractive"},
+				env:  []string{"RELEEM_FORCE_RESTART=1"},
 			},
 		},
 		{

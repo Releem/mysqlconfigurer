@@ -6,6 +6,24 @@ Tests run on GCP spot (preemptible) VMs provisioned by Terraform, torn down afte
 
 ## Linux Test Workflows
 
+Run offline installer, apply and release-publication checks without cloud access:
+
+```bash
+bats tests/install.bats tests/mysqlconfigurer.bats tests/release.bats tests/docker.bats tests/docker_entrypoint.bats
+```
+
+`tests/docker.bats` checks that the Docker entrypoint starts its command after
+both successful and failed initial configuration downloads, preserving the
+command's exit status. It uses temporary paths and does not require Docker.
+
+`tests/release.bats` executes the upload block extracted from the existing
+`.github/workflows/go.yml` with a mocked AWS CLI. It checks root `v2/` destinations,
+public ACLs, content types, and the current glob upload order. In that order,
+`current_version_agent` uploads first; publication can expose a partial update
+if a later upload fails. Each injected upload failure must stop publication,
+preserve the failed and remaining files, and retain the files already uploaded.
+These checks do not upload to S3 or introduce a different release mechanism.
+
 | # | Name | Description |
 |---|------|-------------|
 | 1 | Fresh install (auto user) | Installs agent; script creates the `releem` MySQL user automatically |
@@ -25,7 +43,7 @@ Tests 3 and 4 depend on test 1 having run first. The run_all scripts handle this
 | 4 | Rollback configuration | Rolls back the applied config |
 | 5 | Update delegation | Verifies update flow delegation |
 | 6 | Reinstall existing installation | Reinstalls over an existing agent installation |
-| 7 | Apply without restart | Applies configuration without restarting MySQL |
+| 7 | Apply without restart | Applies configuration without restarting MySQL; removes the backup it created and keeps a pending recovery backup |
 | 8 | Queue apply | Verifies queued apply behavior |
 | 9 | Reinstall rewrites config without prompt | Reinstalls without interactive credential prompts |
 | 10 | Install with prompted root password | Installs without `RELEEM_MYSQL_ROOT_PASSWORD` and supplies the root password interactively |
@@ -167,7 +185,8 @@ pwsh -NoProfile -File tests/windows/test_apply_prepared_unit.ps1
 ```
 
 Use `-Check ExitCodes`, `-Check Legacy`, `-Check Update`, or
-`-Check InstallServices` to run one group.
+`-Check InstallServices` to run one group. The release workflow (`go.yml`)
+runs both scripts with PowerShell 7 before building.
 No database, service changes, administrator rights, or Pester are required.
 The suite checks:
 
@@ -176,6 +195,17 @@ The suite checks:
 - Legacy aliases, switch values, arguments with spaces and exit-code forwarding.
 - Successful updates of legacy-only and outdated-script installations.
 - Fresh installation and update failures when either required script cannot download.
+- Linux downloads stage inside `RELEEM_WORKDIR` to retain its SELinux labels on installation; reinstall clears old contents before downloading.
+- Download or validation failures preserve installed Linux files during updates. Failed fresh installs and reinstalls leave an empty `conf` directory and remove staged downloads.
+- A failed configuration-generation request after a Linux update produces a warning while the completed update succeeds.
+- Failed Windows file replacement restores the previous installed files, including removal of newly introduced scripts, then restarts a previously running agent service only after restoration succeeds.
+- Required files are downloaded and validated before stopping or starting the agent.
+- Ordinary manual and automatic apply use the Go-downloaded configuration without requesting another download.
+- Initial apply downloads fresh initial configuration first; download failure preserves the live configuration.
+- Missing downloaded configurations fail before changing live configuration files.
+- Empty configuration responses preserve the existing staging file.
+- Linux and Windows apply keep an existing recovery backup across failed restart retries and later applies; it is removed after a successful restart or rollback. An apply without restart that created the backup removes it, so a dynamic apply becomes the rollback target for a later failed full apply.
+- Full apply and managed rollback force restarts when required.
 
 Update scenarios execute the real installer branch with download/service mocks,
 then run both installed entry points through the actual help and validation

@@ -55,6 +55,8 @@ if [ -n "$RELEEM_QUERY_OPTIMIZATION" -a "$RELEEM_QUERY_OPTIMIZATION" = true ]; t
     echo "performance-schema-consumer-events-statements-current = ON" | tee -a "/etc/mysql/releem.conf.d/collect_metrics.cnf" >/dev/null
 fi
 
-/opt/releem/releem-agent -f
+if ! /opt/releem/releem-agent -f; then
+    echo "WARNING: Initial configuration download failed; starting the agent anyway." >&2
+fi
 
 exec "$@"

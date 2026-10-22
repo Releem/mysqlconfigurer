@@ -133,6 +133,9 @@ func collectConfiguration(gatherers map[string][]models.MetricsGatherer, repeate
 	group := "configuration"
 	if mode.Name == "TaskByName" && mode.Type == "queries_optimization" {
 		group = "query_optimization"
+		if configuration.QueryOptimization {
+			utils.CollectMetrics(gatherers["sample_queries"], logger, configuration)
+		}
 	}
 	logger.Info("* Collecting metrics...")
 	collected := utils.CollectMetrics(append(gatherers["default"], gatherers[group]...), logger, configuration)
